@@ -81,7 +81,7 @@ function computeFits(story: Story, G: Geo): Fits {
         img = 700;
         if (textH <= 760) break;
       } else {
-        img = Math.round(Math.min(600, 1440 - 280 - 70 - textH));
+        img = Math.round(Math.min(600, 1440 - 280 - 70 - textH - SAFETY));
         if (img >= 400) break;
         img = Math.max(380, img);
       }
@@ -118,8 +118,8 @@ function computeFits(story: Story, G: Geo): Fits {
     const avail = wideSite ? 640 : story.kind === 'product' ? (wide ? 700 : 1440 - 740) : G.bottom - G.top - 40;
     for (let k = 1; k >= 0.5; k -= 0.05) {
       rows = story.points.map((p) => {
-        const title = fitK(up(p.title), F_KIN, k, { maxWidth: textW, maxLines: wideSite ? 4 : 3, maxSize: wideSite ? 72 : 84, minSize: 44 });
-        const detail = p.detail ? fitK(p.detail, F_BODY, k, { maxWidth: textW, maxLines: wideSite ? 5 : 3, maxSize: 38, minSize: 26 }) : null;
+        const title = fitK(up(p.title), F_KIN, k, { maxWidth: textW, maxLines: wideSite ? 4 : 3, maxSize: wideSite ? 88 : 84, minSize: 44 });
+        const detail = p.detail ? fitK(p.detail, F_BODY, k, { maxWidth: textW, maxLines: wideSite ? 5 : 3, maxSize: wideSite ? 42 : 38, minSize: 26 }) : null;
         return { title, detail, h: Math.round(linesH(title, LH) + (detail ? 14 + linesH(detail, 1.3) : 0) + 30) };
       });
       rowGap = Math.round(36 * k);
@@ -275,6 +275,17 @@ function Hook({ story, pal, win, frame, fits, G, acc }: P) {
         </div>
         <KinText fit={fits.head} p={tP} color={INK} acc={acc} frame={frame} ulAt={ulAt} style={{ marginTop: 50 }} />
         {fits.sub ? <Lines fit={fits.sub} lineHeight={1.3} style={{ marginTop: 40, fontWeight: 600, color: '#4a4a4f', opacity: sub, transform: `translateY(${(1 - sub) * 20}px)` }} /> : null}
+        {story.wide ? (
+          // yatay: sagda bantli polaroid icinde buyuk logo (yavasca suzulur)
+          <div style={{ position: 'absolute', left: 1180, top: 120 + Math.sin(frame / 40) * 10, width: 500, height: 560, opacity: clamp01(logo * 2), transform: `rotate(${4 - (1 - Math.min(1, logo)) * 8}deg) scale(${0.85 + 0.15 * Math.min(1, logo)})` }}>
+            <div style={{ position: 'absolute', inset: 0, background: '#ffffff', borderRadius: 6, boxShadow: `0 16px 40px ${rgba('#000000', 0.18)}` }} />
+            <div style={{ position: 'absolute', left: 30, top: 30, width: 440, height: 440, background: rgba(pal.primary, 0.12), display: 'grid', placeItems: 'center' }}>
+              <LogoTile brand={story.brand} size={280} pal={pal} />
+            </div>
+            <div style={{ position: 'absolute', left: -20, top: -16, width: 130, height: 36, background: rgba('#e9dfc6', 0.85), transform: 'rotate(-28deg)' }} />
+            <div style={{ position: 'absolute', right: -20, top: -16, width: 130, height: 36, background: rgba('#e9dfc6', 0.85), transform: 'rotate(26deg)' }} />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -331,9 +342,9 @@ function Points({ win, frame, fits, G, acc }: P) {
                   color={acc}
                   width={5}
                   viewBox="0 0 800 104"
-                  w={Math.max(...fp.detail.lines.map((l) => measureWidth(l, { family: fontJakarta, weight: 600, size: fp.detail!.size, letterSpacing: -0.01 }))) + 72}
-                  h={linesH(fp.detail, 1.32) + 52}
-                  style={{ left: 0, top: 0 }}
+                  w={Math.max(...fp.detail.lines.map((l) => measureWidth(l, { family: fontJakarta, weight: 600, size: fp.detail!.size, letterSpacing: -0.01 }))) + 120}
+                  h={linesH(fp.detail, 1.32) + 76}
+                  style={{ left: -24, top: -12 }}
                 />
               </div>
             ) : null}

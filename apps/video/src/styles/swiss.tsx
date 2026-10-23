@@ -55,7 +55,7 @@ function computeFits(story: Story, G: Geo): Fits {
         img = 760;
         if (h <= 700) break;
       } else {
-        img = Math.round(Math.min(616, 1440 - 280 - 60 - h));
+        img = Math.round(Math.min(616, 1440 - 280 - 110 - 30 - h));
         if (img >= 400) break;
         img = Math.max(380, img);
       }
@@ -263,7 +263,7 @@ function Hook({ story, pal, win, frame, fits, G }: P) {
   const src = win.sourceIn(frame);
   const product = story.kind === 'product';
   const x = product && story.wide ? 1010 : G.M;
-  const top = product ? (story.wide ? 200 : 280 + fits.img + 60) : G.top;
+  const top = product ? (story.wide ? 200 : 280 + fits.img + 110) : G.top;
   const bottom = product ? (story.wide ? 940 : 1440) : G.bottom;
   const colW = product ? (story.wide ? 780 : 870) : G.textW;
   const subH = fits.sub || story.source ? 64 + linesH(fits.sub, 1.3) + (story.source ? 50 : 0) : 0;
@@ -274,7 +274,7 @@ function Hook({ story, pal, win, frame, fits, G }: P) {
           <LogoTile brand={story.brand} size={story.wide ? 420 : Math.min(136, G.COL)} pal={pal} />
         </div>
       ) : null}
-      {!product || !story.wide ? <Caption G={G} y={G.capY} p={ramp(frame, 2, 2 + win.fpb, (t) => t)} label={fits.cap} labelP={capP} index={story.kind === 'site' ? undefined : '00'} /> : <Caption G={{ ...G, M: 1010 }} y={G.capY} p={ramp(frame, 2, 2 + win.fpb, (t) => t)} label={fits.cap} labelP={capP} w={780} />}
+      {!product || !story.wide ? <Caption G={G} y={product ? 280 + fits.img + 80 : G.capY} p={ramp(frame, 2, 2 + win.fpb, (t) => t)} label={fits.cap} labelP={capP} index={story.kind === 'site' ? undefined : '00'} /> : <Caption G={{ ...G, M: 1010 }} y={G.capY} p={ramp(frame, 2, 2 + win.fpb, (t) => t)} label={fits.cap} labelP={capP} w={780} />}
       <div style={{ position: 'absolute', left: x, top, width: colW, height: bottom - top, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <RiseWords fit={fits.head} p={tP} color={C.ink} />
         {subH ? (

@@ -88,8 +88,8 @@ function computeFits(story: Story, G: Geo): Fits {
   let bot: Bubble | null = null;
   let k = 1;
   for (; k >= 0.55; k -= 0.05) {
-    user = bubble(story.hook, F_USER, Math.round(inner * 0.86), 5, Math.round(70 * k), Math.min(40, Math.round(70 * k)), 40, 28, 1.14);
-    bot = story.hookSub ? bubble(story.hookSub, F_BOT, Math.round(inner * 0.84) - 76, 4, Math.round(46 * Math.max(0.85, k)), 32, 34, 26, 1.32) : null;
+    user = bubble(story.hook, F_USER, Math.round(inner * 0.88), 5, Math.round(78 * k), Math.min(40, Math.round(78 * k)), 40, 28, 1.14);
+    bot = story.hookSub ? bubble(story.hookSub, F_BOT, Math.round(inner * 0.86) - 76, 4, Math.round(50 * Math.max(0.85, k)), 32, 34, 26, 1.32) : null;
     const h = (story.kicker ? 70 : 0) + imgH + (imgH ? 30 : 0) + user.h + 30 + 60 + (bot ? 30 + bot.h : 0) + (story.source ? 70 : 0);
     if (h <= roomH) break;
   }
@@ -98,8 +98,8 @@ function computeFits(story: Story, G: Geo): Fits {
   let points: Item[] = [];
   for (let q = 1; q >= 0.5; q -= 0.05) {
     points = story.points.map((p) => {
-      const title = fitText(p.title, { ...F_TITLE, maxWidth: ptW - 68, maxLines: listMode ? 2 : 4, maxSize: Math.round((listMode ? 50 : 68) * q), minSize: Math.min(listMode ? 34 : 44, Math.round((listMode ? 50 : 68) * q)) });
-      const detail = p.detail ? fitText(p.detail, { ...F_BOT, maxWidth: ptW - 68, maxLines: listMode ? 3 : 4, maxSize: Math.round((listMode ? 36 : 44) * Math.max(0.8, q)), minSize: listMode ? 28 : 34 }) : null;
+      const title = fitText(p.title, { ...F_TITLE, maxWidth: ptW - 68, maxLines: listMode ? 2 : 4, maxSize: Math.round((listMode ? 58 : 72) * q), minSize: Math.min(listMode ? 34 : 44, Math.round((listMode ? 58 : 72) * q)) });
+      const detail = p.detail ? fitText(p.detail, { ...F_BOT, maxWidth: ptW - 68, maxLines: listMode ? 3 : 4, maxSize: Math.round((listMode ? 40 : 46) * Math.max(0.8, q)), minSize: listMode ? 28 : 34 }) : null;
       const w = Math.min(ptW, Math.ceil(Math.max(...title.lines.map((l) => measure(l, F_TITLE, title.size)), ...(detail ? detail.lines.map((l) => measure(l, F_BOT, detail.size)) : [0])) + 68 + 4));
       return { title, detail, w, h: Math.ceil(56 + linesH(title, 1.12) + (detail ? 16 + linesH(detail, 1.32) : 0)) };
     });

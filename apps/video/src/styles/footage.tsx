@@ -90,7 +90,8 @@ function computeFits(story: Story): Fits {
   let rows: Row[] = [];
   if (story.list) {
     const wideSite = wide && story.kind === 'site';
-    const textW2 = wideSite ? 440 : (story.kind === 'product' ? (wide ? 900 : 952) : 952) - 96 - 70;
+    // satir ic genisligi: cam kart dolgusu, rozet 52 + bosluk 22
+    const textW2 = wideSite ? 520 - 68 - 74 - 4 : (story.kind === 'product' ? (wide ? 900 : 952) : 952) - 48 - 48 - 74 - 4;
     const avail = wideSite ? 560 : story.kind === 'product' ? (wide ? 700 : 1440 - 700 - 60) : 1000;
     for (let k = 1; k >= 0.5; k -= 0.05) {
       rows = story.points.map((p) => {

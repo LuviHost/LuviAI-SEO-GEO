@@ -96,7 +96,7 @@ function computeFits(story: Story, G: Geo): Fits {
         img = 760;
         if (textH <= 760) break;
       } else {
-        img = Math.round(Math.min(620, 1440 - 270 - 50 - textH));
+        img = Math.round(Math.min(620, 1440 - 270 - 50 - 30 - textH));
         if (img >= 400) break;
         img = Math.max(380, img);
       }
@@ -129,7 +129,8 @@ function computeFits(story: Story, G: Geo): Fits {
     })
     : [];
   const listAvail = story.kind === 'product' ? (wide ? 700 : 1440 - 720 - 56) : wide ? 680 : G.bandBottom - G.bandTop - 56;
-  const rowTextW = wide ? (story.kind === 'site' ? (1640 - 80) / 3 - 2 * 40 : 790 - 56 - 64 - 24) : 920 - 56 - 64 - 24 - 40;
+  // satir ic genisligi: panel (2x28) + satir (2x28) dolgulari, rozet 64, bosluk 24
+  const rowTextW = wide ? (story.kind === 'site' ? (1640 - 80) / 3 - 2 * 40 : 790 - 56 - 56 - 64 - 24) : 920 - 56 - 56 - 64 - 24;
   const { rows, gap } = story.list ? rowFits(story, rowTextW, listAvail, wide && story.kind === 'site') : { rows: [], gap: 0 };
   return {
     kicker,

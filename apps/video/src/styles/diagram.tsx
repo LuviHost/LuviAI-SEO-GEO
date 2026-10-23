@@ -92,7 +92,8 @@ function computeFits(story: Story, G: Geo): Fits {
   let rows: Row[] = [];
   if (story.list) {
     const wideSite = wide && story.kind === 'site';
-    const textW = wideSite ? 420 : story.kind === 'product' ? (wide ? 760 : 800) - 110 : 860 - 110;
+    // dugum ic genisligi: dolgu 2x34 (yatay site 2x36), rozet 58 + bosluk 28 (yatay sitede rozet ustte)
+    const textW = wideSite ? 480 - 72 - 4 : (story.kind === 'product' ? (wide ? 760 : 800) : 860) - 68 - 86 - 4;
     const avail = wideSite ? 560 : story.kind === 'product' ? (wide ? 760 : 1440 - 290 - 380 - 40) : G.bottom - G.top - 40;
     for (let k = 1; k >= 0.5; k -= 0.05) {
       rows = story.points.map((p) => {
