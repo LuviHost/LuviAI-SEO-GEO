@@ -3,8 +3,8 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import {
-  ARTICLE_SHORT_ENGINE, ASPECT_OF, DEFAULT_VIDEO_TEMPO, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_REQUEST_LOCK_MS, VIDEO_TEMPOS,
-  type VideoFormat, type VideoTempo, type VideoType,
+  ARTICLE_SHORT_ENGINE, ASPECT_OF, DEFAULT_VIDEO_STYLE, DEFAULT_VIDEO_TEMPO, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_REQUEST_LOCK_MS, VIDEO_STYLE_MESSAGE,
+  VIDEO_STYLES, VIDEO_TEMPOS, type VideoFormat, type VideoStyle, type VideoTempo, type VideoType,
 } from './article-video.config.js';
 import { assertOwnSitePageUrl, PromoSourceError } from './promo-video-source.js';
 import { extractSiteBrand, FALLBACK_BRAND_PRIMARY, normalizeHexColor } from './article-video-brand.js';
@@ -24,6 +24,8 @@ export interface VideoRequestInput {
   format?: VideoFormat;
   /** 'normal' (varsayilan) | 'fast' (eski 15 sn) | 'slow' */
   tempo?: VideoTempo;
+  /** gorsel stil; verilmezse 'classic' */
+  style?: VideoStyle;
   /** #rrggbb; null = sablon rengi (RanksUp turuncusu); verilmezse sitenin rengi */
   primaryColor?: string | null;
   /** false = logo kullanma (bas harf monogrami) */
@@ -157,6 +159,7 @@ export class VideosService {
     const format: VideoFormat = input.format ?? 'vertical';
     // DTO dogrular; servis dogrudan cagrilirsa (testler, ileride MCP) da ayni kural
     if (input.tempo !== undefined && !(VIDEO_TEMPOS as readonly string[]).includes(input.tempo)) throw new BadRequestException("tempo 'fast', 'normal' ya da 'slow' olmalı.");
+    if (input.style !== undefined && !(VIDEO_STYLES as readonly string[]).includes(input.style)) throw new BadRequestException(VIDEO_STYLE_MESSAGE);
     const template = VIDEO_COMPOSITION[type]?.[format];
     if (!template) throw new BadRequestException('Makale videosu yalnız dikey (9:16) biçimde üretilir.');
 
@@ -273,6 +276,8 @@ export class VideosService {
               format: src.format,
               // Tempo kayitta durur: worker ayni tempoyla render eder (eski kayitta yok -> 'fast')
               tempo: input.tempo ?? DEFAULT_VIDEO_TEMPO,
+              // Stil de kayitta: worker ayni stille render eder (eski kayitta yok -> 'classic')
+              style: input.style ?? DEFAULT_VIDEO_STYLE,
               ...(src.sourceUrl ? { sourceUrl: src.sourceUrl } : {}),
               sourceKey: src.sourceKey,
               request,

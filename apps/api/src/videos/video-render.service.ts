@@ -7,8 +7,8 @@ import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import {
-  ARTICLE_SHORT_ENGINE, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_RENDER_TIMEOUT_MS, VIDEO_STUCK_HARD_MS, VIDEO_STUCK_MS, VIDEO_WATERMARK, videoFiles, videoTempoOf,
-  type VideoFormat, type VideoTempo, type VideoType,
+  ARTICLE_SHORT_ENGINE, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_RENDER_TIMEOUT_MS, VIDEO_STUCK_HARD_MS, VIDEO_STUCK_MS, VIDEO_WATERMARK, videoFiles, videoStyleOf, videoTempoOf,
+  type VideoFormat, type VideoStyle, type VideoTempo, type VideoType,
 } from './article-video.config.js';
 import { applyBrandOverrides, extractSiteBrand, raceSignal, type SiteBrand } from './article-video-brand.js';
 import { buildPromoCopy, buildVideoCopy, VideoCopyError, type CopyResult, type PromoCopyResult } from './article-video-copy.js';
@@ -32,12 +32,15 @@ export class VideoRenderError extends Error {
 
 const GENERIC_FAILURE = 'Video oluşturulurken beklenmeyen bir sorun oldu; video hakkın iade edildi. Tekrar deneyebilirsin.';
 const TIMEOUT_FAILURE = 'Video zamanında üretilemedi; video hakkın iade edildi. Tekrar deneyebilirsin.';
+/** 'footage' stilinin stok klipleri sunucuda yok (render/article-short.mjs StyleAssetError) */
+export const STYLE_ASSETS_FAILURE = 'Bu video stili için gereken görüntü dosyaları sunucuda hazır değil; video hakkın iade edildi. Başka bir stille tekrar deneyebilirsin.';
 /** Zaman asiminda iptal edilen isin (Chrome/ffmpeg kapanisi, gecici dosya silme) toparlanmasi icin beklenen en fazla sure */
 const ABORT_GRACE_MS = 20_000;
 
 /** Hata -> kullanici metni. Bilinmeyen hatanin ic ayrintisi (yol, yigin) kullaniciya gosterilmez. */
 export function userMessageOf(err: unknown): string {
   if (err instanceof VideoRenderError || err instanceof VideoCopyError || err instanceof PromoSourceError) return err.userMessage;
+  if ((err as any)?.code === 'VIDEO_STYLE_ASSETS_MISSING') return STYLE_ASSETS_FAILURE;
   const msg = String((err as any)?.message ?? '');
   if (/Failed to launch|shared librar|libnss3|libgbm|Could not find Chrome|browser/i.test(msg)) {
     return 'Video sunucusunda tarayıcı başlatılamadı; video hakkın iade edildi. Ekibimiz bilgilendirildi, daha sonra tekrar dene.';
@@ -47,10 +50,10 @@ export function userMessageOf(err: unknown): string {
 }
 
 /**
- * Render oncesi sablon props'u: metin + marka + kaynak yolu + tempo. tempo HER ZAMAN acik
- * gonderilir: Remotion defaultProps'u 'normal'; alan eksik kalsa eski kayit yanlis tempoyla cikardi.
+ * Render oncesi sablon props'u: metin + marka + kaynak yolu + tempo + stil. tempo ve stil HER ZAMAN acik
+ * gonderilir: Remotion defaultProps'u 'normal' / 'classic'; alan eksik kalsa eski kayit yanlis tempoyla cikardi.
  */
-export function buildArticleShortProps(copy: CopyResult, brand: SiteBrand, article: ShortArticle, tempo: VideoTempo = 'fast'): ArticleShortProps {
+export function buildArticleShortProps(copy: CopyResult, brand: SiteBrand, article: ShortArticle, tempo: VideoTempo = 'fast', style: VideoStyle = 'classic'): ArticleShortProps {
   const s = copy.script;
   return {
     hook: s.hook,
@@ -70,6 +73,7 @@ export function buildArticleShortProps(copy: CopyResult, brand: SiteBrand, artic
     muted: false,
     watermark: VIDEO_WATERMARK,
     tempo,
+    style,
   };
 }
 
@@ -81,7 +85,7 @@ export function buildPromoProps(
   copy: PromoCopyResult,
   brand: SiteBrand,
   source: PromoSource,
-  extra: { image?: string | null; price?: string | null; tempo?: VideoTempo } = {},
+  extra: { image?: string | null; price?: string | null; tempo?: VideoTempo; style?: VideoStyle } = {},
 ): PromoVideoProps {
   const s = copy.script;
   return {
@@ -101,6 +105,7 @@ export function buildPromoProps(
     muted: false,
     watermark: VIDEO_WATERMARK,
     tempo: extra.tempo ?? 'fast',
+    style: extra.style ?? 'classic',
   };
 }
 
@@ -204,8 +209,10 @@ export class VideoRenderService {
     if (!compositionId) throw new VideoRenderError(GENERIC_FAILURE, `gecersiz tur/bicim: ${type}/${format}`);
     // Istekte kaydedilen tempo; alan yoksa (bu ozellikten onceki is) eski sabit izgara
     const tempo = videoTempoOf(raw);
+    // Istekte kaydedilen stil; alan yoksa / liste disiysa bugunku tasarim (render hatti ayrica izin listesiyle dogrular)
+    const style = videoStyleOf(raw);
 
-    const job = type === 'article' ? await this.prepareArticle(video, raw, tempo, signal) : await this.preparePromo(video, raw, type, tempo, signal);
+    const job = type === 'article' ? await this.prepareArticle(video, raw, tempo, style, signal) : await this.preparePromo(video, raw, type, tempo, style, signal);
     signal.throwIfAborted();
 
     await mkdir(files.dir, { recursive: true });
@@ -247,13 +254,13 @@ export class VideoRenderService {
       await removeVideoFiles(video.siteId, videoId);
       return { status: 'skipped', reason: 'render sirasinda silindi' };
     }
-    this.log.log(`[${video.siteId}] video ${videoId} hazir — ${type}/${format}/${tempo}, ${copy.strategy}, ${Math.round(result.durationSec)} sn video, ${(result.bytes / 1048576).toFixed(1)} MB, ${((Date.now() - t0) / 1000).toFixed(1)} sn`);
+    this.log.log(`[${video.siteId}] video ${videoId} hazir — ${type}/${format}/${tempo}/${style}, ${copy.strategy}, ${Math.round(result.durationSec)} sn video, ${(result.bytes / 1048576).toFixed(1)} MB, ${((Date.now() - t0) / 1000).toFixed(1)} sn`);
     await this.notify(video.site.userId, video.siteId, 'Videon hazır', job.readyText(Math.round(result.durationSec)));
     return { status: 'ready' };
   }
 
   /** Makale videosu: makale DB'den, marka anasayfadan, metin Haiku + koruyucu (degismedi) */
-  private async prepareArticle(video: any, raw: Record<string, any>, tempo: VideoTempo, signal: AbortSignal) {
+  private async prepareArticle(video: any, raw: Record<string, any>, tempo: VideoTempo, style: VideoStyle, signal: AbortSignal) {
     const a = video.article;
     if (!a) throw new VideoRenderError('Makale silinmiş; video üretilemedi. Video hakkın iade edildi.');
     if (a.status !== 'PUBLISHED') throw new VideoRenderError('Makale artık yayında değil; video üretilemedi. Video hakkın iade edildi.');
@@ -272,7 +279,7 @@ export class VideoRenderService {
       budgetBlocked: async () => (await this.quota.checkAiCostBudget(userId)).hardBlock,
     });
     return {
-      props: buildArticleShortProps(copy, brand, article, tempo) as ArticleShortProps | PromoVideoProps,
+      props: buildArticleShortProps(copy, brand, article, tempo, style) as ArticleShortProps | PromoVideoProps,
       brand,
       copy: copy as CopyResult | PromoCopyResult,
       pageUrl,
@@ -288,7 +295,7 @@ export class VideoRenderService {
    * metin Haiku + koruyucu (sayi kumesi yalniz sitenin metni), urun gorseli safe-fetch + sharp,
    * fiyat yalniz iki kaynakla dogrulanmissa ve sayi korumasindan gecerse.
    */
-  private async preparePromo(video: any, raw: Record<string, any>, type: PromoType, tempo: VideoTempo, signal: AbortSignal) {
+  private async preparePromo(video: any, raw: Record<string, any>, type: PromoType, tempo: VideoTempo, style: VideoStyle, signal: AbortSignal) {
     const siteUrl = String(video.site.url);
     let pageUrl: string;
     try {
@@ -333,7 +340,7 @@ export class VideoRenderService {
 
     const name = type === 'product' ? (extracted.product?.name || copy.script.hook).replace(/\s+/g, ' ').trim() : null;
     return {
-      props: buildPromoProps(copy, brand, source, { image: image?.dataUri ?? null, price, tempo }) as ArticleShortProps | PromoVideoProps,
+      props: buildPromoProps(copy, brand, source, { image: image?.dataUri ?? null, price, tempo, style }) as ArticleShortProps | PromoVideoProps,
       brand,
       copy: copy as CopyResult | PromoCopyResult,
       pageUrl: page.url,

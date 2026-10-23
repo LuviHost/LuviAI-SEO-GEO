@@ -271,6 +271,51 @@ describe('tempo', () => {
 });
 
 /**
+ * Gorsel stil (23.10.2026): yeni istekte varsayilan 'classic' (bugunku tasarim); secilen stil
+ * providerRaw.style'da durur; her stil tek video hakki; liste disi stil 400 (DTO ve servis). Liste stili
+ * doner; stil alani olmayan eski satir 'classic'.
+ */
+describe('stil', () => {
+  const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+  const body = (v: unknown) => pipe.transform(v, { type: 'body', metatype: RequestVideoDto, data: '' });
+
+  it('verilmezse classic; secilen stil kayitta ve gorunumde; her stil TEK hak; tempoyla birlikte', async () => {
+    const w = world({ used: 0 });
+    const a = await w.svc.request(SITE, me, { articleId: ART });
+    expect(w.videos[0].providerRaw).toMatchObject({ style: 'classic', tempo: 'normal' });
+    expect(a.video.style).toBe('classic');
+    const s = await w.svc.request(SITE, me, { type: 'site', format: 'horizontal', tempo: 'slow', style: 'footage' });
+    expect(w.videos[1].providerRaw).toMatchObject({ videoType: 'site', format: 'horizontal', tempo: 'slow', style: 'footage' });
+    expect(s.video).toMatchObject({ style: 'footage', tempo: 'slow' });
+    await w.svc.request(SITE, me, { type: 'product', pageUrl: 'https://ornek.com/urun/termos', style: 'paper' });
+    expect(w.videos[2].providerRaw.style).toBe('paper');
+    expect(w.user.videosUsedThisMonth).toBe(3);
+  });
+
+  it('DTO: yedi stil kabul, liste disi / buyuk harf / yol 400 (Turkce mesaj); servis dogrudan cagrilsa da 400 ve hak dusmez', async () => {
+    for (const style of ['classic', 'panel', 'paper', 'swiss', 'chat', 'diagram', 'footage']) {
+      await expect(body({ articleId: ART, style })).resolves.toMatchObject({ style });
+    }
+    for (const style of ['Panel', 'neon', '../footage', '', 3]) {
+      await expect(body({ articleId: ART, style })).rejects.toMatchObject({ response: { message: [expect.stringMatching(/^style 'classic', 'panel', .* ya da 'footage' olmalı\.$/)] } });
+    }
+    const w = world();
+    await expect(w.svc.request(SITE, me, { articleId: ART, style: 'neon' as any })).rejects.toThrow(/style 'classic'.* ya da 'footage' olmalı/);
+    expect(w.user.videosUsedThisMonth).toBe(0);
+    expect(w.videos).toHaveLength(0);
+  });
+
+  it('liste stili doner; stil alani olmayan eski satir ve bozuk deger classic', async () => {
+    const w = world();
+    w.videos.push({ id: 'cmeski00000000000000002', siteId: SITE, articleId: ART, title: 'Eski', status: 'READY', durationSec: 15, providerRaw: { engine: ARTICLE_SHORT_ENGINE }, createdAt: new Date(), completedAt: new Date() });
+    w.videos.push({ id: 'cmyeni00000000000000002', siteId: SITE, articleId: ART, title: 'Yeni', status: 'READY', durationSec: 30, providerRaw: { engine: ARTICLE_SHORT_ENGINE, style: 'chat' }, createdAt: new Date(), completedAt: new Date() });
+    w.videos.push({ id: 'cmbozuk0000000000000002', siteId: SITE, articleId: ART, title: 'Bozuk', status: 'READY', durationSec: 30, providerRaw: { engine: ARTICLE_SHORT_ENGINE, style: '../x' }, createdAt: new Date(), completedAt: new Date() });
+    const list = await w.svc.list(SITE);
+    expect(list.map((v) => [v.title, v.style])).toEqual([['Eski', 'classic'], ['Yeni', 'chat'], ['Bozuk', 'classic']]);
+  });
+});
+
+/**
  * Redis kesintisi (inceleme bulgusu): baglanti maxRetriesPerRequest:null ile acik; Redis yokken
  * queue.add SONSUZA DEK bekliyordu -> "kuyruga eklenemedi -> FAILED + iade" dali hic calismiyor,
  * istek asili kaliyor, hak dusmus kaliyordu. Artik her kuyruk islemi sure sinirli.

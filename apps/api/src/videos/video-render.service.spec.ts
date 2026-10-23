@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildArticleShortProps, userMessageOf, VideoRenderError, VideoRenderService } from './video-render.service.js';
+import { buildArticleShortProps, STYLE_ASSETS_FAILURE, userMessageOf, VideoRenderError, VideoRenderService } from './video-render.service.js';
 import { ALLOWED_TRANSITIONS, canTransition, toVideoView } from './article-video-view.js';
 import { ARTICLE_SHORT_ENGINE, VIDEO_STUCK_HARD_MS, VIDEO_STUCK_MS, removeSiteVideoFiles, videoFiles } from './article-video.config.js';
 import { FIXTURE_ARTICLE_ROW, FIXTURE_SITE } from './article-video.fixture.js';
@@ -436,5 +436,57 @@ describe('tempo', () => {
     const { svc, render } = makeService(db);
     await expect(svc.process(VIDEO_ID)).resolves.toEqual({ status: 'ready' });
     expect(render.calls[0].props.tempo).toBe('fast');
+  });
+});
+
+/**
+ * Gorsel stil (23.10.2026): istekte secilen stil providerRaw.style'da durur ve render props'una AYNEN gider;
+ * stil alani olmayan eski is (deploy oncesi kuyrukta) ve bozuk deger bugunku tasarimla ('classic'). Stilin
+ * dosyalari sunucuda yoksa (footage stok klipleri) render hatti StyleAssetError atar: FAILED + Turkce mesaj
+ * + TEK iade.
+ */
+describe('stil', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('istekteki stil render props una gider (tempoyla birlikte); gorunumde stil', async () => {
+    const db = makeDb({ providerRaw: { engine: ARTICLE_SHORT_ENGINE, tempo: 'normal', style: 'diagram', request: { useLogo: true }, charged: true, chargedUserId: USER_ID } });
+    const { svc, render } = makeService(db);
+    await expect(svc.process(VIDEO_ID)).resolves.toEqual({ status: 'ready' });
+    expect(render.calls[0].props).toMatchObject({ style: 'diagram', tempo: 'normal' });
+    expect(db.video.providerRaw.style).toBe('diagram');
+    expect(toVideoView(db.video).style).toBe('diagram');
+  });
+
+  it('stil alani olmayan eski is ve bozuk deger: classic ile render edilir', async () => {
+    for (const raw of [{}, { style: 'neon' }, { style: '../../etc' }]) {
+      const db = makeDb({ providerRaw: { engine: ARTICLE_SHORT_ENGINE, request: {}, charged: true, chargedUserId: USER_ID, ...raw } });
+      const { svc, render } = makeService(db);
+      await expect(svc.process(VIDEO_ID)).resolves.toEqual({ status: 'ready' });
+      expect(render.calls[0].props.style).toBe('classic');
+    }
+  });
+
+  it('buildArticleShortProps: stil acik gonderilir (varsayilan classic)', () => {
+    const copy: any = { script: { hook: 'H', points: [{ title: 'T' }], cta: { label: 'L', domain: 'd.com' } } };
+    const art: any = { url: 'https://d.com/a', domain: 'd.com' };
+    expect(buildArticleShortProps(copy, brand, art, 'slow').style).toBe('classic');
+    expect(buildArticleShortProps(copy, brand, art, 'slow', 'swiss')).toMatchObject({ style: 'swiss', tempo: 'slow' });
+  });
+
+  it('stil dosyalari eksik (StyleAssetError): FAILED + Turkce mesaj + TEK iade', async () => {
+    const db = makeDb({ providerRaw: { engine: ARTICLE_SHORT_ENGINE, style: 'footage', request: {}, charged: true, chargedUserId: USER_ID } });
+    const render = makeRenderKit(async () => {
+      const err: any = new Error("'footage' stili icin dosya eksik: stock/mixkit-4915-hands-typing-phone.mp4");
+      err.code = 'VIDEO_STYLE_ASSETS_MISSING';
+      throw err;
+    });
+    const { svc, quota } = makeService(db, { render });
+    const r = await svc.process(VIDEO_ID);
+    expect(r).toEqual({ status: 'failed', reason: STYLE_ASSETS_FAILURE });
+    expect(db.video.status).toBe('FAILED');
+    expect(db.video.errorMsg).toBe(STYLE_ASSETS_FAILURE);
+    expect(db.video.providerRaw.errorDetail).toMatch(/stock\/mixkit-4915/);
+    expect(quota.refundVideoAllowance).toHaveBeenCalledTimes(1);
+    expect(userMessageOf(Object.assign(new Error('x'), { code: 'VIDEO_STYLE_ASSETS_MISSING' }))).toMatch(/video hakkın iade edildi/);
   });
 });
