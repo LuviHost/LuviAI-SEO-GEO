@@ -15,6 +15,7 @@ export interface StockClip {
   bytes: number;
   sha256: string;
   use: [number, number];
+  formats: Array<'vertical' | 'horizontal'>;
   focus: number;
 }
 export interface SceneExits {

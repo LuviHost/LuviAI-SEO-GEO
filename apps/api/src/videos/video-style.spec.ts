@@ -100,6 +100,39 @@ describe('stil kaydi', () => {
     }
   });
 
+  it('footage klip plani: her bicim x tempo x metin uzunlugunda klip YALNIZ yuzsuz araliginda ve izinli biciminde oynar', async () => {
+    const { createPlanner } = await load('src/tempo/plan.mjs');
+    const { footageScenes } = await load('src/styles/footage-plan.mjs');
+    const { TYPICAL } = await load('scripts/check-video-readability.mjs');
+    const reg = await load('src/styles/registry.mjs');
+    const P = createPlanner(JSON.parse(readFileSync(path.join(VIDEO_APP_DIR, 'src/marketing/timeline.json'), 'utf8')));
+    const short = { ...TYPICAL, hook: 'Kısa', hookSub: '', points: [{ title: 'Bir' }, { title: 'İki' }, { title: 'Üç' }] };
+    const absurd = { ...TYPICAL, hook: 'a '.repeat(55), hookSub: 'a '.repeat(70), points: [0, 1, 2].map(() => ({ title: 'a '.repeat(45), detail: 'a '.repeat(55) })) };
+    // 42652 ~4 sn'den sonra yuz gosterir: yuzsuz aralik 4 sn'yi gecmemeli
+    expect(reg.STOCK_CLIPS.find((c: any) => c.id === 'laptop-hands').use[1]).toBeLessThanOrEqual(3.8);
+    expect(reg.STOCK_CLIPS.find((c: any) => c.id === 'office-desk').formats).toEqual(['vertical']);
+    let checked = 0;
+    for (const comp of ['ArticleShort', 'SiteIntro', 'SiteIntroWide', 'ProductShort', 'ProductWide']) {
+      for (const tempo of ['fast', 'normal', 'slow']) {
+        for (const props of [short, TYPICAL, absurd]) {
+          const p = P.plan(comp, tempo, props);
+          const wide = comp.endsWith('Wide');
+          const scenes = footageScenes({ cuts: [0, p.scenes.p1[0], p.scenes.p2[0], p.scenes.p3[0], p.scenes.end[0]], fpb: p.fpb, wide });
+          expect(scenes).toHaveLength(4);
+          for (const sc of scenes) {
+            const tag = `${comp}/${tempo}/${sc.clip.id}`;
+            expect(sc.clip.formats, tag).toContain(wide ? 'horizontal' : 'vertical');
+            expect(sc.srcStart, tag).toBeGreaterThanOrEqual(sc.clip.use[0]);
+            expect(sc.srcEnd, tag).toBeLessThanOrEqual(sc.clip.use[1]);
+            if (sc.loopFrames) expect(sc.loopFrames, tag).toBeLessThan(sc.dur);
+            checked++;
+          }
+        }
+      }
+    }
+    expect(checked).toBe(5 * 3 * 3 * 4);
+  });
+
   it('stok indirici: idempotent; boyut / sha256 tutmazsa dosya yerine konmaz; yalniz kayittaki adres', async () => {
     const stock = await load('scripts/stock.mjs');
     const reg = await load('src/styles/registry.mjs');
@@ -124,6 +157,23 @@ describe('stil kaydi', () => {
       expect(existsSync(path.join(dir, bad.file))).toBe(false);
       expect(existsSync(path.join(dir, `${bad.file}.part`))).toBe(false);
       await expect(stock.ensureStock({ fetchImpl: async () => new Response('yok', { status: 404 }), dir, clips: [bad] })).rejects.toThrow(/HTTP 404/);
+      // Boyut sinirlari: bildirilen boyut buyukse hic indirilmez; bildirmeden fazlasini akitirsa kesilir
+      const partDir = path.join(dir, '..', `${path.basename(dir)}-part`);
+      const big = (headers: Record<string, string>) => async () => ({ ok: true, status: 200, url: clip.url, headers: new Headers(headers), body: new Response(Buffer.alloc(clip.bytes + 10, 1)).body });
+      await expect(stock.ensureStock({ fetchImpl: big({ 'content-length': String(clip.bytes + 10) }), dir, clips: [bad], partDir })).rejects.toThrow(/bildirdi/);
+      await expect(stock.ensureStock({ fetchImpl: big({}), dir, clips: [bad], partDir })).rejects.toThrow(/asti/);
+      // Yonlendirme baska sunucuya gittiyse indirilmez; kayitta izinsiz adres hic istenmez
+      const redirected = async () => ({ ok: true, status: 200, url: 'https://evil.example.com/x.mp4', headers: new Headers(), body: new Response(body).body });
+      await expect(stock.ensureStock({ fetchImpl: redirected, dir, clips: [bad], partDir })).rejects.toThrow(/izinli olmayan sunucuya/);
+      const asked: string[] = [];
+      await expect(stock.ensureStock({ fetchImpl: async (u: string) => { asked.push(u); return new Response(body); }, dir, clips: [{ ...bad, url: 'http://assets.mixkit.co/a.mp4' }], partDir })).rejects.toThrow(/izinli olmayan adres/);
+      expect(asked).toEqual([]);
+      // Yarim dosya public/stock disinda; eski surumun biraktigi .part en basta silinir
+      writeFileSync(path.join(dir, 'eski.mp4.part'), 'x');
+      await stock.ensureStock({ fetchImpl: ok, dir, clips: [clip], partDir });
+      expect(existsSync(path.join(dir, 'eski.mp4.part'))).toBe(false);
+      expect(stock.PART_PATH).not.toContain(`${path.sep}public${path.sep}`);
+      rmSync(partDir, { recursive: true, force: true });
       // varsayilan liste kayittaki Mixkit klipleri
       expect(reg.STOCK_CLIPS.every((c: any) => c.url.startsWith('https://assets.mixkit.co/'))).toBe(true);
     } finally {

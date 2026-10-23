@@ -9,8 +9,9 @@ import { WatermarkLine } from '../promo/shared';
 import type { KitProps } from './StyledVideo';
 import type { Story, Win } from './story';
 import { fontJakarta, fontSora } from './fonts';
-import { EASE, Lines, ProductImage, brandGrad, fitK, linesH, type FitBase } from './kit';
-import { STOCK_CLIPS, STOCK_DIR } from './registry.mjs';
+import { EASE, V_BOTTOM, V_WM, Lines, ProductImage, brandGrad, fitK, linesH, type FitBase } from './kit';
+import { STOCK_DIR } from './registry.mjs';
+import { footageScenes } from './footage-plan.mjs';
 
 /**
  * GERCEK GORUNTU — MoviePy (19-moviepy/make_video.py) ve ffmpeg (18-ffmpeg/build.sh) denemelerinin teknigi
@@ -31,7 +32,7 @@ const F_BODY: FitBase = { family: fontJakarta, weight: 600, letterSpacing: -0.01
 const GRADE = 'saturate(0.9) contrast(1.03) brightness(1.04) sepia(0.1)';
 
 type Geo = { W: number; H: number; x: number; w: number; wmTop: number; wmSize: number };
-const TALL: Geo = { W: 1080, H: 1920, x: 64, w: 952, wmTop: 1462, wmSize: 24 };
+const TALL: Geo = { W: 1080, H: 1920, x: 64, w: 952, wmTop: V_WM, wmSize: 24 };
 const WIDE: Geo = { W: 1920, H: 1080, x: 120, w: 1680, wmTop: 1016, wmSize: 22 };
 
 type Row = { title: Fit; detail: Fit | null; h: number };
@@ -69,7 +70,7 @@ function computeFits(story: Story): Fits {
         img = 640;
         if (h <= 760) break;
       } else {
-        img = Math.round(Math.min(560, 1440 - 280 - 50 - h));
+        img = Math.round(Math.min(640, V_BOTTOM - 280 - 50 - h));
         if (img >= 380) break;
         img = Math.max(360, img);
       }
@@ -92,7 +93,7 @@ function computeFits(story: Story): Fits {
     const wideSite = wide && story.kind === 'site';
     // satir ic genisligi: cam kart dolgusu, rozet 52 + bosluk 22
     const textW2 = wideSite ? 520 - 68 - 74 - 4 : (story.kind === 'product' ? (wide ? 900 : 952) : 952) - 48 - 48 - 74 - 4;
-    const avail = wideSite ? 560 : story.kind === 'product' ? (wide ? 700 : 1440 - 700 - 60) : 1000;
+    const avail = wideSite ? 560 : story.kind === 'product' ? (wide ? 700 : V_BOTTOM - 800 - 60) : 1100;
     for (let k = 1; k >= 0.5; k -= 0.05) {
       rows = story.points.map((p) => {
         const title = fitK(p.title, F_HEAD, k, { maxWidth: textW2, maxLines: 3, maxSize: wideSite ? 48 : 52, minSize: 30 });
@@ -144,55 +145,28 @@ type P = { story: Story; pal: BrandPalette; win: Win; frame: number; fits: Fits;
 
 /* ───────────── stok goruntu: sahne basina klip, yavas yakinlasma, capraz gecis ───────────── */
 
-const FPS = 30;
-/**
- * sahne -> klip (kanca: eller-telefon, maddeler: ofis / dizustu / eller-telefonun ikinci yarisi). Yatayda
- * ofis klibi (42656) kullanilmaz: tam karede kisinin yuz profili gorunur; dikey kirpmada yalniz ekran + el.
- */
-const PLAN_TALL = [
-  { clip: 0, from: 0 },
-  { clip: 2, from: 0 },
-  { clip: 1, from: 0 },
-  { clip: 0, from: 7.5 },
-];
-const PLAN_WIDE = [
-  { clip: 0, from: 0 },
-  { clip: 1, from: 0 },
-  { clip: 0, from: 7.5 },
-  { clip: 1, from: 2.4 },
-];
-
+/** Sahne basina klip ve oynatma: footage-plan.mjs (yuzsuz araliklar, izinli bicimler; api testi denetler) */
 function Footage({ story, win, G }: { story: Story; win: Win; G: Geo }) {
-  const cuts = [0, win.scene(0)[0], win.scene(1)[0], win.scene(2)[0], win.endS];
-  const fade = Math.round(win.fpb / 2);
-  const PLAN = story.wide ? PLAN_WIDE : PLAN_TALL;
+  const scenes = useMemo(
+    () => footageScenes({ cuts: [0, win.scene(0)[0], win.scene(1)[0], win.scene(2)[0], win.endS], fpb: win.fpb, wide: story.wide }),
+    [win, story.wide],
+  );
   return (
     <>
-      {PLAN.map((pl, i) => {
-        const s = cuts[i];
-        const e = cuts[i + 1];
-        const clip = STOCK_CLIPS[pl.clip];
-        const start = Math.min(pl.from, clip.use[1] - 1);
-        const avail = clip.use[1] - start;
-        const lenSec = (e - s + fade) / FPS;
-        // Yavas cekim hissi: 0,6x; klip sahneye yetmezse 0,35x'e kadar yavaslar, yine yetmezse dongu
-        const rate = Math.max(0.35, Math.min(0.6, avail / lenSec));
-        const loopFrames = Math.floor((avail / rate) * FPS);
-        const from = Math.max(0, s - fade);
-        const dur = e - from + (i === PLAN.length - 1 ? 8 : fade);
+      {scenes.map((sc, i) => {
         const video = (
           <OffthreadVideo
-            src={staticFile(`${STOCK_DIR}/${clip.file}`)}
+            src={staticFile(`${STOCK_DIR}/${sc.clip.file}`)}
             muted
-            trimBefore={Math.round(start * FPS)}
-            playbackRate={rate}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${(story.wide ? 0.5 : clip.focus) * 100}% 50%`, filter: GRADE }}
+            trimBefore={sc.trimBefore}
+            playbackRate={sc.rate}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${(story.wide ? 0.5 : sc.clip.focus) * 100}% 50%`, filter: GRADE }}
           />
         );
         return (
-          <Sequence key={i} from={from} durationInFrames={dur} layout="none">
-            <SceneLayer dur={dur} fade={i === 0 ? 0 : fade} G={G}>
-              {loopFrames < dur ? <Loop durationInFrames={loopFrames} layout="none">{video}</Loop> : video}
+          <Sequence key={i} from={sc.from} durationInFrames={sc.dur} layout="none">
+            <SceneLayer dur={sc.dur} fade={sc.fade} G={G}>
+              {sc.loopFrames ? <Loop durationInFrames={sc.loopFrames} layout="none">{video}</Loop> : video}
             </SceneLayer>
           </Sequence>
         );
@@ -250,8 +224,8 @@ function Hook({ story, pal, win, frame, fits, G }: P) {
   const product = story.kind === 'product';
   const panelW = product ? (story.wide ? 900 : 952) : story.wide ? 1100 : 952;
   const box: React.CSSProperties = product
-    ? story.wide ? { left: 880, top: 160, width: panelW, height: 760 } : { left: G.x, top: 280 + fits.img + 50, width: panelW, height: 1440 - (280 + fits.img + 50) }
-    : story.wide ? { left: G.x, top: 140, width: panelW, height: 800 } : { left: G.x, top: 480, width: panelW, height: 960 };
+    ? story.wide ? { left: 880, top: 160, width: panelW, height: 760 } : { left: G.x, top: 280 + fits.img + 50, width: panelW, height: V_BOTTOM - (280 + fits.img + 50) }
+    : story.wide ? { left: G.x, top: 140, width: panelW, height: 800 } : { left: G.x, top: 480, width: panelW, height: V_BOTTOM - 480 };
   return (
     <div style={{ position: 'absolute', ...box, display: 'flex', flexDirection: 'column', justifyContent: product || story.wide ? 'center' : 'flex-end', opacity: 1 - out, transform: `translateY(${out * 40}px)` }}>
       <Glass style={{ padding: '44px 48px', ...slideUp(panelP) }}>
@@ -292,7 +266,7 @@ function Points({ pal, win, frame, fits, G }: P) {
         const dP = win.detailIn(i, frame);
         const out = win.pointOut(i, frame);
         return (
-          <div key={i} style={{ position: 'absolute', left: G.x, top: 480, width: 952, height: 960, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', opacity: 1 - out, transform: `translateY(${out * 40}px)` }}>
+          <div key={i} style={{ position: 'absolute', left: G.x, top: 480, width: 952, height: V_BOTTOM - 480, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', opacity: 1 - out, transform: `translateY(${out * 40}px)` }}>
             <Glass style={{ padding: '44px 48px', ...slideUp(inP) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 26 }}>
                 <div style={{ width: 64, height: 64, borderRadius: 99, display: 'grid', placeItems: 'center', background: brandGrad(pal), color: pal.onPrimary, fontFamily: fontSora, fontWeight: 800, fontSize: 28 }}>{i + 1}</div>
@@ -335,7 +309,7 @@ function List({ story, pal, win, frame, fits, G }: P) {
   }
   const total = fits.rows.reduce((a, r) => a + r.h, 0) + 20 * (fits.rows.length - 1) + 64;
   const shown = items.reduce((a, x) => a + (x.r.h + 20) * clamp01(x.p), 0);
-  const bottom = product ? (story.wide ? 920 : 1440) : 1440;
+  const bottom = product ? (story.wide ? 920 : V_BOTTOM) : V_BOTTOM;
   const panelH = 64 - 20 + shown;
   let y = 32;
   return (
@@ -383,7 +357,7 @@ function ProductCard({ story, pal, win, frame, fits }: P) {
     x = 140;
     y = 220;
   } else {
-    size = fits.img + (420 - fits.img) * shrink;
+    size = fits.img + (500 - fits.img) * shrink;
     x = (1080 - size) / 2;
     y = 260 + 40 * endP;
   }
@@ -442,15 +416,15 @@ function End({ story, pal, win, frame, fits, G }: P) {
   const mark = win.markIn(frame);
   const warm = mix('#faf8f5', pal.primary, 0.03);
   const box: React.CSSProperties = product
-    ? story.wide ? { left: 880, width: 900, top: 300, alignItems: 'flex-start', textAlign: 'left' } : { left: G.x, width: G.w, top: 800, alignItems: 'center', textAlign: 'center' }
-    : story.wide ? { left: 160, width: 1600, top: 460, alignItems: 'center', textAlign: 'center' } : { left: G.x, width: G.w, top: 820, alignItems: 'center', textAlign: 'center' };
+    ? story.wide ? { left: 880, width: 900, top: 300, alignItems: 'flex-start', textAlign: 'left' } : { left: G.x, width: G.w, top: 900, alignItems: 'center', textAlign: 'center' }
+    : story.wide ? { left: 160, width: 1600, top: 460, alignItems: 'center', textAlign: 'center' } : { left: G.x, width: G.w, top: 900, alignItems: 'center', textAlign: 'center' };
   const align = box.textAlign as 'left' | 'center';
   return (
     <AbsoluteFill style={{ zIndex: 1 }}>
       <AbsoluteFill style={{ background: warm, opacity: bg }} />
       <AbsoluteFill style={{ background: `radial-gradient(${story.wide ? '900px 600px' : '700px 700px'} at 50% ${story.wide ? '30%' : '36%'}, ${rgba(pal.primary, 0.16)}, transparent 70%)`, opacity: bg }} />
       {!product ? (
-        <div style={{ position: 'absolute', left: (G.W - 240) / 2, top: story.wide ? 160 : 520, transform: `scale(${Math.max(0.02, back(t))})`, filter: `drop-shadow(0 24px 40px ${rgba(pal.primaryDeep, 0.3)})` }}>
+        <div style={{ position: 'absolute', left: (G.W - 240) / 2, top: story.wide ? 160 : 600, transform: `scale(${Math.max(0.02, back(t))})`, filter: `drop-shadow(0 24px 40px ${rgba(pal.primaryDeep, 0.3)})` }}>
           <LogoTile brand={story.brand} size={240} pal={pal} />
         </div>
       ) : null}

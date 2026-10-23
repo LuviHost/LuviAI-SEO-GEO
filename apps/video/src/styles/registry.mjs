@@ -81,8 +81,10 @@ export const STYLE_EXITS = Object.fromEntries(VIDEO_STYLES.map((s) => [s, CLASSI
  * (apps/video/.gitignore public/stock/). Deploy'da `prepare:article-short` asagidaki adreslerden indirir ve
  * boyut + sha256 dogrular (degerler yerel kopyalardan kaydedildi, 23.10.2026). Secim notr: yuz one cikmayan
  * eller / omuz ustu cekimler — ekrandaki metin goruntudeki kisinin sozu ya da yorumu gibi okunmasin.
- *   use: [baslangic sn, bitis sn] klipte kullanilan aralik (42652'nin ikinci yarisinda yuz var)
- *   focus: dikey kirpmada yatay odak (0 sol .. 1 sag)
+ *   use: [baslangic sn, bitis sn] YUZSUZ aralik — kareler tek tek incelendi (42652: ~4,0 sn'den sonra cene /
+ *        dudak gorunur; sinir 3,6). footage-plan.mjs bu araligin disina hic cikmaz (video-style.spec.ts denetler).
+ *   formats: klibin kullanilabildigi bicimler (42656 tam karede yuz profili gosterir -> yalniz dikey kirpma)
+ *   focus: dikey kirpmada yatay odak (0 sol .. 1 sag); 42656'da 0,12 -> kirpma kaynagin %8-%40'i, yuz disarida
  */
 export const STOCK_CLIPS = [
   {
@@ -93,6 +95,7 @@ export const STOCK_CLIPS = [
     bytes: 45616676,
     sha256: 'b086286c4ebd67f802b1d7acd4327a131033bc1003aad6865ffbabd8ad5136c1',
     use: [0, 15],
+    formats: ['vertical', 'horizontal'],
     focus: 0.52,
   },
   {
@@ -102,7 +105,8 @@ export const STOCK_CLIPS = [
     page: 'https://mixkit.co/free-stock-video/entrepreneur-woman-typing-on-her-laptop-42652/',
     bytes: 38379427,
     sha256: '7fa316b8007b7a46b77c19737d8ab981b72a9ccd4ad7ac31caae2561024c8b40',
-    use: [0, 5.2],
+    use: [0, 3.6],
+    formats: ['vertical', 'horizontal'],
     focus: 0.3,
   },
   {
@@ -113,7 +117,8 @@ export const STOCK_CLIPS = [
     bytes: 29467886,
     sha256: '542055c001db9645e5c04fce8c818adf80e426b3da3822c9f6d23358161607ea',
     use: [0, 8.3],
-    focus: 0.32,
+    formats: ['vertical'],
+    focus: 0.12,
   },
 ];
 export const STOCK_DIR = 'stock';
