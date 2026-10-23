@@ -14,6 +14,10 @@
  *                              slow'da tempo planinin kanca karesi)
  *   renderArticleShort()       hepsi sirayla; ciktilar once gecici adla yazilip sonra yerine tasinir
  *                              (nginx /videos/ yarim dosya sunmasin)
+ *   withStyle() / assertStyleAssets()
+ *                              gorsel stil izin listesinden (src/styles/registry.mjs; yoksa 'classic', liste
+ *                              disi = hata) ve stilin dosyalari (font, 'footage' stok klipleri) yerinde mi —
+ *                              eksikse StyleAssetError: api isi FAILED + hak iadesiyle kapatir
  *
  * Props dogrulamasi bu dosyada YAPILMAZ: metin koruyucusu (scripts/article-short/copy.mjs
  * validateScript) cagiran tarafta zorunlu kapidir.
@@ -26,6 +30,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { remotionRequire, runFfAsync } from '../scripts/ffmpeg.mjs';
 import { createPlanner, normalizeTempo } from '../src/tempo/plan.mjs';
+import { parseStyle, styleAssets } from '../src/styles/registry.mjs';
 
 export const VIDEO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const COMPOSITION_ID = 'ArticleShort';
@@ -83,6 +88,46 @@ export function ensureArticleShortAudio() {
 export function withTempo(props) {
   return { ...props, tempo: normalizeTempo(props?.tempo) };
 }
+
+/**
+ * Gorsel stil her zaman acik ve izin listesinden: eksik / bos = 'classic' (bu ozellikten onceki kayit ve
+ * kuyruk isleri bugunku tasarimla), liste disi deger HATA (istekten gelen dize dosya / modul secemez).
+ */
+export function withStyle(props) {
+  return { ...props, style: parseStyle(props?.style) };
+}
+
+/** Stilin dosyalari eksik (deploy'da prepare:article-short calismamis / indirme yarim) */
+export class StyleAssetError extends Error {
+  constructor(style, missing) {
+    super(`'${style}' stili icin dosya eksik: ${missing.join(', ')} — pnpm --filter @luviai/video prepare:article-short`);
+    this.name = 'StyleAssetError';
+    this.code = 'VIDEO_STYLE_ASSETS_MISSING';
+    this.style = style;
+    this.missing = missing;
+  }
+}
+
+/**
+ * Stilin public/ altindaki dosyalari yerinde mi (font + 'footage' stok klipleri; boyut da tutmali — yarim
+ * indirme render'da kare kare bozuk goruntu verirdi). Yollar YALNIZ registry.mjs'ten gelir. sha256 deploy'da
+ * (prepare-article-short.mjs) dogrulanir; burada her videoda 100 MB'yi yeniden ozetlememek icin boyut yeter.
+ */
+export function assertStyleAssets(style, root = VIDEO_ROOT) {
+  const s = parseStyle(style);
+  const { fonts, stock } = styleAssets(s);
+  const missing = [];
+  for (const f of fonts) if (!existsSync(join(root, 'public', f))) missing.push(f);
+  for (const c of stock) {
+    const file = join(root, 'public', c.file);
+    if (!existsSync(file) || statSync(file).size !== c.bytes) missing.push(c.file);
+  }
+  if (missing.length) throw new StyleAssetError(s, missing);
+  return s;
+}
+
+/** Render props'u: tempo + stil acik */
+export const renderProps = (props) => withStyle(withTempo(props));
 
 let planner = null;
 /** Poster saniyesi: fast'ta sablonun sabit degeri, normal / slow'da planin kanca karesi */
@@ -168,7 +213,8 @@ export async function getArticleShortServeUrl() {
 export async function renderArticleShortMp4({ serveUrl, props: rawProps, outFile, concurrency = renderConcurrency(), onProgress, signal = null, compositionId = COMPOSITION_ID }) {
   const { renderMedia, selectComposition, makeCancelSignal } = remotionRequire()('@remotion/renderer');
   assertComposition(compositionId);
-  const props = withTempo(rawProps);
+  const props = renderProps(rawProps);
+  assertStyleAssets(props.style);
   signal?.throwIfAborted();
   const composition = await selectComposition({ serveUrl, id: compositionId, inputProps: props, logLevel: 'error' });
   signal?.throwIfAborted();
@@ -231,7 +277,9 @@ export async function extractPoster(mp4, jpg, seconds = POSTER_SECONDS, { signal
  */
 export async function renderArticleShort({ props, outFile, posterFile, concurrency = renderConcurrency(), onProgress, signal = null, compositionId = COMPOSITION_ID }) {
   assertComposition(compositionId);
-  props = withTempo(props);
+  props = renderProps(props);
+  // Paketten ONCE: eksik stok klibi paketlenmeden ve render baslamadan belli olsun
+  assertStyleAssets(props.style);
   const t = {};
   const time = async (k, fn) => {
     const s = performance.now();
@@ -264,6 +312,7 @@ export async function renderArticleShort({ props, outFile, posterFile, concurren
       inputLufs: ln?.inputLufs ?? null,
       compositionId,
       tempo: props.tempo,
+      style: props.style,
       timings: t,
     };
   } finally {

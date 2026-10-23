@@ -165,7 +165,11 @@ export interface PromoVideoProps {
   watermark?: boolean;
   /** apps/video src/tempo/plan.mjs: 'fast' eski sabit izgara; 'normal' / 'slow' sure metinden */
   tempo?: 'fast' | 'normal' | 'slow';
+  /** apps/video src/styles/registry.mjs VIDEO_STYLES; render hatti izin listesiyle dogrular */
+  style?: VideoStyleName;
 }
+
+export type VideoStyleName = 'classic' | 'panel' | 'paper' | 'swiss' | 'chat' | 'diagram' | 'footage';
 
 export interface ArticleShortProps {
   hook: string;
@@ -178,6 +182,7 @@ export interface ArticleShortProps {
   muted?: boolean;
   watermark?: boolean;
   tempo?: 'fast' | 'normal' | 'slow';
+  style?: VideoStyleName;
 }
 
 export interface RenderResult {
@@ -194,9 +199,13 @@ export interface RenderResult {
   compositionId?: string;
   /** render edilen tempo (render hatti eksik tempoyu 'fast' sayar) */
   tempo?: 'fast' | 'normal' | 'slow';
+  /** render edilen stil (render hatti eksik stili 'classic' sayar) */
+  style?: VideoStyleName;
 }
 export interface RenderKit {
   renderConcurrency(env?: NodeJS.ProcessEnv, cores?: number): number;
+  /** stilin dosyalari (font, 'footage' stok klipleri) yerinde mi; degilse StyleAssetError (kod VIDEO_STYLE_ASSETS_MISSING) */
+  assertStyleAssets?(style: unknown): string;
   renderArticleShort(opts: {
     props: ArticleShortProps | PromoVideoProps;
     /** VIDEO_COMPOSITIONS kimligi; varsayilan 'ArticleShort' */

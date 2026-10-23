@@ -21,6 +21,13 @@
  * Ayrica: plan.mjs yay sabitleri spring() ile ayni; fast plani eski izgarayla ayni (15 / 24 sn);
  * panelin sure tablosu (apps/web/src/lib/article-video.ts VIDEO_TEMPO_SECONDS) hesapla ayni.
  *
+ * VIDEO STILLERI (src/styles/registry.mjs): classic disindaki her stil (panel, paper, swiss, chat, diagram,
+ * footage) ayni tempo planini kullanir; metinlerin giris yaylari ve cikis anlari src/styles/story.ts
+ * makeWin'den, cikislar stil basina STYLE_EXITS'ten. Asagidaki STYLED_SPEC bu pencereleri stil TSX'inden
+ * BAGIMSIZ olarak yeniden kurar (kelime kelime girislerde de son kelime metnin %95 karesinde yerinde —
+ * kit.tsx stagger) ve her stil x bicim x tempo icin ayni metin kumesiyle denetlenir. Her stilin fontlari
+ * Turkce glifleri (ş ğ ı İ â ç ö ü) icermeli: TTF cmap'i burada okunur.
+ *
  *   node scripts/check-video-readability.mjs            # tablolar + ozet; ihlalde cikis kodu 1
  *   node scripts/check-video-readability.mjs --brief    # yalniz ozet
  */
@@ -29,6 +36,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spring } from 'remotion';
 import { MOTION, READ_RULE, TEMPOS, countWords, createPlanner, readSeconds } from '../src/tempo/plan.mjs';
+import { STYLE_EXITS, STYLE_FONTS, VIDEO_STYLES } from '../src/styles/registry.mjs';
 import { LIMITS } from './article-short/copy.mjs';
 import { PROMO_LIMITS, promoCtaLabel } from './article-short/promo-copy.mjs';
 
@@ -139,6 +147,68 @@ const SPEC = {
   ProductWide: (p) => [...SPEC.ProductShort(p), { id: 'ust.ad', text: p.hook, from: sceneSnap('p1'), to: untilEnd(6) }],
 };
 
+/**
+ * Stilli videolarin metin pencereleri (src/styles/story.ts makeWin + stil kitleri). X: STYLE_EXITS[stil][bicim]
+ * — kanca X.hook, makale maddesi X.point kare once cikar; liste ve ust satir kapanistan X.list kare once.
+ * Baslik tek parca yayla gelir (kelime kelime giris yayin %95'inde biter): son satir payi yok.
+ * Site tanitiminda ust etiket, urun tanitiminda marka adi metni yok (classic ile ayni metin kumesi).
+ */
+const STYLED_SPEC = {
+  ArticleShort: (p, X) => [
+    { id: 'ust.marka', text: p.brand.name, from: snapAt('hook.brand', 4), to: untilEnd(X.list) },
+    { id: 'kanca.etiket', text: p.kicker, from: snapAt('hook.title', -6), to: until('hook', X.hook) },
+    { id: 'kanca.baslik', text: p.hook, from: snapAt('hook.title'), to: until('hook', X.hook) },
+    { id: 'kanca.alt', text: p.hookSub, from: softAt('hook.sub'), to: until('hook', X.hook) },
+    { id: 'kanca.kaynak', text: p.sourcePath, from: softAt('hook.source'), to: until('hook', X.hook) },
+    { id: 'filigran', text: WATERMARK, from: (P) => P.soft(8), to: untilEnd(6) },
+    ...p.points.flatMap((pt, i) => {
+      const sc = `p${i + 1}`;
+      return [
+        { id: `${sc}.baslik`, text: pt.title, from: max(sceneSnap(sc, 0, 5), snapAt(`${sc}.title`)), to: until(sc, X.point) },
+        { id: `${sc}.aciklama`, text: pt.detail, from: max(sceneSnap(sc, 0, 5), snapAt(`${sc}.detail`)), to: until(sc, X.point) },
+      ];
+    }),
+    ...endItems(p, p.brand.name),
+  ],
+  SiteIntro: (p, X) => [
+    { id: 'kanca.ad', text: p.brand.name, from: snapAt('hook.name'), to: until('hook', X.hook) },
+    { id: 'kanca.baslik', text: p.hook, from: snapAt('hook.title'), to: until('hook', X.hook) },
+    { id: 'kanca.alt', text: p.hookSub, from: softAt('hook.sub'), to: until('hook', X.hook) },
+    { id: 'ust.marka', text: p.brand.name, from: sceneSnap('p1'), to: untilEnd(X.list) },
+    { id: 'filigran', text: WATERMARK, from: (P) => P.soft(8), to: untilEnd(6) },
+    ...p.points.flatMap((pt, i) => [
+      { id: `p${i + 1}.baslik`, text: pt.title, from: sceneSnap(`p${i + 1}`, 0, 5), to: untilEnd(X.list), list: 'kartlar' },
+      { id: `p${i + 1}.aciklama`, text: pt.detail, from: sceneSnap(`p${i + 1}`, 0, 5), to: untilEnd(X.list), list: 'kartlar' },
+    ]),
+    ...endItems(p, p.brand.name),
+  ],
+  SiteIntroWide: (p, X) => STYLED_SPEC.SiteIntro(p, X),
+  ProductShort: (p, X) => [
+    { id: 'kanca.etiket', text: p.kicker, from: snapAt('hook.title', -4), to: until('hook', X.hook) },
+    { id: 'kanca.ad', text: p.hook, from: snapAt('hook.title'), to: until('hook', X.hook) },
+    { id: 'kanca.alt', text: p.hookSub, from: softAt('hook.sub'), to: until('hook', X.hook) },
+    { id: 'fiyat', text: p.price, from: snapAt('hook.price'), to: toTotal() },
+    { id: 'filigran', text: WATERMARK, from: (P) => P.soft(8), to: untilEnd(6) },
+    ...p.points.flatMap((pt, i) => {
+      const sc = `p${i + 1}`;
+      return [
+        { id: `${sc}.baslik`, text: pt.title, from: sceneSnap(sc, 0, 5), to: untilEnd(X.list), list: 'ozellikler' },
+        { id: `${sc}.aciklama`, text: pt.detail, from: max(sceneSnap(sc, 0, 5), snapAt(`${sc}.detail`)), to: untilEnd(X.list), list: 'ozellikler' },
+      ];
+    }),
+    ...endItems(p, p.hook),
+  ],
+  ProductWide: (p, X) => [...STYLED_SPEC.ProductShort(p, X), { id: 'ust.ad', text: p.hook, from: sceneSnap('p1'), to: untilEnd(X.list) }],
+};
+
+/** Stilin metin envanteri: classic -> SPEC, digerleri -> STYLED_SPEC (stilin cikislariyla) */
+function specOf(compositionId, style) {
+  if (style === 'classic') return (props) => SPEC[compositionId](props);
+  const X = STYLE_EXITS[style]?.[compositionId];
+  if (!X) throw new Error(`STYLE_EXITS.${style}.${compositionId} tanimsiz`);
+  return (props) => STYLED_SPEC[compositionId](props, X);
+}
+
 /* ───────────── metinler ───────────── */
 
 const fill = (chars, wordLen = DENSE_CHARS_PER_WORD - 1) => {
@@ -240,11 +310,10 @@ function probe(plan) {
   };
 }
 
-/** Bir kompozisyon + tempo + metin: her metnin gorunur suresi, gereken, liste paylari */
-export function evaluate(compositionId, tempo, props) {
-  const plan = planner.plan(compositionId, tempo, props);
+/** Bir kompozisyon + tempo + metin (+ stil): her metnin gorunur suresi, gereken, liste paylari */
+export function evaluate(compositionId, tempo, props, style = 'classic', plan = planner.plan(compositionId, tempo, props)) {
   const P = probe(plan);
-  const items = SPEC[compositionId](props).filter((it) => countWords(it.text) > 0);
+  const items = specOf(compositionId, style)(props).filter((it) => countWords(it.text) > 0);
   const rows = items.map((it) => {
     const from = it.from(P);
     const to = it.to(P);
@@ -271,6 +340,10 @@ export function checkAll({ randomCount = 300 } = {}) {
   const failures = [];
   const table = [];
   const ranges = {};
+  const styles = VIDEO_STYLES.filter((x) => x !== 'classic');
+  /** stil -> tempo -> { metin, ihlal, enDar, enDarMetin } */
+  const styleStats = Object.fromEntries(styles.map((x) => [x, Object.fromEntries(TEMPOS.map((t) => [t, { checked: 0, violations: 0, worst: Infinity, worstText: '' }]))]));
+  failures.push(...checkStyleFonts());
   // 1) yay sabitleri
   if (JSON.stringify(MOTION.fast.config) !== JSON.stringify(KIT_SNAP)) failures.push('plan.mjs MOTION.fast, kit.tsx snap() yayiyla ayni degil');
   for (const k of ['fast', 'calm', 'soft']) {
@@ -294,6 +367,28 @@ export function checkAll({ randomCount = 300 } = {}) {
       let hi = 0;
       for (const [name, props] of all) {
         const r = evaluate(comp, tempo, props);
+        // Ayni plan, her stilin kendi metin pencereleriyle
+        for (const style of styles) {
+          const st = styleStats[style][tempo];
+          const rs = evaluate(comp, tempo, props, style, r.plan);
+          st.checked++;
+          for (const row of rs.rows) {
+            if (row.vis - row.req < st.worst) {
+              st.worst = row.vis - row.req;
+              st.worstText = `${comp}/${name}:${row.id}`;
+            }
+            if (!row.ok) {
+              st.violations++;
+              if (strict) failures.push(`[${style}] ${comp}/${tempo}/${name}: '${row.id}' ${row.vis.toFixed(2)} sn gorunur, ${row.req.toFixed(2)} sn gerekli (${row.words} kelime)`);
+            }
+          }
+          for (const l of rs.listRows) {
+            if (!l.ok) {
+              st.violations++;
+              if (strict) failures.push(`[${style}] ${comp}/${tempo}/${name}: liste '${l.id}' son ogeden sonra ${l.hold.toFixed(2)} sn (< ${READ_RULE.listHoldSec})`);
+            }
+          }
+        }
         lo = Math.min(lo, r.seconds);
         hi = Math.max(hi, r.seconds);
         if (cases[name]) secs[name] = r.seconds;
@@ -348,7 +443,73 @@ export function checkAll({ randomCount = 300 } = {}) {
       if (!got || got[0] !== want[0] || got[1] !== want[1]) failures.push(`panel tablosu ${key}.${tempo}: ${JSON.stringify(got ?? null)} yaziyor, hesap ${JSON.stringify(want)}`);
     }
   }
-  return { failures, table, ranges, settle: SETTLE };
+  const styleTable = styles.flatMap((style) => TEMPOS.map((tempo) => {
+    const st = styleStats[style][tempo];
+    return { stil: style, tempo, 'video (5 bicim)': st.checked, ihlal: tempo === 'fast' ? `${st.violations} (rapor)` : st.violations, 'en dar pay(sn)': st.worst.toFixed(2), 'en dar metin': st.worstText.slice(0, 44) };
+  }));
+  return { failures, table, styleTable, ranges, settle: SETTLE };
+}
+
+/* ───────────── stil fontlari: Turkce glifler (TTF cmap) ───────────── */
+
+const TR_GLYPHS = 'şŞğĞıİâÂçÇöÖüÜîÎûÛ';
+
+/** TrueType cmap'inden kod noktalari (bicim 4 ve 12; Unicode alt tablolari) */
+export function fontCodepoints(file) {
+  const b = readFileSync(file);
+  const n = b.readUInt16BE(4);
+  let cmap = -1;
+  for (let i = 0; i < n; i++) {
+    const rec = 12 + 16 * i;
+    if (b.toString('latin1', rec, rec + 4) === 'cmap') cmap = b.readUInt32BE(rec + 8);
+  }
+  if (cmap < 0) throw new Error(`${file}: cmap tablosu yok`);
+  const cps = new Set();
+  const subtables = b.readUInt16BE(cmap + 2);
+  for (let i = 0; i < subtables; i++) {
+    const platform = b.readUInt16BE(cmap + 4 + 8 * i);
+    const enc = b.readUInt16BE(cmap + 6 + 8 * i);
+    if (!(platform === 0 || (platform === 3 && (enc === 1 || enc === 10)))) continue;
+    const off = cmap + b.readUInt32BE(cmap + 8 + 8 * i);
+    const format = b.readUInt16BE(off);
+    if (format === 4) {
+      const segX2 = b.readUInt16BE(off + 6);
+      const ends = off + 14;
+      const starts = ends + segX2 + 2;
+      for (let k = 0; k < segX2 / 2; k++) {
+        const end = b.readUInt16BE(ends + 2 * k);
+        const start = b.readUInt16BE(starts + 2 * k);
+        for (let c = start; c <= end && c !== 0xffff; c++) cps.add(c);
+      }
+    } else if (format === 12) {
+      const groups = b.readUInt32BE(off + 12);
+      for (let g = 0; g < groups; g++) {
+        const start = b.readUInt32BE(off + 16 + 12 * g);
+        const end = b.readUInt32BE(off + 20 + 12 * g);
+        for (let c = start; c <= end && c - start < 70000; c++) cps.add(c);
+      }
+    }
+  }
+  return cps;
+}
+
+/** Her stilin (ve ortak Sora / Plus Jakarta Sans) fontu Turkce glifleri iceriyor mu */
+export function checkStyleFonts() {
+  const out = [];
+  const files = new Set(['fonts/Sora.ttf', 'fonts/PlusJakartaSans.ttf']);
+  for (const style of VIDEO_STYLES) for (const f of STYLE_FONTS[style]) files.add(f.file);
+  for (const f of files) {
+    let cps;
+    try {
+      cps = fontCodepoints(join(ROOT, 'public', f));
+    } catch (e) {
+      out.push(`font okunamadi: ${f} (${e.message})`);
+      continue;
+    }
+    const missing = [...TR_GLYPHS].filter((ch) => !cps.has(ch.codePointAt(0)));
+    if (missing.length) out.push(`font ${f}: Turkce glif eksik: ${missing.join(' ')}`);
+  }
+  return out;
 }
 
 /** Panelde gosterilen yaklasik aralik: fast tam saniye; digerleri 5 sn'ye yuvarlanmis */
@@ -392,9 +553,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   console.log(`\nGiris yayi %95: hizli ${r.settle.fast} kare, sakin ${r.settle.calm} kare, yumusak ${r.settle.soft} kare. Kural: max(${READ_RULE.minSec} sn, ${READ_RULE.perWordSec} sn x kelime + ${READ_RULE.baseSec} sn); liste ${READ_RULE.listHoldSec} sn; en fazla ${MAX_SECONDS} sn.`);
   console.log("'fast' (hızlı — kısa metinler için) eski 15 / 24 sn izgaradir; ihlalleri yalniz raporlanir.");
   console.table(r.table);
+  console.log(`\nVideo stilleri (${VIDEO_STYLES.filter((x) => x !== 'classic').join(', ')}): ayni plan, stilin metin pencereleri; her satir 5 bicim x (en kisa + tipik + en uzun + rastgele) metin.`);
+  console.table(r.styleTable);
   if (r.failures.length) {
     console.error(`\n${r.failures.length} ihlal:\n- ${r.failures.slice(0, 40).join('\n- ')}`);
     process.exit(1);
   }
-  console.log('\nnormal ve slow: her metin ve liste kurali sagliyor; tum videolar <= 60 sn; panel tablosu hesapla ayni.');
+  console.log('\nnormal ve slow: her stilde her metin ve liste kurali sagliyor; tum videolar <= 60 sn; panel tablosu hesapla ayni; stil fontlarinda Turkce glifler var.');
 }

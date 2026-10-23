@@ -8,6 +8,7 @@ import { fitText, type Fit } from '../article-short/fit';
 import { brandPalette, rgba, type BrandPalette } from '../article-short/palette';
 import { LogoTile, upperTr } from '../article-short/ArticleShort';
 import { CtaPill, DISPLAY, FitLines, ImageGlow, LightField, PriceTag, ProductImageCard, UI, WatermarkLine, fitK, linesH, pillOnBrand, type PromoBaseProps } from './shared';
+import { StyledVideo, isStyled } from '../styles/StyledVideo';
 
 /**
  * ProductShort — musterinin kendi sitesindeki urun / hizmet sayfasindan tanitim videosu.
@@ -45,6 +46,7 @@ export const productShortDefaults: ProductShortProps = {
   muted: false,
   watermark: true,
   tempo: 'normal',
+  style: 'classic',
 };
 
 type Row = { title: Fit; detail: Fit | null; h: number };
@@ -151,7 +153,11 @@ function EndWipe({ frame, pal, at }: { frame: number; pal: BrandPalette; at: str
 type VFits = { name: Fit; sub: Fit | null; rows: Row[]; gap: number; endName: Fit; domain: Fit; price: number };
 const VX = { left: 90, width: 860 } as const;
 
-export const ProductShort: React.FC<ProductShortProps> = (props) => {
+/** props.style classic degilse stilli video (src/styles); classic yol asagida, degismedi */
+export const ProductShort: React.FC<ProductShortProps> = (props) =>
+  isStyled(props.style) ? <StyledVideo compositionId="ProductShort" props={props} /> : <ProductShortClassic {...props} />;
+
+const ProductShortClassic: React.FC<ProductShortProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
   const TL = useMemo(() => tempoTimeline('ProductShort', props), [props]);
@@ -288,7 +294,10 @@ function VEnd({ frame, pal, fits, label, watermark }: { frame: number; pal: Bran
 const WX = { left: 1010, width: 790 } as const;
 type WFits = { name: Fit; sub: Fit | null; head: Fit; rows: Row[]; gap: number; endName: Fit; domain: Fit; price: number };
 
-export const ProductWide: React.FC<ProductShortProps> = (props) => {
+export const ProductWide: React.FC<ProductShortProps> = (props) =>
+  isStyled(props.style) ? <StyledVideo compositionId="ProductWide" props={props} /> : <ProductWideClassic {...props} />;
+
+const ProductWideClassic: React.FC<ProductShortProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
   const TL = useMemo(() => tempoTimeline('ProductWide', props), [props]);

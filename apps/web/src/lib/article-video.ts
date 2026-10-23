@@ -11,6 +11,8 @@ export type VideoType = 'article' | 'site' | 'product';
 export type VideoFormat = 'vertical' | 'horizontal';
 /** api article-video.config.ts VIDEO_TEMPOS (= apps/video src/tempo/plan.mjs TEMPOS) */
 export type VideoTempo = 'fast' | 'normal' | 'slow';
+/** api article-video.config.ts VIDEO_STYLES (= apps/video src/styles/registry.mjs VIDEO_STYLES) */
+export type VideoStyle = 'classic' | 'panel' | 'paper' | 'swiss' | 'chat' | 'diagram' | 'footage';
 
 export interface ArticleVideo {
   id: string;
@@ -19,6 +21,8 @@ export interface ArticleVideo {
   format?: VideoFormat;
   /** Eski API yanitlarinda / eski kayitlarda yok -> 'fast' (videoTempoOf) */
   tempo?: VideoTempo;
+  /** Eski API yanitlarinda / eski kayitlarda yok -> 'classic' (videoStyleOf) */
+  style?: VideoStyle;
   sourceUrl?: string | null;
   articleId: string | null;
   title: string;
@@ -40,6 +44,8 @@ export interface VideoQuota {
   limit: number;
   remaining: number;
   unlimited: boolean;
+  /** Bu sunucuda dosyalari eksik stiller (or. stok klipleri indirilmemis 'footage') — kart pasif; eski API'de yok */
+  unavailableStyles?: VideoStyle[];
 }
 
 export interface VideoBrandPreview {
@@ -58,7 +64,7 @@ export const ARTICLE_VIDEO_COPY = {
   product: 'RanksUp Video',
   action: 'Video üret',
   lockedTitle: 'RanksUp Video Profesyonel planda',
-  lockedBody: 'Yayındaki makalenden, sitenin ana sayfasından ya da sitendeki bir ürün/hizmet sayfasından; sitenin adı, logosu ve rengiyle kısa dikey video (Reels, Shorts, TikTok biçimi; 15–60 saniye, tempo seçilebilir) üretir. Site ve ürün tanıtımında yatay 16:9 biçim de seçilebilir. Metin yalnız sitenin kendi cümlelerinden ve sayılarından oluşur.',
+  lockedBody: 'Yayındaki makalenden, sitenin ana sayfasından ya da sitendeki bir ürün/hizmet sayfasından; sitenin adı, logosu ve rengiyle kısa dikey video (Reels, Shorts, TikTok biçimi; 15–60 saniye, tempo ve görsel stil seçilebilir) üretir. Site ve ürün tanıtımında yatay 16:9 biçim de seçilebilir. Metin yalnız sitenin kendi cümlelerinden ve sayılarından oluşur.',
   lockedNote: 'Aşağıdaki bulanık görsel yalnızca yer tutucudur; video üretilmedi.',
   notPublished: 'Video yalnız yayındaki makaleden üretilir.',
 } as const;
@@ -109,6 +115,55 @@ export const VIDEO_TEMPO_HINT: Record<VideoTempo, string> = {
   normal: 'Her metin rahatça okunacak kadar ekranda kalır.',
   slow: 'Daha sakin geçişler ve en uzun okuma süresi.',
 };
+
+/**
+ * Gorsel stil (23.10.2026): musteri videonun gorunumunu secer; yeni isteklerde varsayilan 'classic'
+ * (bugunku tasarim). Stil yalniz gorsel: metin, sure (tempo), muzik, marka rengi / logo ve filigran ayni.
+ * Her stil bir video hakki. Onizlemeler public/video-styles/<stil>.jpg (ornek render'lardan, mavi ornek marka).
+ */
+export const VIDEO_STYLES: readonly VideoStyle[] = ['classic', 'panel', 'paper', 'swiss', 'chat', 'diagram', 'footage'];
+export const DEFAULT_VIDEO_STYLE: VideoStyle = 'classic';
+export const VIDEO_STYLE_LABEL: Record<VideoStyle, string> = {
+  classic: 'Klasik',
+  panel: 'Panel',
+  paper: 'Kâğıt',
+  swiss: 'İsviçre',
+  chat: 'Sohbet',
+  diagram: 'Diyagram',
+  footage: 'Gerçek görüntü',
+};
+export const VIDEO_STYLE_HINT: Record<VideoStyle, string> = {
+  classic: 'Bugünkü tasarım: marka renginde sade kartlar.',
+  panel: 'Açık arayüz kartları, büyük yazı, vuruşa oturan geçişler.',
+  paper: 'Kâğıt zemin, iri kinetik yazı, elle çizilmiş işaretler.',
+  swiss: 'Sıkı ızgara, tek vurgu rengi, keskin ve sade geçişler.',
+  chat: 'Tüm video bir sohbet: soru, yazıyor, cevap balonları.',
+  diagram: 'Noktalı kâğıtta akış şeması: kutular ve oklar.',
+  footage: 'Gerçek stok görüntü üstünde buzlu cam paneller.',
+};
+/** Stil onizlemesi (statik, kucuk JPEG) */
+export const videoStylePreview = (s: VideoStyle) => `/video-styles/${s}.jpg`;
+
+/**
+ * Radyo grubu klavye gezintisi (WAI-ARIA radio group): ok tuslari bir sonraki / onceki SECILEBILIR degere
+ * gecer (sonda basa doner), Home / End ilk / son. Diger tuslar null. Pasif degerler atlanir.
+ */
+export function nextRadioValue<T>(values: readonly T[], current: T, key: string, disabled: readonly T[] = []): T | null {
+  const enabled = values.filter((v) => !disabled.includes(v));
+  if (!enabled.length) return null;
+  if (key === 'Home') return enabled[0];
+  if (key === 'End') return enabled[enabled.length - 1];
+  const step = key === 'ArrowRight' || key === 'ArrowDown' ? 1 : key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 0;
+  if (!step) return null;
+  const i = enabled.indexOf(current);
+  if (i < 0) return enabled[0];
+  return enabled[(i + step + enabled.length) % enabled.length];
+}
+
+/** Eski yanit / kayit (stil yok) bugunku tasarimla uretildi: 'classic' */
+export function videoStyleOf(v: Pick<ArticleVideo, 'style'> | null | undefined): VideoStyle {
+  return v?.style && (VIDEO_STYLES as readonly string[]).includes(v.style) ? v.style : 'classic';
+}
 
 /**
  * Yaklasik sure (sn) — tur.bicim x tempo, [en kisa, en uzun]. ELLE YAZILMAZ: apps/video
@@ -246,6 +301,7 @@ export interface VideoRequestBody {
   pageUrl?: string;
   format?: VideoFormat;
   tempo?: VideoTempo;
+  style?: VideoStyle;
   primaryColor?: string | null;
   useLogo: boolean;
   brandName?: string;
@@ -262,6 +318,8 @@ export function videoRequestBody(input: {
   name: string;
   /** secilen tempo; verilmezse alan gonderilmez (sunucu varsayilani 'normal') */
   tempo?: VideoTempo;
+  /** secilen gorsel stil; verilmezse alan gonderilmez (sunucu varsayilani 'classic') */
+  style?: VideoStyle;
 }): VideoRequestBody {
   const target: VideoTarget = input.target ?? { type: 'article', articleId: input.articleId ?? '' };
   // Makale govdesi eskisiyle birebir ({ articleId, ... } — type alani yok): eski API surumleriyle uyumlu
@@ -271,6 +329,7 @@ export function videoRequestBody(input: {
       ? { type: 'site', format: target.format, useLogo: input.useLogo }
       : { type: 'product', pageUrl: target.pageUrl.trim(), format: target.format, useLogo: input.useLogo };
   if (input.tempo && VIDEO_TEMPOS.includes(input.tempo)) body.tempo = input.tempo;
+  if (input.style && VIDEO_STYLES.includes(input.style)) body.style = input.style;
   if (input.useTemplateColor) body.primaryColor = null;
   else {
     const c = normalizeHex(input.color);

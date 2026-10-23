@@ -1,4 +1,4 @@
-import { videoTempoOf, type VideoTempo } from './article-video.config.js';
+import { videoStyleOf, videoTempoOf, type VideoStyle, type VideoTempo } from './article-video.config.js';
 
 /**
  * RanksUp Video — durum yasam dongusu ve panel gorunumu (saf; test edilir).
@@ -59,6 +59,8 @@ export interface ArticleVideoView {
   format: 'vertical' | 'horizontal';
   /** 'fast' | 'normal' | 'slow' — eski satirlarda (alan yok) 'fast' (o video eski 15 sn izgarayla uretildi) */
   tempo: VideoTempo;
+  /** gorsel stil — eski satirlarda (alan yok) 'classic' */
+  style: VideoStyle;
   /** site / urun tanitiminin kaynak adresi (makalede null) */
   sourceUrl: string | null;
   articleId: string | null;
@@ -89,6 +91,7 @@ export function toVideoView(row: VideoRowLike): ArticleVideoView {
     type,
     format: raw.format === 'horizontal' ? 'horizontal' : 'vertical',
     tempo: videoTempoOf(raw),
+    style: videoStyleOf(raw),
     sourceUrl: type !== 'article' && typeof raw.sourceUrl === 'string' ? raw.sourceUrl : null,
     articleId: row.articleId,
     title: row.title,

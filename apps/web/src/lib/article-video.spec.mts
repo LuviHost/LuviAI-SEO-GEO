@@ -4,12 +4,13 @@
  * dosya adi, tanitim videolari (tur etiketi, urun adresi alan adi ipucu, suren kaynak kilidi).
  * Calistirma: cd apps/web && ../api/node_modules/.bin/vitest run --root . src/lib
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ARTICLE_VIDEO_COPY, DEFAULT_VIDEO_TEMPO, MULTI_PART_SUFFIXES, VIDEO_FORMAT_OPTIONS, VIDEO_STATUS_LABEL, VIDEO_TEMPOS, VIDEO_TEMPO_LABEL,
   VIDEO_TEMPO_SECONDS, VIDEO_TYPE_LABEL, activePromoVideo, activeVideoFor, canRequestVideo, formatVideoSize, hasActiveVideos, normalizeHex,
   productUrlProblem, quotaLine, tempoDurationLabel, videoFileName, videoRequestBody, videoTempoOf, videoTypeOf,
+  DEFAULT_VIDEO_STYLE, VIDEO_STYLES, VIDEO_STYLE_HINT, VIDEO_STYLE_LABEL, videoStyleOf, videoStylePreview, nextRadioValue, type VideoStyle,
 } from './article-video';
 
 describe('canRequestVideo — yalniz yayindaki makale', () => {
@@ -74,7 +75,7 @@ describe('kota satiri ve dosya', () => {
 
   it('kilitli onizleme metni dogru plani ve dogru iddiayi soyler', () => {
     expect(ARTICLE_VIDEO_COPY.lockedTitle).toContain('Profesyonel');
-    expect(ARTICLE_VIDEO_COPY.lockedBody).toContain('15–60 saniye, tempo seçilebilir');
+    expect(ARTICLE_VIDEO_COPY.lockedBody).toContain('15–60 saniye, tempo ve görsel stil seçilebilir');
     expect(ARTICLE_VIDEO_COPY.lockedBody).not.toContain('15 saniyelik');
     expect(ARTICLE_VIDEO_COPY.lockedNote).toMatch(/yer tutucu/);
   });
@@ -190,5 +191,53 @@ describe('tempo (Hizli / Normal / Yavas)', () => {
     const list = /VIDEO_TEMPOS = \[([^\]]*)\]/.exec(src)?.[1] ?? '';
     expect([...list.matchAll(/'([a-z]+)'/g)].map((m) => m[1])).toEqual([...VIDEO_TEMPOS]);
     expect(src).toContain(`DEFAULT_VIDEO_TEMPO: VideoTempo = '${DEFAULT_VIDEO_TEMPO}'`);
+  });
+});
+
+describe('video stili', () => {
+  it('liste sunucuyla ve video kaydiyla AYNI; varsayilan classic', () => {
+    const api = readFileSync(new URL('../../../api/src/videos/article-video.config.ts', import.meta.url), 'utf8');
+    const reg = readFileSync(new URL('../../../video/src/styles/registry.mjs', import.meta.url), 'utf8');
+    const listOf = (src: string) => [...(/VIDEO_STYLES = \[([^\]]*)\]/.exec(src)?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+    expect(listOf(api)).toEqual([...VIDEO_STYLES]);
+    expect(listOf(reg)).toEqual([...VIDEO_STYLES]);
+    expect(DEFAULT_VIDEO_STYLE).toBe('classic');
+    expect(api).toMatch(/DEFAULT_VIDEO_STYLE: VideoStyle = 'classic'/);
+  });
+
+  it('her stilin Turkce adi, tek satir aciklamasi ve kucuk bir onizlemesi var', () => {
+    expect(VIDEO_STYLE_LABEL).toEqual({ classic: 'Klasik', panel: 'Panel', paper: 'Kâğıt', swiss: 'İsviçre', chat: 'Sohbet', diagram: 'Diyagram', footage: 'Gerçek görüntü' });
+    for (const s of VIDEO_STYLES) {
+      expect(VIDEO_STYLE_HINT[s].length, s).toBeGreaterThan(10);
+      expect(VIDEO_STYLE_HINT[s].length, s).toBeLessThanOrEqual(64);
+      const file = new URL(`../../public${videoStylePreview(s)}`, import.meta.url);
+      expect(existsSync(file), s).toBe(true);
+      expect(statSync(file).size, s).toBeLessThan(60_000);
+    }
+  });
+
+  it('istek govdesi: secilen stil gider, verilmezse alan yok (sunucu varsayilani); liste disi deger gitmez', () => {
+    const base = { articleId: 'a1', brand: { name: 'Örnek', primary: '#112233' }, color: '#112233', useTemplateColor: false, useLogo: true, name: 'Örnek' } as const;
+    expect(videoRequestBody({ ...base })).not.toHaveProperty('style');
+    expect(videoRequestBody({ ...base, style: 'footage' })).toEqual({ articleId: 'a1', useLogo: true, style: 'footage' });
+    expect(videoRequestBody({ ...base, style: 'neon' as unknown as VideoStyle })).not.toHaveProperty('style');
+    expect(videoRequestBody({ ...base, target: { type: 'site', format: 'horizontal' }, tempo: 'slow', style: 'swiss' })).toMatchObject({ type: 'site', format: 'horizontal', tempo: 'slow', style: 'swiss' });
+  });
+
+  it('eski yanit / kayit (stil yok) ve bilinmeyen deger classic', () => {
+    expect(videoStyleOf(undefined)).toBe('classic');
+    expect(videoStyleOf({})).toBe('classic');
+    expect(videoStyleOf({ style: 'neon' as unknown as VideoStyle })).toBe('classic');
+    expect(videoStyleOf({ style: 'chat' })).toBe('chat');
+  });
+
+  it('klavye gezintisi: oklar sonraki / onceki secilebilir stile gecer, sonda basa doner, pasif stil atlanir', () => {
+    expect(nextRadioValue(VIDEO_STYLES, 'classic', 'ArrowRight')).toBe('panel');
+    expect(nextRadioValue(VIDEO_STYLES, 'classic', 'ArrowLeft')).toBe('footage');
+    expect(nextRadioValue(VIDEO_STYLES, 'footage', 'ArrowDown')).toBe('classic');
+    expect(nextRadioValue(VIDEO_STYLES, 'diagram', 'ArrowRight', ['footage'])).toBe('classic');
+    expect(nextRadioValue(VIDEO_STYLES, 'paper', 'End', ['footage'])).toBe('diagram');
+    expect(nextRadioValue(VIDEO_STYLES, 'paper', 'Home')).toBe('classic');
+    expect(nextRadioValue(VIDEO_STYLES, 'paper', 'Enter')).toBeNull();
   });
 });

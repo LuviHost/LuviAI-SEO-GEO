@@ -166,6 +166,39 @@ Tek kaynak `src/tempo/plan.mjs` + `timeline.json` `tempo` bölümü:
   kuralı, ≤ 60 sn ve paneldeki süre tablosu (`apps/web/src/lib/article-video.ts VIDEO_TEMPO_SECONDS`)
   doğrulanır; api `videos/video-tempo.spec.ts` aynı denetimi testte çalıştırır.
 
+## RanksUp Video görsel stilleri (Klasik · Panel · Kâğıt · İsviçre · Sohbet · Diyagram · Gerçek görüntü)
+
+Müşteri her videoda görsel stili seçer (`POST /api/sites/:siteId/videos` `style`; varsayılan `classic`). Tek kaynak
+`src/styles/registry.mjs` (liste, fontlar, okunurluk çıkışları, stok klipler); kaynaklar ve lisanslar
+`src/styles/CREDITS.md`.
+
+- **Mimari:** beş kompozisyon (`ArticleShort`, `SiteIntro`, `SiteIntroWide`, `ProductShort`, `ProductWide`) `props.style`
+  `classic` değilse `src/styles/StyledVideo.tsx`'e devreder; classic yol hiç değişmedi (origin/main ile 240 karede
+  piksel piksel aynı — stil alanı olmayan eski kayıt / iş da classic). `StyledVideo` ortak olanı kurar: tempo çizelgesi
+  + müzik (`TempoSoundtrack`), marka paleti (`palette.ts` — müşterinin rengi), metin modeli (`story.ts buildStory`:
+  classic'in gösterdiği metinlerin aynısı) ve zaman pencereleri (`story.ts makeWin`). Stil kiti (`panel.tsx`,
+  `paper.tsx`, `swiss.tsx`, `chat.tsx`, `diagram.tsx`, `footage.tsx`) yalnız görseli çizer; ortak yardımcılar `kit.tsx`.
+- **Stil yalnız görsel:** metin (sayı koruması, `validateScript`), tempo planı (`src/tempo/plan.mjs`), müzik
+  (`scripts/audio/styles.mjs`), marka rengi / logo / ad ve filigran her stilde aynı. Giriş yayları tempo çizelgesinin
+  yayları; metinler classic ile aynı karelerde (ya da daha geç) çıkar (`STYLE_EXITS`). Kelime kelime girişlerde son
+  kelime, tek parça metnin %95'e vardığı karede yerindedir (`kit.tsx stagger`).
+- **Okunurluk:** `node scripts/check-video-readability.mjs` her stil × 5 biçim × 3 tempo için ayrı tablo basar
+  (`STYLED_SPEC` stil TSX'inden bağımsız); stil fontlarının Türkçe glifleri (ş ğ ı İ â ç ö ü) TTF cmap'inden doğrulanır.
+- **Fontlar:** Sora, Plus Jakarta Sans + Inter (İsviçre, Diyagram), Anton + Caveat (Kâğıt) — tam OFL dosyaları
+  (`public/fonts/OFL.txt`), FontFace ile yerel yüklenir (Google Fonts `latin` alt kümesi Türkçe glifleri düşürür).
+- **Gerçek görüntü:** Mixkit stok klipleri (`STOCK_CLIPS`, lisans: tek başına yeniden dağıtılamaz → git'e girmez,
+  `public/stock/`). `prepare:article-short` indirir ve boyut + sha256 doğrular (`scripts/stock.mjs`, idempotent; ~110 MB,
+  ilk seferde; yalnız `https://assets.mixkit.co`, yönlendirme sonrası da; bildirilen / akan boyut beklenenden büyükse
+  indirme reddedilir; yarım dosya `public/` dışında `.stock-part/`). İndirilemezse çıkış kodu 3 (yumuşak hata, aşağıda).
+  Worker işin EN BAŞINDA `assertStyleAssets` çağırır (metin modeli ve marka indirmesinden önce); eksikse
+  `StyleAssetError` (`code: VIDEO_STYLE_ASSETS_MISSING`) → FAILED + tek iade, Türkçe mesaj, LLM maliyeti yok. Kota ucu
+  `unavailableStyles` döner, panel o kartı pasif gösterir (ipucu; asıl kapı worker). Klip zaman aralıkları yüzsüz
+  aralıklarla sınırlı (`registry.mjs use/formats`, plan `src/styles/footage-plan.mjs`; api testi her biçim × tempo ×
+  metin uzunluğunda denetler). Render süresi diğer stillerin ~3,5
+  katı (buzlu cam `backdrop-filter` + 1080p çözme; yerel ölçüm: 300 kare, eşzamanlılık 4'te 18 sn — classic 4,7 sn).
+- **Panel:** `apps/web` "Video stili" kartları (`StylePicker`), önizlemeler `apps/web/public/video-styles/<stil>.jpg`
+  (örnek render'lardan, mavi örnek marka). Liste her videonun stilini rozetle gösterir.
+
 ## RanksUp Video (ürün) — sunucu hattı
 
 Müşterinin **yayındaki** makalesinden, anasayfasından (site tanıtımı) ya da kendi alan adındaki bir ürün/hizmet
@@ -214,9 +247,16 @@ sudo apt install -y libnss3 libdbus-1-3 libatk1.0-0 libasound2t64 libxrandr2 lib
 #    bundler + renderer'ı getirir — --prod KULLANMA)
 cd /var/www/luviai && pnpm install --frozen-lockfile
 
-# 3) Chrome indir + tempo müzikleri (hızlı / normal / yavaş, ilk seferde ~30 sn) + Remotion paketi +
-#    ffmpeg kaynağını yaz (ağ gerekir; her deploy'da güvenli — timeline.json ve sentez kodu değişmediyse ses önbellekte)
-pnpm --filter @luviai/video prepare:article-short
+# 3) Chrome indir + tempo müzikleri (hızlı / normal / yavaş, ilk seferde ~30 sn) + 'footage' stilinin Mixkit stok
+#    klipleri (~110 MB, assets.mixkit.co'ya erişim gerekir; boyut + sha256 doğrulanır, sonra önbellekte) + Remotion
+#    paketi + ffmpeg kaynağını yaz (her deploy'da güvenli).
+#    Çıkış kodu: 0 tamam · 3 = YALNIZ stok klipleri indirilemedi (yumuşak hata: diğer adımlar tamamlandı,
+#    diğer stiller hazır; panel 'Gerçek görüntü' kartını pasif gösterir, istenirse iş metin modeli çalışmadan
+#    FAILED + iade olur) · başka her kod gerçek hata (tarayıcı / ses / paket) → deploy durmalı.
+#    Bu yüzden zinciri körlemesine `prepare && restart` diye kurma; 3'ü ayrıca ele al:
+pnpm --filter @luviai/video prepare:article-short; rc=$?
+if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then echo "prepare:article-short başarısız ($rc) — deploy durdu"; exit "$rc"; fi
+[ "$rc" -eq 3 ] && echo "UYARI: stok klipleri yok; 'Gerçek görüntü' bu sunucuda kapalı (assets.mixkit.co erişimini kontrol et)"
 
 # 4) Derle ve yeniden başlat
 pnpm --filter @luviai/api build && pnpm --filter @luviai/worker build

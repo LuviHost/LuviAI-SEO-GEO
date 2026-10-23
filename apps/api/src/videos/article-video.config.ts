@@ -91,6 +91,27 @@ export function videoTempoOf(raw: unknown): VideoTempo {
   return (VIDEO_TEMPOS as readonly unknown[]).includes(t) ? (t as VideoTempo) : LEGACY_VIDEO_TEMPO;
 }
 
+/**
+ * Gorsel stil (23.10.2026 sahip istegi: denenen acik kaynak video yaklasimlarindan begenilenler secilebilir
+ * stil). apps/video src/styles/registry.mjs VIDEO_STYLES ile AYNI liste (video-style.spec.ts karsilastirir):
+ *   classic  bugunku tasarim (varsayilan)     panel    acik arayuz kartlari, buyuk yazi, itme kesmeleri
+ *   paper    kagit + kinetik yazi + isaretci   swiss    izgara + tek sinyal rengi (marka)
+ *   chat     tum video tek sohbet              diagram  noktali kagit, dugum + ok akis semasi
+ *   footage  gercek stok goruntu + buzlu cam panel (klipler deploy'da indirilir — prepare:article-short)
+ * Stil YALNIZ gorsel: metin, sayi korumasi, tempo plani, muzik, marka rengi / logo ve filigran ayni.
+ * providerRaw.style'da durur (migration yok); alani olmayan eski satir / is 'classic'. Her stil tek video hakki.
+ */
+export const VIDEO_STYLES = ['classic', 'panel', 'paper', 'swiss', 'chat', 'diagram', 'footage'] as const;
+export type VideoStyle = (typeof VIDEO_STYLES)[number];
+export const DEFAULT_VIDEO_STYLE: VideoStyle = 'classic';
+/** DTO ve servisin ortak dogrulama mesaji: "style 'classic', ... ya da 'footage' olmalı." */
+export const VIDEO_STYLE_MESSAGE = `style ${VIDEO_STYLES.map((s) => `'${s}'`).join(', ').replace(/, ([^,]*)$/, ' ya da $1')} olmalı.`;
+/** providerRaw.style yoksa / liste disiysa (bu ozellikten onceki kayit, elle bozulmus satir) */
+export function videoStyleOf(raw: unknown): VideoStyle {
+  const s = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).style : undefined;
+  return (VIDEO_STYLES as readonly unknown[]).includes(s) ? (s as VideoStyle) : DEFAULT_VIDEO_STYLE;
+}
+
 /** Video satirinin en-boy orani (videos.aspectRatio sutunu) */
 export const ASPECT_OF: Record<VideoFormat, string> = { vertical: '9:16', horizontal: '16:9' };
 
