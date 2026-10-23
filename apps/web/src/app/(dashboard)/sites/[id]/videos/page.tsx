@@ -9,8 +9,8 @@ import { api } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { siteHref } from '@/lib/site-routes';
 import {
-  ARTICLE_VIDEO_COPY, VIDEO_FORMAT_OPTIONS, VIDEO_STATUS_LABEL, VIDEO_STATUS_TONE, VIDEO_TEMPO_LABEL, VIDEO_TYPE_LABEL, activePromoVideo, activeVideoFor,
-  canRequestVideo, formatVideoSize, hasActiveVideos, productUrlProblem, quotaLine, videoFileName, videoTempoOf, videoTypeOf,
+  ARTICLE_VIDEO_COPY, VIDEO_FORMAT_OPTIONS, VIDEO_STATUS_LABEL, VIDEO_STATUS_TONE, VIDEO_STYLE_LABEL, VIDEO_TEMPO_LABEL, VIDEO_TYPE_LABEL, activePromoVideo,
+  activeVideoFor, canRequestVideo, formatVideoSize, hasActiveVideos, productUrlProblem, quotaLine, videoFileName, videoStyleOf, videoTempoOf, videoTypeOf,
   type ArticleVideo, type VideoFormat, type VideoQuota, type VideoTarget, type VideoType,
 } from '@/lib/article-video';
 import { SectionHeader } from '@/components/ui/section-header';
@@ -202,7 +202,7 @@ export default function VideosPage() {
                       </FilterChip>
                     ))}
                   </div>
-                  <p className="text-label text-muted-foreground">Her video (her biçim ayrı) bir video hakkı kullanır. Tempoyu (hızlı, normal, yavaş) bir sonraki adımda seçersin.</p>
+                  <p className="text-label text-muted-foreground">Her video (her biçim ayrı) bir video hakkı kullanır. Video stilini ve tempoyu (hızlı, normal, yavaş) bir sonraki adımda seçersin.</p>
                 </div>
               </>
             )}
@@ -278,6 +278,7 @@ export default function VideosPage() {
                     <p className="line-clamp-2 text-sm font-medium">{v.title}</p>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       <Badge variant="brand">{VIDEO_TYPE_LABEL[videoTypeOf(v)]}</Badge>
+                      <Badge variant="outline" title="Video stili">{VIDEO_STYLE_LABEL[videoStyleOf(v)]}</Badge>
                       <Badge variant="outline" title="Tempo">{VIDEO_TEMPO_LABEL[videoTempoOf(v)]}</Badge>
                       <Badge variant={BADGE[VIDEO_STATUS_TONE[v.status]]}>{VIDEO_STATUS_LABEL[v.status]}</Badge>
                     </div>

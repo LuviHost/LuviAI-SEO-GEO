@@ -20,6 +20,9 @@ export const metadata = { title: 'RanksUp Video — RanksUp Help' };
 //    normal / yavas sure metinden (apps/video src/tempo/plan.mjs), her metin
 //    max(2 sn; 0,3 sn x kelime + 1 sn) ekranda, en fazla 60 sn (check-video-readability.mjs).
 //    Araliklar panelle ayni tablodan: web lib/article-video.ts VIDEO_TEMPO_SECONDS.
+//  - Stil (23.10.2026; videos.dto style, varsayilan classic): yalniz gorsel (apps/video src/styles);
+//    metin, tempo plani, muzik, marka rengi / logo ve filigran ayni; her stil bir hak. Gercek goruntu
+//    stilinde Mixkit stok klipleri (styles/CREDITS.md). Adlar / aciklamalar web lib/article-video.ts.
 //  - Marka: sitenin anasayfasi (ad, logo, tema rengi), SSRF korumali indirme; diyalogda renk,
 //    logo ve ad duzeltilir. Logo yoksa bas harf.
 //  - Cikti: H.264 + AAC, -14 LUFS, "ranksup.ai ile uretildi" ibaresi; nginx /videos/ altinda
@@ -34,7 +37,7 @@ export default function Page() {
       steps={[
         { name: 'Video türünü seç', text: 'Videolar sayfasında Yeni video kartından Makaleden, Site tanıtımı ya da Ürün tanıtımı seç. Makale videosunu makale sayfasındaki Video üret düğmesiyle de başlatabilirsin.' },
         { name: 'Kaynağı ve biçimi belirle', text: 'Makaleyi seç, ürün tanıtımında sitendeki sayfanın adresini yapıştır; site ve ürün tanıtımında dikey ya da yatay biçimi seç.' },
-        { name: 'Tempoyu seç, markayı kontrol et, üret ve indir', text: 'Tempoyu (Hızlı, Normal ya da Yavaş) seç, sitenden okunan adı, logoyu ve rengi kontrol et, Video üret’e bas. Video hazır olunca Videolar sayfasında izleyip MP4 olarak indirirsin.' },
+        { name: 'Stili ve tempoyu seç, markayı kontrol et, üret ve indir', text: 'Video stilini (Klasik, Panel, Kâğıt, İsviçre, Sohbet, Diyagram ya da Gerçek görüntü) ve tempoyu (Hızlı, Normal ya da Yavaş) seç, sitenden okunan adı, logoyu ve rengi kontrol et, Video üret’e bas. Video hazır olunca Videolar sayfasında izleyip MP4 olarak indirirsin.' },
       ]}
     >
       <h2>Ne üretir?</h2>
@@ -45,6 +48,22 @@ export default function Page() {
         <li><strong>Tempo:</strong> <strong>Normal</strong> (varsayılan) her metni okunacak kadar ekranda tutar; süre metnin uzunluğuna göre yaklaşık 15–50 saniyedir. <strong>Yavaş</strong> daha sakin geçişler ve daha uzun okuma süresi verir (yaklaşık 25–60 saniye). <strong>Hızlı</strong> 15 saniyedir (yatay site tanıtımında 24 saniye) ve kısa metinler içindir; uzun cümleler hızlı geçer. Video hiçbir tempoda 60 saniyeyi geçmez; her tempo bir video hakkı kullanır.</li>
         <li><strong>Marka:</strong> sitenin adı, logosu ve tema rengi. Yazı renkleri okunurluğa göre otomatik ayarlanır; renk bulunamazsa RanksUp turuncusu, logo bulunamazsa marka adının baş harfi, ürün görseli bulunamazsa logolu bir marka kartı kullanılır.</li>
         <li>Müzikli (ses -14 LUFS’a dengelenir), MP4. Videoda küçük bir &ldquo;ranksup.ai ile üretildi&rdquo; ibaresi bulunur.</li>
+      </ul>
+
+      <h2>Video stilleri</h2>
+      <p>
+        Video üretirken yedi görsel stilden birini seçersin; stil yalnızca görünümü değiştirir. Metin, süre (tempo), müzik, sitenin rengi, logosu
+        ve &ldquo;ranksup.ai ile üretildi&rdquo; ibaresi her stilde aynıdır; her stil bir video hakkı kullanır. Seçim penceresindeki küçük
+        önizlemeler örnek bir markayla hazırlandı, senin videon kendi rengin ve logonla üretilir.
+      </p>
+      <ul>
+        <li><strong>Klasik</strong> (varsayılan): bugünkü tasarım, marka renginde sade kartlar.</li>
+        <li><strong>Panel:</strong> açık zeminde beyaz arayüz kartları, büyük yazı ve müziğin vuruşuna oturan geçişler.</li>
+        <li><strong>Kâğıt:</strong> kâğıt zemin, iri kinetik yazı, elle çizilmiş alt çizgiler ve halkalar; açık ve koyu sahneler dönüşümlü.</li>
+        <li><strong>İsviçre:</strong> sıkı ızgara, tek vurgu rengi (senin marka rengin), keskin ve sade geçişler.</li>
+        <li><strong>Sohbet:</strong> tüm video bir sohbet penceresi: soru balonu, &ldquo;yazıyor&rdquo; noktaları ve cevap balonları.</li>
+        <li><strong>Diyagram:</strong> noktalı kâğıtta kutular ve oklarla akış şeması; etkin adım vurgulanır.</li>
+        <li><strong>Gerçek görüntü:</strong> telif ücreti gerektirmeyen gerçek stok görüntü (Mixkit) üstünde buzlu cam paneller. Görüntülerde yüzü öne çıkan kimse yoktur; ekrandaki metin bir kişinin sözü ya da yorumu gibi gösterilmez.</li>
       </ul>
 
       <h2>Metin nereden geliyor?</h2>
@@ -73,8 +92,9 @@ export default function Page() {
         Ürün tanıtımında sitendeki ürün ya da hizmet sayfasının adresini yapıştır; adres sitenin alan adında değilse alan hemen uyarır. Site ve
         ürün tanıtımında dikey (Reels, Shorts, TikTok) ya da yatay (web sitesi, YouTube) biçimi seç.
       </Step>
-      <Step n={3} title="Tempoyu seç, markayı kontrol et">
-        Açılan pencerede tempoyu seç: Hızlı, Normal ya da Yavaş; her seçeneğin yanında bu türün yaklaşık süresi yazar. Aynı pencerede sitenin
+      <Step n={3} title="Stili ve tempoyu seç, markayı kontrol et">
+        Açılan pencerede önce <strong>Video stili</strong> kartlarından birini (varsayılan Klasik), sonra tempoyu seç: Hızlı, Normal ya da Yavaş;
+        her tempo seçeneğinin yanında bu türün yaklaşık süresi yazar. Aynı pencerede sitenin
         herkese açık sayfasından okunan ad, logo ve renk görünür. Rengi değiştirebilir, RanksUp turuncusunu seçebilir,
         logoyu kaldırabilir ve marka adını düzeltebilirsin.
       </Step>

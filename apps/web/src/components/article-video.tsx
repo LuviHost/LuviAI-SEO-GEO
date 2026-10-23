@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Clapperboard, ImageOff, Loader2, Lock, Palette } from 'lucide-react';
@@ -9,8 +10,9 @@ import { useEntitlements } from '@/lib/entitlements';
 import { siteHref } from '@/lib/site-routes';
 import { placeholderParagraphs } from '@/lib/plan-lock';
 import {
-  ARTICLE_VIDEO_COPY, DEFAULT_VIDEO_TEMPO, VIDEO_TEMPOS, VIDEO_TEMPO_HINT, VIDEO_TEMPO_LABEL, canRequestVideo, normalizeHex, quotaLine, tempoDurationLabel,
-  videoRequestBody, type ArticleVideo, type VideoBrandPreview, type VideoQuota, type VideoTarget, type VideoTempo,
+  ARTICLE_VIDEO_COPY, DEFAULT_VIDEO_STYLE, DEFAULT_VIDEO_TEMPO, VIDEO_STYLES, VIDEO_STYLE_HINT, VIDEO_STYLE_LABEL, VIDEO_TEMPOS, VIDEO_TEMPO_HINT, VIDEO_TEMPO_LABEL,
+  canRequestVideo, normalizeHex, quotaLine, tempoDurationLabel, videoRequestBody, videoStylePreview,
+  type ArticleVideo, type VideoBrandPreview, type VideoQuota, type VideoStyle, type VideoTarget, type VideoTempo,
 } from '@/lib/article-video';
 import { Button } from '@/components/ui/button';
 import { FilterChip } from '@/components/ui/filter-chip';
@@ -158,6 +160,47 @@ function TempoPicker({ target, value, onChange }: { target: VideoTarget; value: 
 }
 
 /**
+ * Video stili secimi — kart basina Turkce ad, tek satir aciklama ve statik onizleme
+ * (public/video-styles/<stil>.jpg; ornek render'lardan, mavi ornek marka). Stil yalniz gorsel: metin,
+ * sure ve muzik ayni; video musterinin kendi rengi ve logosuyla uretilir.
+ */
+export function StylePicker({ value, onChange }: { value: VideoStyle; onChange: (s: VideoStyle) => void }) {
+  return (
+    <div className="space-y-2">
+      <span id="video-style-label" className="text-sm font-medium">Video stili</span>
+      <div role="radiogroup" aria-labelledby="video-style-label" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {VIDEO_STYLES.map((s) => {
+          const selected = value === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(s)}
+              className={cn(
+                'group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1',
+                selected ? 'border-brand ring-2 ring-brand/30' : 'border-border hover:border-brand/40',
+              )}
+            >
+              <Image src={videoStylePreview(s)} alt="" width={240} height={320} unoptimized className="aspect-[3/4] w-full bg-muted object-cover" />
+              <span className="space-y-0.5 p-2">
+                <span className={cn('block text-sm font-medium', selected && 'text-brand')}>{VIDEO_STYLE_LABEL[s]}</span>
+                <span className="block text-label leading-snug text-muted-foreground">{VIDEO_STYLE_HINT[s]}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-label text-muted-foreground">
+        Stil yalnız görünümü değiştirir; metin, süre ve müzik aynı kalır. Video sitenin kendi rengi ve logosuyla üretilir; önizlemeler örnek markayla.
+      </p>
+    </div>
+  );
+}
+
+/**
  * Ortak marka diyalogu: ad, renk, logo onayi + istek. Haklar kesin acik degilse (Deneme / Buyume)
  * hicbir istek atilmaz; kilitli onizleme gosterilir.
  */
@@ -190,6 +233,7 @@ export function VideoRequestDialog({
   const [useTemplateColor, setUseTemplateColor] = useState(false);
   const [useLogo, setUseLogo] = useState(true);
   const [tempo, setTempo] = useState<VideoTempo>(DEFAULT_VIDEO_TEMPO);
+  const [style, setStyle] = useState<VideoStyle>(DEFAULT_VIDEO_STYLE);
   const [submitting, setSubmitting] = useState(false);
 
   // Haklar kesin "acik" degilse hicbir istek atilmaz (kilitli planda marka indirmesi yok)
@@ -228,7 +272,7 @@ export function VideoRequestDialog({
   const submit = async () => {
     setSubmitting(true);
     try {
-      const body = videoRequestBody({ target, brand, color, useTemplateColor, useLogo: useLogo && !!brand?.logoDataUri, name, tempo });
+      const body = videoRequestBody({ target, brand, color, useTemplateColor, useLogo: useLogo && !!brand?.logoDataUri, name, tempo, style });
       const r = await api.requestVideo(siteId, body);
       toast.success('Video sıraya alındı', {
         description: `Genellikle 1-3 dakikada hazır olur; Videolar sayfasında görünür. Bu ay ${r.remaining} video hakkın kaldı.`,
@@ -270,6 +314,8 @@ export function VideoRequestDialog({
                 <p role="alert" className="text-sm text-danger">{loadError}</p>
               ) : (
                 <>
+                  <StylePicker value={style} onChange={setStyle} />
+
                   <TempoPicker target={target} value={tempo} onChange={setTempo} />
 
                   <div className="space-y-1.5">
