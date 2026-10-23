@@ -84,6 +84,28 @@ Each ported file also names its source in a header comment.
   `mobile/` and could be misread as the app's own license; the app is
   proprietary.)
 
+## Vincentwei1021/video-shotcraft — Apache-2.0
+
+- Source: https://github.com/Vincentwei1021/video-shotcraft
+- Copyright 2026 Wei Yihao
+- Used in: `apps/video/src/styles/kit.tsx` (`bezier`, `EASE`, `velocity`, `SpeedBlur`, adapted from `fx/Polish.tsx`;
+  changes listed in `apps/video/src/styles/CREDITS.md`). Full license text:
+  `apps/video/src/styles/LICENSE-Apache-2.0-video-shotcraft.txt`.
+
+## LemoLab/lemo-opuscar — MIT
+
+- Copyright (c) 2026 LemoLab
+- Used in: `apps/video/src/styles/swiss.tsx` (swiss-motion easing constant `cubic-bezier(.7, 0, .2, 1)`; the
+  rest of the style is a re-implementation of its techniques).
+
+## oguzhankayan/motion-engine, Manim Community Edition, MoviePy — MIT (techniques only)
+
+- motion-engine: Copyright (c) 2026 Oguzhan Kayan — https://github.com/oguzhankayan/motion-engine
+- Manim CE: Copyright (c) 2018 3Blue1Brown LLC; Copyright (c) 2024 the Manim Community Developers — https://github.com/ManimCommunity/manim
+- MoviePy: Copyright (c) 2015 Zulko — https://github.com/Zulko/moviepy
+- Used in: `apps/video/src/styles/{chat,diagram,footage}.tsx` re-implement techniques from trials built with these
+  tools (no source code copied; none of them runs on the server). See `apps/video/src/styles/CREDITS.md`.
+
 ---
 
 ## MIT License text

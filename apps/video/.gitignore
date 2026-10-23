@@ -1,2 +1,5 @@
 # Sentezlenen muzik/efekt izi (scripts/audio/synth.mjs uretir; render:marketing once calistirir)
 public/audio/
+# 'footage' video stilinin stok klipleri (Mixkit lisansi: tek basina yeniden dagitilamaz) —
+# prepare:article-short indirir ve dogrular (scripts/stock.mjs, src/styles/registry.mjs STOCK_CLIPS)
+public/stock/

@@ -7,6 +7,7 @@ import { fitText, type Fit } from '../article-short/fit';
 import { brandPalette, rgba, type BrandPalette } from '../article-short/palette';
 import { LogoTile } from '../article-short/ArticleShort';
 import { CtaPill, DISPLAY, FitLines, BrandField, UI, WatermarkLine, fitK, linesH, type PromoBaseProps } from './shared';
+import { StyledVideo, isStyled } from '../styles/StyledVideo';
 
 /**
  * SiteIntro — musterinin kendi sitesinden "site tanitim videosu".
@@ -37,6 +38,7 @@ export const siteIntroDefaults: SiteIntroProps = {
   muted: false,
   watermark: true,
   tempo: 'normal',
+  style: 'classic',
 };
 
 /* ═════════════ dikey ═════════════ */
@@ -50,7 +52,11 @@ function vHookHeight(tile: number, name: Fit, hook: Fit, sub: Fit | null) {
   return tile + 40 + linesH(name, 1.05) + 44 + 8 + 44 + linesH(hook, 1.06) + (sub ? 36 + linesH(sub, 1.28) : 0);
 }
 
-export const SiteIntro: React.FC<SiteIntroProps> = (props) => {
+/** props.style classic degilse stilli video (src/styles); classic yol asagida, degismedi */
+export const SiteIntro: React.FC<SiteIntroProps> = (props) =>
+  isStyled(props.style) ? <StyledVideo compositionId="SiteIntro" props={props} /> : <SiteIntroClassic {...props} />;
+
+const SiteIntroClassic: React.FC<SiteIntroProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
   const TL = useMemo(() => tempoTimeline('SiteIntro', props), [props]);
@@ -333,7 +339,10 @@ function EndCard({
 const H = { left: 140, width: 1640, colW: 960 } as const;
 type WFits = { name: Fit; hook: Fit; sub: Fit | null; headName: Fit; cards: CardFit[]; cardH: number; endName: Fit; domain: Fit };
 
-export const SiteIntroWide: React.FC<SiteIntroProps> = (props) => {
+export const SiteIntroWide: React.FC<SiteIntroProps> = (props) =>
+  isStyled(props.style) ? <StyledVideo compositionId="SiteIntroWide" props={props} /> : <SiteIntroWideClassic {...props} />;
+
+const SiteIntroWideClassic: React.FC<SiteIntroProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
   const TL = useMemo(() => tempoTimeline('SiteIntroWide', props), [props]);

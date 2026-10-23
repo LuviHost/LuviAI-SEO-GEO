@@ -2,9 +2,10 @@
 /**
  * Makale URL'si -> kisa dikey video. TEK KOMUT, insansiz:
  *
- *   node scripts/article-short.mjs <makaleUrl> [--tempo=normal|slow|fast] [--concurrency=N] [--out=dizin] [--muted] [--no-sheet]
+ *   node scripts/article-short.mjs <makaleUrl> [--tempo=normal|slow|fast] [--style=classic|panel|...] [--concurrency=N] [--out=dizin] [--muted] [--no-sheet]
  *
  * --tempo: normal (varsayilan; okunur, sure metinden), slow (rahat), fast (eski sabit 15 sn).
+ * --style: gorsel stil (src/styles/registry.mjs VIDEO_STYLES; varsayilan classic).
  *
  * Adimlar (her biri zamanlanir):
  *   1 fetch    robots.txt denetimi + makale HTML'i (RanksUpBot UA, boyut/sure siniri)
@@ -32,6 +33,7 @@ import { USER_AGENT, fetchLimited, robotsAllows } from './article-short/net.mjs'
 import { runFfSync } from './ffmpeg.mjs';
 import { ensureArticleShortAudio, extractPoster, getArticleShortServeUrl, loudnormInPlace, posterSecondsFor, renderArticleShortMp4 } from '../render/article-short.mjs';
 import { DEFAULT_REQUEST_TEMPO, TEMPOS } from '../src/tempo/plan.mjs';
+import { DEFAULT_STYLE, VIDEO_STYLES } from '../src/styles/registry.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -48,6 +50,11 @@ if (!articleUrl) {
 const tempo = opt('tempo', DEFAULT_REQUEST_TEMPO);
 if (!TEMPOS.includes(tempo)) {
   console.error(`--tempo ${TEMPOS.join(' | ')} olmali`);
+  process.exit(1);
+}
+const style = opt('style', DEFAULT_STYLE);
+if (!VIDEO_STYLES.includes(style)) {
+  console.error(`--style ${VIDEO_STYLES.join(' | ')} olmali`);
   process.exit(1);
 }
 
@@ -125,6 +132,7 @@ const props = {
   muted: flag('muted'),
   watermark: true,
   tempo,
+  style,
 };
 const propsFile = join(OUT, 'props.json');
 writeFileSync(propsFile, JSON.stringify(props, null, 2));

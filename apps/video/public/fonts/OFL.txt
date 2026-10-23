@@ -2,9 +2,15 @@ Bu klasordeki fontlar SIL Open Font License 1.1 ile dagitilir:
 
   Sora.ttf             Copyright 2019 The Sora Project Authors (https://github.com/sora-xor/sora-font)
   PlusJakartaSans.ttf  Copyright 2020 The Plus Jakarta Sans Project Authors (https://github.com/tokotype/PlusJakartaSans)
+  Inter.ttf            Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+  Anton.ttf            Copyright 2020 The Anton Project Authors (https://github.com/googlefonts/AntonFont.git)
+  Caveat.ttf           Copyright 2014 The Caveat Project Authors (https://github.com/googlefonts/caveat)
 
 Dosyalar repodaki reklam/Sora.ttf ve reklam/Jakarta.ttf'nin kopyasidir (degistirilmedi;
 Plus Jakarta Sans dosya adi okunurluk icin yeniden adlandirildi, font adi degismedi).
+Inter, Anton ve Caveat RanksUp Video stilleri icin eklendi (src/styles/CREDITS.md). Tam (latin-ext dahil)
+dosyalar — Google Fonts 'latin' alt kumesi DEGIL; Turkce glifler (ş Ş ğ Ğ ı İ â ç ö ü î û) cmap'te dogrulandi.
+Degistirilmedi (yalniz Anton-Regular.ttf -> Anton.ttf adi).
 
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007

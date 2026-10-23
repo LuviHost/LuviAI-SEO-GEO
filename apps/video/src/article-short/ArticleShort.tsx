@@ -7,6 +7,7 @@ import { TempoProvider, TempoSoundtrack, tempoTimeline, useTL } from '../tempo/T
 import type { Tempo } from '../tempo/plan.mjs';
 import { fitText, type Fit, type FitOptions } from './fit';
 import { brandPalette, contrast, mix, rgba, type BrandPalette } from './palette';
+import { StyledVideo, isStyled } from '../styles/StyledVideo';
 
 /**
  * ArticleShort — bir blog makalesinden OTOMATIK uretilen dikey video (1080×1920 @30); sure tempoya
@@ -35,6 +36,8 @@ export type ArticleShortProps = {
   watermark?: boolean;
   /** 'fast' = eski sabit 15 sn; 'normal' / 'slow' = sure metinden (src/tempo/plan.mjs). Yoksa 'fast' */
   tempo?: Tempo;
+  /** gorsel stil (src/styles/registry.mjs); yoksa / 'classic' = bu dosyadaki tasarim */
+  style?: string;
 };
 
 /** 'fast' tempodaki sabit sure (Root.tsx varsayilani; asil sure calculateMetadata'dan, props'a gore) */
@@ -72,6 +75,7 @@ export const articleShortDefaults: ArticleShortProps = {
   muted: false,
   watermark: true,
   tempo: 'normal',
+  style: 'classic',
 };
 
 const DISPLAY: Omit<FitOptions, 'maxWidth' | 'maxLines' | 'maxSize' | 'minSize'> = { family: fontDisplay, weight: 800, letterSpacing: -0.035 };
@@ -89,7 +93,11 @@ type Fits = {
   domain: Fit;
 };
 
-export const ArticleShort: React.FC<ArticleShortProps> = (props) => {
+/** props.style classic degilse stilli video (src/styles); classic yol asagida, degismedi */
+export const ArticleShort: React.FC<ArticleShortProps> = (props) =>
+  isStyled(props.style) ? <StyledVideo compositionId="ArticleShort" props={props} /> : <ArticleShortClassic {...props} />;
+
+const ArticleShortClassic: React.FC<ArticleShortProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
   const TL = useMemo(() => tempoTimeline('ArticleShort', props), [props]);

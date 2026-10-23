@@ -29,6 +29,8 @@ export type PromoBaseProps = {
   watermark?: boolean;
   /** 'fast' = eski sabit izgara; 'normal' / 'slow' = sure metinden (src/tempo/plan.mjs). Yoksa 'fast' */
   tempo?: Tempo;
+  /** gorsel stil (src/styles/registry.mjs); yoksa / 'classic' = SiteIntro / ProductShort tasarimi */
+  style?: string;
 };
 
 export const WATERMARK_TEXT = 'ranksup.ai ile üretildi';
