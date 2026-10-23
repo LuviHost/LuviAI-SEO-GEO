@@ -10,7 +10,7 @@ import {
   ARTICLE_VIDEO_COPY, DEFAULT_VIDEO_TEMPO, MULTI_PART_SUFFIXES, VIDEO_FORMAT_OPTIONS, VIDEO_STATUS_LABEL, VIDEO_TEMPOS, VIDEO_TEMPO_LABEL,
   VIDEO_TEMPO_SECONDS, VIDEO_TYPE_LABEL, activePromoVideo, activeVideoFor, canRequestVideo, formatVideoSize, hasActiveVideos, normalizeHex,
   productUrlProblem, quotaLine, tempoDurationLabel, videoFileName, videoRequestBody, videoTempoOf, videoTypeOf,
-  DEFAULT_VIDEO_STYLE, VIDEO_STYLES, VIDEO_STYLE_HINT, VIDEO_STYLE_LABEL, videoStyleOf, videoStylePreview, type VideoStyle,
+  DEFAULT_VIDEO_STYLE, VIDEO_STYLES, VIDEO_STYLE_HINT, VIDEO_STYLE_LABEL, videoStyleOf, videoStylePreview, nextRadioValue, type VideoStyle,
 } from './article-video';
 
 describe('canRequestVideo — yalniz yayindaki makale', () => {
@@ -229,5 +229,15 @@ describe('video stili', () => {
     expect(videoStyleOf({})).toBe('classic');
     expect(videoStyleOf({ style: 'neon' as unknown as VideoStyle })).toBe('classic');
     expect(videoStyleOf({ style: 'chat' })).toBe('chat');
+  });
+
+  it('klavye gezintisi: oklar sonraki / onceki secilebilir stile gecer, sonda basa doner, pasif stil atlanir', () => {
+    expect(nextRadioValue(VIDEO_STYLES, 'classic', 'ArrowRight')).toBe('panel');
+    expect(nextRadioValue(VIDEO_STYLES, 'classic', 'ArrowLeft')).toBe('footage');
+    expect(nextRadioValue(VIDEO_STYLES, 'footage', 'ArrowDown')).toBe('classic');
+    expect(nextRadioValue(VIDEO_STYLES, 'diagram', 'ArrowRight', ['footage'])).toBe('classic');
+    expect(nextRadioValue(VIDEO_STYLES, 'paper', 'End', ['footage'])).toBe('diagram');
+    expect(nextRadioValue(VIDEO_STYLES, 'paper', 'Home')).toBe('classic');
+    expect(nextRadioValue(VIDEO_STYLES, 'paper', 'Enter')).toBeNull();
   });
 });

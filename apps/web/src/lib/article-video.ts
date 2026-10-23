@@ -44,6 +44,8 @@ export interface VideoQuota {
   limit: number;
   remaining: number;
   unlimited: boolean;
+  /** Bu sunucuda dosyalari eksik stiller (or. stok klipleri indirilmemis 'footage') — kart pasif; eski API'de yok */
+  unavailableStyles?: VideoStyle[];
 }
 
 export interface VideoBrandPreview {
@@ -141,6 +143,22 @@ export const VIDEO_STYLE_HINT: Record<VideoStyle, string> = {
 };
 /** Stil onizlemesi (statik, kucuk JPEG) */
 export const videoStylePreview = (s: VideoStyle) => `/video-styles/${s}.jpg`;
+
+/**
+ * Radyo grubu klavye gezintisi (WAI-ARIA radio group): ok tuslari bir sonraki / onceki SECILEBILIR degere
+ * gecer (sonda basa doner), Home / End ilk / son. Diger tuslar null. Pasif degerler atlanir.
+ */
+export function nextRadioValue<T>(values: readonly T[], current: T, key: string, disabled: readonly T[] = []): T | null {
+  const enabled = values.filter((v) => !disabled.includes(v));
+  if (!enabled.length) return null;
+  if (key === 'Home') return enabled[0];
+  if (key === 'End') return enabled[enabled.length - 1];
+  const step = key === 'ArrowRight' || key === 'ArrowDown' ? 1 : key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 0;
+  if (!step) return null;
+  const i = enabled.indexOf(current);
+  if (i < 0) return enabled[0];
+  return enabled[(i + step + enabled.length) % enabled.length];
+}
 
 /** Eski yanit / kayit (stil yok) bugunku tasarimla uretildi: 'classic' */
 export function videoStyleOf(v: Pick<ArticleVideo, 'style'> | null | undefined): VideoStyle {

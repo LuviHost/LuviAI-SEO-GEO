@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -11,7 +11,7 @@ import { siteHref } from '@/lib/site-routes';
 import { placeholderParagraphs } from '@/lib/plan-lock';
 import {
   ARTICLE_VIDEO_COPY, DEFAULT_VIDEO_STYLE, DEFAULT_VIDEO_TEMPO, VIDEO_STYLES, VIDEO_STYLE_HINT, VIDEO_STYLE_LABEL, VIDEO_TEMPOS, VIDEO_TEMPO_HINT, VIDEO_TEMPO_LABEL,
-  canRequestVideo, normalizeHex, quotaLine, tempoDurationLabel, videoRequestBody, videoStylePreview,
+  canRequestVideo, nextRadioValue, normalizeHex, quotaLine, tempoDurationLabel, videoRequestBody, videoStylePreview,
   type ArticleVideo, type VideoBrandPreview, type VideoQuota, type VideoStyle, type VideoTarget, type VideoTempo,
 } from '@/lib/article-video';
 import { Button } from '@/components/ui/button';
@@ -139,14 +139,34 @@ export function promoDialogDescription(target: Exclude<VideoTarget, { type: 'art
  * Tempo secimi (Hizli / Normal / Yavas) — her secenekte bu tur ve bicimin yaklasik suresi.
  * Sure tablosu lib/article-video.ts VIDEO_TEMPO_SECONDS (apps/video okunurluk denetimi dogrular).
  */
+/**
+ * Radyo grubu klavye davranisi: yalniz secili oge sekme sirasinda (roving tabindex), ok tuslari / Home /
+ * End secimi degistirir ve odagi yeni ogeye tasir.
+ */
+function useRadioKeys<T extends string>(values: readonly T[], value: T, onChange: (v: T) => void, disabled: readonly T[] = []) {
+  const refs = useRef(new Map<T, HTMLButtonElement | null>());
+  return {
+    ref: (v: T) => (el: HTMLButtonElement | null) => { refs.current.set(v, el); },
+    tabIndex: (v: T) => (v === value || (disabled.includes(value) && v === values.find((x) => !disabled.includes(x))) ? 0 : -1),
+    onKeyDown: (e: React.KeyboardEvent) => {
+      const next = nextRadioValue(values, value, e.key, disabled);
+      if (next === null) return;
+      e.preventDefault();
+      onChange(next);
+      refs.current.get(next)?.focus();
+    },
+  };
+}
+
 function TempoPicker({ target, value, onChange }: { target: VideoTarget; value: VideoTempo; onChange: (t: VideoTempo) => void }) {
   const format = target.type === 'article' ? 'vertical' : target.format;
+  const keys = useRadioKeys(VIDEO_TEMPOS, value, onChange);
   return (
     <div className="space-y-2">
       <span id="video-tempo-label" className="text-sm font-medium">Tempo</span>
-      <div role="radiogroup" aria-labelledby="video-tempo-label" className="flex flex-wrap gap-2">
+      <div role="radiogroup" aria-labelledby="video-tempo-label" className="flex flex-wrap gap-2" onKeyDown={keys.onKeyDown}>
         {VIDEO_TEMPOS.map((t) => (
-          <FilterChip key={t} role="radio" aria-checked={value === t} aria-pressed={undefined} selected={value === t} onClick={() => onChange(t)}>
+          <FilterChip key={t} ref={keys.ref(t)} tabIndex={keys.tabIndex(t)} role="radio" aria-checked={value === t} aria-pressed={undefined} selected={value === t} onClick={() => onChange(t)}>
             {VIDEO_TEMPO_LABEL[t]}
             <span className="text-muted-foreground">· {tempoDurationLabel(target.type, format, t)}</span>
           </FilterChip>
@@ -164,30 +184,36 @@ function TempoPicker({ target, value, onChange }: { target: VideoTarget; value: 
  * (public/video-styles/<stil>.jpg; ornek render'lardan, mavi ornek marka). Stil yalniz gorsel: metin,
  * sure ve muzik ayni; video musterinin kendi rengi ve logosuyla uretilir.
  */
-export function StylePicker({ value, onChange }: { value: VideoStyle; onChange: (s: VideoStyle) => void }) {
+export function StylePicker({ value, onChange, unavailable = [] }: { value: VideoStyle; onChange: (s: VideoStyle) => void; unavailable?: readonly VideoStyle[] }) {
+  const keys = useRadioKeys(VIDEO_STYLES, value, onChange, unavailable);
   return (
     <div className="space-y-2">
       <span id="video-style-label" className="text-sm font-medium">Video stili</span>
-      <div role="radiogroup" aria-labelledby="video-style-label" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div role="radiogroup" aria-labelledby="video-style-label" className="grid grid-cols-2 gap-2 sm:grid-cols-4" onKeyDown={keys.onKeyDown}>
         {VIDEO_STYLES.map((s) => {
           const selected = value === s;
+          const off = unavailable.includes(s);
           return (
             <button
               key={s}
+              ref={keys.ref(s)}
               type="button"
               role="radio"
               aria-checked={selected}
+              aria-disabled={off || undefined}
+              disabled={off}
+              tabIndex={keys.tabIndex(s)}
               onClick={() => onChange(s)}
               className={cn(
                 'group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1',
-                selected ? 'border-brand ring-2 ring-brand/30' : 'border-border hover:border-brand/40',
+                off ? 'cursor-not-allowed opacity-50' : selected ? 'border-brand ring-2 ring-brand/30' : 'border-border hover:border-brand/40',
               )}
             >
               <Image src={videoStylePreview(s)} alt="" width={240} height={320} unoptimized className="aspect-[3/4] w-full bg-muted object-cover" />
               <span className="space-y-0.5 p-2">
                 <span className={cn('block text-sm font-medium', selected && 'text-brand')}>{VIDEO_STYLE_LABEL[s]}</span>
-                <span className="block text-label leading-snug text-muted-foreground">{VIDEO_STYLE_HINT[s]}</span>
+                <span className="block text-label leading-snug text-muted-foreground">{off ? 'Bu stil şu an hazırlanıyor; başka bir stil seç.' : VIDEO_STYLE_HINT[s]}</span>
               </span>
             </button>
           );
@@ -314,7 +340,7 @@ export function VideoRequestDialog({
                 <p role="alert" className="text-sm text-danger">{loadError}</p>
               ) : (
                 <>
-                  <StylePicker value={style} onChange={setStyle} />
+                  <StylePicker value={style} onChange={setStyle} unavailable={quota?.unavailableStyles ?? []} />
 
                   <TempoPicker target={target} value={tempo} onChange={setTempo} />
 
