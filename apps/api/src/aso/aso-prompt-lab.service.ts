@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CITATION_MATCH_VERSION } from '../audit/host-match.js';
+import { sourceColumns } from '../audit/citation-sources.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
 import { isUnconfiguredProvider } from '../audit/citation-providers.js';
 import { containsBrand } from '../audit/brand-in-query.js';
@@ -220,6 +221,8 @@ export class AsoPromptLabService {
         sentiment: probe.sentiment ?? null,
         excerpt: probe.excerpt?.slice(0, 2000) ?? null,
         competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
+        // Alintilanan dis kaynaklar (GEO Faz 2) — bkz. audit/citation-sources.ts
+        ...sourceColumns(probe),
         // Magaza linki artik tam metinden (appStoreRefs) — olcum surumu 2
         matchVersion: CITATION_MATCH_VERSION,
       });

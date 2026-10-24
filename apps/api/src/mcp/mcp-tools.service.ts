@@ -19,6 +19,7 @@ import { SITE_NOT_FOUND_MESSAGE } from '../auth/site-access.guard.js';
 import { isCanonicalSiteId } from '../common/site-id.js';
 import { withAllowanceCharge } from '../articles/article-scheduler.service.js';
 import { settleUnstartedGeneration } from '../articles/allowance-refund.js';
+import { checksWithoutSources } from '../audit/citation-sources.js';
 
 /**
  * RanksUp Tool Registry — MCP server VE uygulama ici Chat'in ORTAK tool seti.
@@ -390,7 +391,8 @@ export class McpToolsService {
           return {
             overallScore: audit.overallScore,
             geoScore: audit.geoScore,
-            checks: audit.checks,
+            // Alintilanan kaynak listeleri ajana verilmez (citation-sources.ts notu)
+            checks: checksWithoutSources(audit.checks),
             issues: annotated.issues,
             ranAt: audit.ranAt,
             // Eklenen alanlar: bu denetimden SONRAKI deneme siteye erisemediyse skor guncel degil

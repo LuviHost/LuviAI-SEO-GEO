@@ -19,6 +19,10 @@ import {
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
 import { answerNapSignal, type AnswerNapSignal } from './local-nap.js';
+import {
+  SOURCES_VERSION, normalizeSources, anthropicSources, geminiSources, openaiSources, perplexitySources,
+  type CitationSource, type RawSource,
+} from './citation-sources.js';
 
 export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
 
@@ -61,6 +65,15 @@ export interface CitationProbe {
    * cevap NAP icin incelenmedi (HATA satiri, eski kayit ya da ayristirma hatasi).
    */
   nap?: AnswerNapSignal | null;
+  /**
+   * Arama yapan saglayicinin cevapta ALINTILADIGI kaynaklar (normalize,
+   * tekil, en fazla 20 — citation-sources.ts). Gurultu filtresi yok.
+   * Alan YOKSA saglayici kaynak listesi dondurmez (aramasiz) ya da kayit
+   * eskidir — ayrim sourcesVersion ile yapilir.
+   */
+  sources?: CitationSource[];
+  /** Kaynak kaydi surumu (citation-sources SOURCES_VERSION); yoksa eski kayit */
+  sourcesVersion?: number;
 }
 
 export interface CitationResult {
@@ -1005,10 +1018,9 @@ export class AiCitationService {
           continue;
         }
 
-        const citedUrls: string[] = resp.content
-          .filter((b: any) => b.type === 'text' && Array.isArray(b.citations))
-          .flatMap((b: any) => b.citations.map((c: any) => c?.url).filter((u: unknown): u is string => typeof u === 'string'));
-        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citedUrls, host));
+        const cited = anthropicSources(resp.content);
+        const citedUrls = cited.map((c) => c.url as string);
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citedUrls, host, cited));
       } catch (err: any) {
         if (this.isFatal(err)) throw new ProviderConfigError(err.message);
         this.log.warn(`Anthropic probe failed (${q}): ${safeErrorText(err)}`);
@@ -1043,7 +1055,7 @@ export class AiCitationService {
         }
         const chunks = resp.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
         const sources = chunks.flatMap((c) => [c.web?.title, c.web?.uri]).filter((s): s is string => !!s);
-        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host));
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host, geminiSources(chunks)));
       } catch (err: any) {
         if (err instanceof ProviderConfigError) throw err;
         this.log.warn(`Gemini probe failed (${q}): ${safeErrorText(err)}`);
@@ -1081,10 +1093,9 @@ export class AiCitationService {
           probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (status=${safeReasonToken(data?.status)})` });
           continue;
         }
-        const sources: string[] = parts.flatMap((p: any) => (Array.isArray(p.annotations) ? p.annotations : [])
-          .filter((a: any) => a?.type === 'url_citation' && typeof a.url === 'string')
-          .map((a: any) => a.url));
-        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host));
+        const cited = openaiSources(parts);
+        const sources = cited.map((c) => c.url as string);
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host, cited));
       } catch (err: any) {
         if (err instanceof ProviderConfigError) throw err;
         this.log.warn(`OpenAI probe failed (${q}): ${safeErrorText(err)}`);
@@ -1114,7 +1125,7 @@ export class AiCitationService {
         }
         const citations: string[] = Array.isArray(data?.citations) ? data.citations : [];
         // Etiket sinirli: 'notranksup.ai' / 'ranksup.ai.tr' artik bizim alinti sayilmaz
-        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citations, host));
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citations, host, perplexitySources(data)));
       } catch (err: any) {
         if (err instanceof ProviderConfigError) throw err;
         this.log.warn(`Perplexity probe failed (${q}): ${safeErrorText(err)}`);
@@ -1195,9 +1206,15 @@ export class AiCitationService {
   /**
    * Arama yapan saglayicinin kaynak listesini probe'a isler: listede bizim
    * alan adimiz varsa alinti sayilir (cevap metninde URL yazmasa bile).
+   *
+   * `sources` (ham dizgeler) alinti OLCUMUNDE eskisi gibi kullanilir — olcum
+   * yontemi degismedi (CITATION_MATCH_VERSION ayni). `captured` ise rapor icin
+   * normalize edilip probe.sources'a yazilir (GEO Faz 2, citation-sources.ts);
+   * aramali saglayicida liste bos olsa da alan yazilir ([] = alinti yok).
    */
-  private withSources(probe: CitationProbe, sources: string[], host: string): CitationProbe {
+  private withSources(probe: CitationProbe, sources: string[], host: string, captured: readonly RawSource[] = []): CitationProbe {
     if (sources.some((u) => urlHostMatches(u, host))) probe.cited = true;
+    probe.sources = normalizeSources(captured);
     return probe;
   }
 
@@ -1369,6 +1386,9 @@ export class AiCitationService {
       citedPages,
       mentionedDomains,
       appStoreRefs: extractAppStoreRefs(baseText),
+      // Kaynak listesi withSources'ta eklenir; damga tum saglayicilarda —
+      // aramasiz saglayicida sources alani olmaz (bkz. citation-sources.ts)
+      sourcesVersion: SOURCES_VERSION,
     };
     // Yerel olcum: cevabin TAMAMI yalniz burada elde — excerpt 220 karakterle sinirli.
     // NAP ayristirmasi yan urun: hata verirse alan YAZILMAZ (= "incelenmedi",

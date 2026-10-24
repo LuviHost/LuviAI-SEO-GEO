@@ -764,7 +764,7 @@ model AiCitationSnapshot {
   score     Int? // 0..100, null = kullanilamaz / sorgu yok
 
   // Probe detaylari (en fazla 5 sorgu)
-  probes         Json // [{ query, cited, brandMentioned, excerpt }]
+  probes         Json // [{ query, cited, brandMentioned, excerpt, ..., sources?, sourcesVersion? }] — sources: audit/citation-sources.ts
   citedCount     Int  @default(0)
   mentionedCount Int  @default(0)
   /// Alinti eslestirme yontemi surumu. 1 = metin.includes(host) (benzer alan
@@ -800,7 +800,7 @@ model AiCitationRun {
   mentionedCount Int  @default(0)
   poolSize       Int  @default(0)
 
-  providers    Json // [{ provider, label, available, score, reason, probes: [{ query, cited, brandMentioned, brandInQuery, position, sentiment, excerpt, citedPages }] }]
+  providers    Json // [{ provider, label, available, score, reason, probes: [{ query, cited, brandMentioned, brandInQuery, position, sentiment, excerpt, citedPages, sources, sourcesVersion }] }]
   /// Alinti eslestirme yontemi surumu. 1 = metin.includes(host) (benzer alan
   /// adlarini da sayiyordu), 2 = etiket sinirli (audit/host-match.ts). Trend ve
   /// alarmlar farkli surumleri ayni seride kiyaslamaz.
@@ -2322,6 +2322,13 @@ model GeoPromptRun {
   excerpt        String? @db.Text
   citedPages     Json?
   competitors    Json?
+  /// Cevapta ALINTILANAN dis kaynaklar (GEO Faz 2, audit/citation-sources.ts):
+  /// [{ url, domain, title?, originOnly? }] — normalize, tekil, en fazla 20.
+  /// null + sourcesVersion dolu = saglayici aramasiz (kaynak listesi yok).
+  sources        Json?
+  /// Kaynak kaydi surumu (SOURCES_VERSION). null = satir kaynaklar
+  /// yakalanmadan once yazildi; sources null olmasi "kaynak yok" demek degil.
+  sourcesVersion Int?
 
   /// Alinti eslestirme yontemi surumu. 1 = metin.includes(host) (benzer alan
   /// adlarini da sayiyordu), 2 = etiket sinirli (audit/host-match.ts). Trend ve

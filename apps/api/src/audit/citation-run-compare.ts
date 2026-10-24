@@ -27,6 +27,7 @@
  * ile ayni kural). Degerler gosterilir, farklar null/0 ve methodChanged=true.
  */
 import { isErrorProbe } from './citation-score.js';
+import type { CitationSource } from './citation-sources.js';
 
 export interface RunProbe {
   query: string;
@@ -36,6 +37,11 @@ export interface RunProbe {
   position?: number | null;
   sentiment?: string | null;
   excerpt?: string | null;
+  citedPages?: string[];
+  /** Alintilanan dis kaynaklar (citation-sources.ts); yoksa saglayici aramasiz ya da eski kosum */
+  sources?: CitationSource[];
+  /** Kaynak kaydi surumu; yoksa kosum kaynaklar yakalanmadan once yazildi */
+  sourcesVersion?: number;
 }
 
 export interface RunProvider {

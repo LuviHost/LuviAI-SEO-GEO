@@ -7,11 +7,14 @@ import { AiCitationTrackerService } from './ai-citation-tracker.service.js';
  * snapshotSite: HATA satirlari kosum havuzuna ve sayaclara girmez.
  * Servis elle kurulur (Vitest decorator metadata uretmez).
  */
-type Snap = { provider: string; date: string; score: number | null; matchVersion: number; citedCount?: number; mentionedCount?: number };
+type Snap = { provider: string; date: string; score: number | null; matchVersion: number; citedCount?: number; mentionedCount?: number; probes?: unknown[] };
 
 function trackerWith(snaps: Snap[]) {
   const findMany = vi.fn(async (args: any) => snaps
-    .map((s) => ({
+    .map((s, i) => ({ s, id: `snap${i}` }))
+    .filter(({ id }) => !args?.where?.id?.in || args.where.id.in.includes(id))
+    .map(({ s, id }) => ({
+      id,
       provider: s.provider,
       date: new Date(`${s.date}T00:00:00Z`),
       score: s.score,
@@ -20,7 +23,7 @@ function trackerWith(snaps: Snap[]) {
       available: s.score !== null,
       createdAt: new Date(`${s.date}T09:00:00Z`),
       matchVersion: s.matchVersion,
-      ...(args?.select?.probes ? { probes: [] } : {}),
+      ...(args?.select?.probes ? { probes: s.probes ?? [] } : {}),
     }))
     .sort((a, b) => a.date.getTime() - b.date.getTime()));
   const prisma = {
@@ -61,9 +64,23 @@ describe('AiCitationTrackerService.getHistory — yontem surumu', () => {
       { provider: 'gemini', date: gunOnce(2), score: 20, matchVersion: 4 },
     ]);
     const h: any = await svc.getHistory('s1', 14, true);
-    expect(findMany.mock.calls[0][0].select.probes).toBe(false);
+    expect(findMany.mock.calls[0][0].select.probes).toBeFalsy();
+    expect(findMany).toHaveBeenCalledTimes(1);
     expect(h.headline).toMatchObject({ methodChanged: true, deltaVsPrev: null, score: 20 });
     expect(h.byProvider).toBeUndefined();
+  });
+
+  it('probe JSON yalniz saglayici basina son snapshot icin cekilir (kaynaklar satiri buyuttu)', async () => {
+    const { svc, findMany } = trackerWith([
+      { provider: 'openai', date: gunOnce(9), score: 40, matchVersion: 4, probes: [{ query: 'eski' }] },
+      { provider: 'openai', date: gunOnce(1), score: 80, matchVersion: 4, probes: [{ query: 'son-openai' }] },
+      { provider: 'gemini', date: gunOnce(2), score: 20, matchVersion: 4, probes: [{ query: 'son-gemini' }] },
+    ]);
+    const h: any = await svc.getHistory('s1', 30);
+    expect(findMany.mock.calls[0][0].select.probes).toBeFalsy();
+    expect(findMany.mock.calls[1][0]).toMatchObject({ where: { id: { in: ['snap1', 'snap2'] } }, select: { probes: true } });
+    const latest = Object.fromEntries(h.latestResults.map((r: any) => [r.provider, r.probes[0].query]));
+    expect(latest).toEqual({ openai: 'son-openai', gemini: 'son-gemini' });
   });
 
   it('tek surum: delta ve methodChanged false', async () => {
@@ -107,5 +124,47 @@ describe('AiCitationTrackerService.snapshotSite — HATA satirlari sayilmaz', ()
     expect(openai).toMatchObject({ score: 100, citedCount: 1 });
     // 10 probe'dan yalniz 1'i olculdu — havuz 1, manset 100 (gemini paydaya girmez)
     expect(runData).toMatchObject({ poolSize: 1, citedCount: 1, headlineScore: 100 });
+  });
+});
+
+describe('AiCitationTrackerService.snapshotSite — alintilanan kaynaklar (GEO Faz 2)', () => {
+  it('snapshot probes JSON\'u ve kosum probe\'u sources + sourcesVersion tasir; aramasiz/eski probe\'a alan eklenmez', async () => {
+    const sources = [
+      { url: 'https://reddit.com/r/x/', domain: 'reddit.com', title: 'r/x' },
+      { url: 'https://bankateklifi.com/', domain: 'bankateklifi.com', originOnly: true as const },
+    ];
+    const results = [
+      {
+        provider: 'gemini', label: 'Google Gemini', available: true, score: 0,
+        probes: [{ query: 'q1', cited: false, brandMentioned: false, brandInQuery: false, excerpt: 'cevap', sources, sourcesVersion: 1 }],
+      },
+      {
+        provider: 'xai', label: 'Grok', available: true, score: 0,
+        probes: [{ query: 'q1', cited: false, brandMentioned: false, brandInQuery: false, excerpt: 'cevap', sourcesVersion: 1 }],
+      },
+      {
+        provider: 'openai', label: 'OpenAI ChatGPT', available: true, score: 0,
+        probes: [{ query: 'q1', cited: false, brandMentioned: false, brandInQuery: false, excerpt: 'eski bicim' }],
+      },
+    ];
+    const upserts: any[] = [];
+    let runData: any = null;
+    const prisma = {
+      aiCitationSnapshot: { upsert: vi.fn(async (a: any) => { upserts.push(a); return {}; }) },
+      aiCitationRun: { create: vi.fn(async (a: any) => { runData = a.data; return { id: 'run1' }; }) },
+    };
+    const svc = new AiCitationTrackerService(prisma as any, { runForSite: vi.fn(async () => results) } as any);
+    await svc.snapshotSite('s1', { trigger: 'system' });
+
+    const snap = upserts.find((u) => u.create.provider === 'gemini');
+    expect(snap.create.probes[0].sources).toEqual(sources);
+    expect(snap.update.probes[0].sourcesVersion).toBe(1);
+
+    const run = (p: string) => runData.providers.find((x: any) => x.provider === p).probes[0];
+    expect(run('gemini')).toMatchObject({ sources, sourcesVersion: 1 });
+    expect(run('xai').sourcesVersion).toBe(1);
+    expect(run('xai')).not.toHaveProperty('sources');
+    expect(run('openai')).not.toHaveProperty('sources');
+    expect(run('openai')).not.toHaveProperty('sourcesVersion');
   });
 });

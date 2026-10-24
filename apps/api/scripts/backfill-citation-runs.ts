@@ -66,6 +66,9 @@ async function createMissingRuns(prisma: PrismaClient): Promise<void> {
         sentiment: pr.sentiment ?? null,
         excerpt: typeof pr.excerpt === 'string' ? pr.excerpt.slice(0, 400) : null,
         ...(Array.isArray(pr.citedPages) && pr.citedPages.length ? { citedPages: pr.citedPages } : {}),
+        // Kaynak listesi (GEO Faz 2) snapshot'ta varsa kosuma da tasinir — tracker ile ayni bicim
+        ...(Array.isArray(pr.sources) ? { sources: pr.sources } : {}),
+        ...(typeof pr.sourcesVersion === 'number' ? { sourcesVersion: pr.sourcesVersion } : {}),
       }));
       // Snapshot backfill'i kosmamis olsa bile kosum guncel kuralla yazilsin
       const o = providerOutcome(probes, { available: r.available });

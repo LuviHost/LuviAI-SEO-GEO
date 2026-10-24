@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException, HttpExcepti
 import { PrismaService } from '../prisma/prisma.service.js';
 import { safeFetchText } from '../common/safe-fetch.js';
 import { CITATION_MATCH_VERSION } from './host-match.js';
+import { sourceColumns } from './citation-sources.js';
 import { AiCitationService, type CitationProbe, type CitationResult, type Provider } from './ai-citation.service.js';
 import { FanoutService } from './fanout.service.js';
 import { unbrandedOnly } from './brand-in-query.js';
@@ -872,6 +873,8 @@ export class PromptLabService {
           excerpt: probe.excerpt?.slice(0, 2000) ?? null,
           citedPages: probe.citedPages?.length ? probe.citedPages : undefined,
           competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
+          // Alintilanan dis kaynaklar (GEO Faz 2) — bkz. citation-sources.ts
+          ...sourceColumns(probe),
           matchVersion: CITATION_MATCH_VERSION,
         })),
       });

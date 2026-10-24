@@ -102,6 +102,10 @@ export class AiCitationTrackerService {
         sentiment: pr.sentiment ?? null,
         excerpt: pr.excerpt?.slice(0, 400) ?? null,
         ...(pr.citedPages?.length ? { citedPages: pr.citedPages } : {}),
+        // Alintilanan dis kaynaklar (GEO Faz 2) — snapshot gun icinde ezildigi
+        // icin kosum basina kaynak gecmisi burada kalir. Damga yoksa eski kosum.
+        ...(pr.sources ? { sources: pr.sources } : {}),
+        ...(pr.sourcesVersion ? { sourcesVersion: pr.sourcesVersion } : {}),
       })),
     }));
     const counts = citationCounts(results.flatMap((r) => r.probes ?? []) as any[]);
@@ -202,6 +206,11 @@ export class AiCitationTrackerService {
    *   latestResults donmez — overview kartlari gibi yalnizca manset sayiya
    *   ihtiyac duyan yuzeyler icin (30 gun x 7 saglayici x 5 probe excerpt
    *   megabaytlara varabiliyor).
+   *
+   * Probe JSON'u yalniz saglayici basina SON snapshot icin cekilir (yalniz o
+   * donuyor). Eskiden penceredeki tum satirlarin probe'lari okunup atiliyordu;
+   * probe'lar alintilanan kaynaklari da tasidigindan beri (GEO Faz 2, satir
+   * basina ~5-10 KB ek) 365 gunluk pencerede bu onlarca MB demekti.
    */
   async getHistory(siteId: string, days = 30, headlineOnly = false) {
     const since = new Date(Date.now() - days * 86400000);
@@ -212,8 +221,7 @@ export class AiCitationTrackerService {
       orderBy: { date: 'asc' },
       select: {
         provider: true, date: true, score: true, citedCount: true, mentionedCount: true,
-        available: true, createdAt: true, matchVersion: true,
-        probes: !headlineOnly,
+        available: true, createdAt: true, matchVersion: true, id: true,
       },
     });
 
@@ -271,11 +279,19 @@ export class AiCitationTrackerService {
       return { days, since: since.toISOString(), trends, headline, stability, latestRunAt };
     }
 
-    const latestResults = Array.from(latestByProvider.values()).map((s) => ({
+    const latest = Array.from(latestByProvider.values());
+    const probeRows = latest.length > 0
+      ? await this.prisma.aiCitationSnapshot.findMany({
+        where: { id: { in: latest.map((s) => s.id) } },
+        select: { id: true, probes: true },
+      })
+      : [];
+    const probesById = new Map(probeRows.map((r) => [r.id, r.probes]));
+    const latestResults = latest.map((s) => ({
       provider: s.provider,
       available: s.available,
       score: s.score,
-      probes: (s as { probes?: unknown }).probes ?? [],
+      probes: probesById.get(s.id) ?? [],
     }));
 
     return {
