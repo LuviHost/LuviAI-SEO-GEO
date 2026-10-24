@@ -31,6 +31,18 @@ import { pickComparePrices, type ComparePlanPrice } from './compare-prices';
  * Turkiye ve reklam gruplarindaki "yok"lar (PayTR, KVKK/TR veri merkezi,
  * Turkce arayuz, Google/Meta reklam hesabi yonetimi) bu araclarin urun
  * kapsaminda olmadigi icin korundu.
+ *
+ * GEON ve SEOYEN (24.10.2026 eklendi): YALNIZ kendi sayfalarinda o gun okunan
+ * bilgiler yazildi; yazilmayan her hucre null ("—", Dogrulanmadi). Sayfada bir
+ * ozelligin GECMEMESI "yok" (false) sayilmadi.
+ *   https://usegeon.com/ , https://usegeon.com/fiyatlandirma
+ *     6 asistan (ChatGPT, Gemini, Perplexity, Claude, Grok, DeepSeek); Turkce
+ *     arayuz + Turkce destek; kayitta 5 ucretsiz kredi (5 prompt taramasi).
+ *   https://seoyen.com/
+ *     AI icerik + WordPress'e tek tikla yayin; AI gorunurluk ChatGPT, Gemini,
+ *     Claude + Google AI Overview; site denetimi 245 otomatik kontrol; TL fiyat,
+ *     iyzico; "Tum veriler Turkiye'deki sunucularda" (KVKK anilmiyor); Turkce
+ *     arayuz (destek dili yazmiyor); yillik odemede %20; 7 gun deneme 50 TL.
  */
 type CellValue = boolean | string | null;
 
@@ -41,6 +53,9 @@ interface FeatureRow {
   jasper: CellValue;
   ahrefs: CellValue;
   frase: CellValue;
+  /** Yazilmazsa null (dogrulanmadi) — bkz. ustteki GEON / SEOYEN kaynak notu */
+  geon?: CellValue;
+  seoyen?: CellValue;
   hint?: string;
 }
 
@@ -58,7 +73,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'AI İçerik Üretimi',
     icon: <Sparkles className="h-4 w-4" />,
     rows: [
-      { name: 'AI ile makale üretimi', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true },
+      { name: 'AI ile makale üretimi', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true, seoyen: true },
       // Uretim hatti 5 ajan: apps/api/src/articles/pipeline.service.ts (yayin bir ajan degil)
       { name: '5 ajanlı üretim hattı + yayın öncesi kalite kapısı', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'Anahtar kelime → taslak → yazar → editör → görsel; kaynaksız sayı, uydurma iç bağlantı ve yapı kontrolleri yayından önce yapılır.' },
       { name: 'Marka sesi (her site için ayrı marka beyni)', luviai: true, surfer: 'Brand Knowledge', jasper: 'Brand Voice', ahrefs: null, frase: 'Brand Voice' },
@@ -71,7 +86,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
     rows: [
-      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '6 asistan', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek; ölçümü sen başlatırsın, hesap başına 7 günde 1. Rakiplerde kapsam plana göre değişir; Google AI Overviews / AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez.' },
+      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '6 asistan', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 asistan', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek; ölçümü sen başlatırsın, hesap başına 7 günde 1. Rakiplerde kapsam plana göre değişir; Google AI Overviews / AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez.' },
       { name: 'GEO ısı haritası (rakip × AI asistanı)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'GEO Skor Kartı (6 başlık, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI görünürlük düşüş alarmı (e-posta)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'uyarılar' },
@@ -87,7 +102,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'SEO & Site Audit',
     icon: <Shield className="h-4 w-4" />,
     rows: [
-      { name: 'Otomatik site denetimi', luviai: '14 kontrol', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'sayfa denetimi' },
+      { name: 'Otomatik site denetimi', luviai: '14 kontrol', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'sayfa denetimi', seoyen: '245 kontrol' },
       { name: 'Search Console entegrasyonu', luviai: true, surfer: true, jasper: null, ahrefs: null, frase: null },
       { name: 'Organik trafik verisi: Search Console gerçeği vs. tahmin', luviai: 'GSC gerçek', surfer: null, jasper: null, ahrefs: 'tahmin', frase: null, hint: 'Üçüncü taraf araçların "organik trafik" rakamı modelleme tahminidir. RanksUp birinci taraf Search Console verisini ve markalı/markasız ayrımını kullanır.' },
       { name: 'GA4 entegrasyonu', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
@@ -105,7 +120,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'Yayın & Dağıtım',
     icon: <Zap className="h-4 w-4" />,
     rows: [
-      { name: 'Otomatik yayın hedefi', luviai: '14 hedef', surfer: null, jasper: null, ahrefs: null, frase: 'WordPress, Webflow, Sanity, Wix', hint: 'RanksUp: WordPress, Webflow, Ghost, Sanity, Contentful, Strapi, FTP, SFTP, cPanel, GitHub, WHMCS bilgi bankası, özel PHP ucu ve Markdown ZIP.' },
+      { name: 'Otomatik yayın hedefi', luviai: '14 hedef', surfer: null, jasper: null, ahrefs: null, frase: 'WordPress, Webflow, Sanity, Wix', seoyen: 'WordPress', hint: 'RanksUp: WordPress, Webflow, Ghost, Sanity, Contentful, Strapi, FTP, SFTP, cPanel, GitHub, WHMCS bilgi bankası, özel PHP ucu ve Markdown ZIP.' },
       { name: 'Konuları otomatik takvime yerleştirme', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Bir makaleyi birden çok yayın hedefine gönderme', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
@@ -136,9 +151,9 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'Türkiye Avantajları',
     icon: <Crown className="h-4 w-4" />,
     rows: [
-      { name: 'Tam Türkçe arayüz + destek', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'PayTR ile Türk lirası ödeme', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'KVKK uyumlu + TR veri merkezi', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Tam Türkçe arayüz + destek', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, geon: true, seoyen: 'Türkçe arayüz' },
+      { name: 'PayTR ile Türk lirası ödeme', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, seoyen: 'TL (iyzico)' },
+      { name: 'KVKK uyumlu + TR veri merkezi', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, seoyen: 'TR sunucu' },
     ],
   },
   {
@@ -147,8 +162,8 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     icon: <Award className="h-4 w-4" />,
     rows: [
       // Surfer SSS'si "up to 17%" diyor (surferseo.com/pricing, 18.10.2026); "~%17" degil
-      { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%17\'ye kadar', jasper: '~%20', ahrefs: '%17\'ye kadar', frase: '%20' },
-      { name: 'Ücretsiz deneme', luviai: '2 makale, kart yok', surfer: null, jasper: '7 gün', ahrefs: 'Ahrefs Free (sınırlı)', frase: '7 gün, kart yok' },
+      { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%17\'ye kadar', jasper: '~%20', ahrefs: '%17\'ye kadar', frase: '%20', seoyen: '%20' },
+      { name: 'Ücretsiz deneme', luviai: '2 makale, kart yok', surfer: null, jasper: '7 gün', ahrefs: 'Ahrefs Free (sınırlı)', frase: '7 gün, kart yok', geon: '5 ücretsiz kredi', seoyen: 'ücretli: 50 TL, 7 gün' },
       { name: 'Aylık plan — uzun taahhüt yok', luviai: true, surfer: true, jasper: true, ahrefs: 'Enterprise hariç', frase: true },
     ],
   },
@@ -160,7 +175,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'AI Content Generation',
     icon: <Sparkles className="h-4 w-4" />,
     rows: [
-      { name: 'AI article generation', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true },
+      { name: 'AI article generation', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true, seoyen: true },
       { name: '5-agent pipeline + pre-publish quality gate', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'Keyword → outline → writer → editor → visuals; unsourced numbers, made-up internal links and structure are checked before publishing.' },
       { name: 'Brand voice (separate brand brain per site)', luviai: true, surfer: 'Brand Knowledge', jasper: 'Brand Voice', ahrefs: null, frase: 'Brand Voice' },
       { name: 'Turkish optimized', luviai: 'native', surfer: 'partial', jasper: 'partial', ahrefs: 'partial', frase: 'partial' },
@@ -172,7 +187,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
     rows: [
-      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '6 assistants', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; you start each measurement, once every 7 days per account. Competitor coverage depends on the plan; some track engines such as Google AI Overviews / AI Mode and Copilot, which RanksUp does not measure.' },
+      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '6 assistants', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 assistants', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; you start each measurement, once every 7 days per account. Competitor coverage depends on the plan; some track engines such as Google AI Overviews / AI Mode and Copilot, which RanksUp does not measure.' },
       { name: 'GEO heatmap (competitor × AI assistant)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'GEO Score Card (6 pillars, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI visibility drop alert (email)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'alerts' },
@@ -188,7 +203,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'SEO & Site Audit',
     icon: <Shield className="h-4 w-4" />,
     rows: [
-      { name: 'Automatic site audit', luviai: '14 checks', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'page audits' },
+      { name: 'Automatic site audit', luviai: '14 checks', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'page audits', seoyen: '245 checks' },
       { name: 'Search Console integration', luviai: true, surfer: true, jasper: null, ahrefs: null, frase: null },
       { name: 'Organic traffic data: Search Console truth vs. estimates', luviai: 'GSC actuals', surfer: null, jasper: null, ahrefs: 'estimate', frase: null, hint: 'Third-party "organic traffic" numbers are modelled estimates. RanksUp uses first-party Search Console data with a branded/non-branded split.' },
       { name: 'GA4 integration', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
@@ -206,7 +221,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'Publishing & Distribution',
     icon: <Zap className="h-4 w-4" />,
     rows: [
-      { name: 'Auto publish targets', luviai: '14 targets', surfer: null, jasper: null, ahrefs: null, frase: 'WordPress, Webflow, Sanity, Wix', hint: 'RanksUp: WordPress, Webflow, Ghost, Sanity, Contentful, Strapi, FTP, SFTP, cPanel, GitHub, WHMCS knowledge base, custom PHP endpoint and Markdown ZIP.' },
+      { name: 'Auto publish targets', luviai: '14 targets', surfer: null, jasper: null, ahrefs: null, frase: 'WordPress, Webflow, Sanity, Wix', seoyen: 'WordPress', hint: 'RanksUp: WordPress, Webflow, Ghost, Sanity, Contentful, Strapi, FTP, SFTP, cPanel, GitHub, WHMCS knowledge base, custom PHP endpoint and Markdown ZIP.' },
       { name: 'Automatic topic scheduling', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Publish one article to several targets', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
@@ -237,9 +252,9 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'Turkey Advantages',
     icon: <Crown className="h-4 w-4" />,
     rows: [
-      { name: 'Full Turkish UI + support', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Turkish lira payments via PayTR', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'KVKK-compliant + TR data center', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Full Turkish UI + support', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, geon: true, seoyen: 'Turkish UI' },
+      { name: 'Turkish lira payments via PayTR', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, seoyen: 'TRY (iyzico)' },
+      { name: 'KVKK-compliant + TR data center', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, seoyen: 'TR servers' },
     ],
   },
   {
@@ -247,8 +262,8 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'Price',
     icon: <Award className="h-4 w-4" />,
     rows: [
-      { name: 'Yearly discount', luviai: '17%', surfer: 'up to 17%', jasper: '~20%', ahrefs: 'up to 17%', frase: '20%' },
-      { name: 'Free trial', luviai: '2 articles, no card', surfer: null, jasper: '7 days', ahrefs: 'Ahrefs Free (limited)', frase: '7 days, no card' },
+      { name: 'Yearly discount', luviai: '17%', surfer: 'up to 17%', jasper: '~20%', ahrefs: 'up to 17%', frase: '20%', seoyen: '20%' },
+      { name: 'Free trial', luviai: '2 articles, no card', surfer: null, jasper: '7 days', ahrefs: 'Ahrefs Free (limited)', frase: '7 days, no card', geon: '5 free credits', seoyen: 'paid: TRY 50, 7 days' },
       { name: 'Monthly plan — no long commitment', luviai: true, surfer: true, jasper: true, ahrefs: 'except Enterprise', frase: true },
     ],
   },
@@ -441,7 +456,7 @@ export function CompareView({ initialPrices }: { initialPrices: Record<Locale, C
           '@context': 'https://schema.org',
           '@type': 'WebPage',
           url: `${SITE_URL}/compare`,
-          name: 'RanksUp vs Surfer vs Jasper vs Ahrefs vs Frase Comparison',
+          name: 'RanksUp vs Surfer vs Jasper vs Ahrefs vs Frase vs GEON vs SEOYEN Comparison',
           dateModified: pageUpdated('/compare'),
           description: 'Feature comparison of AI SEO platforms — AI content, GEO/AEO, audit, publishing, ads.',
           mainEntity: {
@@ -530,12 +545,14 @@ export function CompareView({ initialPrices }: { initialPrices: Record<Locale, C
                 <table className="w-full text-sm">
                   <thead className="bg-muted/30 text-xs">
                     <tr>
-                      <th className="text-left px-4 py-2.5 font-semibold w-[40%]">{c.tableHeaderFeature}</th>
+                      <th className="text-left px-4 py-2.5 font-semibold w-[34%]">{c.tableHeaderFeature}</th>
                       <th className="px-2 py-2.5 text-center bg-brand/5 font-bold text-brand min-w-[80px]">RanksUp</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Surfer</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Jasper</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Ahrefs</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Frase</th>
+                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">GEON</th>
+                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">SEOYEN</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
@@ -552,6 +569,8 @@ export function CompareView({ initialPrices }: { initialPrices: Record<Locale, C
                         <td className="px-2 py-3 text-center"><Cell value={f.jasper} /></td>
                         <td className="px-2 py-3 text-center"><Cell value={f.ahrefs} /></td>
                         <td className="px-2 py-3 text-center"><Cell value={f.frase} /></td>
+                        <td className="px-2 py-3 text-center"><Cell value={f.geon ?? null} /></td>
+                        <td className="px-2 py-3 text-center"><Cell value={f.seoyen ?? null} /></td>
                       </tr>
                     ))}
                   </tbody>
