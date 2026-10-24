@@ -746,7 +746,9 @@ describe('kaynak: kok layout, bant ve gizlilik metni', () => {
     const lay = stripComments(read('../app/layout.tsx'));
     expect(lay).not.toMatch(/googletagmanager\.com|clarity\.ms|ns\.html|<noscript/);
     expect(lay).toContain('<CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} gaId={GA_MEASUREMENT_ID} />');
-    expect(lay).toContain("const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-Y5W4W5EHE7';");
+    // GA4 GTM icindeki Google etiketiyle olculuyor: dogrudan gtag varsayilan olarak KAPALI
+    // (cift sayim olmasin); sign_up dataLayer uzerinden GTM'e gider.
+    expect(lay).toContain("const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? '';");
     expect(lay).toContain('<SignupEvent gaId={GA_MEASUREMENT_ID} />');
     expect(lay).toContain('/api/tracker.js?site=');
   });
