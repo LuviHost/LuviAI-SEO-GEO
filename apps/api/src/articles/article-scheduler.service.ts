@@ -6,7 +6,7 @@ import { QuotaService } from '../billing/quota.service.js';
 import { automationPublishFields, type PublishApprovalSite } from './publish-approval.js';
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 import { automaticGenerationAllowed } from '../billing/trial-policy.js';
-import { explicitContentPlan, rankerPlanFromTopic, withContentPlan } from './content-plan.js';
+import { explicitContentPlan, findRankerTopicHint, rankerPlanFromHint, rankerPlanFromTopic, withContentPlan } from './content-plan.js';
 
 /**
  * Takvimin gecikmeli uretim isinin BullMQ kimligi: makale basina tekil, ayni
@@ -949,6 +949,10 @@ export class ArticleSchedulerService {
     }
 
     const slug = `scheduled-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    // Icerik tipi: acik secim; yoksa toplu planlamadaki gibi siralayici karari kayda yazilir
+    // (uretim gunune kadar yeni kuyruk gelse de ipucu kaybolmaz; content-plan.ts)
+    const plan = explicitContentPlan(args.contentType)
+      ?? rankerPlanFromHint(await findRankerTopicHint(this.prisma as any, siteId, args.topic));
     const article = await this.prisma.article.create({
       data: {
         siteId,
@@ -959,8 +963,8 @@ export class ArticleSchedulerService {
         language: site.language ?? 'tr',
         status: 'SCHEDULED' as any,
         scheduledAt: at,
-        // Acik icerik tipi verildiyse kayitta tasinir (content-plan.ts); verilmezse alan yazilmaz
-        ...(explicitContentPlan(args.contentType) ? { agentOutputs: withContentPlan(null, explicitContentPlan(args.contentType)) as any } : {}),
+        // Karar yoksa alan yazilmaz (bugunku kayitla ayni)
+        ...(plan ? { agentOutputs: withContentPlan(null, plan) as any } : {}),
       },
     });
     this.log.log(`[${siteId}] Konu takvime eklendi: '${args.topic}' @ ${at.toISOString()}`);

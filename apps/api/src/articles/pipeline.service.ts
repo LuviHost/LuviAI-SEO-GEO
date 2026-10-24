@@ -345,7 +345,9 @@ export class PipelineService {
     const contentType = contentPlan.type;
     const authorNote = siteAuthor ? PipelineService.authorNote(siteAuthor) : '';
     const gateOpts: GeoGateOptions = {
-      ...(contentType !== 'guide' ? { contentType } : {}),
+      // Kaynak, engelleyici kuralin (TEMPLATE_STRUCTURE, urun tipinde yeni fiyat kalibi)
+      // devreye girip girmeyecegini belirler: yalniz acik secim / siralayici
+      ...(contentType !== 'guide' ? { contentType, contentTypeSource: contentPlan.source } : {}),
       ...(siteAuthor ? { authorName: siteAuthor.name } : {}),
     };
     this.log.log(`[${opts.siteId}] İçerik tipi: ${contentType} (${contentPlan.source})${siteAuthor ? `, yazar: ${siteAuthor.name}` : ''}`);

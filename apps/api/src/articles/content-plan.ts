@@ -26,6 +26,13 @@ import {
 
 export const CONTENT_PLAN_KEY = 'contentPlan';
 
+/**
+ * Konu kuyrugu kaydinin surum isareti: yalniz bu isareti tasiyan (bu surumden
+ * sonra uretilmis) kuyruk kayitlarinin siralayici ipucu kullanilir.
+ */
+export const CONTENT_TYPE_VERSION_KEY = 'content_type_v';
+export const CONTENT_TYPE_VERSION = 1;
+
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
@@ -99,14 +106,25 @@ export async function findRankerTopicHint(prisma: TopicQueueReader, siteId: stri
 /** Konu nesnesinden siralayici ipucu */
 export function rankerHintFromTopic(topic: unknown): RankerTopicHint {
   const rec = asRecord(topic);
+  // Yayin gunu kurali: bu surumden ONCE uretilmis kuyruklarin schema_type alani
+  // sablon ACMAZ (o konular takvime bugunku rehber davranisiyla girdi). Yalniz
+  // annotateRankedTopics'in isaretledigi (content_type_v) yeni kuyruk kayitlari okunur.
+  if (rec[CONTENT_TYPE_VERSION_KEY] !== CONTENT_TYPE_VERSION) return { contentType: null, schemaType: null };
   // annotateRankedTopics siniflandiricinin tahminini de content_type'a yazar
   // (panel rozeti icin); siralayici karari sayilmasin
-  const src = rec.content_type_source;
-  const fromRanker = src === undefined || src === 'ranker';
+  const fromRanker = rec.content_type_source === 'ranker';
   return {
     contentType: fromRanker ? normalizeContentType(rec.content_type) : null,
     schemaType: typeof rec.schema_type === 'string' ? rec.schema_type : null,
   };
+}
+
+/** Siralayici ipucundan kayda yazilacak karar (yalniz ayirt edici karar; yoksa null) */
+export function rankerPlanFromHint(hint: RankerTopicHint | null): ContentTypeDecision | null {
+  if (!hint) return null;
+  if (hint.contentType) return { type: hint.contentType, source: 'ranker' };
+  const fromSchema = contentTypeFromSchemaType(hint.schemaType);
+  return fromSchema && fromSchema !== 'guide' ? { type: fromSchema, source: 'ranker' } : null;
 }
 
 /**
@@ -115,10 +133,7 @@ export function rankerHintFromTopic(topic: unknown): RankerTopicHint {
  * yoksa null — tip uretimde siniflandiriciyla verilir.
  */
 export function rankerPlanFromTopic(topic: unknown): ContentTypeDecision | null {
-  const hint = rankerHintFromTopic(topic);
-  if (hint.contentType) return { type: hint.contentType, source: 'ranker' };
-  const fromSchema = contentTypeFromSchemaType(hint.schemaType);
-  return fromSchema && fromSchema !== 'guide' ? { type: fromSchema, source: 'ranker' } : null;
+  return rankerPlanFromHint(rankerHintFromTopic(topic));
 }
 
 /**
@@ -138,6 +153,11 @@ export function annotateRankedTopics(list: unknown): Record<string, unknown>[] {
         rankerSchemaType: rec.schema_type,
         title: rec.topic,
       });
-      return { ...rec, content_type: decision.type, content_type_source: decision.source };
+      return {
+        ...rec,
+        content_type: decision.type,
+        content_type_source: decision.source,
+        [CONTENT_TYPE_VERSION_KEY]: CONTENT_TYPE_VERSION,
+      };
     });
 }

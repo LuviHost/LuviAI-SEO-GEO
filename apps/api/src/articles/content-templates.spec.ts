@@ -23,6 +23,9 @@ describe('classifyTopicTitle — Turkce + Ingilizce baslik siniflandirici', () =
     ['KDV ile ÖTV farkı', 'comparison'],
     ['Paraşüt ve Logo karşılaştırması', 'comparison'],
     ['Notion vs. Obsidian', 'comparison'],
+    ['Dolar mı altın mı?', 'comparison'],
+    ['Kira artışı yasal mı, zorunlu mu?', null],
+    ['Fatura silinir mi iptal edilir mi?', null],
     ['En İyi 7 Muhasebe Programı', 'best_for'],
     ['Küçük işletmeler için en uygun POS cihazı', 'best_for'],
     ['Best CRM for startups', 'best_for'],
@@ -30,9 +33,12 @@ describe('classifyTopicTitle — Turkce + Ingilizce baslik siniflandirici', () =
     ['Canva yerine ne kullanılır?', 'alternatives'],
     ['Notion alternatives', 'alternatives'],
     ['En iyi 10 Shopify alternatifi', 'alternatives'],
-    ['Paraşüt Fiyatları 2026', 'pricing'],
-    ['Shopify ücretleri ne kadar?', 'pricing'],
+    ['Muhasebe programı fiyatları', 'pricing'],
+    ['Shopify abonelik ücretleri', 'pricing'],
+    ['Notion fiyatlandırması', 'pricing'],
     ['Webflow pricing explained', 'pricing'],
+    // yazilim / plan baglami yoksa fiyat sablonu acilmaz (yerel hizmet ucretleri rehber)
+    ['Paraşüt Fiyatları 2026', null],
     ['KDV Nasıl Hesaplanır?', 'howto'],
     ['Ücretsiz SSL nasıl alınır?', 'howto'],
     ['10 adımda WordPress kurulumu', 'howto'],
@@ -103,7 +109,7 @@ describe('resolveContentType — oncelik: acik > siralayici > siniflandirici > g
       .toEqual({ type: 'guide', source: 'ranker' });
   });
   it('gecersiz acik / siralayici degeri yok sayilir', () => {
-    expect(resolveContentType({ explicit: 'roman', rankerContentType: 'xyz', title: 'Paraşüt Fiyatları' }))
+    expect(resolveContentType({ explicit: 'roman', rankerContentType: 'xyz', title: 'Muhasebe programı fiyatları' }))
       .toEqual({ type: 'pricing', source: 'classifier' });
   });
   it('hicbir sinyal yoksa guide / default', () => {
@@ -141,7 +147,7 @@ describe('contentTemplateBlock / withContentTemplate', () => {
     expect(b).toMatch(/Hüküm ilk cümlede/);
     expect(b).toMatch(/Özellikler, Fiyat, Entegrasyon, Destek/);
     expect(b).toContain('Hangisi kime uygun?');
-    expect(b).toMatch(/Geçiş rehberi/);
+    expect(b).toContain("X'ten Y'ye nasıl geçilir?");
     expect(b).toContain('Sıkça Sorulan Sorular');
   });
 
@@ -149,14 +155,15 @@ describe('contentTemplateBlock / withContentTemplate', () => {
     const b = contentTemplateBlock('best_for', 'writer');
     expect(b).toMatch(/Ad \| Kime uygun \| Fiyat \| Temel sınırlama/);
     expect(b).toMatch(/artılar ve eksiler/);
-    expect(b).toMatch(/Yöntem notu/);
+    expect(b).toContain('Seçenekleri nasıl değerlendirdik?');
+    expect(b).toMatch(/Seçenekler H3 olarak/);
   });
 
   it('alternatives / howto / pricing iskeletleri', () => {
     expect(contentTemplateBlock('alternatives', 'writer')).toMatch(/5-10 alternatif/);
     expect(contentTemplateBlock('alternatives', 'writer')).toMatch(/neden X'ten ayrılıyor/);
     expect(contentTemplateBlock('howto', 'writer')).toMatch(/NUMARALI liste/);
-    expect(contentTemplateBlock('howto', 'writer')).toMatch(/Sık yapılan hatalar/);
+    expect(contentTemplateBlock('howto', 'writer')).toContain('En sık yapılan hatalar neler?');
     expect(contentTemplateBlock('pricing', 'writer')).toMatch(/Yıllık indirim, iade ve deneme/);
     expect(contentTemplateBlock('pricing', 'writer')).toMatch(/Plan \| Fiyat \| Limitler \| Kime uygun/);
   });
@@ -172,6 +179,23 @@ describe('contentTemplateBlock / withContentTemplate', () => {
     for (const t of ['howto', 'listicle'] as const) {
       expect(contentTemplateBlock(t, 'writer')).not.toContain('Ürün bilgisi doğruluğu');
     }
+  });
+
+  it('sablon H2 adlari soru bicimi ister (soru H2 orani %50 kurali ile catismaz)', () => {
+    for (const t of ['comparison', 'best_for', 'alternatives', 'pricing', 'howto'] as const) {
+      expect(contentTemplateBlock(t, 'writer')).toMatch(/H2 adları soru biçimindedir/);
+    }
+  });
+
+  it('editor olgu eklemez: kaynak yoksa niteliksel birakir (asla "yoksa EKLE")', () => {
+    for (const t of ['comparison', 'best_for', 'alternatives', 'pricing', 'howto'] as const) {
+      const e = contentTemplateBlock(t, 'editor');
+      expect(e).toMatch(/yalnız bağlamda kaynağı varsa ekle/);
+      expect(e).toMatch(/rakam UYDURMA/);
+      expect(e).not.toMatch(/metinde yoksa ekle/);
+    }
+    expect(contentTemplateBlock('pricing', 'editor')).toMatch(/YALNIZ kaynaklıysa/);
+    expect(contentTemplateBlock('comparison', 'editor')).toMatch(/Fiyat satırında kaynaksız rakam yok/);
   });
 
   it('editor asamasi kisa kontrol listesi verir (tam sablonu tekrar etmez)', () => {

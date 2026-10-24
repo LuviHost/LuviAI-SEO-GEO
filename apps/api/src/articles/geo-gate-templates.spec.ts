@@ -169,14 +169,29 @@ describe('MISSING_AUTHOR_LINE (warn)', () => {
   });
 });
 
-describe('TEMPLATE_STRUCTURE (block, yalniz rehber disi tip)', () => {
+describe('TEMPLATE_STRUCTURE (yalniz rehber disi tip; acik/siralayici: block, siniflandirici: warn)', () => {
+  it('siniflandirici tahmininde eksik sablon ogesi yalniz oneri: PASS dusmez', () => {
+    for (const src of [undefined, 'classifier', 'default'] as const) {
+      const r = checkGeoGate(PASSING_GUIDE, { contentType: 'howto', contentTypeSource: src });
+      expect(r.issues.find((i) => i.code === 'TEMPLATE_STRUCTURE')?.severity).toBe('warn');
+      expect(r.pass).toBe(true);
+      expect(r.feedback).toBe('');
+    }
+  });
+
+  it('siralayici karari engeller', () => {
+    const r = checkGeoGate(PASSING_GUIDE, { contentType: 'howto', contentTypeSource: 'ranker' });
+    expect(r.issues.find((i) => i.code === 'TEMPLATE_STRUCTURE')?.severity).toBe('block');
+    expect(r.pass).toBe(false);
+  });
+
   it('comparison: tablo + Hizli cevap varsa gecer', () => {
-    expect(codes(PASSING_GUIDE, { contentType: 'comparison' })).not.toContain('TEMPLATE_STRUCTURE');
+    expect(codes(PASSING_GUIDE, { contentType: 'comparison', contentTypeSource: 'explicit' })).not.toContain('TEMPLATE_STRUCTURE');
   });
 
   it('comparison: Hizli cevap yoksa eksik ogeyi Turkce adlandirir ve PASS dusurur', () => {
     const md = PASSING_GUIDE.replace(/> \*\*Hızlı cevap:\*\*[^\n]*\n/, 'Doğrudan bir giriş cümlesi ile başlıyoruz.\n');
-    const r = checkGeoGate(md, { contentType: 'comparison' });
+    const r = checkGeoGate(md, { contentType: 'comparison', contentTypeSource: 'explicit' });
     const issue = r.issues.find((i) => i.code === 'TEMPLATE_STRUCTURE');
     expect(issue?.severity).toBe('block');
     expect(issue?.samples?.[0]).toMatch(/hükmü ilk cümlede/);
@@ -186,47 +201,70 @@ describe('TEMPLATE_STRUCTURE (block, yalniz rehber disi tip)', () => {
   });
 
   it('best_for: en az 3 satirli tablo ister', () => {
-    expect(codes(PASSING_GUIDE, { contentType: 'best_for' })).toContain('TEMPLATE_STRUCTURE');
+    expect(codes(PASSING_GUIDE, { contentType: 'best_for', contentTypeSource: 'explicit' })).toContain('TEMPLATE_STRUCTURE');
     const ranked = PASSING_GUIDE.replace('| Oran | Mevzuattaki oran |', '| Oran | Mevzuattaki oran |\n| Süre | Aylık |');
-    expect(codes(ranked, { contentType: 'best_for' })).not.toContain('TEMPLATE_STRUCTURE');
+    expect(codes(ranked, { contentType: 'best_for', contentTypeSource: 'explicit' })).not.toContain('TEMPLATE_STRUCTURE');
   });
 
   it('howto: en az 3 adimlik numarali liste ister', () => {
-    expect(codes(PASSING_GUIDE, { contentType: 'howto' })).toContain('TEMPLATE_STRUCTURE');
+    expect(codes(PASSING_GUIDE, { contentType: 'howto', contentTypeSource: 'explicit' })).toContain('TEMPLATE_STRUCTURE');
     const steps = PASSING_GUIDE.replace('Hesap basittir.', '1. Matrahı bulun.\n2. Oranı seçin.\n\n3. Çarpın.\n\nHesap basittir.');
-    expect(codes(steps, { contentType: 'howto' })).not.toContain('TEMPLATE_STRUCTURE');
+    expect(codes(steps, { contentType: 'howto', contentTypeSource: 'explicit' })).not.toContain('TEMPLATE_STRUCTURE');
   });
 
   it('pricing: tablo ister', () => {
-    expect(codes(PASSING_GUIDE, { contentType: 'pricing' })).not.toContain('TEMPLATE_STRUCTURE');
+    expect(codes(PASSING_GUIDE, { contentType: 'pricing', contentTypeSource: 'explicit' })).not.toContain('TEMPLATE_STRUCTURE');
     const noTable = PASSING_GUIDE.replace(/\| Kalem[\s\S]*?\| Oran \| Mevzuattaki oran \|\n/, '');
-    expect(codes(noTable, { contentType: 'pricing' })).toContain('TEMPLATE_STRUCTURE');
+    expect(codes(noTable, { contentType: 'pricing', contentTypeSource: 'explicit' })).toContain('TEMPLATE_STRUCTURE');
   });
 
   it('alternatives: en az 5 alternatif (H3 ya da tablo satiri)', () => {
-    expect(codes(PASSING_GUIDE, { contentType: 'alternatives' })).toContain('TEMPLATE_STRUCTURE');
+    expect(codes(PASSING_GUIDE, { contentType: 'alternatives', contentTypeSource: 'explicit' })).toContain('TEMPLATE_STRUCTURE');
     const five = PASSING_GUIDE.replace('Beyan aylıktır.', ['A', 'B', 'C', 'D', 'E'].map((x) => `### ${x} Yazılım\n**Kime uygun:** küçük ekipler.`).join('\n\n') + '\n\nBeyan aylıktır.');
-    expect(codes(five, { contentType: 'alternatives' })).not.toContain('TEMPLATE_STRUCTURE');
+    expect(codes(five, { contentType: 'alternatives', contentTypeSource: 'explicit' })).not.toContain('TEMPLATE_STRUCTURE');
   });
 
   it('listicle: sablon kontrolu yok (bugunku yapi)', () => {
-    expect(codes(PASSING_GUIDE, { contentType: 'listicle' })).not.toContain('TEMPLATE_STRUCTURE');
+    expect(codes(PASSING_GUIDE, { contentType: 'listicle', contentTypeSource: 'explicit' })).not.toContain('TEMPLATE_STRUCTURE');
   });
 });
 
 describe('UNSOURCED_NUMERIC_CLAIM — fiyat kaliplari', () => {
   const withLine = (line: string) => PASSING_GUIDE.replace('Beyan aylıktır. Süreyi kaçırmayın.', line);
+  const price = (md: string, opts?: Parameters<typeof checkGeoGate>[1]) =>
+    checkGeoGate(md, opts).issues.filter((i) => i.code === 'UNSOURCED_NUMERIC_CLAIM');
 
-  it.each([
-    ['Temel plan aylık $29 ile başlar.'],
-    ['Pro paket 1.039 ₺ olarak satılıyor.'],
-    ['Başlangıç planı aylık 99 TL.'],
-    ['Ekip planı kişi başı 15€.'],
-    ['Kurumsal plan €49 düzeyinde.'],
-  ])('kaynaksiz fiyat yakalanir: %s', (line) => {
-    const r = checkGeoGate(withLine(line));
-    expect(r.issues.find((i) => i.code === 'UNSOURCED_NUMERIC_CLAIM')?.samples).toEqual([line]);
+  it('eski kalip ("99 TL") eskisi gibi engeller', () => {
+    const r = checkGeoGate(withLine('Başlangıç planı aylık 99 TL.'));
+    expect(price(withLine('Başlangıç planı aylık 99 TL.'))).toEqual([expect.objectContaining({ severity: 'block', samples: ['Başlangıç planı aylık 99 TL.'] })]);
     expect(r.pass).toBe(false);
+  });
+
+  const NEW_FORMS = [
+    'Temel plan aylık $29 ile başlar.',
+    'Pro paket 1.039 ₺ olarak satılıyor.',
+    'Ekip planı kişi başı 15€.',
+    'Kurumsal plan €49 düzeyinde.',
+    'Paket 29 € tutuyor.',
+    'Sepet 500 ₺ üzeri ise kargo bedava.',
+  ];
+
+  it.each(NEW_FORMS.map((x) => [x]))('yeni yakalama rehber yolunda yalniz oneri (warn), PASS dusmez: %s', (line) => {
+    const r = checkGeoGate(withLine(line));
+    expect(price(withLine(line))).toEqual([expect.objectContaining({ severity: 'warn', samples: [line] })]);
+    expect(r.pass).toBe(true);
+    expect(r.stats.unsourcedNumericClaims).toBe(0);
+    expect(r.stats.unsourcedPriceClaims).toBe(1);
+  });
+
+  it('yeni yakalama yalniz ACIK / siralayici urun tipinde engeller', () => {
+    const md = withLine('Temel plan aylık $29 ile başlar.');
+    expect(price(md, { contentType: 'pricing', contentTypeSource: 'explicit' })[0].severity).toBe('block');
+    expect(price(md, { contentType: 'comparison', contentTypeSource: 'ranker' })[0].severity).toBe('block');
+    // siniflandirici tahmini, urun disi tip: oneri
+    expect(price(md, { contentType: 'pricing', contentTypeSource: 'classifier' })[0].severity).toBe('warn');
+    expect(price(md, { contentType: 'howto', contentTypeSource: 'explicit' })[0].severity).toBe('warn');
+    expect(price(md, { contentType: 'listicle', contentTypeSource: 'ranker' })[0].severity).toBe('warn');
   });
 
   it('ayni paragrafta resmi fiyat sayfasi linki varsa yakalanmaz', () => {
@@ -236,6 +274,20 @@ describe('UNSOURCED_NUMERIC_CLAIM — fiyat kaliplari', () => {
   it('tutar olmayan "TLS 1.3" ve "100 liralık" kaliplari fiyat sayilmaz', () => {
     expect(codes(withLine('Sunucu TLS 1.3 kullanır.'))).not.toContain('UNSOURCED_NUMERIC_CLAIM');
     expect(codes(withLine('Bir 100 liralık banknot düşün.'))).not.toContain('UNSOURCED_NUMERIC_CLAIM');
+  });
+
+  it.each([
+    ['satir ici kod: htaccess', 'Kural şu: `RewriteRule ^(.*)$ /index.php?q=$1 [L]` satırını ekleyin.'],
+    ['satir ici kod: bash', 'Betikte `echo $1` ilk argümanı yazar.'],
+    ['satir ici kod: bcrypt', 'Parola özeti `$2y$10$abcdefghijklmnopqrstuv` biçimindedir.'],
+    ['satir ici kod: awk', "Sütunu `awk '{print $1}'` ile alın."],
+    ['duz metin: htaccess', 'RewriteRule ^(.*)$ /index.php?q=$1 [L] satırı yönlendirir.'],
+    ['duz metin: bash', 'Komut: echo $1 ilk argümanı yazar.'],
+    ['duz metin: bcrypt', 'Özet $2y$10$abcdefghijklmnopqrstuv gibi görünür.'],
+    ['sembolden sonra yil', 'Türk lirası simgesi ₺ 2012’de kabul edildi.'],
+    ['sembol tek basina', '₺ simgesi 2012’de kabul edildi.'],
+  ])('kod / yil fiyat sayilmaz (%s)', (_name, line) => {
+    expect(codes(withLine(line))).not.toContain('UNSOURCED_NUMERIC_CLAIM');
   });
 });
 

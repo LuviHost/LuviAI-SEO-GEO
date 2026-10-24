@@ -310,7 +310,7 @@ hem SEO hem GEO açısından daha iyidir.
 Ölçüt şu: okur sorusunun cevabını aldı mı, eksik kalan alt başlık var mı.
 
 ## Yazım Kuralları
-- Cümle ortalama 14 kelime, max 22
+- Cümle ortalama 14 kelime, max 22; 25 kelimeyi hiç geçme (kapı 25 kelime üstünü ölçer)
 - Paragraf max 3 cümle
 - Aktif çatı kullan
 - 3+ paralel öge varsa madde işareti

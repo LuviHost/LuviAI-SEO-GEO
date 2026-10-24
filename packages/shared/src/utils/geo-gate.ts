@@ -17,10 +17,15 @@
  * ÖNEM DERECESİ: 'block' bulgular PASS'i engeller (editör turu revizyona düşer);
  * 'warn' bulgular engellemez, yalnız revizyon turunda editöre öneri olarak gider.
  * Uzun cümle ve yazar satırı 'warn' — bugün geçen makaleyi bu yüzden durdurmuyoruz.
- * TEMPLATE_STRUCTURE yalnız rehber DIŞI içerik tipinde ölçülür ('block').
+ * TEMPLATE_STRUCTURE yalnız rehber DIŞI içerik tipinde ölçülür; tip açık seçim ya da
+ * sıralayıcı kararıysa 'block', başlık sınıflandırıcı tahminiyse 'warn'.
+ *
+ * REGRESYON İLKESİ: bugün geçen bir makale yeni kurallar yüzünden durmaz
+ * (iki revizyonda kapanmayan blok → REVIZE_NEEDED, yayın yok, hak iade yok).
+ * Yeni engelleyici kural yalnız tip AÇIKÇA (açık seçim / sıralayıcı) belirlenmişse.
  */
 
-import type { ContentType } from '../prompts/content-templates.js';
+import { isAuthoritativeSource, isProductFactType, type ContentType, type ContentTypeSource } from '../prompts/content-templates.js';
 
 export type GeoGateCode =
   | 'NO_TABLE'
@@ -53,6 +58,8 @@ export interface GeoGateStats {
   shortAnswerCovered: number;
   hasUpdatedDate: boolean;
   unsourcedNumericClaims: number;
+  /** Eski kalıbın kaçırdığı kaynaksız fiyatlar ("$29", "1.039 ₺", "29 €") */
+  unsourcedPriceClaims: number;
   /** H1 ile ilk H2 arasindaki metnin uzunlugu (gorsel/yorum haric) */
   ledeChars: number;
   /** H1'den sonraki ilk anlamli blok cevap tasiyor mu (Hizli cevap blockquote'u ya da klise-siz cumle) */
@@ -86,6 +93,11 @@ export interface GeoGateOptions {
   ledeWindow?: number;
   /** İçerik tipi; 'guide' (varsayılan) için şablon kontrolü yapılmaz */
   contentType?: ContentType;
+  /**
+   * Tip kararının kaynağı. Yalnız 'explicit' / 'ranker' engelleyici kural doğurur
+   * (TEMPLATE_STRUCTURE, ürün tiplerinde yeni fiyat kalıpları); verilmezse tahmin sayılır.
+   */
+  contentTypeSource?: ContentTypeSource;
   /** Sitenin gerçek yazar adı; verilirse yazar satırında bu ad aranır */
   authorName?: string | null;
   /** Uzun cümle eşiği, kelime (varsayılan 25) */
@@ -124,11 +136,25 @@ const SOURCE_MARKERS: RegExp[] = [
 /** Sayısal iddia kalıpları — YMYL (vergi/faiz/kredi) odaklı, dar tutuldu. */
 const PERCENT_RE = /(%\s?\d|\d\s?%)/;
 /**
- * Tutar: "99 TL", "1.039 ₺", "29$", "$29", "€15". Eskiden sembolden sonra `\b`
- * aranıyordu; ₺/$/€ harf olmadığı için "1.039 ₺" ve "$29" HİÇ yakalanmıyordu.
- * Sembol/kısaltmadan sonra harf gelmemeli ("TLS", "liralık" tutar değil).
+ * Tutar — ESKİ kalıp, aynen korunur (önem derecesi değişmez: 'block').
+ * Sembolden sonra `\b` aradığı için "1.039 ₺", "29 €", "$29" kalıplarını kaçırır.
  */
-const MONEY_RE = /\d[\d.,]*\s?(TL|₺|lira|USD|\$|EUR|€|dolar|avro)(?![\p{L}\p{N}_])|(₺|\$|€)\s?\d/iu;
+const MONEY_RE = /\d[\d.,]*\s?(TL|₺|lira|USD|\$|EUR|€|dolar|avro)\b/i;
+/**
+ * Tutar — eski kalıbın kaçırdığı biçimler: "1.039 ₺", "29 €", "29$", "$29", "€15".
+ * Bu yeni yakalamalar yalnız ürün tipinde (comparison/best_for/alternatives/pricing)
+ * ve tip açıkça belirlenmişse engeller; diğer her yerde öneridir (regresyon ilkesi).
+ * Kod sızıntısına karşı: `$1`, `$2y$10$`, `=$1`, `{print $1}`, sembolden sonra yıl
+ * ("₺ 2012'de") tutar sayılmaz.
+ */
+const PRICE_SUFFIX_RE = /\d[\d.,]*\s?(TL|₺|lira|USD|\$|EUR|€|dolar|avro)(?![\p{L}\p{N}_$])/iu;
+const PRICE_PREFIX_RE = /(?<![\p{L}\p{N}_$=\\{(])(₺|\$|€)\s?(?!(19|20)\d{2}\b)\d[\d.,]*(?![\p{L}\p{N}$}\]])/u;
+/** Kabuk / sunucu yapılandırması / kod gibi görünen satır — fiyat taramasına girmez */
+const CODE_LIKE_RE = /[{};^]|=\s?\$|\b(echo|awk|sed|grep|sudo|printf|export|RewriteRule|RewriteCond|SetEnv)\b/;
+/** Satır içi kod (`...`) taramadan önce atılır */
+const INLINE_CODE_RE = /`[^`\n]*`/g;
+/** İçinde 2+ "$" geçen kelime (bcrypt/şifre özeti "$2y$10$...") tutar değildir; taramadan önce atılır */
+const HASH_TOKEN_RE = /\S*\$\S*\$\S*/g;
 const UNIT_RE = /\d[\d.,]*\s?(baz puan|puan|kat)\b/i;
 const FINANCE_WORD_RE =
   /(faiz|oran(ı|i|lar)?|vergi|stopaj|komisyon|kdv|prim|ceza|limit|tutar|tarife|iskonto|vade|taksit|kâr|kar\s?marj)/i;
@@ -254,6 +280,12 @@ function isNumericClaim(line: string): boolean {
   return false;
 }
 
+/** Eski kalıbın kaçırdığı kaynaksız fiyat (yalnız yeni yakalama) */
+function isNewPriceClaim(line: string): boolean {
+  if (CODE_LIKE_RE.test(line)) return false;
+  return PRICE_SUFFIX_RE.test(line) || PRICE_PREFIX_RE.test(line);
+}
+
 function hasSource(text: string): boolean {
   return SOURCE_MARKERS.some((re) => re.test(text));
 }
@@ -264,9 +296,12 @@ function hasSource(text: string): boolean {
  * Pencere: iddianın bulunduğu blok (boş satırla ayrılmış paragraf/tablo) +
  * hemen ardından gelen kısa "Kaynak/dipnot" bloğu. Başlık satırları taranmaz.
  */
-function findUnsourcedClaims(body: string, limit: number): string[] {
-  const blocks = body.split(/\n\s*\n/);
+function findUnsourcedClaims(body: string, limit: number): { legacy: string[]; price: string[] } {
+  // Yalniz yanlis pozitif azaltir: kod ve ozet dizgileri eskiden de tutar sayilmamaliydi
+  const blocks = body.replace(INLINE_CODE_RE, ' ').replace(HASH_TOKEN_RE, ' ').split(/\n\s*\n/);
   const hits: string[] = [];
+  const price: string[] = [];
+  const clip = (line: string) => (line.length > 160 ? `${line.slice(0, 157)}...` : line);
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
@@ -278,17 +313,23 @@ function findUnsourcedClaims(body: string, limit: number): string[] {
     const window = nextIsCaption ? `${block}\n${next}` : block;
     if (hasSource(window)) continue;
 
+    let priceHit: string | null = null;
+    let legacyHit = false;
     for (const rawLine of block.split('\n')) {
       const line = rawLine.trim();
       if (!line || line.startsWith('#')) continue;
       if (/^\|?[\s:|-]+\|?$/.test(line)) continue; // tablo separator
-      if (!isNumericClaim(line)) continue;
-      hits.push(line.length > 160 ? `${line.slice(0, 157)}...` : line);
-      if (hits.length >= limit) return hits;
-      break; // blok başına tek örnek yeter
+      if (isNumericClaim(line)) {
+        legacyHit = true;
+        if (hits.length < limit) hits.push(clip(line));
+        break; // blok başına tek örnek yeter
+      }
+      if (!priceHit && isNewPriceClaim(line)) priceHit = line;
     }
+    // Eski kalıbın yakaladığı blokta yeni yakalama tekrar sayılmaz
+    if (!legacyHit && priceHit && price.length < limit) price.push(clip(priceHit));
   }
-  return hits;
+  return { legacy: hits, price };
 }
 
 // ────────────────────────────────────────────────────────────
@@ -301,7 +342,7 @@ function findUnsourcedClaims(body: string, limit: number): string[] {
  */
 const ABBREVIATIONS = new Set([
   'vb', 'vs', 'vd', 'örn', 'orn', 'bkz', 'krş', 'yy', 'sn', 'dk', 'sa', 'no', 'nr', 'tel',
-  'dr', 'prof', 'doç', 'doc', 'av', 'mah', 'cad', 'sok', 'apt', 'ltd', 'şti', 'sti', 'inc', 'co',
+  'dr', 'prof', 'doç', 'doc', 'yrd', 'av', 'mah', 'cad', 'sok', 'apt', 'ltd', 'şti', 'sti', 'inc', 'co',
   'a.ş', 'a.s', 't.c', 'e.g', 'i.e', 'etc', 'st', 'mr', 'mrs', 'ms', 'jr', 'yak', 'max', 'min', 'ort',
 ]);
 
@@ -333,27 +374,35 @@ function proseForSentences(body: string): string {
   return out.join('\n');
 }
 
-/** Türkçe metni cümlelere böler; kısaltma, ondalık ("3,5" / "3.5"), "1.039" ve URL cümle bitirmez. */
+/**
+ * Türkçe metni cümlelere böler; kısaltma, ondalık ("3,5" / "3.5"), "1.039" ve URL cümle bitirmez.
+ * "3. adımda" sıra sayısıdır (sonraki kelime küçük harf); "31 Mart 2026. Bu ..." ve
+ * "sınırı 5. Daha ..." cümle sonudur (sonraki kelime büyük harf).
+ * Doğrusal: her parça bir kez işlenir (patolojik "vb. vb. vb. ..." girdisinde O(n²) yok).
+ */
 export function splitSentences(text: string): string[] {
   const sentences: string[] = [];
   // Paragraf sınırı her zaman cümle sınırıdır
   for (const para of text.split(/\n\s*\n/)) {
     const flat = para.replace(/\s+/g, ' ').trim();
     if (!flat) continue;
-    let buf = '';
+    let buf: string[] = [];
     const parts = flat.split(/(?<=[.!?…])\s+/);
-    for (const part of parts) {
-      buf = buf ? `${buf} ${part}` : part;
-      const lastWord = (buf.split(' ').pop() ?? '').replace(/^["'“‘([]+/, '').replace(/["'”’)\]]+$/, '');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      buf.push(part);
+      const sp = part.lastIndexOf(' ');
+      const lastWord = part.slice(sp + 1).replace(/^["'“‘([]+/, '').replace(/["'”’)\]]+$/, '');
+      const nextStartsLower = i + 1 < parts.length && /^["'“‘(]*[\p{Ll}]/u.test(parts[i + 1]);
       const endsWithAbbr = /\.$/.test(lastWord)
         && (ABBREVIATIONS.has(lastWord.slice(0, -1).toLocaleLowerCase('tr'))
           || /^(\p{L}\.)+$/u.test(lastWord) // "A.Ş." "T.C." "e.g."
-          || /^\d+\.$/.test(lastWord)); // "3." sıra sayısı ("3. adımda")
-      if (endsWithAbbr) continue;
-      sentences.push(buf);
-      buf = '';
+          || (/^\d+\.$/.test(lastWord) && nextStartsLower)); // "3. adımda" sıra sayısı
+      if (endsWithAbbr && i + 1 < parts.length) continue;
+      sentences.push(buf.join(' '));
+      buf = [];
     }
-    if (buf) sentences.push(buf);
+    if (buf.length) sentences.push(buf.join(' '));
   }
   return sentences;
 }
@@ -366,14 +415,19 @@ function countWords(sentence: string): number {
 //  Yazar satırı
 // ────────────────────────────────────────────────────────────
 
-const AUTHOR_LINE_RE = /bu (makale|yaz[ıi]|i[çc]erik|rehber)[^\n]{1,160}?taraf[ıi]ndan (haz[ıi]rland[ıi]|yaz[ıi]ld[ıi]|derlendi)/i;
-const AUTHOR_LABEL_RE = /^\s*[*_]*\s*yazar\s*[*_]*\s*:/im;
+const AUTHOR_LINE_RE = /bu (makale|yaz[ıi]|i[çc]erik|rehber)[^\n]{1,160}?taraf[ıi]ndan (haz[ıi]rland[ıi]|yaz[ıi]ld[ıi]|derlendi)|\b(written|prepared|reviewed) by\s+\S/i;
+/** "Yazar: ...", "Author: ...", satır başında "By Jane Doe" (İngilizce siteler) */
+const AUTHOR_LABEL_RE = /^\s*[*_]*\s*(yazar|author)\s*[*_]*\s*:/im;
+/** Büyük/küçük harf duyarlı: "By Jane Doe" (iki büyük harfli ad); "By default, ..." değil */
+const AUTHOR_BYLINE_RE = /^\s*[*_]*\s*[Bb]y\s+[*_]*\p{Lu}\p{Ll}+\s+\p{Lu}[^\n]*/mu;
 
 function findAuthorLine(body: string): string | null {
   const m = body.match(AUTHOR_LINE_RE);
   if (m) return m[0];
   const lbl = body.match(new RegExp(AUTHOR_LABEL_RE.source + '.*', 'im'));
-  return lbl ? lbl[0] : null;
+  if (lbl) return lbl[0];
+  const by = body.match(AUTHOR_BYLINE_RE);
+  return by ? by[0] : null;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -457,6 +511,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   const maxSamples = opts.maxSamples ?? 6;
   const ledeWindow = opts.ledeWindow ?? 200;
   const contentType: ContentType = opts.contentType ?? 'guide';
+  const authoritative = isAuthoritativeSource(opts.contentTypeSource);
   const longWords = opts.longSentenceWords ?? 25;
   const maxLongRatio = opts.maxLongSentenceRatio ?? 0.2;
   const minSentences = opts.minSentencesForLength ?? 10;
@@ -470,7 +525,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   const missingShortAnswer = content.filter((s) => !hasShortAnswer(s.body));
   const tables = countTables(body);
   const hasUpdatedDate = /son\s+g[üu]ncelleme\s*[:：]\s*\*{0,2}\s*\d{4}-\d{2}-\d{2}/i.test(body);
-  const unsourced = findUnsourcedClaims(body, maxSamples);
+  const { legacy: unsourced, price: unsourcedPrice } = findUnsourcedClaims(body, maxSamples);
   const lede = extractLede(body);
   const ledeHead = lede.text.slice(0, ledeWindow);
   const ledeHasAnswer = lede.present && !lede.firstBlockIsImage && lede.text.length > 0
@@ -565,10 +620,25 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
     });
   }
 
+  if (unsourcedPrice.length > 0) {
+    // Yeni yakalama: yalnız açıkça belirlenmiş ürün tipinde engeller
+    const strict = authoritative && isProductFactType(contentType);
+    issues.push({
+      code: 'UNSOURCED_NUMERIC_CLAIM',
+      severity: strict ? 'block' : 'warn',
+      message:
+        `${unsourcedPrice.length} yerde kaynağı gösterilmemiş fiyat var (₺, $, €). Adı geçen ürünün fiyatını ` +
+        'yalnız resmî fiyat sayfası bağlantısı ya da "Kaynak: ..." satırıyla yaz; kaynağın yoksa rakamı çıkar ' +
+        've niteliksel anlat ("ücretsiz planı var", "ücretli planlar kullanıcı sayısına göre artar").',
+      samples: unsourcedPrice,
+    });
+  }
+
   if (templateMissing.length > 0) {
     issues.push({
       code: 'TEMPLATE_STRUCTURE',
-      severity: 'block',
+      // Sınıflandırıcı tahmini: öneri; açık seçim / sıralayıcı: engel
+      severity: authoritative ? 'block' : 'warn',
       message:
         `İçerik tipi "${contentType}" şablonunun zorunlu öğeleri eksik. Okurun bu tip soruda aradığı ` +
         'iskelet AI cevaplarında alıntılanan kısımdır; eksik öğeyi ekle, var olan bölümleri silme. ' +
@@ -609,6 +679,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
     shortAnswerCovered: content.length - missingShortAnswer.length,
     hasUpdatedDate,
     unsourcedNumericClaims: unsourced.length,
+    unsourcedPriceClaims: unsourcedPrice.length,
     ledeChars: lede.text.length,
     ledeHasAnswer,
     sentences: sentences.length,

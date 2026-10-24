@@ -118,12 +118,21 @@ export class QaGateService {
     detail: string;
     excerpt?: string;
   }>> {
+    // Sitenin kendi urununun fiyati / limiti "kaynaksiz urun fiyati" sayilmasin:
+    // marka bilgisi (site adi + adresi) denetciye verilir. Okunamazsa satir eklenmez.
+    const site = await Promise.resolve()
+      .then(() => this.prisma.site.findUnique({ where: { id: siteId }, select: { name: true, url: true } }))
+      .catch(() => null);
+    const ownBrandLine = site?.name
+      ? `Makale ${String(site.name).slice(0, 100)} (${String(site.url ?? '').slice(0, 200)}) sitesinde yayinlanacak. Sitenin KENDI urun/hizmetinin fiyati ve plan limiti (bu marka adiyla anilan) blocker DEGILDIR: kendi sitesine link verilmisse hic isaretleme, link yoksa en fazla warning. Blocker yalniz BASKA markalarin kaynaksiz fiyat/limitleri icin.`
+      : '';
     const systemPrompt = [
       'Sen bir yayin oncesi dogruluk denetcisisin. Sana verilen Turkce/Ingilizce makalede SADECE su uc sinifi ara:',
       '1. fabricated_attribution — belirli bir kisi/kurum/rapora atif var ama kaynak linki/adi dogrulanabilir degil ("Webtures\'a gore...", "Gartner raporunda..." gibi, link yok).',
       '2. unsourced_claim — spesifik sayisal iddia (yuzde, adet, fiyat araligi, "arastirmalara gore X%") kaynak gosterilmeden verilmis. Adi gecen bir urunun/hizmetin fiyati veya plan limiti ("$29", "1.039 ₺", "aylik 99 TL", "10 kullaniciya kadar") de bu siniftadir: ayni paragrafta resmi fiyat sayfasi linki ya da "Kaynak:" yoksa isaretle.',
       '3. fabricated_entity — var olmayan/uydurma gorunumlu calisma, arac, kurum adi.',
       '',
+      ...(ownBrandLine ? [ownBrandLine] : []),
       'Genel bilgiler, yazarin kendi yorumu ve "genellikle/cogu zaman" gibi nitelenmis ifadeler SORUN DEGIL. Asiri hassas olma: yalnizca yayinda utandiracak net vakalari isaretle.',
       '',
       'YANIT FORMATI — yalnizca JSON dizi, baska hicbir sey yazma:',

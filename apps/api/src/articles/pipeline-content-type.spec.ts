@@ -145,7 +145,7 @@ describe('runPipeline — tip secimi ve sablon blogu', () => {
   });
 
   it('siralayicinin content_type alani siniflandiriciyi ezer', async () => {
-    const queue = { tier1Topics: [{ topic: 'Shopify vs WooCommerce', content_type: 'best_for' }], tier2Topics: [], tier3Topics: [] };
+    const queue = { tier1Topics: [{ topic: 'Shopify vs WooCommerce', content_type: 'best_for', content_type_source: 'ranker', content_type_v: 1 }], tier2Topics: [], tier3Topics: [] };
     const { svc, inputs, prisma } = build({ queue });
     await svc.runPipeline({ siteId: 's1', topic: 'Shopify vs WooCommerce', articleId: 'a1', skipImages: true });
     expect(inputs['03-writer'][0]).toContain('EN İYİ SEÇENEKLER');
@@ -153,7 +153,7 @@ describe('runPipeline — tip secimi ve sablon blogu', () => {
   });
 
   it('kayittaki acik secim siralayici ve siniflandiriciyi ezer; uretim sonrasi korunur', async () => {
-    const queue = { tier1Topics: [{ topic: 'Shopify vs WooCommerce', content_type: 'best_for' }], tier2Topics: [], tier3Topics: [] };
+    const queue = { tier1Topics: [{ topic: 'Shopify vs WooCommerce', content_type: 'best_for', content_type_source: 'ranker', content_type_v: 1 }], tier2Topics: [], tier3Topics: [] };
     const { svc, inputs, prisma } = build({ queue, storedAgentOutputs: { contentPlan: { type: 'pricing', source: 'explicit' } } });
     await svc.runPipeline({ siteId: 's1', topic: 'Shopify vs WooCommerce', articleId: 'a1', skipImages: true });
     expect(inputs['03-writer'][0]).toContain('FİYATLAR');
@@ -172,8 +172,22 @@ describe('runPipeline — tip secimi ve sablon blogu', () => {
   it('kuyruk okuma hatasi uretimi durdurmaz (siniflandiriciya duser)', async () => {
     const { svc, prisma, inputs } = build();
     prisma.topicQueue.findFirst.mockRejectedValueOnce(new Error('db down'));
-    await svc.runPipeline({ siteId: 's1', topic: 'Paraşüt Fiyatları', articleId: 'a1', skipImages: true });
+    await svc.runPipeline({ siteId: 's1', topic: 'Muhasebe programı fiyatları', articleId: 'a1', skipImages: true });
     expect(inputs['03-writer'][0]).toContain('FİYATLAR');
+  });
+
+  it('yayin gunu: eski kuyrugun schema_type alani sablon acmaz; takvimdeki eski yazi rehber kalir', async () => {
+    const queue = { tier1Topics: [{ topic: 'E-Fatura Rehberi', schema_type: 'HowTo' }], tier2Topics: [], tier3Topics: [] };
+    const { svc, inputs, prisma } = build({ queue });
+    await svc.runPipeline({ siteId: 's1', topic: 'E-Fatura Rehberi', articleId: 'a1', skipImages: true });
+    expect(inputs['03-writer']).toEqual([`02-outline cikti${DATE_NOTE}`]);
+    expect(savedOutputs(prisma).contentPlan).toEqual({ type: 'guide', source: 'default' });
+  });
+
+  it('kapiya tip kaynagi gider: siniflandirici tahmini engelleyici kural dogurmaz', async () => {
+    const { svc } = build();
+    await svc.runPipeline({ siteId: 's1', topic: 'Shopify vs WooCommerce', articleId: 'a1', skipImages: true });
+    expect(gateCalls.every((o) => o?.contentTypeSource === 'classifier')).toBe(true);
   });
 });
 
