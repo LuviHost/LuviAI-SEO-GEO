@@ -28,7 +28,7 @@ export function SiteHeader() {
           <Link href="/pricing" className="hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.pricing')}</Link>
           <Link href="/use-cases" className="hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.use_cases')}</Link>
           <Link href="/compare" className="hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.compare')}</Link>
-          <Link href="/rehber" className="hover:text-foreground transition-colors duration-300 ease-apple">Rehber</Link>
+          <Link href="/rehber" className="hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.guides')}</Link>
           <Link href="/about" className="hover:text-foreground transition-colors duration-300 ease-apple">Hakkımızda</Link>
           <Link href="/faq" className="hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.faq')}</Link>
         </nav>

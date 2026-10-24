@@ -184,6 +184,36 @@ describe.each(REHBER_ARTICLES.map((a) => [a.slug, a] as const))('%s', (_slug, a)
   });
 });
 
+describe('bilinen hatalar geri gelmiyor (24.10.2026 bagimsiz kontrol)', () => {
+  const metinler = REHBER_ARTICLES.flatMap((a) => tumMetinler(a).map((t) => ({ slug: a.slug, t })));
+
+  it('SSS zengin sonucu kisitlamasi anilinca 7 Mayis 2026 kaldirilisi da yaziyor', () => {
+    for (const { slug, t } of metinler) {
+      if (/zengin sonu/i.test(t) && /devlet ve sağlık/i.test(t)) expect(t, slug).toContain('7 Mayıs 2026');
+    }
+  });
+
+  it('KobiPratik Search Console rakamlari donemiyle; "tamamı organik" iddiasi yok', () => {
+    for (const { slug, t } of metinler) {
+      expect(t, slug).not.toMatch(/tamamı organik/i);
+      if (t.includes('12.000')) expect(t, slug).toContain('13 Ağustos 2026');
+      if (t.includes('52’den 340’a')) expect(t, slug).toContain('16 Mayıs – 13 Ağustos 2026');
+    }
+  });
+
+  it('Apple aciklama siniri 4.000 karakter (apps/api/src/aso/store-limits.ts)', () => {
+    const mobil = REHBER_ARTICLES.find((a) => a.slug === 'mobil-uygulama-geo')!;
+    const limits = read(join(SRC, '../../api/src/aso/store-limits.ts'));
+    expect(limits).toMatch(/description: 4000/);
+    expect(tumMetinler(mobil).join('\n')).not.toMatch(/Uzunluk sınırı belirtilmiyor/);
+  });
+
+  it('ayni SSS sorusu iki makalede tekrar etmiyor', () => {
+    const sorular = REHBER_ARTICLES.flatMap((a) => a.faq.map((f) => f.q));
+    expect(new Set(sorular).size).toBe(sorular.length);
+  });
+});
+
 describe('sayfa bileseni = veri', () => {
   const bilesen = read(join(SRC, 'components/rehber/rehber-article.tsx'));
 

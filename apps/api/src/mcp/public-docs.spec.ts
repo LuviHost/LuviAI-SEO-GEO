@@ -1461,6 +1461,9 @@ describe('Rehber (/rehber) = ürün', () => {
     }
     expect(sayi, 'karsilastirma makalesi RanksUp baslangic fiyatini plans.ts adiyla yaziyor').toBeGreaterThan(0);
     expect(dosya('yapay-zeka-gorunurluk-araclari')).toContain(`${findPlan('starter')!.name_tr} $${findPlan('starter')!.monthly_usd}/ay`);
+    // Fiyat notu Kullanim Sartlari ile ayni: "KDV dahil"
+    expect(read(path.join(MARKETING, 'terms/page.tsx'))).toContain('Aylık veya yıllık ödeme. KDV dahil.');
+    expect(dosya('yapay-zeka-gorunurluk-araclari')).toContain(`${findPlan('starter')!.name_tr} $${findPlan('starter')!.monthly_usd}/ay, KDV dahil`);
   });
 
   it('plan kapilari kodla ayni (App Prompt Lab, AXO, Canlı Tarayıcı, kapalı döngü)', () => {

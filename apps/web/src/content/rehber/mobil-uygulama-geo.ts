@@ -20,7 +20,7 @@ export const article: RehberArticle = {
   quick: [
     'AppTweak’in analizine göre ChatGPT’nin uygulama önerilerindeki alıntıların yaklaşık %47’si mağaza sayfalarına ait.',
     'Uygulamanın ne işe yaradığını mağazada, web sitende ve dış profillerde aynı cümleyle anlat.',
-    'App Store’da ad ve alt başlık 30, anahtar kelime alanı 100 karakter; Google Play’de ad 30, kısa açıklama 80 karakter.',
+    'App Store’da ad ve alt başlık 30 karakter, anahtar kelime alanı 100 bayt, açıklama 4.000 karakter; Google Play’de ad 30, kısa açıklama 80 karakter.',
     'Uygulama için web’de taranabilir bir ana sayfa ve SSS yayımla.',
     '“En iyi X uygulaması” sorularını asistanlara sorup uygulamanın önerilip önerilmediğini ölç.',
   ],
@@ -31,12 +31,12 @@ export const article: RehberArticle = {
       blocks: [
         {
           t: 'p',
-          text: 'Bu konuda üreticilerin resmi bir açıklaması yok; elimizdeki en kapsamlı veri bir ASO şirketinden. AppTweak, Mayıs 2026’da 125.000’den fazla ChatGPT uygulama önerisini inceledi. Analize göre mağaza sayfaları uygulama önerilerinde en çok alıntılanan kaynak: uygulamalarda alıntıların yaklaşık %47’si, oyunlarda yaklaşık %60’ı.',
+          text: 'Bu konuda üreticilerin resmi bir açıklaması yok; elimizdeki en kapsamlı veri bir ASO şirketinden. AppTweak, 125.000’den fazla ChatGPT uygulama önerisini inceledi. Mayıs 2026 ChatGPT cevaplarına dayanan analize göre mağaza sayfaları uygulama önerilerinde en çok alıntılanan kaynak: uygulamalarda alıntıların yaklaşık %47’si, oyunlarda yaklaşık %60’ı.',
           kaynak: ['apptweak'],
         },
         {
           t: 'p',
-          text: 'Aynı yazının SSS bölümünde oran “%40’tan fazla” olarak geçiyor; yazı bu farkı açıklamıyor. Bu bir satıcı analizi ve yöntemi bağımsız olarak doğrulanmış değil. Yine de yön açık: mağaza sayfan, asistanların uygulaman hakkında okuduğu ilk yerlerden biri.',
+          text: 'Bu bir satıcı analizi ve yöntemi bağımsız olarak doğrulanmış değil. Yine de yön açık: mağaza sayfan, asistanların uygulaman hakkında okuduğu ilk yerlerden biri.',
           kaynak: ['apptweak'],
         },
         { t: 'p', text: 'Web’de arama yapan asistanlar mağaza sayfana bağlantı verebilir. Arama yapmadan cevap veren asistanlar ise uygulamanı ancak eğitim bilgisinde varsa anar.' },
@@ -53,11 +53,11 @@ export const article: RehberArticle = {
           rows: [
             ['Uygulama adı', '30 karakter', '30 karakter', 'Ad ve uygulamanın ne yaptığı birlikte anlaşılsın'],
             ['Alt başlık / kısa açıklama', 'Alt başlık 30 karakter, adın altında görünür', 'Kısa açıklama 80 karakter', 'Ana kullanım amacını tek cümlede söyle'],
-            ['Anahtar kelimeler', '100 karakter, virgülle ayrılır; aramada nerede görüneceğini belirlemeye yardım eder', 'Tekrarlı ya da alakasız anahtar kelime kullanımı askıya alma sebebi olabilir', 'Ana mesajını görünür alanlarda da kullan'],
-            ['Açıklama', 'Uzunluk sınırı belirtilmiyor; Apple’a göre ilk cümle en önemlisi', '4.000 karakter', 'İlk cümlede kimin, hangi iş için kullandığını yaz'],
+            ['Anahtar kelimeler', '100 bayt, virgülle ayrılır; aramada nerede görüneceğini belirlemeye yardım eder', 'Ayrı anahtar kelime alanı yok; ad ve açıklamada tekrarlı ya da alakasız anahtar kelime askıya alma sebebi olabilir', 'Ana mesajını görünür alanlarda da kullan'],
+            ['Açıklama', '4.000 karakter; Apple’a göre ilk cümle en önemlisi', '4.000 karakter', 'İlk cümlede kimin, hangi iş için kullandığını yaz'],
             ['Tanıtım metni', '170 karakter; sıralamayı etkilemez, sürüm göndermeden güncellenir', '—', 'Güncel bir özelliği ya da kampanyayı anlat'],
           ],
-          kaynak: ['apple-product-page', 'google-play-listing'],
+          kaynak: ['apple-product-page', 'apple-asc-limits', 'google-play-listing'],
         },
         {
           t: 'p',
@@ -80,7 +80,7 @@ export const article: RehberArticle = {
           items: [
             '**Tek bir ana amaç belirle.** Uygulamayı mağazada, web sitende ve dış profillerde aynı cümleyle anlat.',
             '**Uygulama için bir web sayfası aç.** Ana sayfa, SSS, herkese açık sürüm notları ve belgeler; taranabilir olsun.',
-            '**Bağlantıları kur.** Uygun yerlerde Universal Links ve App Links ile web sayfası ile uygulama arasında bağ kur.',
+            '**Bağlantıları kur.** Web’den uygulamaya yönlendirme destekliyorsan iOS’ta Universal Links, Android’de App Links kullan.',
             '**Dış kaynaklarda doğru anıl.** Karşılaştırma yazıları, listeler ve dizin profillerinde bilgiler tutarlı olsun ve tek bir ana adrese işaret etsin.',
           ],
           kaynak: ['apptweak'],
@@ -93,7 +93,7 @@ export const article: RehberArticle = {
       blocks: [
         {
           t: 'p',
-          text: 'AppTweak, herkese açık yorumları izlemeyi ve kullanıcıları somut yorum yazmaya teşvik etmeyi öneriyor. “Harika uygulama” yerine “faturayı 2 dakikada kesiyorum” gibi bir yorum, uygulamanın ne işe yaradığını hem okura hem asistana anlatır.',
+          text: 'AppTweak, yorumları doğru anda istemeyi ve somut, özellik anlatan yorumları teşvik etmeyi öneriyor; yazıya göre açıklayıcı yorum metni asistanlar için bir dayanak sinyali. “Harika uygulama” yerine “faturayı 2 dakikada kesiyorum” gibi bir yorum, uygulamanın ne işe yaradığını hem okura hem asistana anlatır.',
           kaynak: ['apptweak'],
         },
         { t: 'p', text: 'RanksUp’ın Profesyonel ve üstü planlarındaki App Store Connect bağlantısı yorumları çeker ve duygu analizini yapay zekâyla çıkarır; olumsuz yorum temalarından sürüm notu ve SSS taslağı hazırlanabilir.' },
@@ -152,7 +152,7 @@ export const article: RehberArticle = {
       a: 'AppTweak’in analizine göre oyunlarda mağaza sayfalarının alıntı payı daha yüksek, yaklaşık %60. Yani oyunlarda mağaza metadata’sının ağırlığı daha da fazla olabilir.',
     },
   ],
-  sources: [SRC.apptweak, SRC.appleProductPage, SRC.googlePlayListing],
+  sources: [SRC.apptweak, SRC.appleProductPage, SRC.appleAscLimits, SRC.googlePlayListing],
   related: ['geo-nedir', 'chatgpt-markam-gorunuyor-mu', 'yapay-zeka-gorunurluk-araclari'],
   published: '2026-10-24',
   schemaType: 'Article',

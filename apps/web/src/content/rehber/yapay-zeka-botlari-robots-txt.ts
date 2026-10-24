@@ -32,8 +32,8 @@ export const article: RehberArticle = {
           caption: 'Yapay zekâ botları ve amaçları (üretici belgelerine göre, 24.10.2026)',
           head: ['Bot (robots.txt adı)', 'Şirket', 'Ne için kullanılıyor?', 'Engellersen ne olur?', 'robots.txt’ye uyuyor mu?'],
           rows: [
-            ['GPTBot', 'OpenAI', 'Üretken AI temel modellerini eğitmek', 'İçeriğin model eğitiminde kullanılmaması gerektiğini bildirirsin. Diğer OpenAI ayarları bundan bağımsızdır.', 'robots.txt ile yönetilir'],
-            ['OAI-SearchBot', 'OpenAI', 'Siteleri ChatGPT arama özelliklerinde göstermek', 'ChatGPT arama cevaplarından çıkarsın; yalnız gezinme bağlantısı olarak görünebilirsin', 'robots.txt ile yönetilir; değişikliğin yansıması yaklaşık 24 saat'],
+            ['GPTBot', 'OpenAI', 'Üretken AI temel modellerinin eğitiminde kullanılabilecek içeriği toplamak', 'İçeriğin model eğitiminde kullanılmaması gerektiğini bildirirsin. Diğer OpenAI ayarları bundan bağımsızdır.', 'robots.txt ile yönetilir'],
+            ['OAI-SearchBot', 'OpenAI', 'Siteleri ChatGPT arama özelliklerinde göstermek', 'ChatGPT arama cevaplarında gösterilmezsin; gezinme bağlantısı olarak yine görünebilirsin', 'robots.txt ile yönetilir; değişikliğin yansıması yaklaşık 24 saat'],
             ['ChatGPT-User', 'OpenAI', 'ChatGPT ve Custom GPT’lerde kullanıcının başlattığı işlemler', 'Arama görünürlüğünü belirlemek için kullanılmaz', 'OpenAI: kullanıcı başlattığı için robots.txt kuralları uygulanmayabilir'],
             ['ClaudeBot', 'Anthropic', 'Model eğitimine katkı sağlayabilecek web içeriği toplamak', 'Sitenin gelecekteki içeriği eğitim verisinden çıkarılır', 'Evet; Crawl-delay de destekleniyor'],
             ['Claude-User', 'Anthropic', 'Kullanıcı Claude’a soru sorduğunda sayfaya erişmek', 'Kullanıcı isteğiyle yapılan aramalarda görünürlüğün azalabilir', 'Evet'],
@@ -41,10 +41,15 @@ export const article: RehberArticle = {
             ['PerplexityBot', 'Perplexity', 'Siteleri Perplexity arama sonuçlarında gösterip bağlamak; temel model eğitimi için değil', 'Perplexity cevaplarında kaynak gösterilmeyebilirsin', 'Perplexity izin verilmesini öneriyor; değişiklik 24 saate kadar yansır'],
             ['Perplexity-User', 'Perplexity', 'Kullanıcının sorusunu cevaplamak için sayfa açmak', 'Etkisi sınırlı olabilir', 'Perplexity: genellikle robots.txt kurallarını yok sayar'],
             ['Google-Extended', 'Google', 'Gemini modellerinin eğitimi ve Gemini uygulamaları ile Vertex AI’daki grounding için içerik kullanımı', 'Google Arama’ya dahil olmayı etkilemez, sıralama sinyali değildir', 'Ayrı tarayıcı değil; yalnız robots.txt belirteci'],
-            ['Applebot-Extended', 'Apple', 'Applebot’un topladığı verinin Apple’ın üretken AI temel modellerinin eğitiminde kullanılması', 'Sayfaların Spotlight, Siri ve Safari aramasında kalır', 'Sayfa taramaz; yalnız kullanım iznini belirler'],
-            ['CCBot', 'Common Crawl', 'Açık web tarama arşivi oluşturmak', 'Common Crawl arşivine girmezsin', 'Common Crawl engellemek için robots.txt kuralını öneriyor'],
+            ['Applebot-Extended', 'Apple', 'Applebot’un topladığı verinin Apple’ın üretken AI temel modellerinin eğitiminde kullanılması', 'Sayfaların Spotlight, Siri ve Safari aramasında kalır; Apple’a göre bu kural arama sıralamasında dikkate alınmaz', 'Sayfa taramaz; yalnız kullanım iznini belirler'],
+            ['CCBot', 'Common Crawl', 'Açık web tarama arşivi oluşturmak', 'Common Crawl arşivine girmezsin', 'Common Crawl, engellemek isteyenler için robots.txt kuralını veriyor'],
           ],
           kaynak: ['openai-bots', 'anthropic-bots', 'perplexity-bots', 'google-crawlers', 'applebot', 'ccbot'],
+        },
+        {
+          t: 'p',
+          text: 'Apple tarafında bir ayrıntı daha var: Siri ve Spotlight’taki genel bilgi cevaplarında içeriğinin ek bağlam olarak kullanılmasını istemiyorsan Apple, sayfayı nosnippet ile işaretlemeni öneriyor; Apple nosnippet işaretli veriyi bu cevaplarda kullanmıyor.',
+          kaynak: ['applebot'],
         },
         {
           t: 'callout',
@@ -166,15 +171,11 @@ Disallow: /`,
   faq: [
     {
       q: 'GPTBot’u engellersem ChatGPT aramasında görünmez miyim?',
-      a: 'OpenAI’ye göre her ayar birbirinden bağımsızdır. GPTBot model eğitimi içindir. ChatGPT aramasında görünmek için OAI-SearchBot’a izin vermen gerekir.',
+      a: 'Görünmeye devam edebilirsin. OpenAI’ye göre her ayar birbirinden bağımsızdır: GPTBot, içeriğin model eğitiminde kullanılmasıyla ilgilidir. ChatGPT aramasında görünmek için OAI-SearchBot’a izin vermen gerekir; robots.txt değişikliğinin yansıması yaklaşık 24 saat sürebilir.',
     },
     {
       q: 'Google-Extended’i engellersem Google sıralamam düşer mi?',
       a: 'Hayır. Google, Google-Extended’in sitenin Google Arama’ya dahil olmasını etkilemediğini ve sıralama sinyali olarak kullanılmadığını söylüyor.',
-    },
-    {
-      q: 'AI Bakışı’nda görünmemek için Google-Extended yeterli mi?',
-      a: 'Hayır. AI Bakışı Google Arama’nın parçasıdır. Google, bu özelliklerde gösterilen içeriği nosnippet, data-nosnippet, max-snippet ya da noindex ile sınırlamayı öneriyor.',
     },
     {
       q: 'ChatGPT-User robots.txt’ye uyar mı?',

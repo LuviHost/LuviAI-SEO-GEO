@@ -63,7 +63,7 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/rehber/ai-bakisi-gorunurluk',             updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/mobil-uygulama-geo',               updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/help',                 updated: '2026-10-21', changeFrequency: 'monthly', priority: 0.5 },
+  { path: '/help',                  updated: '2026-10-21', changeFrequency: 'monthly', priority: 0.5 },
   // Help center alt sayfalari — SEO + AI alintisi icin kritik (her biri modul rehberi)
   { path: '/help/getting-started',  updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/ai-visibility',    updated: '2026-10-20', changeFrequency: 'monthly', priority: 0.6 },

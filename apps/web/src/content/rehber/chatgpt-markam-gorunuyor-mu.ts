@@ -28,7 +28,7 @@ export const article: RehberArticle = {
       id: 'kendim-nasil-test-ederim',
       h2: 'Kendim nasıl test ederim?',
       blocks: [
-        { t: 'p', text: 'Elle test ücretsizdir ve yarım saat sürer. Önemli olan, her seferinde aynı yöntemi kullanmaktır.' },
+        { t: 'p', text: 'Elle test ücretsizdir ve yaklaşık yarım saat sürer. Önemli olan, her seferinde aynı yöntemi kullanmaktır.' },
         {
           t: 'ol',
           items: [
@@ -63,9 +63,9 @@ export const article: RehberArticle = {
           caption: 'Üç olası sonuç',
           head: ['Durum', 'Ne görürsün?', 'Ne anlama gelir?'],
           rows: [
-            ['Kaynak gösterildi', 'Cevapta sitene giden bir bağlantı var', 'Asistan senin sayfanı okuyup kullandı; trafik gelebilir'],
+            ['Kaynak gösterildi', 'Cevapta sitene giden bir bağlantı var', 'Asistan sayfanı kaynak olarak gösterdi; trafik gelebilir'],
             ['Yalnız anıldı', 'Marka adı geçiyor, bağlantı yok', 'Marka biliniyor ama sayfan kaynak olarak seçilmedi'],
-            ['Yok', 'Ne ad ne bağlantı', 'Bu soruda görünmüyorsun; rakipler kimse onları not et'],
+            ['Yok', 'Ne ad ne bağlantı', 'Bu soruda görünmüyorsun; hangi rakiplerin anıldığını not et'],
           ],
         },
         { t: 'p', text: 'Bir durum daha var: siten bağlantı olarak çıkar ama marka adın metinde geçmez. Okuyucu bağlantıya tıklamazsa markanı hiç görmez. Sayfanda marka adını ve ne yaptığını açıkça yazmak bu farkı kapatmaya yardım edebilir.' },
@@ -93,7 +93,7 @@ export const article: RehberArticle = {
       blocks: [
         {
           t: 'p',
-          text: 'ChatGPT aramasında kaynak olmak için OpenAI’nin arama botu **OAI-SearchBot**’un sitene erişebilmesi gerekir. OpenAI’ye göre bu bot, sitelerin ChatGPT arama özelliklerinde gösterilmesi için kullanılır ve robots.txt değişikliğinin sistemlere yansıması yaklaşık 24 saat sürebilir. Eğitim botu GPTBot’u engellemek bu ayarı etkilemez; OpenAI her ayarın birbirinden bağımsız olduğunu söylüyor.',
+          text: 'ChatGPT aramasında kaynak olmak için OpenAI’nin arama botu **OAI-SearchBot**’un sitene erişebilmesi gerekir. OpenAI’ye göre bu bot, sitelerin ChatGPT arama özelliklerinde gösterilmesi için kullanılır ve robots.txt değişikliğinin sistemlere yansıması yaklaşık 24 saat sürebilir. GPTBot’u (içeriğin model eğitiminde kullanılmasıyla ilgili bot) engellemek bu ayarı etkilemez; OpenAI her ayarın birbirinden bağımsız olduğunu söylüyor.',
           kaynak: ['openai-bots'],
         },
         { t: 'p', text: 'Botların tek tek ne yaptığını ve hazır robots.txt örneklerini [yapay zekâ botları ve robots.txt rehberinde](/rehber/yapay-zeka-botlari-robots-txt) anlattık.' },
@@ -103,7 +103,7 @@ export const article: RehberArticle = {
       id: 'ranksup-nasil-olcuyor',
       h2: 'RanksUp bunu nasıl ölçüyor?',
       blocks: [
-        { t: 'p', text: 'RanksUp aynı yöntemi altı asistanda otomatik uygular. Ölçüm şöyle çalışır:' },
+        { t: 'p', text: 'RanksUp benzer bir yöntemi altı asistanda otomatik uygular. Bir fark var: elle testte her soruyu 3 kez sormanı öneriyoruz, RanksUp ise her ölçümde her soruyu bir kez sorar ve oynaklığı haftalık ölçümler arasındaki eğilimle izler. Ölçüm şöyle çalışır:' },
         {
           t: 'ul',
           items: [
@@ -146,7 +146,7 @@ export const article: RehberArticle = {
         },
         {
           t: 'p',
-          text: 'Aynı sitede Google’dan gelen günlük tıklama 3 ayda 52’den 340’a çıktı. Ekim 2026’da 28 günde yaklaşık 12.000 tıklama geldi ve tamamı organikti. Yani AI görünürlüğü klasik aramanın yerine geçmedi; ikisi birlikte büyüdü.',
+          text: 'Aynı sitede Google’dan gelen günlük ortalama tıklama 52’den 340’a çıktı (ilk 30 gün ile son 30 gün; Search Console, 16 Mayıs – 13 Ağustos 2026). 13 Ağustos 2026’da biten 28 günde yaklaşık 12.000 tıklama geldi (Search Console yalnız organik tıklamayı sayar). Yani AI görünürlüğü klasik aramanın yerine geçmedi; ikisi birlikte büyüdü.',
           kaynak: ['kp-gsc'],
         },
         {
@@ -190,8 +190,8 @@ export const article: RehberArticle = {
       a: 'Kısmen. Bağlantı trafik getirebilir ama okuyucu markanı metinde görmez. Sayfanda marka adını ve ne yaptığını açıkça yazmak bu farkı kapatmaya yardım edebilir.',
     },
     {
-      q: 'GPTBot’u engellersem ChatGPT’de görünmez miyim?',
-      a: 'OpenAI’ye göre her ayar birbirinden bağımsızdır. GPTBot model eğitimi içindir; ChatGPT aramasında görünmek OAI-SearchBot ile ilgilidir. GPTBot’u engelleyip OAI-SearchBot’a izin verebilirsin.',
+      q: 'Ölçüm aracının gördüğü cevap benim gördüğümle aynı mı?',
+      a: 'Birebir aynı olmayabilir. Ölçüm araçları asistanlara API üzerinden sorar; uygulamadaki cevap kişiselleştirme, konum ve model sürümüne göre farklılaşabilir. Bu yüzden aracın verdiği oranı, ara sıra yaptığın elle testle birlikte değerlendir.',
     },
     {
       q: 'Sonuçları ne sıklıkla kontrol etmeliyim?',

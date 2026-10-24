@@ -2,9 +2,10 @@ import type { RehberArticle } from './types';
 import { SRC } from './sources';
 
 /**
- * Rakip bilgilerinin TAMAMI 24.10.2026'da saticinin kendi sayfasindan okundu. Ucuncu taraf
- * fiyatlari (Profound $99/$399, Peec €85-89 gibi) bilincli olarak KULLANILMADI: satici
- * sayfasinda yoksa "sayfada fiyat yok" yazilir. Dogrulanamayan bilgi yazilmaz.
+ * Rakip bilgilerinin TAMAMI 24.10.2026'da (ikinci tur) saticinin kendi sayfasindan, JS ile render edilmis haliyle
+ * okundu (verbatim alintilar sources.ts'te). 24.10'daki ilk surumde GEON ve Peec icin "sayfada fiyat
+ * yok" yaziyordu: fiyatlar JS ile basiliyor, statik HTML'de gorunmuyordu — duzeltildi. Ucuncu taraf
+ * fiyatlari kullanilmaz; dogrudan okunamayan bilgi (or. Profound Agency Growth taban fiyati) yazilmaz.
  *
  * RanksUp fiyati plans.ts ile ayni olmak zorunda: apps/api/src/mcp/public-docs.spec.ts
  * bu dosyadaki "Büyüme $N/ay" ifadesini BASE_PLANS ile karsilastirir.
@@ -31,22 +32,22 @@ export const article: RehberArticle = {
       id: 'karsilastirma-tablosu',
       h2: 'Araçlar yan yana nasıl görünüyor?',
       blocks: [
-        { t: 'p', text: 'Sıralama kaliteye göre değil, “kime uygun?” sorusuna göre. Fiyat yalnızca satıcının kendi sayfasında yazıyorsa verildi; KDV ve kur farkı içerebilir.' },
+        { t: 'p', text: 'Sıralama kaliteye göre değil, “kime uygun?” sorusuna göre. Fiyatlar satıcının kendi sayfasında gösterildiği gibi; para birimi, vergi ve faturalama dönemi araçtan araca değişiyor, bu yüzden tabloda ayrıca yazdık.' },
         {
           t: 'table',
           caption: 'Yapay zekâ görünürlük araçları (satıcı sayfaları, erişim 24.10.2026)',
-          head: ['Araç', 'Kime uygun?', 'Başlangıç fiyatı', 'Ölçülen motorlar', 'Temel sınırlama'],
+          head: ['Araç', 'Kime uygun?', 'Başlangıç fiyatı (satıcı sayfası)', 'Ölçülen motorlar', 'Temel sınırlama'],
           rows: [
-            ['RanksUp (bizim ürünümüz)', 'Türkçe, tek panelde SEO, GEO, ASO ve içerik isteyen KOBİ’ler, uygulama sahipleri, ajanslar', 'Büyüme $149/ay; 14 gün ücretsiz deneme, kart istemez', 'ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek', 'Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmüyor; hesap başına 7 günde 1 ölçüm'],
-            ['GEON', 'Altı asistanda Türkçe ölçüm ve aksiyon önerisi isteyen markalar', 'Sayfada fiyat yok (Growth: 50 prompt/ay, Enterprise: 200 prompt/ay); kayıtta 5 ücretsiz kredi', 'ChatGPT, Gemini, Perplexity, Claude, Grok, DeepSeek', 'Sayfada içerik üretimi, site denetimi ve ASO yer almıyor'],
-            ['SEOYEN', 'TL ile ödeyen, SEO paketi içinde AI görünürlük ve içerik isteyenler', 'Bireysel: yıllık 12.470,40 TL peşin (ayda 1.039 TL karşılığı, KDV dahil); 7 günlük deneme 50 TL', 'ChatGPT, Gemini, Claude; ayrıca Google AI Overview takibi', 'Perplexity sayfada geçmiyor; deneme ücretli ve iptal edilmezse yıllık ücret alınıyor'],
-            ['Otterly.AI', 'Düşük bütçeyle izlemeye başlamak isteyenler', 'Lite $29/ay (15 prompt)', 'Tüm planlarda ChatGPT, Google AI Overviews, Perplexity, Microsoft Copilot', 'Gemini, Google AI Mode ve Claude ek ücretli'],
-            ['Peec AI', 'Prompt takibi ve kaynak analizine odaklanan SEO ekipleri', 'Sayfada fiyat yok', 'ChatGPT, Perplexity, Gemini; menüde AI Mode takibi', 'Fiyat, limit ve deneme süresi sayfa metninde yok'],
-            ['Profound', 'Çok motorlu takip ve pazarlama ajanları isteyen kurumsal ekipler', 'Sayfada fiyat yok; 7 günlük ücretsiz deneme (günde 50 prompt)', 'Deneme: ChatGPT, Gemini, Google AI Overviews; Enterprise: 9 motora kadar', 'Liste fiyatı yok; geniş motor kapsamı Enterprise’da'],
-            ['Semrush AI Visibility Toolkit', 'Zaten Semrush kullanan ekipler', '$99/ay', 'Sayfada ChatGPT ve Google AI Mode adı geçiyor', 'Ücretsiz deneme yok'],
-            ['Ahrefs Brand Radar', 'Zaten Ahrefs kullanan ekipler', 'Custom Prompts €47/ay’dan (sayfa ücretli Lite ve üstü planlara dahil olduğunu da yazıyor); AI Visibility Index €179/ay', 'AI Overviews, AI Mode, ChatGPT, Perplexity, Gemini, Copilot; Claude yalnız Index’te', 'Custom Prompts için ücretli Ahrefs planı gerekiyor'],
+            ['RanksUp (bizim ürünümüz)', 'Türkçe, tek panelde SEO, GEO, ASO ve içerik isteyen KOBİ’ler, uygulama sahipleri, ajanslar', 'Büyüme $149/ay, KDV dahil (TL tutarı ödeme günü kuruyla); 14 gün ücretsiz deneme, kart istemez', 'ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek', 'Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmüyor; hesap başına 7 günde 1 ölçüm'],
+            ['GEON', 'Altı asistanda Türkçe ölçüm ve aksiyon önerisi isteyen markalar', 'Growth $99/ay (ilk ay sınırlı süre $39), 50 prompt/ay; Enterprise fiyat kartında $259/ay (sitedeki bir SSS’de “custom”), 200 prompt/ay; kayıtta 5 ücretsiz kredi', 'ChatGPT, Perplexity, Claude, Gemini, Grok, DeepSeek', 'Makale üretimi, yayın ve ASO sayfada yer almıyor; Google AI Bakışı takip listesinde yok'],
+            ['SEOYEN', 'TL ile ödeyen, SEO paketi içinde AI görünürlük ve içerik isteyenler', 'Bireysel aylık 1.299 TL ya da yıllık 12.470,40 TL peşin (ayda 1.039 TL karşılığı); fiyatlar %20 KDV dahil; 7 günlük deneme 50 TL', 'ChatGPT, Gemini, Claude; ayrıca Google AI Overview takibi', 'Perplexity, Grok ve DeepSeek sayfada geçmiyor; deneme ücretli ve dönem seçilmezse yıllık dönemle devam ediyor'],
+            ['Otterly.AI', 'Düşük bütçeyle izlemeye başlamak isteyenler', 'Lite $29/ay aylık faturada (yıllık faturada aylık $25), 15 prompt; vergi hariç', 'Tüm planlarda ChatGPT, Google AI Overviews, Perplexity, Microsoft Copilot', 'Claude, Gemini ve Google AI Mode ek ücretli'],
+            ['Peec AI', 'Prompt takibi ve kaynak analizine odaklanan SEO ekipleri', 'Starter $95/ay, 50 prompt, 3 model seçimi (erişimimizde dolar gösterildi)', 'Starter’da seçilebilenler: ChatGPT, AI Mode, AI Overviews, Microsoft Copilot, Gemini, Naver AI', 'Plan başına 3 model; Perplexity ve Claude Enterprise listesinde; deneme süresi yazmıyor'],
+            ['Profound', 'Çok motorlu takip ve pazarlama ajanları isteyen kurumsal ekipler ve ajanslar', 'Markalar için liste fiyatı yok (ücretsiz deneme ve özel fiyatlı Enterprise); ajans planında tam müşteri çalışma alanı ek olarak $399/ay', 'Deneme: ChatGPT, Gemini, Google AI Overviews; Enterprise: 9 motora kadar', 'Marka planlarında liste fiyatı yok; geniş motor kapsamı Enterprise’da'],
+            ['Semrush AI Visibility Toolkit', 'Zaten Semrush kullanan ekipler', '$99/ay (25 prompt takibi dahil)', 'Bilgi bankasında ChatGPT ve Google AI Mode adı geçiyor', 'Ücretsiz deneme yok'],
+            ['Ahrefs Brand Radar', 'Zaten Ahrefs kullanan ekipler', 'Ücretli Lite ve üstü planlara Custom Prompts dahil (Lite’ta 5 prompt); ek Custom Prompts paketi $50/ay’dan, AI Visibility Index $199/ay’dan (ABD’den erişimde dolar; bölgeye göre farklı para birimi gösterilebilir)', 'Index: AI Overviews, AI Mode, ChatGPT, Perplexity, Gemini, Copilot; Claude yalnız Custom Prompts’ta', 'Custom Prompts için ücretli Ahrefs planı gerekiyor; Claude her güncellemede 8 kontrol harcıyor'],
           ],
-          kaynak: ['ranksup-pricing', 'geon', 'geon-pricing', 'seoyen', 'otterly', 'peec', 'profound', 'semrush', 'ahrefs'],
+          kaynak: ['ranksup-pricing', 'ranksup-terms', 'geon', 'seoyen', 'seoyen-pricing', 'otterly', 'peec', 'profound', 'semrush', 'ahrefs'],
         },
       ],
     },
@@ -60,13 +61,13 @@ export const article: RehberArticle = {
           head: ['İhtiyacın', 'Bakılacak araçlar'],
           rows: [
             ['Türkçe arayüz ve destek', 'RanksUp, GEON, SEOYEN'],
-            ['Grok ve DeepSeek’te ölçüm', 'RanksUp, GEON; Profound Enterprise’da DeepSeek'],
-            ['Google AI Overviews takibi', 'Otterly.AI, Profound, Ahrefs Brand Radar, SEOYEN'],
+            ['Grok ve DeepSeek’te ölçüm', 'RanksUp, GEON; Peec AI Enterprise’da Grok ve DeepSeek; Profound Enterprise’da DeepSeek'],
+            ['Google AI Overviews takibi', 'Otterly.AI, Peec AI, Profound, Ahrefs Brand Radar, SEOYEN'],
             ['Ölçümle birlikte içerik üretimi ve yayın', 'RanksUp, SEOYEN'],
             ['Mobil uygulama (ASO) ile AI görünürlüğü birlikte', 'RanksUp'],
             ['Mevcut SEO aracına ek', 'Semrush AI Visibility Toolkit, Ahrefs Brand Radar'],
           ],
-          kaynak: ['ranksup-pricing', 'geon', 'seoyen', 'otterly', 'profound', 'ahrefs', 'semrush'],
+          kaynak: ['ranksup-pricing', 'geon', 'seoyen', 'otterly', 'peec', 'profound', 'ahrefs', 'semrush'],
         },
       ],
     },
@@ -83,9 +84,9 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             '**Güçlü yanları:** ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçüm; 14 kontrollü site SEO/GEO denetimi; ASO, Profesyonel ve üstü planlarda App Prompt Lab; yapay zekâ ile makale üretimi ve 14 yayın hedefi; Profesyonel ve üstü planlarda kaybedilen sorudan içerik üretip yeniden ölçen kapalı döngü; Türkçe arayüz ve destek, PayTR ile Türk lirası ödeme.',
-            '**Sınırlamaları:** Google AI Bakışı, AI Modu ve Copilot’u doğrudan ölçmez (AI Bakışı için Search Console verisi içe aktarılabilir). Ölçüm hesap başına 7 günde birdir. Grok ve DeepSeek ölçümünde web araması yoktur. Ücretli planlar Büyüme $149/ay’dan başlar; yalnız ölçüm isteyen biri için daha ucuz seçenekler var.',
+            '**Sınırlamaları:** Google AI Bakışı, AI Modu ve Copilot’u doğrudan ölçmez (AI Bakışı için Search Console verisi içe aktarılabilir). Ölçüm hesap başına 7 günde birdir. Grok ve DeepSeek ölçümünde web araması yoktur. Ücretli planlar Büyüme $149/ay’dan başlar (KDV dahil); yalnız ölçüm isteyen biri için daha ucuz seçenekler var.',
           ],
-          kaynak: ['ranksup-pricing', 'ranksup-ai-visibility'],
+          kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility'],
         },
       ],
     },
@@ -96,10 +97,10 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Güçlü yanları:** Kendini “Türkiye’nin ilk GEO platformu” olarak tanıtıyor. RanksUp ile aynı altı asistanı ölçüyor. Türkçe arayüz, Türkçe prompt analizi ve Türkçe destek; etki skoruyla önceliklendirilmiş aksiyon önerileri, haftalık ve aylık e-posta raporu, rakip analizi ve Slack entegrasyonu. Planlarda günlük tarama ve rapor yazıyor. Kayıtta 5 ücretsiz kredi (5 prompt taraması) veriyor.',
-            '**Sınırlamaları:** Sayfada plan tutarı yok. İçerik üretimi, site denetimi ve ASO sayfada yer almıyor. Microsoft Copilot yol haritasında, henüz desteklenmiyor.',
+            '**Güçlü yanları:** Kendini “Türkiye’nin ilk GEO platformu” olarak tanıtıyor. RanksUp ile aynı altı asistanı ölçüyor. Türkçe arayüz, Türkçe prompt analizi ve Türkçe destek; etki skoruyla önceliklendirilmiş aksiyon önerileri, eksik alıntıları içerik taslağı, SSS güncellemesi ve karşılaştırma sayfası önerisine çeviren öneriler, rakip analizi ve günlük tarama. Kayıt gerektirmeyen ücretsiz bir “AI hazırlık analizi” robots.txt erişimini, sitemap’i, yapılandırılmış veriyi ve içerik derinliğini kontrol ediyor. Kayıtta 5 ücretsiz kredi (5 prompt taraması) veriyor.',
+            '**Sınırlamaları:** Growth $99/ay (ilk ay sınırlı süre $39) ve 50 prompt/ay. Enterprise için fiyat kartında $259/ay yazıyor, sitedeki bir SSS ise “custom” diyor. Makale üretimi, yayın ve ASO sayfada yer almıyor. Google AI Bakışı takip listesinde yok; Microsoft Copilot yol haritasında.',
           ],
-          kaynak: ['geon', 'geon-pricing'],
+          kaynak: ['geon'],
         },
       ],
     },
@@ -110,10 +111,10 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Güçlü yanları:** Türkçe bir SEO platformu; sıra takibi, site denetimi (245 otomatik kontrol), backlink analizi ve rakip kıyaslamayı tek panelde sunuyor. 2.000–5.000+ kelimelik yapay zekâ makalesi ve WordPress’e tek tıkla yayın tanıtıyor. AI görünürlük takibi giriş paketinden başlıyor (ayda 100 sorgu). Fiyatlar TL; verilerin Türkiye’deki sunucularda saklandığını yazıyor.',
-            '**Sınırlamaları:** AI görünürlükte sayfada ChatGPT, Gemini, Claude ve Google AI Overview geçiyor; Perplexity, Grok ve DeepSeek geçmiyor. 7 günlük deneme 50 TL ve iptal edilmezse deneme sonunda yıllık ücret peşin alınıyor (Bireysel 12.470,40 TL). ASO sayfada yer almıyor.',
+            '**Güçlü yanları:** Türkçe bir SEO platformu; sıra takibi, site denetimi (245 otomatik kontrol), backlink analizi ve rakip kıyaslamayı tek panelde sunuyor. Yapay zekâ ile içerik üretimi ve WordPress’e tek tıkla yayın var. AI görünürlük takibi Bireysel paketten başlıyor (ayda 100 AI görünürlük sorgusu). Fiyatlar TL ve %20 KDV dahil; ödemeler iyzico üzerinden. Verilerin Türkiye’deki sunucularda saklandığını yazıyor.',
+            '**Sınırlamaları:** AI görünürlükte sayfada ChatGPT, Gemini, Claude ve Google AI Overview geçiyor; Perplexity, Grok ve DeepSeek geçmiyor. 7 günlük deneme 50 TL; süre dolunca abonelik seçilen dönemle (aylık ya da yıllık) devam ediyor, dönem seçilmediyse varsayılan yıllık. SEOYEN çekimden önce tarih ve tutarı e-postayla hatırlattığını yazıyor. ASO sayfada yer almıyor.',
           ],
-          kaynak: ['seoyen'],
+          kaynak: ['seoyen', 'seoyen-pricing'],
         },
       ],
     },
@@ -124,8 +125,8 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Güçlü yanları:** Bu listede satıcı sayfasında yayımlanmış en düşük başlangıç fiyatı: Lite $29/ay (15 prompt); Standard $189/ay (100 prompt), Premium $489/ay (400 prompt). Tüm planlarda ChatGPT, Google AI Overviews, Perplexity ve Microsoft Copilot var. Yıllık ödemede %15 indirim.',
-            '**Sınırlamaları:** Gemini, Google AI Mode ve Claude ek ücretli. Lite planda ek prompt alınamıyor. Planlarda “sınırsız ülke ve dil” yazıyor ama Türkçe adı geçmiyor. Ücretsiz deneme var, süresi yazmıyor.',
+            '**Güçlü yanları:** Yalnız AI görünürlüğüne odaklanan araçlar içinde, satıcı sayfasında dolar cinsinden yayımlanmış en düşük aylık fiyat bu listede Otterly.AI’de: Lite $29/ay aylık faturada (15 prompt); Standard $189/ay (100 prompt), Premium $489/ay (400 prompt). Yıllık faturada %15 indirimli (Lite aylık $25). Fiyatlar vergi hariç dolar. Tüm planlarda ChatGPT, Google AI Overviews, Perplexity ve Microsoft Copilot var.',
+            '**Sınırlamaları:** Gemini, Google AI Mode ve Claude ek ücretli. Lite planda ek prompt alınamıyor. Türkçe adı açıkça geçmiyor. Ücretsiz deneme var, süresi yazmıyor.',
           ],
           kaynak: ['otterly'],
         },
@@ -138,8 +139,8 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Güçlü yanları:** Prompt yönetimi (etiketleme, önerilen promptlar ve arama hacmi), rakip kıyaslaması, alıntılanan kaynak alan adlarını gösteren kaynak analizi ve öneriler. MCP sunucusu, API, CSV dışa aktarma ve Looker Studio bağlayıcısı var. ChatGPT, Perplexity ve Gemini adı geçiyor; menüde AI Mode takibi var.',
-            '**Sınırlamaları:** Fiyat sayfasında tutar, prompt limiti ve plan maddeleri metin olarak yok. Deneme butonu var ama süresi ve koşulları yazmıyor. Dil desteği belirtilmiyor.',
+            '**Güçlü yanları:** Prompt yönetimi (etiketleme, önerilen promptlar ve arama hacmi), rakip kıyaslaması, alıntılanan kaynak alan adlarını gösteren kaynak analizi ve öneriler. MCP sunucusu, API, CSV dışa aktarma ve Looker Studio bağlayıcısı var. Ülke ve dil için ek ücret alınmadığını yazıyor. Starter $95/ay (50 prompt), Pro $245/ay (150 prompt), Advanced $495/ay (350 prompt); erişimimizde fiyatlar dolar olarak gösterildi.',
+            '**Sınırlamaları:** Her planda 3 model seçiliyor. Starter’da seçilebilen modeller ChatGPT, AI Mode, AI Overviews, Microsoft Copilot, Gemini ve Naver AI; Perplexity ve Claude Enterprise listesinde. Ücretsiz deneme butonu var ama süresi yazmıyor.',
           ],
           kaynak: ['peec', 'peec-home'],
         },
@@ -153,7 +154,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             '**Güçlü yanları:** Enterprise planında 9 motora kadar takip: ChatGPT, Perplexity, Google AI Mode, Gemini, Microsoft Copilot, DeepSeek, Claude, Google AI Overviews ve Exa Search. Kampanya araştırması ve içerik yazımını da kapsayan pazarlama ajanları, ChatGPT Shopping takibi (Enterprise), sınırsız kullanıcı. 7 günlük ücretsiz deneme.',
-            '**Sınırlamaları:** Sayfada liste fiyatı yok; Enterprise özel fiyatlı. Deneme günde 50 prompt, 1 dil ve 1 bölge ile ChatGPT, Gemini ve Google AI Overviews’la sınırlı.',
+            '**Sınırlamaları:** Markalar için liste fiyatı yok: ücretsiz deneme ve özel fiyatlı Enterprise var. Ajanslar için self-serve Agency Growth planında tam müşteri çalışma alanı ek olarak $399/ay. Deneme 7 gün, günde 50 prompt, 1 dil ve 1 bölge ile ChatGPT, Gemini ve Google AI Overviews’la sınırlı.',
           ],
           kaynak: ['profound'],
         },
@@ -166,8 +167,8 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Güçlü yanları:** $99/ay. Görünürlük skoru, rakip araştırması, hacim, zorluk ve niyet bilgisiyle prompt araştırması, ses payı ve duygu içeren marka performansı, günlük prompt takibi ve yapay zekâ tarayıcılarını engelleyen sorunları arayan site denetimi. Mevcut yıllık Semrush aboneliğine eklenebiliyor.',
-            '**Sınırlamaları:** Ücretsiz deneme yok. Sayfada adı geçen platformlar ChatGPT ve Google AI Mode.',
+            '**Güçlü yanları:** $99/ay, 25 prompt takibi dahil. Görünürlük skoru, rakip araştırması, hacim, zorluk ve niyet bilgisiyle prompt araştırması, ses payı ve duygu içeren marka performansı, günlük prompt takibi ve yapay zekâ tarayıcılarını engelleyen sorunları arayan site denetimi. Mevcut yıllık Semrush aboneliğine eklenebiliyor.',
+            '**Sınırlamaları:** Ücretsiz deneme yok. Bilgi bankasında adı geçen platformlar ChatGPT ve Google AI Mode.',
           ],
           kaynak: ['semrush'],
         },
@@ -180,8 +181,8 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Güçlü yanları:** AI Overviews, AI Mode, ChatGPT, Perplexity, Gemini ve Copilot; AI Visibility Index’te Claude da var. Index, 496 milyonu aşkın promptla hazır bir görünürlük verisi sunuyor. Yapay zekâ trafiği ve bot ziyaretlerini gösteren AI Analytics (bot analitiği beta süresince ücretsiz) ve ücretsiz bir AI Visibility Checker var.',
-            '**Sınırlamaları:** Custom Prompts ücretli Ahrefs Lite ve üstü planlara dahil, Lite’ta 5 prompt; sayfa ayrıca €47/ay’dan başlayan bir Custom Prompts fiyatı gösteriyor. AI Visibility Index €179/ay’dan başlıyor. Claude yalnız Index’te.',
+            '**Güçlü yanları:** AI Visibility Index, 496 milyon prompt üzerinden AI Overviews, AI Mode, ChatGPT, Perplexity, Gemini ve Copilot’ta hazır görünürlük verisi sunuyor; kurulum gerektirmiyor. Custom Prompts bunlara ek olarak Claude’u da destekliyor. Yapay zekâ trafiği ve bot ziyaretlerini gösteren AI Analytics ve ücretsiz bir AI Visibility Checker var.',
+            '**Sınırlamaları:** Custom Prompts ücretli Ahrefs Lite ve üstü planlara dahil, Lite’ta 5 prompt; ek paketler $50/ay’dan. AI Visibility Index $199/ay’dan başlıyor. Fiyatları ABD’den erişimde dolar olarak gördük; bölgeye göre farklı para birimi gösterilebilir. Claude her güncellemede 8 kontrol harcıyor.',
           ],
           kaynak: ['ahrefs'],
         },
@@ -194,8 +195,8 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            'Her bilgi 24 Ekim 2026’da satıcının kendi sayfasından okundu. Kaynaklar sayfanın sonunda, erişim tarihiyle.',
-            'Fiyat yalnızca satıcı sayfasında yazıyorsa verildi. Üçüncü taraf sitelerdeki fiyatları kullanmadık; yoksa “sayfada fiyat yok” yazdık.',
+            'Her bilgi 24 Ekim 2026’da satıcının kendi sayfasından, tarayıcıda görünen haliyle okundu. Kaynaklar sayfanın sonunda, erişim tarihiyle.',
+            'Fiyat yalnızca satıcı sayfasında gösteriliyorsa verildi; para birimi, vergi ve faturalama dönemi sayfada nasıl yazıyorsa öyle. Üçüncü taraf sitelerdeki fiyatları kullanmadık.',
             'Satıcı sayfasında doğrulayamadığımız bir özelliği “yok” diye yazmadık; “sayfada yer almıyor” dedik.',
             'Ölçütler: ölçülen asistanlar, Türkçe desteği, içerik üretimi, ASO, deneme koşulu, başlangıç fiyatı ve temel sınırlama.',
             'Araçları kendi hesabımızla tek tek test etmedik; bu bir ürün sayfası karşılaştırmasıdır.',
@@ -209,7 +210,7 @@ export const article: RehberArticle = {
   faq: [
     {
       q: 'En ucuz yapay zekâ görünürlük aracı hangisi?',
-      a: 'Bu listede satıcı sayfasında yayımlanmış en düşük başlangıç fiyatı Otterly.AI’nin Lite planında; tutar karşılaştırma tablosunda kaynağıyla birlikte yer alıyor. Ucuz planlarda prompt sayısı ve motor kapsamı dar olabilir; ikisine birlikte bak.',
+      a: 'Ölçüte bağlı. Yalnız AI görünürlüğüne odaklanan araçlar içinde, aylık faturalı ve satıcı sayfasında dolar cinsinden yayımlanmış en düşük başlangıç fiyatı Otterly.AI’nin Lite planında. SEOYEN ise genel bir SEO paketi; TL ile ve KDV dahil fiyatlanıyor, Bireysel pakete ayda 100 AI görünürlük sorgusu dahil. Tutarlar karşılaştırma tablosunda kaynağıyla birlikte; ucuz planlarda prompt sayısı ve motor kapsamı dar olabilir.',
     },
     {
       q: 'Türkçe destekleyen araçlar hangileri?',
@@ -221,11 +222,11 @@ export const article: RehberArticle = {
     },
     {
       q: 'Bu araçlar Google AI Bakışı’nı ölçüyor mu?',
-      a: 'Bazıları ölçüyor. Satıcı sayfalarına göre Otterly.AI, Profound, Ahrefs Brand Radar ve SEOYEN Google AI Overviews takibi sunuyor. RanksUp AI Bakışı’nı doğrudan ölçmüyor; GEON’un sayfasında AI Bakışı yer almıyor.',
+      a: 'Bazıları ölçüyor. Satıcı sayfalarına göre Otterly.AI, Peec AI, Profound, Ahrefs Brand Radar ve SEOYEN Google AI Overviews takibi sunuyor. RanksUp AI Bakışı’nı doğrudan ölçmüyor; GEON’un takip listesinde AI Bakışı yok.',
     },
     {
       q: 'Ücretsiz deneme sunan araçlar hangileri?',
-      a: 'RanksUp 14 gün ücretsiz deneme veriyor ve kart istemiyor. Profound 7 günlük ücretsiz deneme, GEON kayıtta 5 ücretsiz kredi sunuyor. Otterly.AI deneme sunuyor ama süresini yazmıyor. SEOYEN’in 7 günlük denemesi ücretli. Semrush AI Visibility Toolkit’te deneme yok.',
+      a: 'RanksUp 14 gün ücretsiz deneme veriyor ve kart istemiyor. Profound 7 günlük ücretsiz deneme, GEON kayıtta 5 ücretsiz kredi sunuyor. Otterly.AI ve Peec AI deneme sunuyor ama süresini yazmıyor. SEOYEN’in 7 günlük denemesi ücretli. Semrush AI Visibility Toolkit’te deneme yok.',
     },
     {
       q: 'Ölçüm aracı mı almalıyım, ajansla mı çalışmalıyım?',
@@ -236,7 +237,7 @@ export const article: RehberArticle = {
       a: 'Bilgiler 24 Ekim 2026’da kontrol edildi. Fiyatlar ve özellikler sık değişiyor; karar vermeden önce satıcının güncel sayfasına bak. Sayfanın üstündeki son güncelleme satırı son kontrol tarihini gösterir.',
     },
   ],
-  sources: [SRC.ranksupPricing, SRC.ranksupAiVisibility, SRC.geon, SRC.geonPricing, SRC.seoyen, SRC.otterly, SRC.peec, SRC.peecHome, SRC.profound, SRC.semrush, SRC.ahrefs],
+  sources: [SRC.ranksupPricing, SRC.ranksupTerms, SRC.ranksupAiVisibility, SRC.geon, SRC.seoyen, SRC.seoyenPricing, SRC.otterly, SRC.peec, SRC.peecHome, SRC.profound, SRC.semrush, SRC.ahrefs],
   related: ['chatgpt-markam-gorunuyor-mu', 'geo-nedir', 'mobil-uygulama-geo'],
   published: '2026-10-24',
   schemaType: 'Article',

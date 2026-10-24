@@ -16,6 +16,7 @@ const dictionary = {
     'nav.signup': 'Ücretsiz başla',
     'nav.faq': 'SSS',
     'nav.compare': 'Karşılaştır',
+    'nav.guides': 'Rehber',
     'nav.use_cases': 'Kullanım Senaryoları',
 
     // Eski landing v1 anahtarlari (hero.*, value.*, features.*, social.*, how.*,
@@ -304,6 +305,7 @@ const dictionary = {
     'nav.signup': 'Start free',
     'nav.faq': 'FAQ',
     'nav.compare': 'Compare',
+    'nav.guides': 'Guides',
     'nav.use_cases': 'Use Cases',
 
     // Eski landing v1 anahtarlari silindi (TR blogundaki nota bakin).

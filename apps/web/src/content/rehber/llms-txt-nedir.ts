@@ -15,7 +15,7 @@ export const article: RehberArticle = {
   answer:
     'llms.txt, sitenin özetini yapay zekâ ajanlarına Markdown biçiminde veren isteğe bağlı bir dosyadır; arama görünürlüğüne etkisi bugün kanıtlanmış değildir. Google, Arama’nın bu dosyayı yok saydığını açıkça söylüyor; bu yüzden önceliği düşük.',
   quick: [
-    'Jeremy Howard 3 Eylül 2024’te önerdi. Bir öneridir; robots.txt gibi bir standart değildir.',
+    'Jeremy Howard 3 Eylül 2024’te önerdi. Bir standartlaştırma önerisidir; robots.txt gibi yerleşik bir standart değildir.',
     'Google: Arama bu dosyaları yok sayar; AI özelliklerinde görünmek için gerekmez, zararı da yoktur.',
     'OpenAI ve Anthropic’in bot belgelerinde botların llms.txt okuduğuna dair bir açıklama yok.',
     'SE Ranking’in yaklaşık 300 bin alan adı analizinde llms.txt ile alıntılanma arasında ölçülebilir ilişki çıkmadı.',
@@ -28,7 +28,7 @@ export const article: RehberArticle = {
       blocks: [
         {
           t: 'p',
-          text: 'llms.txt’yi Jeremy Howard 3 Eylül 2024’te önerdi. Amaç, yapay zekâ ajanlarının bir siteyi kullanmasına yardım edecek bilgiyi tek bir dosyada toplamaktır. Dosya sitenin kökünde (/llms.txt) ya da bir alt yolda (örneğin /docs/llms.txt) durabilir.',
+          text: 'llms.txt’yi Jeremy Howard 3 Eylül 2024’te bir standartlaştırma önerisi olarak yayımladı; llmstxt.org’daki metin şu an v2 ve son olarak 10 Ağustos 2026’da değişti. Amaç, yapay zekâ ajanlarının bir siteyi kullanmasına yardım edecek bilgiyi tek bir dosyada toplamaktır. Dosya sitenin kökünde (/llms.txt) ya da bir alt yolda (örneğin /docs/llms.txt) durabilir.',
           kaynak: ['llmstxt'],
         },
         { t: 'p', text: 'robots.txt’den farkı şudur: robots.txt erişim kuralı koyar, llms.txt ise yalnızca önemli sayfaların kısa bir haritasını verir. Hiçbir bota “gir” ya da “girme” demez.' },
@@ -54,7 +54,7 @@ export const article: RehberArticle = {
         },
         {
           t: 'p',
-          text: 'Chrome’un Lighthouse aracında “agentic browsing” denetimleri arasında bir llms.txt kontrolü var. Bu kontrol, dosya istenirken sunucu hatası oluşursa uyarı verir. Dosya yoksa (404) sonuç “uygulanamaz” sayılır, çünkü dosya şimdilik isteğe bağlıdır. Lighthouse bir sayfa denetim aracıdır; bu denetimin belgesinde Google sıralamasıyla ilgili bir ifade yok.',
+          text: 'Chrome’un Lighthouse aracında “agentic browsing” denetimleri arasında bir llms.txt kontrolü var. Bu kontrol, dosya istenirken sunucu hatası oluşursa sayfayı işaretler (flag). Dosya yoksa (404) sonuç “uygulanamaz” sayılır, çünkü dosya şimdilik isteğe bağlıdır. Lighthouse bir sayfa denetim aracıdır; bu denetimin belgesinde Google sıralamasıyla ilgili bir ifade yok.',
           kaynak: ['lighthouse-llms'],
         },
       ],
@@ -165,7 +165,7 @@ export const article: RehberArticle = {
     },
     {
       q: 'llms.txt eklemek zarar verir mi?',
-      a: 'Google’a göre Arama’daki görünürlüğü artırmaz ya da azaltmaz. Dosya istenirken sunucu hatası oluşuyorsa Lighthouse bunu bir sorun olarak işaretler; dosyayı ya düzgün yayınla ya hiç yayınlama.',
+      a: 'Google’a göre Arama’daki görünürlüğü artırmaz ya da azaltmaz. Dosya istenirken sunucu hatası oluşuyorsa Lighthouse sayfayı işaretler (flag); dosyayı ya düzgün yayınla ya hiç yayınlama.',
     },
     {
       q: 'llms-full.txt nedir?',

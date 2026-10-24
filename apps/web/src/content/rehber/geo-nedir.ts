@@ -66,7 +66,7 @@ export const article: RehberArticle = {
         { t: 'p', text: 'ChatGPT, Claude, Gemini ve Perplexity web’de arama yaparak cevap verebiliyor. Aramada bulunamayan bir sayfa bu cevaplara kaynak olamaz. Bu yüzden GEO, SEO’nun üzerine kurulur.' },
         {
           t: 'p',
-          text: 'Kendi ölçtüğümüz bir örnek: KobiPratik’te (kurucu ekibimizin ortağı olduğu bir site) AI asistanlarında kaynak gösterilme artarken Google’dan gelen günlük tıklama da 3 ayda 52’den 340’a çıktı. İkisi birbirinin yerine geçmedi, birlikte büyüdü.',
+          text: 'Kendi ölçtüğümüz bir örnek: KobiPratik’te (kurucu ekibimizin ortağı olduğu bir site) AI asistanlarında kaynak gösterilme artarken Google’dan gelen günlük ortalama tıklama da 52’den 340’a çıktı (ilk 30 gün ile son 30 gün; Search Console, 16 Mayıs – 13 Ağustos 2026). İkisi birbirinin yerine geçmedi, birlikte büyüdü.',
           kaynak: ['kp-gsc'],
         },
       ],
@@ -86,7 +86,7 @@ export const article: RehberArticle = {
         },
         {
           t: 'p',
-          text: 'Google bunu açıkça yazıyor: üretken AI aramada görünmek için yapısal veri şart değil, özel bir schema.org işaretlemesi yok, içeriği küçük parçalara bölmek gerekmiyor ve AI için farklı yazmak gerekmiyor.',
+          text: 'Google’ın AI optimizasyon rehberi bunu açıkça yazıyor: üretken AI aramada görünmek için yapısal veri şart değil, özel bir schema.org işaretlemesi yok, içeriği küçük parçalara bölmek gerekmiyor ve AI için farklı yazmak gerekmiyor. Aynı rehber, yapısal veriyi genel SEO stratejisinin parçası olarak kullanmaya devam etmeyi öneriyor, çünkü Google Arama’daki zengin sonuçlara uygunluğa yardım ediyor.',
           kaynak: ['google-ai-guide'],
         },
       ],
@@ -116,12 +116,12 @@ export const article: RehberArticle = {
           head: ['Yaygın inanış', 'Kaynaklar ne diyor?'],
           rows: [
             ['“Yapay zekâda görünmek için llms.txt şart.”', 'Google, Arama’da görünmek için yeni makine-okunur dosya, AI metin dosyası, işaretleme ya da Markdown gerekmediğini ve Arama’nın llms.txt dosyalarını yok saydığını söylüyor ([llms.txt rehberi](/rehber/llms-txt-nedir)).'],
-            ['“FAQ şeması eklersem Google’da SSS zengin sonucu çıkar.”', 'Google, 8 Ağustos 2023’ten beri SSS zengin sonuçlarını yalnızca tanınmış, yetkili devlet ve sağlık sitelerinde gösteriyor.'],
+            ['“FAQ şeması eklersem Google’da SSS zengin sonucu çıkar.”', 'Google, 8 Ağustos 2023’te SSS zengin sonuçlarını yetkili devlet ve sağlık siteleriyle sınırladı; 7 Mayıs 2026’dan beri bu sonuçlar Google Arama’da hiçbir sitede gösterilmiyor.'],
             ['“İçeriği yapay zekâ için küçük parçalara bölmek gerekir.”', 'Google’a göre böyle bir gereklilik yok.'],
             ['“GEO, SEO’nun yerine geçer.”', 'Google’ın AI özellikleri temel arama sıralama sistemleri üzerine kurulu; SEO uygulamaları geçerli.'],
             ['“ChatGPT tamamen Bing’den beslenir.”', 'OpenAI’nin kendi arama tarayıcısı OAI-SearchBot var. ChatGPT aramasında hangi kaynağın ne ağırlıkla kullanıldığı açıklanmadı.'],
           ],
-          kaynak: ['google-ai-guide', 'google-faq-2023', 'openai-bots'],
+          kaynak: ['google-ai-guide', 'google-faq-2023', 'google-faq-2026', 'openai-bots'],
         },
       ],
     },
@@ -160,7 +160,7 @@ export const article: RehberArticle = {
     },
     {
       q: 'Yapısal veri (schema) GEO için gerekli mi?',
-      a: 'Google’a göre üretken AI aramada görünmek için yapısal veri gerekmez ve özel bir schema.org işaretlemesi yoktur. Google yine de zengin sonuçlara uygunluk için yapısal veri kullanmayı öneriyor.',
+      a: 'Google’ın AI optimizasyon rehberine göre üretken AI aramada görünmek için yapısal veri gerekmez ve özel bir schema.org işaretlemesi yoktur. Aynı rehber, yapısal veriyi genel SEO stratejisinin parçası olarak kullanmaya devam etmeyi öneriyor; Google Arama’daki diğer zengin sonuçlara uygunluğa yardım ediyor. SSS zengin sonuçları ise 7 Mayıs 2026’dan beri gösterilmiyor.',
     },
     {
       q: 'GEO yalnızca büyük markalar için mi?',
@@ -171,7 +171,7 @@ export const article: RehberArticle = {
       a: 'Asistanlar uygulama önerirken mağaza sayfalarını sık kaynak gösteriyor. AppTweak’in analizine göre ChatGPT’nin uygulama önerilerindeki alıntıların yaklaşık %47’si mağaza sayfalarına ait. Ayrıntı mobil uygulamalar için GEO rehberinde.',
     },
   ],
-  sources: [SRC.geoPaper, SRC.googleAiGuide, SRC.googleAiFeatures, SRC.googleFaq2023, SRC.openaiBots, SRC.apptweak, SRC.kpGsc],
+  sources: [SRC.geoPaper, SRC.googleAiGuide, SRC.googleAiFeatures, SRC.googleFaq2023, SRC.googleFaq2026, SRC.openaiBots, SRC.apptweak, SRC.kpGsc],
   related: ['chatgpt-markam-gorunuyor-mu', 'llms-txt-nedir', 'ai-bakisi-gorunurluk'],
   published: '2026-10-24',
   schemaType: 'Article',

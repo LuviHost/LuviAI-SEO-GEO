@@ -15,12 +15,12 @@ export const article: RehberArticle = {
   title: 'Google AI Bakışı’nda nasıl görünürsün? (Türkiye)',
   metaTitle: 'Google AI Bakışı’nda nasıl görünülür? (Türkiye)',
   description:
-    'Google AI Bakışı Türkiye’de 18 Şubat 2026’dan beri açılıyor. Kaynakların nasıl seçildiği, Google’ın resmi kuralları ve pratik bir kontrol listesi.',
+    'Google AI Bakışı Türkiye’de 18 Şubat 2026’dan itibaren kademeli olarak açıldı. Kaynakların nasıl seçildiği, Google’ın resmi kuralları ve kontrol listesi.',
   topic: 'Google',
   answer:
     'AI Bakışı’nda kaynak olmak için sayfanın Google’da dizine eklenmiş ve snippet ile gösterilmeye uygun olması gerekir; Google bunun dışında teknik şart koymuyor. Gerisi iyi SEO ve soruya doğrudan cevap veren içerikle ilgili.',
   quick: [
-    'Türkiye’de 18 Şubat 2026’dan beri kademeli olarak açılıyor (Google Türkiye blogu).',
+    'Türkiye’de 18 Şubat 2026’dan itibaren kademeli olarak açıldı (Google Türkiye blogu).',
     'Tek şart: dizine eklenme ve snippet ile gösterilmeye uygunluk. Görünme garantisi yok.',
     'Kaynaklar Google’ın temel sıralama sistemleriyle ve ilgili alt aramalarla (query fan-out) bulunuyor.',
     'llms.txt, özel schema ya da içeriği küçük parçalara bölmek gerekmiyor.',
@@ -33,7 +33,7 @@ export const article: RehberArticle = {
       blocks: [
         {
           t: 'p',
-          text: 'Google Türkiye, 18 Şubat 2026’da AI Modu ve AI Bakışı’nın Türkiye’de kullanıma açıldığını duyurdu. Duyuruya göre özellikler Android ve iOS’taki Google uygulamasında ve arama sonuçlarında kademeli olarak açılıyor; AI Modu Gemini 3 ile destekleniyor.',
+          text: 'Google Türkiye, 18 Şubat 2026’da AI Modu ve AI Bakışı’nın Türkiye’de kullanıma açıldığını duyurdu. Duyuruya göre özellikler Android ve iOS’taki Google uygulamasında ve arama sonuçlarında kademeli olarak açıldı; AI Modu Gemini 3 ile destekleniyor.',
           kaynak: ['google-tr-blog'],
         },
         {
@@ -72,7 +72,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             'Yeni makine-okunur dosya, AI metin dosyası (llms.txt gibi), özel işaretleme ya da Markdown.',
-            'Üretken AI arama için özel bir schema.org işaretlemesi. Yapısal veri zengin sonuçlar için yine yararlı.',
+            'Üretken AI arama için özel bir schema.org işaretlemesi. Aynı rehber, yapısal veriyi genel SEO stratejisinin parçası olarak kullanmaya devam etmeyi öneriyor; Google Arama’daki diğer zengin sonuçlara uygunluğa yardım ediyor.',
             'İçeriği yapay zekâ için küçük parçalara bölmek.',
             'Yapay zekâ için farklı bir yazım biçimi. Google’a göre sistemler eş anlamlıları ve genel anlamı anlıyor.',
           ],
@@ -147,7 +147,7 @@ export const article: RehberArticle = {
   faq: [
     {
       q: 'AI Bakışı Türkçe aramalarda çıkıyor mu?',
-      a: 'Evet. Google Arama Yardım sayfasında Türkiye ve Türkçe, AI Bakışı’nın kullanılabildiği ülke ve diller arasında yer alıyor. Özellik Türkiye’de 18 Şubat 2026’dan beri kademeli olarak açılıyor.',
+      a: 'Evet. Google Arama Yardım sayfasında Türkiye ve Türkçe, AI Bakışı’nın kullanılabildiği ülke ve diller arasında yer alıyor. Özellik Türkiye’de 18 Şubat 2026’dan itibaren kademeli olarak açıldı.',
     },
     {
       q: 'AI Bakışı için özel bir optimizasyon gerekiyor mu?',

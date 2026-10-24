@@ -32,17 +32,21 @@ import { pickComparePrices, type ComparePlanPrice } from './compare-prices';
  * Turkce arayuz, Google/Meta reklam hesabi yonetimi) bu araclarin urun
  * kapsaminda olmadigi icin korundu.
  *
- * GEON ve SEOYEN (24.10.2026 eklendi): YALNIZ kendi sayfalarinda o gun okunan
- * bilgiler yazildi; yazilmayan her hucre null ("—", Dogrulanmadi). Sayfada bir
- * ozelligin GECMEMESI "yok" (false) sayilmadi.
- *   https://usegeon.com/ , https://usegeon.com/fiyatlandirma
- *     6 asistan (ChatGPT, Gemini, Perplexity, Claude, Grok, DeepSeek); Turkce
- *     arayuz + Turkce destek; kayitta 5 ucretsiz kredi (5 prompt taramasi).
- *   https://seoyen.com/
- *     AI icerik + WordPress'e tek tikla yayin; AI gorunurluk ChatGPT, Gemini,
- *     Claude + Google AI Overview; site denetimi 245 otomatik kontrol; TL fiyat,
- *     iyzico; "Tum veriler Turkiye'deki sunucularda" (KVKK anilmiyor); Turkce
- *     arayuz (destek dili yazmiyor); yillik odemede %20; 7 gun deneme 50 TL.
+ * GEON ve SEOYEN (24.10.2026 eklendi, 24.10.2026 gece bagimsiz kontrolle yeniden dogrulandi): YALNIZ
+ * kendi sayfalarinda okunan bilgiler yazildi (sayfalar JS ile render edilerek okundu); yazilmayan her
+ * hucre null ("—", Dogrulanmadi). Sayfada bir ozelligin GECMEMESI "yok" (false) sayilmadi.
+ *   https://usegeon.com/ (24.10.2026; /fiyatlandirma tek sayfa uygulamada 404, kartlar ana sayfada)
+ *     "Şu an ChatGPT, Perplexity AI, Anthropic Claude, Google Gemini, Grok ve DeepSeek'i takip ediyoruz."
+ *     "Platform Türkçe ve İngilizce … Müşteri destek ekibimiz de Türkçe hizmet vermektedir."
+ *     "Kayıt olun, 5 ücretsiz kredi kazanın = 5 prompt taraması." · "Aylık" "Yıllık" "%20"
+ *     "Dilediğiniz zaman tek tıkla iptal." · "AI hazırlık analizi … robots.txt erişimini, sitemap'i,
+ *     yapılandırılmış veriyi ve içerik derinliğini kontrol ediyoruz. Ücretsiz"
+ *   https://seoyen.com/ ve https://seoyen.com/fiyatlar/ (24.10.2026)
+ *     "AI İçerik Üretimi" · "2.000-5.000+ kelime tam makale üretimi" · "WordPress'e tek tıkla yayınlama" · "3 AI motoru günlük tarama (ChatGPT,
+ *     Gemini, Claude)" + "Google AI Overview" · "245 otomatik kontrolle" · "1.299 ₺/ay" (aylik) ·
+ *     "Yıllık ödemede aylık fiyata göre %20 tasarruf" · "Ödemeler iyzico altyapısı üzerinden" ·
+ *     "Tüm veriler Türkiye'deki sunucularda saklanır." (KVKK anilmiyor; destek dili yazmiyor) ·
+ *     "Bireysel paketi 7 gün boyunca 50 ₺ karşılığında tam erişimle denersiniz."
  */
 type CellValue = boolean | string | null;
 
@@ -102,7 +106,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'SEO & Site Audit',
     icon: <Shield className="h-4 w-4" />,
     rows: [
-      { name: 'Otomatik site denetimi', luviai: '14 kontrol', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'sayfa denetimi', seoyen: '245 kontrol' },
+      { name: 'Otomatik site denetimi', luviai: '14 kontrol', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'sayfa denetimi', geon: 'AI hazırlık analizi', seoyen: '245 kontrol' },
       { name: 'Search Console entegrasyonu', luviai: true, surfer: true, jasper: null, ahrefs: null, frase: null },
       { name: 'Organik trafik verisi: Search Console gerçeği vs. tahmin', luviai: 'GSC gerçek', surfer: null, jasper: null, ahrefs: 'tahmin', frase: null, hint: 'Üçüncü taraf araçların "organik trafik" rakamı modelleme tahminidir. RanksUp birinci taraf Search Console verisini ve markalı/markasız ayrımını kullanır.' },
       { name: 'GA4 entegrasyonu', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
@@ -162,9 +166,9 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     icon: <Award className="h-4 w-4" />,
     rows: [
       // Surfer SSS'si "up to 17%" diyor (surferseo.com/pricing, 18.10.2026); "~%17" degil
-      { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%17\'ye kadar', jasper: '~%20', ahrefs: '%17\'ye kadar', frase: '%20', seoyen: '%20' },
+      { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%17\'ye kadar', jasper: '~%20', ahrefs: '%17\'ye kadar', frase: '%20', geon: '%20', seoyen: '%20' },
       { name: 'Ücretsiz deneme', luviai: '2 makale, kart yok', surfer: null, jasper: '7 gün', ahrefs: 'Ahrefs Free (sınırlı)', frase: '7 gün, kart yok', geon: '5 ücretsiz kredi', seoyen: 'ücretli: 50 TL, 7 gün' },
-      { name: 'Aylık plan — uzun taahhüt yok', luviai: true, surfer: true, jasper: true, ahrefs: 'Enterprise hariç', frase: true },
+      { name: 'Aylık plan — uzun taahhüt yok', luviai: true, surfer: true, jasper: true, ahrefs: 'Enterprise hariç', frase: true, geon: true, seoyen: true },
     ],
   },
 ];
@@ -203,7 +207,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'SEO & Site Audit',
     icon: <Shield className="h-4 w-4" />,
     rows: [
-      { name: 'Automatic site audit', luviai: '14 checks', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'page audits', seoyen: '245 checks' },
+      { name: 'Automatic site audit', luviai: '14 checks', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'page audits', geon: 'AI readiness check', seoyen: '245 checks' },
       { name: 'Search Console integration', luviai: true, surfer: true, jasper: null, ahrefs: null, frase: null },
       { name: 'Organic traffic data: Search Console truth vs. estimates', luviai: 'GSC actuals', surfer: null, jasper: null, ahrefs: 'estimate', frase: null, hint: 'Third-party "organic traffic" numbers are modelled estimates. RanksUp uses first-party Search Console data with a branded/non-branded split.' },
       { name: 'GA4 integration', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
@@ -262,9 +266,9 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'Price',
     icon: <Award className="h-4 w-4" />,
     rows: [
-      { name: 'Yearly discount', luviai: '17%', surfer: 'up to 17%', jasper: '~20%', ahrefs: 'up to 17%', frase: '20%', seoyen: '20%' },
+      { name: 'Yearly discount', luviai: '17%', surfer: 'up to 17%', jasper: '~20%', ahrefs: 'up to 17%', frase: '20%', geon: '20%', seoyen: '20%' },
       { name: 'Free trial', luviai: '2 articles, no card', surfer: null, jasper: '7 days', ahrefs: 'Ahrefs Free (limited)', frase: '7 days, no card', geon: '5 free credits', seoyen: 'paid: TRY 50, 7 days' },
-      { name: 'Monthly plan — no long commitment', luviai: true, surfer: true, jasper: true, ahrefs: 'except Enterprise', frase: true },
+      { name: 'Monthly plan — no long commitment', luviai: true, surfer: true, jasper: true, ahrefs: 'except Enterprise', frase: true, geon: true, seoyen: true },
     ],
   },
 ];
