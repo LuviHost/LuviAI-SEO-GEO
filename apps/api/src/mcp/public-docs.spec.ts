@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_PLANS, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, VIDEOS_PER_MONTH, findPlan, type BasePlan } from '../billing/plans.js';
 import { MEASUREMENT_WINDOW_MS } from '../billing/measurement-allowance.js';
+import { TRIAL_DAYS } from '../billing/trial-policy.js';
 import { RANKSUP_BOT_UA } from '../common/safe-fetch.js';
 import { McpToolsService } from './mcp-tools.service.js';
 import { QuotaService } from '../billing/quota.service.js';
@@ -1427,5 +1428,76 @@ describe('RanksUp Video belgeleri = kod', () => {
     expect(read(path.join(videoSrc, 'article-video.config.ts'))).toContain("export const DEFAULT_VIDEO_TEMPO: VideoTempo = 'normal';");
     expect(stripComments(read(path.join(videoSrc, 'videos.service.ts')))).toContain('tempo: input.tempo ?? DEFAULT_VIDEO_TEMPO');
     expect(stripComments(read(path.join(videoSrc, 'video-render.service.ts')))).toContain('const tempo = videoTempoOf(raw);');
+  });
+});
+
+/**
+ * /rehber (GEO icerik merkezi) urun iddialari kodla ayni. Makaleler web
+ * content/rehber/*.ts veri modullerinde; genel yasak kaliplar (7 asistan, 6 ajan,
+ * kosulsuz Llama...) zaten webSources taramasina giriyor. Burada fiyat, plan
+ * kapisi, deneme ve olcum sikligi plans.ts / trial-policy / measurement-allowance
+ * ile karsilastirilir. Yayin kapisinin geri kalani web lib/rehber.spec.mts'te.
+ */
+describe('Rehber (/rehber) = ürün', () => {
+  const REHBER = path.join(WEB_SRC, 'content/rehber');
+  const dosya = (slug: string) => stripComments(read(path.join(REHBER, `${slug}.ts`)));
+  const tum = walk(REHBER, /\.ts$/).map((f) => ({ rel: path.relative(REHBER, f), text: stripComments(read(f)) }));
+  const planAdi = (f: keyof typeof FEATURE_MIN_PLAN) => findPlan(FEATURE_MIN_PLAN[f])!.name_tr;
+
+  it('rehber veri modulleri bulunuyor (7 makale + kayit + kaynaklar + tipler)', () => {
+    expect(tum.length).toBe(10);
+  });
+
+  it('RanksUp plan fiyatlari plans.ts ile ayni; elle yazilmis bayat tutar yok', () => {
+    let sayi = 0;
+    for (const p of BASE_PLANS.filter((x) => x.monthly_usd > 0)) {
+      const re = new RegExp(`${p.name_tr} \\$([\\d.,]+)\\/ay`, 'g');
+      for (const s of tum) {
+        for (const m of s.text.matchAll(re)) {
+          sayi++;
+          expect(Number(m[1].replace(/[.,]/g, '')), `${s.rel}: ${m[0]}`).toBe(p.monthly_usd);
+        }
+      }
+    }
+    expect(sayi, 'karsilastirma makalesi RanksUp baslangic fiyatini plans.ts adiyla yaziyor').toBeGreaterThan(0);
+    expect(dosya('yapay-zeka-gorunurluk-araclari')).toContain(`${findPlan('starter')!.name_tr} $${findPlan('starter')!.monthly_usd}/ay`);
+    // Fiyat notu Kullanim Sartlari ile ayni: "KDV dahil"
+    expect(read(path.join(MARKETING, 'terms/page.tsx'))).toContain('Aylık veya yıllık ödeme. KDV dahil.');
+    expect(dosya('yapay-zeka-gorunurluk-araclari')).toContain(`${findPlan('starter')!.name_tr} $${findPlan('starter')!.monthly_usd}/ay, KDV dahil`);
+  });
+
+  it('plan kapilari kodla ayni (App Prompt Lab, AXO, Canlı Tarayıcı, kapalı döngü)', () => {
+    const mobil = dosya('mobil-uygulama-geo');
+    expect(mobil).toContain(`${planAdi('appPromptLab')} ve üstü planlarda`);
+    expect(mobil).toContain(`ASO metadata optimizasyonu ve günlük anahtar kelime sıra takibi ${findPlan('starter')!.name_tr} plan`);
+    const botlar = dosya('yapay-zeka-botlari-robots-txt');
+    expect(botlar).toContain(`(${planAdi('agentReadiness')} ve üstü)`);
+    expect(botlar).toContain(`${planAdi('liveCrawler')} planındaki Canlı Tarayıcı`);
+    expect(dosya('geo-nedir')).toContain(`${planAdi('contentOpportunities')} ve üstü planlarda kaybedilen sorudan`);
+    expect(mobil).toContain(`${planAdi('ascEnabled')} ve üstü planlarındaki App Store Connect`);
+  });
+
+  it(`deneme ${TRIAL_DAYS} gün ve kart istemez; ölçüm hesap başına 7 günde 1 (measurement-allowance)`, () => {
+    expect(MEASUREMENT_WINDOW_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(findPlan('trial')!.features_tr.join(' ')).toContain('Kredi kartı istemez');
+    const araclar = dosya('yapay-zeka-gorunurluk-araclari');
+    expect(araclar).toContain(`RanksUp ${TRIAL_DAYS} gün ücretsiz deneme veriyor ve kart istemiyor`);
+    expect(araclar).toContain('hesap başına 7 günde 1 ölçüm');
+    expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain('Hesap başına 7 günde bir ölçüm yapılır');
+    const cta = read(path.join(WEB_SRC, 'components/rehber/rehber-article.tsx'));
+    expect(cta).toContain(`${TRIAL_DAYS} gün ücretsiz dene · Kart gerekmez`);
+  });
+
+  it('ölçülen asistanlar plans.ts listesiyle ayni; web araması yalnız aramalı sağlayıcılarda', () => {
+    const liste = BASE_PLANS.flatMap((p) => p.features_tr).find((m) => m.startsWith('ChatGPT · '))!.split(' · ');
+    const metin = `${liste.slice(0, -1).join(', ')} ve ${liste.at(-1)}`;
+    expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain(metin);
+    const citation = read(path.resolve(HERE, '../audit/ai-citation.service.ts'));
+    // Aramali: Claude web_search araci, Gemini googleSearch, ChatGPT web_search, Perplexity sonar
+    expect(citation).toContain("name: 'web_search'");
+    expect(citation).toContain('googleSearch: {}');
+    expect(citation).toContain("model: 'sonar'");
+    expect(citation).toMatch(/aramasiz saglayicilar \(Grok, DeepSeek/);
+    expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain('Grok ve DeepSeek ölçümünde web araması yoktur');
   });
 });

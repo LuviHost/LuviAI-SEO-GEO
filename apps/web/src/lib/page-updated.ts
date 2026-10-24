@@ -51,8 +51,18 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/pricing',               updated: '2026-10-22', changeFrequency: 'weekly',  priority: 0.9 },
   { path: '/faq',                   updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/use-cases',             updated: '2026-10-18', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/compare',               updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/compare',               updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/about',                 updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.7 },
+  // Rehber (GEO icerik merkezi) — icerik content/rehber/*.ts; kaynaklar yeniden kontrol
+  // edilince ya da metin degisince ilgili satirin tarihi ayni committe guncellenir.
+  { path: '/rehber',                                  updated: '2026-10-24', changeFrequency: 'weekly',  priority: 0.8 },
+  { path: '/rehber/chatgpt-markam-gorunuyor-mu',      updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/geo-nedir',                        updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/yapay-zeka-botlari-robots-txt',    updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/llms-txt-nedir',                   updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/ai-bakisi-gorunurluk',             updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/mobil-uygulama-geo',               updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/help',                  updated: '2026-10-21', changeFrequency: 'monthly', priority: 0.5 },
   // Help center alt sayfalari — SEO + AI alintisi icin kritik (her biri modul rehberi)
   { path: '/help/getting-started',  updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
