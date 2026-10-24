@@ -81,6 +81,7 @@ describe('buildAiTrafficRequests', () => {
     expect(r.pages.dimensions).toEqual([{ name: 'sessionSource' }, { name: 'hostName' }, { name: 'landingPage' }]);
     expect(r.daily.metrics.map((m) => m.name)).toEqual(['sessions', 'engagedSessions', 'keyEvents', 'totalRevenue']);
     expect(r.total.metrics).toEqual([{ name: 'sessions' }]);
+    expect(r.total.dimensions).toEqual([{ name: 'date' }]);
     for (const b of [r.daily, r.pages, r.total]) expect(b.dateRanges).toEqual([{ startDate: '28daysAgo', endDate: 'yesterday' }]);
     expect(buildAiTrafficRequests(90, { withRevenue: false }).total.dateRanges).toEqual([{ startDate: '90daysAgo', endDate: 'yesterday' }]);
   });
@@ -141,14 +142,21 @@ describe('mapAiTraffic', () => {
     expect(g.thresholded).toBe(true);
   });
 
-  it('GA4 gunleri mulk saat diliminde bir gun kayarsa seri son N gune kirpilir', () => {
+  it('gunluk eksen GA4\'un kendi tarihlerinden: UTC\'nin gerisindeki mulkte gun dusmez, sonda bos gun kalmaz', () => {
+    // UTC penceresi 21-23 Ekim; mulk (orn. Los Angeles) dunu 22 Ekim olarak raporluyor
     const g = mapAiTraffic({
-      range, days: 3, pageRows: [], totalRows: [], withRevenue: false,
-      dailyRows: [row(['20261024', 'claude.ai'], [2, 1, 0]), row(['20261021', 'claude.ai'], [1, 1, 0])],
+      range, days: 3, pageRows: [], withRevenue: false,
+      totalRows: [row(['20261020'], [100]), row(['20261021'], [120]), row(['20261022'], [90])],
+      dailyRows: [row(['20261020', 'claude.ai'], [1, 1, 0]), row(['20261022', 'claude.ai'], [2, 1, 0])],
     });
-    expect(g.daily.map((d) => [d.date, d.total])).toEqual([['2026-10-22', 0], ['2026-10-23', 0], ['2026-10-24', 2]]);
-    // toplamlar kirpmadan etkilenmez (GA4 penceresi zaten N gun)
+    expect(g.daily.map((d) => [d.date, d.total])).toEqual([['2026-10-20', 1], ['2026-10-21', 0], ['2026-10-22', 2]]);
     expect(g.totals.sessions).toBe(3);
+    expect(g.siteSessions).toBe(310);
+  });
+
+  it('GA4 tarih dondurmediyse UTC pencere', () => {
+    const g = mapAiTraffic({ range, days: 3, pageRows: [], dailyRows: [], totalRows: [], withRevenue: false });
+    expect(g.daily.map((d) => d.date)).toEqual(['2026-10-21', '2026-10-22', '2026-10-23']);
   });
 
   it('gelir okunamadiysa revenue null; site oturumu yoksa pay null; satir siniri isaretlenir', () => {

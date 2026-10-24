@@ -76,6 +76,8 @@ export interface CitedSourcesCoverage {
   answers: number;
   /** Soruda marka gecen ve bu yuzden disarida birakilan cevaplar */
   brandedAnswers: number;
+  /** Bunlardan kaynak kaydi olanlar — "kayit var ama hepsi markali" durumunu ayirir */
+  brandedWithSourcesVersion: number;
   /** Kaynak kaydi olan ve en az bir kaynak alintilayan */
   answersWithSources: number;
   /** Arama yapildi, alinti yok (sources: []) */
@@ -197,6 +199,7 @@ export function aggregateCitedSources(input: AggregateInput): CitedSourcesResult
   // Markali sorular toplamaya girmez (ust not)
   const answers = input.answers.filter((a) => a.brandInQuery !== true);
   const brandedAnswers = input.answers.length - answers.length;
+  const brandedWithSourcesVersion = input.answers.filter((a) => a.brandInQuery === true && hasVersion(a)).length;
   const byDomain = new Map<string, DomainAcc>();
   const legacy = new Map<string, number>();
   let legacyAnswers = 0;
@@ -317,6 +320,7 @@ export function aggregateCitedSources(input: AggregateInput): CitedSourcesResult
     coverage: {
       answers: answers.length,
       brandedAnswers,
+      brandedWithSourcesVersion,
       answersWithSources,
       answersSearchedNoCitation: searchedNoCitation,
       answersWithoutSearch: withoutSearch,

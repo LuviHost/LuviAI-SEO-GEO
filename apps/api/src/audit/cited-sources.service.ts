@@ -72,7 +72,10 @@ export class CitedSourcesService {
           date: { gte: since },
           prompt: { trackedAppId: null },
           // HATA satirlari DB'de elenir; excerpt (TEXT) okunmaz. excerpt NULL olan
-          // satir gecerlidir — NOT LIKE tek basina NULL'u da elerdi.
+          // satir gecerlidir — NOT LIKE tek basina NULL'u da elerdi. MySQL _ci
+          // harmanlamasinda LIKE buyuk/kucuk harf duyarsiz: "hata:" ile baslayan
+          // (gercek) bir cevap da elenir — isErrorProbe'dan biraz genis ama
+          // yalniz cok nadir bir cevabi atlar, hata satirini asla saymaz.
           OR: [{ excerpt: null }, { NOT: { excerpt: { startsWith: 'HATA:' } } }],
         },
         select: {

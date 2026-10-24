@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildCompetitorMatchers, classifySource, hostOf, isPlatformHost, SOURCE_TYPE_LISTS, SOURCE_TYPES, type SourceTypeContext,
+  buildCompetitorMatchers, canonicalPlatformHost, classifySource, hostOf, isPlatformHost, SOURCE_TYPE_LISTS, SOURCE_TYPES, type SourceTypeContext,
 } from './source-domain-types.js';
 import { registrableDomain } from './host-match.js';
 
@@ -147,21 +147,38 @@ describe('platformdaki rakip — platformun tamami rakip olmaz', () => {
     ownHost: 'ornek.com',
     competitors: buildCompetitorMatchers([
       'https://www.trendyol.com/magaza/rakip-m-123',
-      'https://www.linkedin.com/company/rakip/',
-      'https://apps.apple.com/tr/app/rakip/id123',
+      'https://tr.linkedin.com/company/rakip/',
+      'https://apps.apple.com/tr/app/rakip/id1234567890',
       'https://medium.com/@rakip',
       'https://rakip.github.io/',
       'https://hepsiburada.com', // yolsuz platform adresi: yok sayilir
+      'https://play.google.com/store/apps/details?id=com.rakip.app&hl=tr',
+      'https://www.facebook.com/profile.php?id=10001',
+      'https://www.youtube.com/watch?v=RakipVid1',
+      'https://play.google.com/store/apps', // kimliksiz: yok sayilir
+      'https://m.facebook.com/profile.php', // kimliksiz: yok sayilir
+      'https://github.com/rakip',
+      'https://gitlab.com/rakip-grup/',
+      'https://www.crunchbase.com/organization/rakip',
     ]),
   };
 
-  it('eslestiriciler: platformda host + yol oneki; yolsuz platform adresi atlanir', () => {
+  it('eslestiriciler: kanonik host + yol oneki (+ kimlik parametresi); kimliksiz platform adresi atlanir', () => {
     expect(c.competitors).toEqual([
       { host: 'trendyol.com', pathPrefix: '/magaza/rakip-m-123', key: 'trendyol.com/magaza/rakip-m-123' },
       { host: 'linkedin.com', pathPrefix: '/company/rakip', key: 'linkedin.com/company/rakip' },
-      { host: 'apps.apple.com', pathPrefix: '/tr/app/rakip/id123', key: 'apps.apple.com/tr/app/rakip/id123' },
+      { host: 'apps.apple.com', pathPrefix: '/id1234567890', key: 'apps.apple.com/id1234567890' },
       { host: 'medium.com', pathPrefix: '/@rakip', key: 'medium.com/@rakip' },
       { host: 'rakip.github.io', pathPrefix: null, key: 'rakip.github.io' },
+      {
+        host: 'play.google.com', pathPrefix: '/store/apps/details', param: { name: 'id', value: 'com.rakip.app' },
+        key: 'play.google.com/store/apps/details?id=com.rakip.app',
+      },
+      { host: 'facebook.com', pathPrefix: '/profile.php', param: { name: 'id', value: '10001' }, key: 'facebook.com/profile.php?id=10001' },
+      { host: 'youtube.com', pathPrefix: '/watch', param: { name: 'v', value: 'rakipvid1' }, key: 'youtube.com/watch?v=rakipvid1' },
+      { host: 'github.com', pathPrefix: '/rakip', key: 'github.com/rakip' },
+      { host: 'gitlab.com', pathPrefix: '/rakip-grup', key: 'gitlab.com/rakip-grup' },
+      { host: 'crunchbase.com', pathPrefix: '/organization/rakip', key: 'crunchbase.com/organization/rakip' },
     ]);
   });
 
@@ -170,25 +187,52 @@ describe('platformdaki rakip — platformun tamami rakip olmaz', () => {
     ['https://www.trendyol.com/magaza/rakip-m-123/urunler', 'competitor', 'trendyol.com/magaza/rakip-m-123'],
     ['https://www.trendyol.com/magaza/rakip-m-1234', 'marketplace', 'trendyol.com'],
     ['https://www.trendyol.com/baska-urun-p-9', 'marketplace', 'trendyol.com'],
+    // www / m / mobile / ulke alt alanlari ayni platform
     ['https://www.linkedin.com/company/rakip/posts', 'competitor', 'linkedin.com/company/rakip'],
+    ['https://linkedin.com/company/rakip', 'competitor', 'linkedin.com/company/rakip'],
     ['https://www.linkedin.com/company/baskasi', 'social', 'linkedin.com'],
-    ['https://apps.apple.com/tr/app/rakip/id123', 'competitor', 'apps.apple.com/tr/app/rakip/id123'],
-    ['https://apps.apple.com/tr/app/oyun/id999', 'marketplace', 'apps.apple.com'],
+    // App Store: magaza ulkesi ve slug onemsiz, kimlik id
+    ['https://apps.apple.com/tr/app/rakip/id1234567890', 'competitor', 'apps.apple.com/id1234567890'],
+    ['https://apps.apple.com/us/app/rakip-app/id1234567890?l=en', 'competitor', 'apps.apple.com/id1234567890'],
+    ['https://apps.apple.com/tr/app/oyun/id999999', 'marketplace', 'apps.apple.com'],
+    // Kimlik sorgu dizgesinde
+    ['https://play.google.com/store/apps/details?id=com.rakip.app', 'competitor', 'play.google.com/store/apps/details?id=com.rakip.app'],
+    ['https://play.google.com/store/apps/details?hl=en&id=COM.RAKIP.APP', 'competitor', 'play.google.com/store/apps/details?id=com.rakip.app'],
+    ['https://play.google.com/store/apps/details?id=com.baska.app', 'marketplace', 'play.google.com'],
+    ['https://m.facebook.com/profile.php?id=10001', 'competitor', 'facebook.com/profile.php?id=10001'],
+    ['https://www.facebook.com/profile.php?id=20002', 'social', 'facebook.com'],
+    ['https://m.youtube.com/watch?v=RakipVid1&t=30', 'competitor', 'youtube.com/watch?v=rakipvid1'],
+    ['https://www.youtube.com/watch?v=BaskaVid', 'video', 'youtube.com'],
     ['https://medium.com/@rakip/yazi-1', 'competitor', 'medium.com/@rakip'],
     ['https://medium.com/@baskasi/yazi', 'other', 'medium.com'],
     ['https://rakip.github.io/docs', 'competitor', 'rakip.github.io'],
     ['https://www.hepsiburada.com/x', 'marketplace', 'hepsiburada.com'],
+    // Profil / kod platformlari
+    ['https://github.com/rakip/sdk', 'competitor', 'github.com/rakip'],
+    ['https://github.com/baskasi/repo', 'other', 'github.com'],
+    ['https://gitlab.com/rakip-grup/proje', 'competitor', 'gitlab.com/rakip-grup'],
+    ['https://www.crunchbase.com/organization/rakip', 'competitor', 'crunchbase.com/organization/rakip'],
   ])('%s → %s', (url, t, k) => {
     expect(classifySource(url, c)).toEqual({ type: t, key: k });
   });
 
-  it('isPlatformHost', () => {
+  it('isPlatformHost / canonicalPlatformHost', () => {
     expect(isPlatformHost('trendyol.com')).toBe(true);
     expect(isPlatformHost('apps.apple.com')).toBe(true);
     expect(isPlatformHost('blog.google.com')).toBe(true);
     expect(isPlatformHost('medium.com')).toBe(true);
+    expect(isPlatformHost('github.com')).toBe(true);
+    expect(isPlatformHost('bitbucket.org')).toBe(true);
     expect(isPlatformHost('rakip.github.io')).toBe(false);
+    expect(isPlatformHost('rakip.notion.site')).toBe(false);
     expect(isPlatformHost('rakip.com')).toBe(false);
+    expect(canonicalPlatformHost('tr.linkedin.com')).toBe('linkedin.com');
+    expect(canonicalPlatformHost('mobile.twitter.com')).toBe('twitter.com');
+    expect(canonicalPlatformHost('tr-tr.facebook.com')).toBe('facebook.com');
+    expect(canonicalPlatformHost('m.youtube.com')).toBe('youtube.com');
+    expect(canonicalPlatformHost('blog.google.com')).toBe('blog.google.com');
+    expect(canonicalPlatformHost('apps.apple.com')).toBe('apps.apple.com');
+    expect(canonicalPlatformHost('rakip.com')).toBe('rakip.com');
   });
 });
 

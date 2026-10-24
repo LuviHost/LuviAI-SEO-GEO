@@ -76,7 +76,8 @@ function sourceFilter() {
  *    sayfalar. landingPage sorgusuz yol (landingPagePlusQueryString utm_source'lu
  *    adresleri ayri satirlara bolerdi); hostName birden cok alan adi olcen
  *    mulkte ayni yolun (/fiyatlar) farkli sitelerde birlesmesini onler.
- *  - total: boyutsuz sessions — AI payinin paydasi
+ *  - total: date x sessions (filtresiz) — AI payinin paydasi VE gunluk
+ *    eksenin kaynagi: gunler mulkun saat diliminde, GA4'un kendi tarihleriyle
  * totalRevenue yalniz withRevenue'da istenir (gelir izlemeyen mulkte cagiran
  * hatayi yakalayip gelirsiz tekrar dener).
  */
@@ -110,7 +111,9 @@ export function buildAiTrafficRequests(days: number, opts: { withRevenue: boolea
     },
     total: {
       dateRanges,
+      dimensions: [{ name: 'date' }],
       metrics: [{ name: 'sessions' }],
+      limit: String(GA_DAILY_ROW_LIMIT),
     },
   };
 }
@@ -163,6 +166,23 @@ const rate = (engaged: number, sessions: number) => (sessions > 0 ? engaged / se
 /** "20261024" → "2026-10-24" */
 export function gaDate(raw: string): string {
   return /^\d{8}$/.test(raw) ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}` : raw;
+}
+
+/**
+ * Gunluk eksen: GA4'un dondurdugu tarihler (mulk saat dilimi). Toplam raporu
+ * filtresiz oldugu icin trafigi olan her gunu getirir; eksen en son GA4
+ * gununde biten ardisik N gundur — UTC penceresiyle bir gun kayan mulkte gun
+ * dusmez, sonda bos gun kalmaz. GA4 hic tarih dondurmediyse UTC pencere.
+ */
+function dailyAxis(input: { range: { startDate: string; endDate: string }; days?: number; dailyRows: readonly GaRow[]; totalRows: readonly GaRow[] }): string[] {
+  const n = input.days ?? rangeDays(input.range).length;
+  const gaDays = [...input.totalRows, ...input.dailyRows]
+    .map((r) => gaDate(dim(r, 0)))
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort();
+  if (gaDays.length === 0) return rangeDays(input.range);
+  const end = Date.parse(`${gaDays[gaDays.length - 1]}T00:00:00Z`);
+  return rangeDays({ startDate: isoDay(new Date(end - (n - 1) * 86400000)), endDate: isoDay(new Date(end)) });
 }
 
 export function mapAiTraffic(input: {
@@ -235,16 +255,12 @@ export function mapAiTraffic(input: {
     .sort((a, b) => b.sessions - a.sessions || a.page.localeCompare(b.page) || a.host.localeCompare(b.host))
     .slice(0, MAX_LANDING_PAGES);
 
-  // Gun listesi: UTC pencere + GA4'un dondurdugu gunler (mulk saat dilimi bir gun
-  // kaydirabilir), son N gun
-  const allDays = [...new Set([...rangeDays(input.range), ...byDay.keys()])].sort();
-  const keep = input.days ?? rangeDays(input.range).length;
-  const daily = allDays.slice(-keep).map((date) => {
+  const daily = dailyAxis(input).map((date) => {
     const m = byDay.get(date) ?? {};
     return { date, total: Object.values(m).reduce((a, b) => a + b, 0), byAssistant: m };
   });
 
-  const siteSessions = input.totalRows.length > 0 ? met(input.totalRows[0], 0) : 0;
+  const siteSessions = input.totalRows.reduce((a, r) => a + met(r, 0), 0);
   return {
     totals: { ...totals, engagementRate: rate(totals.engagedSessions, totals.sessions) },
     byAssistant,

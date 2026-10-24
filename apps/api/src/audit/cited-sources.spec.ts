@@ -80,6 +80,7 @@ describe('aggregateCitedSources — kapsam (coverage)', () => {
     expect(r.coverage).toEqual({
       answers: 9,
       brandedAnswers: 0,
+      brandedWithSourcesVersion: 0,
       answersWithSources: 4,
       answersSearchedNoCitation: 1,
       answersWithoutSearch: 1,
@@ -170,6 +171,7 @@ describe('aggregateCitedSources — markali sorular disarida (unbrandedOnly)', (
     const base = run();
     const r = run([...FIXTURE, branded]);
     expect(r.coverage.brandedAnswers).toBe(1);
+    expect(r.coverage.brandedWithSourcesVersion).toBe(1);
     expect(r.coverage.answers).toBe(base.coverage.answers);
     expect(r.totals.answersCitingOwn).toBe(base.totals.answersCitingOwn);
     expect(r.totals.ownShare).toBe(base.totals.ownShare);

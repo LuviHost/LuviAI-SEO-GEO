@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  SOURCE_TYPE_LABELS, SOURCE_TYPE_ORDER, citedSourcesState, coverageNote, filterDomains, formatDay, shortUrl, typeChips,
+  ALL_BRANDED_TEXT, SOURCE_TYPE_LABELS, SOURCE_TYPE_ORDER, brandedNote, citedSourcesState, coverageNote, filterDomains, formatDay, shortUrl, typeChips,
   type CitedSourcesResponse, type CitedDomainRow, type SourceType,
 } from './cited-sources';
 
@@ -14,7 +14,7 @@ type ByType = Record<SourceType, { domains: number; answers: number }>;
 const emptyByType = (): ByType => Object.fromEntries(SOURCE_TYPE_ORDER.map((t) => [t, { domains: 0, answers: 0 }])) as ByType;
 
 const coverage = (p: Partial<CitedSourcesResponse['coverage']> = {}): CitedSourcesResponse['coverage'] => ({
-  answers: 10, brandedAnswers: 0, answersWithSources: 6, answersSearchedNoCitation: 1, answersWithoutSearch: 2, legacyAnswers: 1,
+  answers: 10, brandedAnswers: 0, brandedWithSourcesVersion: 0, answersWithSources: 6, answersSearchedNoCitation: 1, answersWithoutSearch: 2, legacyAnswers: 1,
   snapshots: { total: 4, withSourcesVersion: 3, legacy: 1 }, promptRuns: { total: 0, withSourcesVersion: 0, legacy: 0 },
   firstRecordedAt: '2026-10-24', ...p,
 });
@@ -48,6 +48,18 @@ describe('citedSourcesState', () => {
     expect(citedSourcesState(resp())).toBe('no_citations');
     expect(citedSourcesState(resp({ domains: [row('reddit.com', 'forum')] }))).toBe('ok');
   });
+
+  it('tamamı markalı: markasız cevap yok ya da kayıtlı cevapların hepsi markalı — "kayıt yok" denmez', () => {
+    expect(citedSourcesState(resp({ coverage: coverage({ answers: 0, brandedAnswers: 4, brandedWithSourcesVersion: 4, firstRecordedAt: null }) }))).toBe('all_branded');
+    expect(citedSourcesState(resp({ coverage: coverage({ answers: 0, brandedAnswers: 2, brandedWithSourcesVersion: 0, firstRecordedAt: null }) }))).toBe('all_branded');
+    // Markasızlar eski (kayıtsız), kayıtlılar markalı
+    expect(citedSourcesState(resp({ coverage: coverage({ answers: 3, legacyAnswers: 3, brandedAnswers: 2, brandedWithSourcesVersion: 2, firstRecordedAt: null }) }))).toBe('all_branded');
+    // Markalılar da kayıtsızsa gerçekten kayıt yok
+    expect(citedSourcesState(resp({ coverage: coverage({ answers: 3, legacyAnswers: 3, brandedAnswers: 2, brandedWithSourcesVersion: 0, firstRecordedAt: null }) }))).toBe('no_records');
+    expect(ALL_BRANDED_TEXT).toMatch(/markasız/);
+    expect(brandedNote(coverage({ brandedAnswers: 4 }))).toContain('4 cevap sayılmadı');
+    expect(brandedNote(coverage({ brandedAnswers: 0 }))).toBeNull();
+  });
 });
 
 describe('coverageNote', () => {
@@ -79,11 +91,14 @@ describe('filtre ve çipler', () => {
     byType.review = { domains: 1, answers: 3 };
     byType.own = { domains: 1, answers: 1 };
     byType.forum = { domains: 2, answers: 4 };
+    byType.social = { domains: 3, answers: 5 };
     expect(typeChips(byType)).toEqual([
       { type: 'own', label: 'Kendi siten', count: 1 },
       { type: 'forum', label: 'Forum', count: 2 },
       { type: 'review', label: 'İnceleme sitesi', count: 1 },
+      { type: 'social', label: 'Sosyal ağ', count: 3 },
     ]);
+    expect(filterDomains([row('linkedin.com', 'social'), row('g2.com', 'review')], 'social').map((r) => r.domain)).toEqual(['linkedin.com']);
     expect(typeChips(null)).toEqual([]);
   });
 });

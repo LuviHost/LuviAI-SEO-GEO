@@ -70,7 +70,7 @@ describe('CitedSourcesService.get', () => {
     const r = await new CitedSourcesService(prisma as any).get('s1', '90', new Date('2026-10-26T12:00:00Z'));
     expect(r.days).toBe(90);
     expect(r.coverage).toMatchObject({
-      answers: 6, brandedAnswers: 1, answersWithSources: 3, answersWithoutSearch: 1, legacyAnswers: 2,
+      answers: 6, brandedAnswers: 1, brandedWithSourcesVersion: 1, answersWithSources: 3, answersWithoutSearch: 1, legacyAnswers: 2,
       snapshots: { total: 3, withSourcesVersion: 2, legacy: 1 },
       promptRuns: { total: 4, withSourcesVersion: 3, legacy: 1 },
       firstRecordedAt: '2026-10-24',

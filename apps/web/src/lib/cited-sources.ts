@@ -24,6 +24,8 @@ export interface CitedSourcesCoverage {
   answers: number;
   /** Soruda marka geçtiği için dışarıda bırakılan cevaplar */
   brandedAnswers: number;
+  /** Bunlardan kaynak kaydı olanlar */
+  brandedWithSourcesVersion: number;
   answersWithSources: number;
   answersSearchedNoCitation: number;
   answersWithoutSearch: number;
@@ -89,6 +91,15 @@ export const SOURCE_TYPE_BADGE: Readonly<Record<SourceType, 'success' | 'warning
 export const HEURISTIC_NOTE =
   'Tür etiketi sezgiseldir: bilinen sitelerin listesine göre atanır. Listede olmayan siteler “Diğer” görünür; bir haber sitesi ya da forum da olabilir.';
 
+export const ALL_BRANDED_TEXT =
+  'Bu dönemde kaynak kaydı olan cevapların tamamı markalı sorulardan. Rapor, alıntı skoru gibi yalnız markasız sorularla hesaplanır; Prompt Lab’e markanı içermeyen sorular ekle.';
+
+/** Markalı soru notu — boş durumlarda da görünür kalsın diye ayrı */
+export function brandedNote(c: CitedSourcesCoverage | null | undefined): string | null {
+  const n = c?.brandedAnswers ?? 0;
+  return n > 0 ? `Sorusunda marka adın geçen ${n} cevap sayılmadı (alıntı skoruyla aynı kural).` : null;
+}
+
 export const PLACEMENT_NOTE =
   'Markanın bu sitelerde zaten yer alıp almadığını bilmiyoruz; her öneri bir kontrol adımıyla başlar.';
 
@@ -112,17 +123,22 @@ export function typeChips(byType: CitedSourcesResponse['totals']['byType'] | nul
   return SOURCE_TYPE_ORDER.filter((t) => (byType[t]?.domains ?? 0) > 0).map((t) => ({ type: t, label: SOURCE_TYPE_LABELS[t], count: byType[t].domains }));
 }
 
-export type CitedSourcesState = 'no_measurement' | 'no_records' | 'no_citations' | 'ok';
+export type CitedSourcesState = 'no_measurement' | 'all_branded' | 'no_records' | 'no_citations' | 'ok';
 
 /**
- * Boş durum ayrımı:
+ * Boş durum ayrımı (rapor yalnız MARKASIZ sorulardan kurulur):
  *  - no_measurement: pencerede hiç ölçülmüş cevap yok
- *  - no_records: ölçüm var ama hepsi kaynak kaydından önce
+ *  - all_branded: ölçüm var ama markasız cevap yok, ya da kaynak kaydı olan
+ *    cevapların tamamı markalı sorulardan (markasızlar kayıttan önce)
+ *  - no_records: markasız ölçüm var ama hepsi kaynak kaydından önce
  *  - no_citations: kaynak kaydı var ama hiçbir cevap kaynak göstermedi
  */
 export function citedSourcesState(r: CitedSourcesResponse | null | undefined): CitedSourcesState {
-  if (!r || r.coverage.answers === 0) return 'no_measurement';
-  if (!r.coverage.firstRecordedAt) return 'no_records';
+  if (!r) return 'no_measurement';
+  const c = r.coverage;
+  const branded = c.brandedAnswers ?? 0;
+  if (c.answers === 0) return branded > 0 ? 'all_branded' : 'no_measurement';
+  if (!c.firstRecordedAt) return (c.brandedWithSourcesVersion ?? 0) > 0 ? 'all_branded' : 'no_records';
   if (r.domains.length === 0) return 'no_citations';
   return 'ok';
 }
@@ -140,7 +156,8 @@ export function coverageNote(
   if (c.legacyAnswers > 0) parts.push(`${c.legacyAnswers} cevap kaynak kaydı tutulmaya başlamadan önce ölçüldü; onların kaynak listesi yok.`);
   if (c.answersWithoutSearch > 0) parts.push(`${c.answersWithoutSearch} cevap web araması yapmayan asistanlardan geldi; bu asistanlar kaynak listesi döndürmez.`);
   if (c.answersSearchedNoCitation > 0) parts.push(`${c.answersSearchedNoCitation} cevapta arama yapıldı ama kaynak gösterilmedi.`);
-  if (c.brandedAnswers > 0) parts.push(`Sorusunda marka adın geçen ${c.brandedAnswers} cevap sayılmadı (alıntı skoruyla aynı kural).`);
+  const b = brandedNote(c);
+  if (b) parts.push(b);
   if (opts.promptRunsTruncated) parts.push('Soru laboratuvarı ölçümleri çok fazla; en yeni 10.000 ölçüm sayıldı.');
   return parts.join(' ');
 }

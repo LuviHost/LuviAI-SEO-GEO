@@ -9,7 +9,7 @@ vi.mock('googleapis', () => ({
   google: { analyticsdata: () => ({ properties: { runReport } }) },
 }));
 
-const { AiTrafficService } = await import('./ai-traffic.service.js');
+const { AiTrafficService, aiTrafficFingerprint } = await import('./ai-traffic.service.js');
 const { aiSessionSourceRegex } = await import('./ai-traffic.js');
 
 const NOW = new Date('2026-10-24T10:00:00Z');
@@ -77,13 +77,14 @@ describe('AiTrafficService.get', () => {
     expect(r.dateRange).toEqual({ startDate: '2026-07-26', endDate: '2026-10-23' });
     expect(prisma.kvStore.upsert).toHaveBeenCalledTimes(1);
     const saved = kv.get('ai-traffic:v1:s1:90');
-    expect(JSON.parse(saved.value).fingerprint).toBe('2026-10-23|123');
+    expect(JSON.parse(saved.value).fingerprint).toBe(aiTrafficFingerprint('2026-10-23', '123', 'enc'));
+    expect(saved.value).not.toContain('"enc"');
     expect(saved.expiresAt.getTime() - Date.now()).toBeGreaterThan(5.9 * 3600_000);
   });
 
   it('onbellek isabeti: Google\'a gidilmez; mulk degistiyse (parmak izi) yeniden cekilir', async () => {
     gaReplies();
-    const env = { fingerprint: '2026-10-23|123', data: { totals: { sessions: 42 }, generatedAt: 'x' } };
+    const env = { fingerprint: aiTrafficFingerprint('2026-10-23', '123', 'enc'), data: { totals: { sessions: 42 }, generatedAt: 'x' } };
     const cache = { key: 'ai-traffic:v1:s1:28', row: { value: JSON.stringify(env), expiresAt: new Date(Date.now() + 3600_000) } };
     const hit = await setup({ cache }).svc.get('s1', '28', NOW);
     expect((hit.ga as any).totals.sessions).toBe(42);
@@ -92,6 +93,11 @@ describe('AiTrafficService.get', () => {
     const moved = await setup({ cache, site: { gaPropertyId: '999', gaRefreshToken: 'enc' } }).svc.get('s1', '28', NOW);
     expect(runReport).toHaveBeenCalled();
     expect(moved.ga?.totals.sessions).toBe(7);
+
+    // Ayni mulk, yeniden baglama (yeni refresh token): eski kayit kullanilmaz
+    runReport.mockClear();
+    await setup({ cache, site: { gaPropertyId: '123', gaRefreshToken: 'yeni-token' } }).svc.get('s1', '28', NOW);
+    expect(runReport).toHaveBeenCalled();
   });
 
   it('gelir metrigi reddedilirse gelirsiz tekrar dener', async () => {
@@ -121,11 +127,11 @@ describe('AiTrafficService.get', () => {
     const a = setup();
     const r = await a.svc.get('s1', '28', NOW);
     expect(r).toMatchObject({ ga: null, reason: 'unavailable' });
-    const dailyCalls = runReport.mock.calls.filter(([arg]: any) => arg.requestBody.dimensions?.[0]?.name === 'date');
+    const dailyCalls = runReport.mock.calls.filter(([arg]: any) => arg.requestBody.dimensions?.[1]?.name === 'sessionSource' && arg.requestBody.dimensions?.[0]?.name === 'date');
     expect(dailyCalls).toHaveLength(1);
     // Yalniz kisa negatif onbellek
     const saved = a.kv.get('ai-traffic:v1:s1:28');
-    expect(JSON.parse(saved.value)).toEqual({ fingerprint: '2026-10-23|123', error: 'unavailable' });
+    expect(JSON.parse(saved.value)).toEqual({ fingerprint: aiTrafficFingerprint('2026-10-23', '123', 'enc'), error: 'unavailable' });
     expect(saved.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(10 * 60_000);
   });
 
@@ -148,7 +154,7 @@ describe('AiTrafficService.get', () => {
   });
 
   it('negatif onbellek isabeti: 10 dk icinde Google\'a tekrar gidilmez', async () => {
-    const cache = { key: 'ai-traffic:v1:s1:28', row: { value: JSON.stringify({ fingerprint: '2026-10-23|123', error: 'permission' }), expiresAt: new Date(Date.now() + 5 * 60_000) } };
+    const cache = { key: 'ai-traffic:v1:s1:28', row: { value: JSON.stringify({ fingerprint: aiTrafficFingerprint('2026-10-23', '123', 'enc'), error: 'permission' }), expiresAt: new Date(Date.now() + 5 * 60_000) } };
     const r = await setup({ cache }).svc.get('s1', '28', NOW);
     expect(r).toMatchObject({ ga: null, reason: 'permission' });
     expect(runReport).not.toHaveBeenCalled();

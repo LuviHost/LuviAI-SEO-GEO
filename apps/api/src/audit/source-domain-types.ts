@@ -122,6 +122,16 @@ const PLATFORM_DOMAINS = new Set(['google.com', 'apple.com', 'microsoft.com', 'o
  */
 const HOSTING_DOMAINS = new Set([
   'github.io', 'blogspot.com', 'wordpress.com', 'substack.com', 'medium.com', 'netlify.app', 'vercel.app', 'pages.dev',
+  'notion.site',
+]);
+
+/**
+ * Profil / kod / portfolyo platformlari — kaynak turu `other` ama bir rakibin
+ * buradaki adresi (github.com/rakip) platformun TAMAMINI rakip yapmamali.
+ */
+const PROFILE_DOMAINS = new Set([
+  'github.com', 'gitlab.com', 'bitbucket.org', 'behance.net', 'dribbble.com', 'notion.so', 'linktr.ee', 'about.me',
+  'crunchbase.com', 'huggingface.co', 'npmjs.com', 'pypi.org',
 ]);
 
 function index(list: readonly string[], type: SourceType, into: Map<string, SourceType>) {
@@ -170,12 +180,15 @@ export function hostWithin(host: string, domain: string): boolean {
 
 /**
  * Rakip eslestiricisi. pathPrefix null → host ve alt alanlari; dolu → yalniz
- * bu host (alt alan degil) ve yol oneki (segment sinirli).
+ * bu (kanonik) host ve yol oneki (segment sinirli). param dolu → kimlik sorgu
+ * dizgesinde (Play Store ?id=, facebook profile.php?id=, YouTube watch?v=):
+ * o parametre de esit olmali.
  */
 export interface CompetitorMatcher {
   host: string;
   pathPrefix: string | null;
-  /** Rapor satiri anahtari: "rakip.com" ya da "trendyol.com/magaza/rakip-m-1" */
+  param?: { name: string; value: string };
+  /** Rapor satiri anahtari: "rakip.com", "trendyol.com/magaza/rakip-m-1", "play.google.com/store/apps/details?id=com.rakip" */
   key: string;
 }
 
@@ -186,17 +199,37 @@ export interface SourceTypeContext {
   competitors: readonly CompetitorMatcher[];
 }
 
+const isPlatformDomain = (registrable: string) =>
+  DOMAIN_TYPES.has(registrable) || PLATFORM_DOMAINS.has(registrable) || PROFILE_DOMAINS.has(registrable);
+
 /**
  * Host bilinen bir platform mu (rakip adresi platformdaysa platformun tamami
- * rakip sayilmamali): host duzeyi siniflar, tur listeleri, platform alanlari
- * ve barindirma platformunun KOKU (medium.com/@rakip). Barindirma alt alani
- * (rakip.github.io) ayri yayinci oldugu icin platform sayilmaz.
+ * rakip sayilmamali): host duzeyi siniflar, tur listeleri, platform ve profil
+ * alanlari, barindirma platformunun KOKU (medium.com/@rakip). Barindirma alt
+ * alani (rakip.github.io) ayri yayinci oldugu icin platform sayilmaz.
  */
 export function isPlatformHost(host: string): boolean {
   const registrable = registrableDomain(host);
   if (Object.keys(HOST_TYPES).some((h) => hostWithin(host, h))) return true;
-  if (DOMAIN_TYPES.has(registrable) || PLATFORM_DOMAINS.has(registrable)) return true;
+  if (isPlatformDomain(registrable)) return true;
   return HOSTING_DOMAINS.has(registrable) && host === registrable;
+}
+
+/** Ayni platformun takma alt alanlari: www, m, mobile ve dil/ulke onekleri (tr, tr-tr, en-gb) */
+const ALIAS_LABEL = /^(www|m|mobile|[a-z]{2}(-[a-z]{2})?)$/;
+
+/**
+ * Platform host'unun kanonik bicimi: tr.linkedin.com, m.youtube.com,
+ * mobile.twitter.com → kayit edilebilir alan. Host duzeyi siniflar
+ * (apps.apple.com) kendi host'unda kalir; anlamli alt alan (blog.google.com) korunur.
+ */
+export function canonicalPlatformHost(host: string): string {
+  const fixed = Object.keys(HOST_TYPES).find((h) => hostWithin(host, h));
+  if (fixed) return fixed;
+  const registrable = registrableDomain(host);
+  if (!isPlatformDomain(registrable) || host === registrable) return host;
+  const sub = host.slice(0, host.length - registrable.length - 1).split('.');
+  return sub.every((l) => ALIAS_LABEL.test(l)) ? registrable : host;
 }
 
 /** Yol karsilastirmasi icin: kucuk harf, sondaki egik cizgiler atilir ("/" → "") */
@@ -205,9 +238,53 @@ function normPath(p: string): string {
 }
 
 /**
- * Rakip adreslerinden eslestiriciler. Platformdaki rakip yol onekiyle eslenir;
- * yolsuz platform adresi (sadece "trendyol.com") yok sayilir — tum platformu
- * rakip yapardi.
+ * Kimligi sorgu dizgesinde tasiyan platform yollari. required: parametre
+ * yoksa adres kimliksizdir (rakip eslestiricisi kurulmaz).
+ */
+function identityParam(host: string, path: string): string | null {
+  if (host === 'play.google.com') return 'id';
+  if (host === 'facebook.com' && path === '/profile.php') return 'id';
+  if (host === 'youtube.com' && path === '/watch') return 'v';
+  if (host === 'youtube.com' && path === '/playlist') return 'list';
+  return null;
+}
+
+interface PlatformIdentity { host: string; path: string; param?: { name: string; value: string }; identifiable: boolean }
+
+function parseUrl(raw: string): URL | null {
+  const t = raw.trim();
+  try {
+    return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Platform adresinin kimligi: kanonik host + normalize yol (+ kimlik
+ * parametresi). App Store'da magaza ulkesi onemsiz: /tr/app/x/id123 ≡
+ * /us/app/y/id123 → "/id123".
+ */
+function platformIdentity(u: URL): PlatformIdentity {
+  const host = canonicalPlatformHost(u.hostname.toLowerCase().replace(/\.$/, '').replace(/^www\./, ''));
+  let path = normPath(u.pathname);
+  if (host === 'apps.apple.com' || host === 'itunes.apple.com') {
+    const m = path.match(/\/id(\d{5,})(?:\/|$)/);
+    path = m ? `/id${m[1]}` : '';
+  }
+  const name = identityParam(host, path);
+  if (name) {
+    const value = (u.searchParams.get(name) ?? '').trim().toLowerCase();
+    return value ? { host, path, param: { name, value }, identifiable: true } : { host, path, identifiable: false };
+  }
+  return { host, path, identifiable: path !== '' };
+}
+
+/**
+ * Rakip adreslerinden eslestiriciler. Platformdaki rakip kimligiyle (yol
+ * oneki, gerekiyorsa kimlik parametresi) eslenir; kimliksiz platform adresi
+ * (sadece "trendyol.com", "play.google.com/store/apps") yok sayilir — tum
+ * platformu rakip yapardi.
  */
 export function buildCompetitorMatchers(urls: readonly string[]): CompetitorMatcher[] {
   const out = new Map<string, CompetitorMatcher>();
@@ -218,31 +295,23 @@ export function buildCompetitorMatchers(urls: readonly string[]): CompetitorMatc
       out.set(host, { host, pathPrefix: null, key: host });
       continue;
     }
-    let path = '';
-    try {
-      path = normPath(new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`).pathname);
-    } catch {
-      continue;
-    }
-    if (!path) continue;
-    const key = `${host}${path}`;
-    out.set(key, { host, pathPrefix: path, key });
+    const u = parseUrl(raw);
+    if (!u) continue;
+    const id = platformIdentity(u);
+    if (!id.identifiable) continue;
+    const key = `${id.host}${id.path}${id.param ? `?${id.param.name}=${id.param.value}` : ''}`;
+    out.set(key, { host: id.host, pathPrefix: id.path, ...(id.param ? { param: id.param } : {}), key });
   }
   return [...out.values()];
 }
 
-function pathOf(urlOrHost: string | null | undefined): string {
-  if (typeof urlOrHost !== 'string') return '';
-  try {
-    return normPath(new URL(urlOrHost.trim()).pathname);
-  } catch {
-    return '';
-  }
-}
-
-function competitorMatch(host: string, path: string, c: CompetitorMatcher): boolean {
+function competitorMatch(host: string, url: URL | null, c: CompetitorMatcher): boolean {
   if (c.pathPrefix === null) return hostWithin(host, c.host);
-  return host === c.host && (path === c.pathPrefix || path.startsWith(`${c.pathPrefix}/`));
+  if (!url) return false;
+  const id = platformIdentity(url);
+  if (id.host !== c.host) return false;
+  if (c.param) return id.path === c.pathPrefix && id.param?.value === c.param.value;
+  return id.path === c.pathPrefix || id.path.startsWith(`${c.pathPrefix}/`);
 }
 
 export interface SourceClassification {
@@ -276,9 +345,9 @@ export function classifySource(
   const registrable = registrableDomain(host);
 
   if (ctx.ownHost && hostWithin(host, ctx.ownHost)) return { type: 'own', key: ctx.ownHost };
-  const path = pathOf(urlOrHost);
+  const url = typeof urlOrHost === 'string' && /^https?:\/\//i.test(urlOrHost.trim()) ? parseUrl(urlOrHost) : null;
   for (const c of ctx.competitors) {
-    if (competitorMatch(host, path, c)) return { type: 'competitor', key: c.key };
+    if (competitorMatch(host, url, c)) return { type: 'competitor', key: c.key };
   }
 
   for (const [h, type] of Object.entries(HOST_TYPES)) {

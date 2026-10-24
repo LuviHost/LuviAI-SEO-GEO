@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { formatNum, formatPct } from '@/lib/format';
 import { PROVIDER_LABELS } from '@/lib/chart-colors';
 import {
-  HEURISTIC_NOTE, PLACEMENT_NOTE, SOURCE_TYPE_BADGE, SOURCE_TYPE_LABELS, citedSourcesState, coverageNote, filterDomains,
+  ALL_BRANDED_TEXT, HEURISTIC_NOTE, PLACEMENT_NOTE, brandedNote, SOURCE_TYPE_BADGE, SOURCE_TYPE_LABELS, citedSourcesState, coverageNote, filterDomains,
   formatDay, shortUrl, typeChips, type CitedDomainRow, type CitedSourcesResponse, type SourceType,
 } from '@/lib/cited-sources';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -146,10 +146,16 @@ export function CitedSourcesCard({ siteId }: { siteId: string }) {
             <p className="text-sm text-muted-foreground">
               Bu dönemde AI görünürlük ölçümü yok. Yukarıdaki grafikten testi çalıştırdığında kaynaklar burada listelenir.
             </p>
+          ) : state === 'all_branded' ? (
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>{ALL_BRANDED_TEXT}</p>
+              {brandedNote(data?.coverage) && <p className="text-label">{brandedNote(data?.coverage)}</p>}
+            </div>
           ) : state === 'no_records' ? (
-            <p className="text-sm text-muted-foreground">
-              Bu dönemdeki ölçümler kaynak kaydı başlamadan önce yapıldı. Kaynak listeleri bir sonraki AI ölçümünden itibaren burada görünür.
-            </p>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>Bu dönemdeki ölçümler kaynak kaydı başlamadan önce yapıldı. Kaynak listeleri bir sonraki AI ölçümünden itibaren burada görünür.</p>
+              {brandedNote(data?.coverage) && <p className="text-label">{brandedNote(data?.coverage)}</p>}
+            </div>
           ) : state === 'no_citations' ? (
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>Kaynak kaydı olan cevapların hiçbiri bir site göstermedi.</p>

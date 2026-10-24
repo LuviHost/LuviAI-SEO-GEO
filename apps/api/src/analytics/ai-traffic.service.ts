@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -47,6 +48,16 @@ export function gaErrorReason(err: any): Exclude<AiTrafficGaReason, 'not_connect
   if (status === 401 || /invalid_grant|unauthorized/i.test(text)) return 'auth_error';
   if (status === 403 || /PERMISSION_DENIED|permission/i.test(text)) return 'permission';
   return 'unavailable';
+}
+
+/**
+ * Onbellek parmak izi: bitis gunu + mulk + baglantinin (sifreli refresh token)
+ * kisa ozeti. Yeniden baglama token'i degistirir → eski basari/hata kaydi gecersiz.
+ * Token'in kendisi yazilmaz; 12 hex karakterlik SHA-256 oneki.
+ */
+export function aiTrafficFingerprint(endDate: string, propertyId: string, refreshToken: string): string {
+  const conn = createHash('sha256').update(refreshToken).digest('hex').slice(0, 12);
+  return [endDate, propertyId, conn].join('|');
 }
 
 /** Yalniz "bu metrik bu mulkte gecersiz" (400 INVALID_ARGUMENT) gelirsiz tekrar denemeyi hakli kilar */
@@ -117,8 +128,9 @@ export class AiTrafficService {
     };
     if (!site?.gaPropertyId || !site?.gaRefreshToken) return { ...base, ga: null, reason: 'not_connected' };
 
-    // Mulk degisirse (GA yeniden baglama) eski sonuc donmesin
-    const fingerprint = [range.endDate, site.gaPropertyId].join('|');
+    // Mulk ya da baglanti degisirse (GA yeniden baglama → yeni refresh token)
+    // eski sonuc / eski hata donmesin
+    const fingerprint = aiTrafficFingerprint(range.endDate, site.gaPropertyId, site.gaRefreshToken);
     const cacheKey = `ai-traffic:v1:${siteId}:${days}`;
     const cached = await this.readCache(cacheKey, fingerprint);
     if (cached?.data) return { ...base, ga: cached.data };
