@@ -7,6 +7,16 @@
 # surume DOKUNULMAZ.
 #
 # Kullanim (sunucuda): bash scripts/deploy-web.sh
+#
+# YAYIN SIRASI — fiyat / plan degisikliginde ONCE API, sonra web: /, /pricing, /compare ve
+# /ranksup.md plan verisini build aninda ve sonra ISR ile (600 sn) API'nin /billing/plans
+# ucundan alir (tek kaynak apps/api/src/billing/plans.ts). Web once yayina alinirsa build
+# ESKI fiyati onbellege yazar ve en fazla 10 dk eski fiyat gosterilir.
+# Yalniz API yayina alindiysa (web degismediyse) sayfalari hemen yenilemek icin
+# (web ortaminda REVALIDATE_SECRET tanimli olmali; yoksa uc 404 doner):
+#   curl -fsS -X POST -H "x-revalidate-secret: $REVALIDATE_SECRET" http://localhost:3000/api/revalidate
+# API plan vermiyorsa uc 503 doner ve hicbir sey yenilemez. ISR yenilemesinde API cevap vermezse
+# sayfalar bos uretilmez; son basarili hali sunulur (apps/web/src/lib/isr-guard.ts).
 set -euo pipefail
 
 KOK="${KOK:-/var/www/luviai}"

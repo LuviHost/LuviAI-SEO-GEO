@@ -21,7 +21,7 @@ const stripComments = (src: string) =>
     .join('\n');
 
 const page = stripComments(read('../app/(marketing)/billing/failure/page.tsx'));
-const pricing = stripComments(read('../app/(marketing)/pricing/page.tsx'));
+const pricing = stripComments(read('../app/(marketing)/pricing/pricing-view.tsx'));
 
 /** Sunucunun 403 ve checkout.message metni (api billing/paytr.service.ts) */
 const API_MESSAGE = (() => {
@@ -37,9 +37,13 @@ describe('/billing/failure — PayTR test modunda tekrar deneme yerine kilit met
   it('karar fiyat sayfasıyla aynı yardımcı ve aynı kaynaklardan: /billing/plans + /billing/users/:id/current checkout alanı', () => {
     expect(page.trimStart().startsWith("'use client';")).toBe(true);
     expect(page).toContain("import { PURCHASE_CONTACT_EMAIL, purchaseState, readCheckout } from '@/lib/checkout-availability';");
+    expect(page).toContain('setPageCheckout(res.checkout ?? null)');
+    // Fiyat sayfasi /billing/plans yanitini sunucudan (page.tsx) alir, istemcide tazeler;
+    // checkout alani ayni yanittan okunur
+    expect(pricing).toContain('const pageCheckout: unknown = data?.checkout ?? null');
+    expect(pricing).toContain('api.getPlans(locale)');
     for (const src of [page, pricing]) {
       expect(src).toContain('purchaseState({ page: pageCheckout, account: accountCheckout })');
-      expect(src).toContain('setPageCheckout(res.checkout ?? null)');
       expect(src).toContain('/api/billing/users/${');
       expect(src).toContain('setAccountCheckout(d?.checkout ?? null)');
     }

@@ -12,6 +12,8 @@ import { PricingSection } from '@/components/landing/pricing-section';
 import { FaqSection } from '@/components/landing/faq-section';
 import { T, TrackedLink, LandingAnalytics, LocaleNumber } from '@/components/landing/landing-islands';
 import { fetchPlans, fetchTestimonials, type PublicTestimonial } from '@/components/landing/landing-data';
+import { PageUpdatedLine } from '@/components/page-updated-line';
+import { pageUpdated } from '@/lib/page-updated';
 
 // ───────────────────────────────────────────────────────────────
 //  RanksUp — Landing (Faz 6)
@@ -69,6 +71,8 @@ export default async function LandingPage() {
             '@type': 'WebPage',
             url: 'https://ranksup.ai/',
             name: 'RanksUp — Yapay zekâ seni tavsiye ediyor mu?',
+            // Footer'daki "Son güncelleme" satiriyla ve sitemap lastModified ile ayni kaynak
+            dateModified: pageUpdated('/'),
             speakable: { '@type': 'SpeakableSpecification', cssSelector: ['.hero-headline', '.hero-subtitle'] },
           }),
         }}
@@ -305,6 +309,7 @@ export default async function LandingPage() {
         </div>
         <div className="mx-auto mt-10 flex max-w-7xl flex-wrap justify-between gap-3 border-t border-border px-4 pt-6 text-xs sm:px-6 lg:px-8">
           <span>© {new Date().getFullYear()} RanksUp. <T k="land.footer.rights" />.</span>
+          <PageUpdatedLine path="/" />
           <span><T k="land.footer.made_in" /></span>
         </div>
       </footer>

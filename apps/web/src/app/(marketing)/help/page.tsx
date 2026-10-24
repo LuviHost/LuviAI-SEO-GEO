@@ -6,6 +6,7 @@ import {
   CreditCard, Plug, BarChart3, BookOpen, Clapperboard,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { PageUpdatedLine } from '@/components/page-updated-line';
 
 type Color = 'orange' | 'purple' | 'blue' | 'amber' | 'rose' | 'emerald' | 'cyan' | 'pink' | 'slate';
 
@@ -114,6 +115,7 @@ export default function HelpPage() {
             {c.lead2}
             <a href="mailto:destek@luvihost.com" className="text-brand-600 hover:underline font-semibold">destek@luvihost.com</a>
           </p>
+          <PageUpdatedLine path="/help" className="mt-4" />
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">

@@ -228,7 +228,7 @@ describe('kaynak: sipariş numarası biçimi API ile aynı', () => {
 
   it('iFrame akışındaki anahtar fiyat sayfası ve yükseltme penceresiyle aynı', () => {
     expect(PENDING_MERCHANT_OID_KEY).toBe('luviai-pending-merchantOid');
-    expect(read('../app/(marketing)/pricing/page.tsx')).toContain(`localStorage.setItem('${PENDING_MERCHANT_OID_KEY}', data.merchantOid)`);
+    expect(read('../app/(marketing)/pricing/pricing-view.tsx')).toContain(`localStorage.setItem('${PENDING_MERCHANT_OID_KEY}', data.merchantOid)`);
     expect(stripComments(read('../components/upgrade-plan-modal.tsx'))).toContain('localStorage.setItem(PENDING_MERCHANT_OID_KEY, data.merchantOid)');
   });
 });

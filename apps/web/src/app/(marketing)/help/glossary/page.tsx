@@ -2,6 +2,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ArrowLeft, BookOpen } from 'lucide-react';
 import { GLOSSARY } from '@/lib/glossary';
+import { PageUpdatedLine } from '@/components/page-updated-line';
+import { pageUpdated } from '@/lib/page-updated';
 
 const SITE_URL = 'https://ranksup.ai';
 const PAGE_URL = `${SITE_URL}/help/glossary`;
@@ -42,6 +44,7 @@ export default function GlossaryPage() {
       'SEO, GEO, AEO, schema markup, AI search ve dijital pazarlama terimlerinin Türkçe tanımları.',
     url: PAGE_URL,
     inLanguage: 'tr-TR',
+    dateModified: pageUpdated('/help/glossary'),
     hasDefinedTerm: ENTRIES.map(([term, entry]) => ({
       '@type': 'DefinedTerm',
       '@id': `${PAGE_URL}#${slugify(term)}`,
@@ -100,6 +103,7 @@ export default function GlossaryPage() {
               SEO, GEO (Generative Engine Optimization), AEO, schema markup, AI citation,
               llms.txt ve dijital pazarlama terimlerinin sade Türkçe tanımları. {ENTRIES.length} terim.
             </p>
+            <PageUpdatedLine path="/help/glossary" className="mt-2" fixedLocale="tr" />
           </div>
         </div>
 

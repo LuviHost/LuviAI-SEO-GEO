@@ -19,7 +19,7 @@ const read = (rel: string) => fs.readFileSync(path.join(WEB, rel), 'utf8');
 
 describe('icerik yenileme (content-pivot) iddialari Search Console kosuluyla', () => {
   const faq = read('src/app/(marketing)/faq/page.tsx');
-  const compare = read('src/app/(marketing)/compare/page.tsx');
+  const compare = read('src/app/(marketing)/compare/compare-view.tsx');
   const about = read('src/app/(marketing)/about/page.tsx');
 
   it('SSS madde 5 (TR + EN): kosulsuz "30 gun sonra performansi dusuk" vaadi yok, Search Console kosulu var', () => {

@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-
-const SITE_URL = 'https://ranksup.ai';
+import { pageUpdated, SITE_URL } from '@/lib/page-updated';
 
 export const metadata: Metadata = {
   title: 'Fiyatlandırma — Büyüme $149 / Profesyonel $349 / Ajans $749',
@@ -66,6 +65,17 @@ const pricingJsonLd = {
           },
         })),
       },
+    },
+    // Sayfa dugumu — dateModified gorunur "Son güncelleme" satiriyla ve sitemap ile ayni kaynak
+    {
+      '@type': 'WebPage',
+      '@id': `${SITE_URL}/pricing#page`,
+      url: `${SITE_URL}/pricing`,
+      name: 'RanksUp Fiyatlandırma',
+      inLanguage: 'tr-TR',
+      dateModified: pageUpdated('/pricing'),
+      isPartOf: { '@id': `${SITE_URL}/#website` },
+      mainEntity: { '@id': `${SITE_URL}/pricing#software` },
     },
     {
       '@type': 'BreadcrumbList',

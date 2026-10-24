@@ -444,7 +444,7 @@ describe('Yardım sayfaları = ürün', () => {
   });
 
   it('günlük otomatik ölçüm, koşulsuz iade ve eski buton adı vaat edilmiyor', () => {
-    const extra: Source[] = ['faq/page.tsx', 'compare/page.tsx', 'about/page.tsx', 'use-cases/page.tsx']
+    const extra: Source[] = ['faq/page.tsx', 'compare/compare-view.tsx', 'about/page.tsx', 'use-cases/page.tsx']
       .map((rel) => ({ rel, text: stripComments(read(path.join(MARKETING, rel))) }));
     // Landing metinleri (SSS JSON-LD'si dahil) i18n.ts'ten gelir
     extra.push({ rel: 'lib/i18n.ts', text: stripComments(read(path.join(WEB_SRC, 'lib/i18n.ts'))) });
@@ -509,7 +509,7 @@ describe('Pazarlama sayfaları = ürün', () => {
 
   it('landing karşılaştırması /compare ile aynı rakipleri gösteriyor; tasarruf yüzdesi ve sosyal araç yok', () => {
     const landing = stripComments(read(path.join(WEB_SRC, 'app/page.tsx')));
-    const cmp = m('compare/page.tsx');
+    const cmp = m('compare/compare-view.tsx');
     const rakipler = [...landing.matchAll(/\{ name: '([^']+)', price: '\$\d+' \}/g)].map((x) => x[1]);
     expect(rakipler).toHaveLength(4);
     for (const r of rakipler) expect(cmp, `${r} /compare tablosunda yok`).toContain(`>${r}</th>`);
@@ -563,7 +563,7 @@ describe('Pazarlama sayfaları = ürün', () => {
   });
 
   it('compare: Hootsuite, sabit TL tutarı ve genel "geri alınabilir" iddiası yok', () => {
-    const cmp = m('compare/page.tsx');
+    const cmp = m('compare/compare-view.tsx');
     expect(cmp).not.toContain('Hootsuite');
     expect(cmp).not.toMatch(/₺\s?\d/);
     expect(cmp).not.toMatch(/Yedeklenir, geri alınabilir|Backed up and revertible/);
@@ -832,6 +832,23 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(en).toContain('read-only');
   });
 
+  // trial-policy.ts kural 4: sure dolunca salt okunur YALNIZ satin alma acikken; satin alma
+  // kapaliyken (PayTR test modu) kilit uygulanmaz. Ajan belgeleri ve /ranksup.md bunu
+  // kosulsuz yaziyordu ("14 gün dolunca ... salt okunur olur"); SSS dogru yaziyordu.
+  it('deneme sonu salt okunur kurali ajan belgelerinde ve /ranksup.md\'de koşullu (satın alma kapalıyken kilit yok)', () => {
+    const policy = read(path.resolve(HERE, '../billing/trial-policy.ts'));
+    expect(policy, 'trial-policy kural 4 degisti — belgeleri guncelle').toContain('readOnly: opts.checkoutOpen');
+    const KOSUL = 'satın alma geçici olarak kapalıyken hesap kilitlenmez';
+    expect(stripComments(read(path.join(MARKETING, 'faq/page.tsx')))).toContain(KOSUL);
+    const kaynaklar: Source[] = [
+      ...docSources,
+      { rel: 'lib/ranksup-md.ts', text: stripComments(read(path.join(WEB_SRC, 'lib/ranksup-md.ts'))) },
+    ];
+    const kosulsuz = offenders(kaynaklar, /salt okunur olur/, (l) => l.includes(KOSUL));
+    expect(kosulsuz).toEqual([]);
+    expect(offenders(kaynaklar, /salt okunur olur/).length, 'kural belgelerde anilmiyor').toBeGreaterThanOrEqual(3);
+  });
+
   it('kök layout: kaldırılan sosyal modül, Shopify ve bayat TL fiyat yok; fiyat aralığı plans.ts ile aynı', () => {
     // Yorumlar neyin neden kaldirildigini anlatir; yalniz kod taranir
     const lay = stripComments(read(path.join(WEB_SRC, 'app/layout.tsx')));
@@ -844,7 +861,7 @@ describe('Pazarlama sayfaları = ürün', () => {
   });
 
   it('fiyat sayfası yıllık indirimi doğru söylüyor (10 ay fiyatına 12 ay)', () => {
-    const pr = m('pricing/page.tsx');
+    const pr = m('pricing/pricing-view.tsx');
     expect(pr).not.toContain('-20%');
     expect(pr).toContain('2 ay bedava');
     for (const p of BASE_PLANS.filter((x) => x.monthly_usd > 0)) expect(p.annual_usd).toBe(p.monthly_usd * 10);
@@ -1244,7 +1261,7 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
       expect(tr, k).toContain('haftada 1 AI görünürlük ölçümü');
       expect(en, k).toContain('1 AI visibility measurement per week');
     }
-    const cmp = sayfa('compare/page.tsx');
+    const cmp = sayfa('compare/compare-view.tsx');
     expect(cmp).toContain('ölçümü sen başlatırsın, hesap başına 7 günde 1');
     expect(cmp).toContain('you start each measurement, once every 7 days per account');
     // EN kartlarda "run" aylik calistirma birimi; olcum eylemine "run" denmez
