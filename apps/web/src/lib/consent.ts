@@ -265,6 +265,52 @@ export function validGaId(id: unknown): string | null {
   return typeof id === 'string' && GA_ID_RE.test(id) ? id : null;
 }
 
+// --- GA4'e giden sayfa adresi: paylasim jetonlari maskelenir ---
+
+/**
+ * Jetonlu herkese acik yollar: /rapor/<jeton> (musteri raporu paylasim
+ * baglantisi, lib/musteri-raporu.ts) ve /karne/<jeton> (AI gorunurluk karnesi).
+ * Jeton baglantinin kendisidir (bilen acar); Google'a gitmemeli. Uygulamada
+ * baska jetonlu yol (sifre sifirlama, davet) yok: giris yalniz Google OAuth.
+ */
+const TOKEN_ROUTE_RE = /^\/(rapor|karne)\/[^/]+/;
+
+/**
+ * Jetonlu yolsa maskelenmis adres (kok + /rapor/[token], sorgu ve parca atilir),
+ * degilse null. Bozuk adres de null (GA kendi adresini kullanir; jetonlu yolda
+ * bozuk adres olmaz).
+ */
+export function maskTokenUrl(url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const m = TOKEN_ROUTE_RE.exec(u.pathname);
+  return m ? `${u.origin}/${m[1]}/[token]` : null;
+}
+
+/**
+ * gtag config parametreleri: jetonlu sayfada page_location (ve ayni siteden
+ * gelen jetonlu page_referrer) maskelenir; diger sayfalarda parametre yok, GA4
+ * adresi kendisi okur (SPA gecmis olaylari bozulmasin: config'e yazilan
+ * page_location sonraki tum isabetlerde kalir). Jetonlu sayfalar yalniz tam
+ * sayfa yuklemesiyle acilir (uygulama ici baglanti yok; spec denetler), yani
+ * maskelenmis deger o sayfanin tum isabetlerini kapsar ve baska sayfaya tasinmaz.
+ * GA4 page_path kullanmaz (Universal Analytics alani); yol page_location'dan
+ * turetilir. GTM container'inin kendi etiketleri bu kapsamin disinda.
+ */
+export function gaPageParams(pageUrl: string, referrer: string): Record<string, string> | null {
+  const location = maskTokenUrl(pageUrl);
+  const ref = referrer ? maskTokenUrl(referrer) : null;
+  if (!location && !ref) return null;
+  const out: Record<string, string> = {};
+  if (location) out.page_location = location;
+  if (ref) out.page_referrer = ref;
+  return out;
+}
+
 // --- Izleme cerezleri (geri almada silinir) ---
 
 /**
@@ -343,6 +389,9 @@ export interface TagWindow {
 export interface TagEnv {
   win: TagWindow;
   hostname: string;
+  /** Su anki sayfa adresi ve document.referrer (GA4 jeton maskesi); yoksa maske yok */
+  pageUrl?(): string;
+  referrer?(): string;
   now(): number;
   hasScript(id: string): boolean;
   addScript(id: string, src: string): void;
@@ -456,7 +505,9 @@ export function loadTrackers(
     // tekrar eklemeyi engeller: js/config sayfa basina bir kez.
     if (gaId && !env.hasScript(GA_SCRIPT_ID)) {
       gtag('js', new Date(env.now()));
-      gtag('config', gaId);
+      const params = gaPageParams(env.pageUrl?.() ?? '', env.referrer?.() ?? '');
+      if (params) gtag('config', gaId, params);
+      else gtag('config', gaId);
       env.addScript(GA_SCRIPT_ID, `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`);
       result.ga = true;
     }
@@ -564,6 +615,8 @@ export function browserTagEnv(): TagEnv {
   return {
     win: window as unknown as TagWindow,
     hostname: window.location.hostname,
+    pageUrl: () => window.location.href,
+    referrer: () => document.referrer,
     now: () => Date.now(),
     hasScript: (id) => document.getElementById(id) !== null,
     addScript: (id, src) => {

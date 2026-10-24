@@ -9,7 +9,7 @@ import {
   readConsent,
   type TagWindow,
 } from '@/lib/consent';
-import { sendSignupEvent } from '@/lib/signup-event';
+import { sendSignupEvent, signupTarget } from '@/lib/signup-event';
 
 /**
  * Yeni hesabin GA4 `sign_up` olayi (kosullar ve sinyal: lib/signup-event.ts).
@@ -18,7 +18,7 @@ import { sendSignupEvent } from '@/lib/signup-event';
  * bir sonraki gorev turuna (setTimeout 0) birakilir. Ilk deneme de oyle:
  * CookieConsent'in ilk okuma efekti once calissin.
  */
-export function SignupEvent() {
+export function SignupEvent({ gaId }: { gaId?: string }) {
   const { data } = useSession();
   const signupAt = data?.user?.signupAt;
 
@@ -31,7 +31,9 @@ export function SignupEvent() {
       done = sendSignupEvent(
         {
           consent: readConsent(browserConsentStorage, Date.now()),
+          target: signupTarget(gaId),
           gtag: (window as unknown as TagWindow).gtag,
+          dataLayer: (window as unknown as TagWindow).dataLayer,
           now: Date.now(),
           storage: () => window.localStorage,
         },
@@ -53,7 +55,7 @@ export function SignupEvent() {
       window.removeEventListener(CONSENT_CHANGE_EVENT, schedule);
       window.removeEventListener('storage', onStorage);
     };
-  }, [signupAt]);
+  }, [signupAt, gaId]);
 
   return null;
 }

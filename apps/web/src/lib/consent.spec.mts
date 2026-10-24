@@ -5,7 +5,7 @@
  * ve gizlilik metninin gercek araclari andigi kaynak metinden denetlenir.
  * Calistirma: cd apps/web && ../api/node_modules/.bin/vitest run --root . src/lib
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -22,8 +22,10 @@ import {
   cookieDomains,
   createConsentController,
   expireCookieAssignments,
+  gaPageParams,
   isTrackingCookie,
   loadTrackers,
+  maskTokenUrl,
   openCookiePreferences,
   parseConsent,
   planConsent,
@@ -660,6 +662,66 @@ describe('GA4 (gtag.js) — yalniz onayla, tek kez, GTM ile ayni dataLayer', () 
     expect(t.env.written.some((w) => w.startsWith('luvi_ref='))).toBe(false);
   });
 
+  it('jeton maskesi: /rapor/<jeton> ve /karne/<jeton> -> /[token], sorgu ve parca atilir; diger yollar dokunulmaz', () => {
+    expect(maskTokenUrl('https://ranksup.ai/rapor/abcDEF123_-x')).toBe('https://ranksup.ai/rapor/[token]');
+    expect(maskTokenUrl('https://www.ranksup.ai/karne/9f8e7d?utm_source=mail#ozet')).toBe('https://www.ranksup.ai/karne/[token]');
+    expect(maskTokenUrl('https://ranksup.ai/rapor/abc/ek')).toBe('https://ranksup.ai/rapor/[token]');
+    for (const u of ['https://ranksup.ai/', 'https://ranksup.ai/rapor', 'https://ranksup.ai/rapor/', 'https://ranksup.ai/raporlar/abc', 'https://ranksup.ai/sites/x/report', 'https://ranksup.ai/blog/karne/abc', 'bozuk', '']) {
+      expect(maskTokenUrl(u), u).toBeNull();
+    }
+    expect(gaPageParams('https://ranksup.ai/pricing', 'https://google.com/')).toBeNull();
+    expect(gaPageParams('https://ranksup.ai/rapor/gizli', '')).toEqual({ page_location: 'https://ranksup.ai/rapor/[token]' });
+    expect(gaPageParams('https://ranksup.ai/pricing', 'https://ranksup.ai/karne/gizli')).toEqual({ page_referrer: 'https://ranksup.ai/karne/[token]' });
+  });
+
+  it('jetonlu sayfada config page_location maskeli gider, jeton dataLayer\'a hic girmez; normal sayfada parametre yok', () => {
+    const env = fakeEnv();
+    env.pageUrl = () => 'https://ranksup.ai/rapor/GIZLIJETON123?x=1';
+    env.referrer = () => 'https://mail.example.com/';
+    loadTrackers(env, 'granted', { gaId: GA });
+    expect(cmds(env).at(-1)).toEqual(['config', GA, { page_location: 'https://ranksup.ai/rapor/[token]' }]);
+    expect(JSON.stringify(cmds(env))).not.toContain('GIZLIJETON123');
+
+    const normal = fakeEnv();
+    normal.pageUrl = () => 'https://ranksup.ai/pricing?utm_source=x';
+    normal.referrer = () => '';
+    loadTrackers(normal, 'granted', { gaId: GA });
+    expect(cmds(normal).at(-1)).toEqual(['config', GA]);
+  });
+
+  it('src/app altindaki her jetonlu dinamik yol maskelenir (yeni [token] yolu eklenirse bu test hatirlatir)', () => {
+    const root = fileURLToPath(new URL('../app/', import.meta.url));
+    const routes: string[] = [];
+    (function walk(dir: string, segs: string[]) {
+      for (const e of readdirSync(dir)) {
+        const p = `${dir}/${e}`;
+        if (!statSync(p).isDirectory()) continue;
+        const next = /^\(.*\)$/.test(e) ? segs : [...segs, e];
+        if (/^\[.*(token|code|secret|invite|reset).*\]$/i.test(e) && !segs.includes('api')) routes.push(next.join('/'));
+        walk(p, next);
+      }
+    })(root.replace(/\/$/, ''), []);
+    expect(routes.sort()).toEqual(['karne/[token]', 'rapor/[token]']);
+    for (const r of routes) {
+      const url = `https://ranksup.ai/${r.replace(/\[[^\]]+\]/g, 'GIZLI42')}`;
+      expect(maskTokenUrl(url), r).not.toBeNull();
+      expect(maskTokenUrl(url)).not.toContain('GIZLI42');
+    }
+  });
+
+  it('jetonlu sayfalara uygulama ici baglanti yok (yalniz tam sayfa yuklemesi; config maskesi SPA gecisinde tasinmaz)', () => {
+    const src = fileURLToPath(new URL('../', import.meta.url)).replace(/\/$/, '');
+    const hits: string[] = [];
+    (function walk(dir: string) {
+      for (const e of readdirSync(dir)) {
+        const p = `${dir}/${e}`;
+        if (statSync(p).isDirectory()) walk(p);
+        else if (/\.tsx?$/.test(e) && /(href=|router\.(push|replace)\(|redirect\()[^\n]*['"`]\/(rapor|karne)\//.test(readFileSync(p, 'utf8'))) hits.push(p.slice(src.length));
+      }
+    })(src);
+    expect(hits).toEqual([]);
+  });
+
   it('baska sekmede geri alma: yalniz GA4 yuklu sekme de yenilenir', () => {
     const t = page({ cookies: '_ga=1' });
     t.c.apply('granted', 'load', { gaId: GA });
@@ -685,7 +747,7 @@ describe('kaynak: kok layout, bant ve gizlilik metni', () => {
     expect(lay).not.toMatch(/googletagmanager\.com|clarity\.ms|ns\.html|<noscript/);
     expect(lay).toContain('<CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} gaId={GA_MEASUREMENT_ID} />');
     expect(lay).toContain("const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-Y5W4W5EHE7';");
-    expect(lay).toContain('<SignupEvent />');
+    expect(lay).toContain('<SignupEvent gaId={GA_MEASUREMENT_ID} />');
     expect(lay).toContain('/api/tracker.js?site=');
   });
 

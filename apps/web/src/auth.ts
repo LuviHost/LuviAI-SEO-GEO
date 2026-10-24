@@ -3,7 +3,7 @@ import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { PrismaClient } from '@prisma/client';
 import { trialEndsAtFrom } from './lib/trial-access';
-import { freshSignupAt, signupEventDue } from './lib/signup-event';
+import { freshSignupAt, keepSignupAt, signupEventDue } from './lib/signup-event';
 
 // Bazı sunucular (örn. public IPv6'sız VM'ler) Node 20 fetch IPv6'ya
 // timeout veriyor (ETIMEDOUT). undici (Node built-in) global dispatcher'ı
@@ -180,6 +180,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (token as any).role = dbUser.role;
         (token as any).plan = dbUser.plan;
         (token as any).subscriptionStatus = dbUser.subscriptionStatus;
+        // sign_up penceresi (24 saat) doldu: signupAt token'dan duser
+        if ('signupAt' in token && keepSignupAt((token as any).signupAt, Date.now()) === undefined) {
+          delete (token as any).signupAt;
+        }
       }
       return token;
     },

@@ -256,7 +256,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {children}
             <CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} gaId={GA_MEASUREMENT_ID} />
-            <SignupEvent />
+            <SignupEvent gaId={GA_MEASUREMENT_ID} />
             <Toaster position="top-right" richColors closeButton />
           </ThemeProvider>
         </AppSessionProvider>
