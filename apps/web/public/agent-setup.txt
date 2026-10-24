@@ -1,5 +1,5 @@
 RanksUp MCP sunucusu — ajan kurulum rehberi
-Son güncelleme: Ekim 2026
+Son güncelleme: 18 Ekim 2026
 
 RanksUp, Model Context Protocol (MCP) sunucusu üzerinden hesabındaki SEO, GEO
 (yapay zekâ asistanlarında görünürlük) ve ASO verilerini kendi yapay zekâ

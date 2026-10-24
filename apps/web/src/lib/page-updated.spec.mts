@@ -107,6 +107,21 @@ describe('gorunur tarih ve JSON-LD ayni kaynaktan', () => {
   });
 });
 
+describe('ajan belgelerinin "Son güncelleme" satiri', () => {
+  it('llms.txt, llms-full.txt ve agent-setup.txt tam gun tarihi tasiyor ("Ekim 2026" degil), gelecekte degil', () => {
+    const bugun = new Date().toISOString().slice(0, 10);
+    for (const f of ['llms.txt', 'llms-full.txt', 'agent-setup.txt']) {
+      const doc = read(join(SRC, '../public', f));
+      const m = /^Son güncelleme: (\d{1,2}) (\S+) (\d{4})/m.exec(doc);
+      expect(m, `${f}: tam tarihli "Son güncelleme" satiri yok`).not.toBeNull();
+      const [, gun, ay, yil] = m!;
+      expect(TR_AY[ay], `${f}: ay adi`).toBeDefined();
+      const iso = `${yil}-${TR_AY[ay]}-${gun.padStart(2, '0')}`;
+      expect(iso <= bugun, `${f} gelecekte: ${iso}`).toBe(true);
+    }
+  });
+});
+
 describe('formatPageDate / pageUpdatedText', () => {
   it('TR ve EN bicimi, saat dilimi kaymasi yok', () => {
     expect(formatPageDate('2026-10-24', 'tr')).toBe('24 Ekim 2026');
