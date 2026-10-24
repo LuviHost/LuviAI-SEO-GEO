@@ -8,6 +8,8 @@ import type {
 } from './local-visibility';
 import type { ArticleVideo, VideoBrandPreview, VideoQuota, VideoRequestBody } from './article-video';
 import type { MusteriRaporu, PaylasilanRapor, PaylasimOzeti } from './musteri-raporu';
+import type { CitedSourcesResponse } from './cited-sources';
+import type { AiTrafficResponse } from './ai-traffic';
 import { readApiErrorCode, trialErrorAction, TRIAL_ERROR_EVENT } from './trial-errors';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -1360,6 +1362,14 @@ export const api = {
 
   getAiReferrerHistory: (siteId: string, days = 30) =>
     request<any>(`/sites/${siteId}/audit/ai-referrer/history?days=${days}`),
+
+  /** AI cevaplarinin alintiladigi dis kaynaklar (alan adi bazinda, tur etiketli) — 30 ya da 90 gun */
+  getCitedSources: (siteId: string, days: 30 | 90 = 30) =>
+    request<CitedSourcesResponse>(`/sites/${siteId}/audit/cited-sources?days=${days}`),
+
+  /** AI asistanlarindan gelen trafik: GA4 (bagliysa) + RanksUp izleme kodu — 28 ya da 90 gun */
+  getAiTraffic: (siteId: string, days: 28 | 90 = 28) =>
+    request<AiTrafficResponse>(`/sites/${siteId}/analytics/ai-traffic?days=${days}`),
 
   getWidgetEmbedUrl: (siteId: string) => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';

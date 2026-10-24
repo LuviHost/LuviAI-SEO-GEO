@@ -73,7 +73,7 @@ describe('MCP kesif + 401 (HTTP)', () => {
     process.env.API_BASE_URL = ORIGIN;
     const prismaForTools = { user: { findUniqueOrThrow: async () => ({ plan: 'ENTERPRISE' }) } } as never;
     const n = null as never;
-    const tools = new McpToolsService(prismaForTools, n, new QuotaService(prismaForTools), n, n, n, n, n, n, n, n, n);
+    const tools = new McpToolsService(prismaForTools, n, new QuotaService(prismaForTools), n, n, n, n, n, n, n, n, n, n);
     const apiKeys = {
       validate: vi.fn(async (t: string) => (t === GOOD_KEY ? { userId: 'u1', scopes: ['*'] } : null)),
       requiredScope: () => null,

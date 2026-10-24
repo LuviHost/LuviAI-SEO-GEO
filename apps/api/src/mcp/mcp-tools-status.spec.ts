@@ -16,7 +16,7 @@ function build() {
   };
   const opportunities = { list: vi.fn(async () => []) };
   const n = null as never;
-  const svc = new McpToolsService(prisma as never, n, n, n, n, n, opportunities as never, n, n, n, n, n);
+  const svc = new McpToolsService(prisma as never, n, n, n, n, n, opportunities as never, n, n, n, n, n, n);
   const tool = (name: string) => svc.list().find((t) => t.name === name)!;
   return { svc, tool, prisma, opportunities };
 }

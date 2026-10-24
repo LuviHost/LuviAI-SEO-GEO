@@ -8,7 +8,7 @@ import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/componen
 import { CHART } from '@/lib/chart-colors';
 import {
   TrendingUp, Lightbulb, BarChart3, MousePointerClick, Eye, Activity, Target as TargetIcon, Clock,
-  FileText, Sparkles, Trophy, Percent, Hash, LogOut, RefreshCw, Search,
+  FileText, Sparkles, Trophy, Percent, Hash, LogOut, RefreshCw, Search, Bot,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -22,6 +22,7 @@ import { EmptyState } from '@/components/empty-state';
 import { GoogleAiSurfaceCard } from '@/components/google-ai-surface-card';
 import { SearchOpportunitiesCard } from '@/components/search-opportunities-card';
 import { GaConversionChecklist } from '@/components/ga-conversion-checklist';
+import { AiTrafficCard } from '@/components/ai-traffic-card';
 
 export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
   const [overview, setOverview] = useState<any>(null);
@@ -114,13 +115,15 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
       <div className="space-y-4">
         <AnalyticsEmptyState site={site} siteId={siteId} refreshing={refreshing} onTriggerSnapshot={triggerSnapshot} />
         {site?.gaPropertyId && <GaConversionChecklist siteId={siteId} />}
+        {/* AI trafigi GSC'den bagimsiz: GA4 ve izleme kodu verisi GSC olmadan da gelir */}
+        <AiTrafficCard siteId={siteId} />
       </div>
     );
   }
 
   const totals = overview.totals;
 
-  // Eskiden ~9 kart tek uzun kaydirmaydi; simdi bes sekme. GSC ozeti ilk sekmede.
+  // Eskiden ~9 kart tek uzun kaydirmaydi; simdi alti sekme. GSC ozeti ilk sekmede.
   return (
     <Tabs defaultValue="genel" className="space-y-4">
       <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -139,6 +142,9 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
           </TabsTrigger>
           <TabsTrigger value="google-ai">
             <Sparkles className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Google AI
+          </TabsTrigger>
+          <TabsTrigger value="ai-trafik">
+            <Bot className="h-3.5 w-3.5 mr-1.5" aria-hidden /> AI trafiği
           </TabsTrigger>
         </TabsList>
       </div>
@@ -360,6 +366,11 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
       {/* ── Google AI yüzeyi — AIO/AI Mode gösterimleri (CSV import), AI-Mode-şüpheli sorgular, Preferred Sources ── */}
       <TabsContent value="google-ai">
         <GoogleAiSurfaceCard siteId={siteId} site={site} />
+      </TabsContent>
+
+      {/* ── AI'dan gelen trafik — GA4 (sessionSource) + RanksUp izleme kodu, ayri bolumler ── */}
+      <TabsContent value="ai-trafik">
+        <AiTrafficCard siteId={siteId} />
       </TabsContent>
     </Tabs>
   );

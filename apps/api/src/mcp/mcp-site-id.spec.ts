@@ -29,7 +29,7 @@ function build(sites: Array<{ id: string; userId: string }>) {
     kvStore: { findUnique: vi.fn(async () => null), upsert: vi.fn(), deleteMany: vi.fn() },
   };
   const n = null as never;
-  const svc = new McpToolsService(prisma as never, n, n, n, n, n, n, n, n, n, n, n);
+  const svc = new McpToolsService(prisma as never, n, n, n, n, n, n, n, n, n, n, n, n);
   const getAudit = svc.list().find((t) => t.name === 'get_audit')!;
   return { prisma, getAudit };
 }

@@ -23,7 +23,7 @@ const setup = fs.readFileSync(path.resolve(HERE, '../../../web/public/agent-setu
 function tools(): ToolDef[] {
   const prisma = { user: { findUniqueOrThrow: async () => ({ plan: 'ENTERPRISE' }) } } as never;
   const n = null as never;
-  return new McpToolsService(prisma, n, new QuotaService(prisma), n, n, n, n, n, n, n, n, n).list();
+  return new McpToolsService(prisma, n, new QuotaService(prisma), n, n, n, n, n, n, n, n, n, n).list();
 }
 
 /** "- Yetkiler:" maddesi — bir sonraki ust duzey "- " maddesine kadar (alt maddeler girintili) */

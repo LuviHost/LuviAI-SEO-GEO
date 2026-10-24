@@ -38,7 +38,7 @@ function build(opts: { audit?: any; crawlAccess?: any; scan?: any; latest?: any;
     scan: vi.fn(async () => opts.scanResult),
   };
   const n = null as never;
-  const svc = new McpToolsService(prisma as never, n, n, n, agentReadiness as never, n, n, n, n, n, n, n);
+  const svc = new McpToolsService(prisma as never, n, n, n, agentReadiness as never, n, n, n, n, n, n, n, n);
   const tool = (name: string) => svc.list().find((t) => t.name === name)!;
   return { svc, tool, prisma };
 }

@@ -129,3 +129,35 @@ export function trackerFilterData(): { hosts: Array<[string, string | null]>; ut
   }
   return { hosts, utm: AI_SOURCES.flatMap((s) => s.utmSources) };
 }
+
+/**
+ * GA4 `sessionSource` icin AI alan adlari — ayni liste, tek kaynak (GEO Faz 3,
+ * "AI'dan gelen trafik" raporu).
+ *
+ * GA4 bir referans oturumunun kaynagini referer HOST'u olarak yazar
+ * ("chatgpt.com", "perplexity.ai"); utm_source verilmisse onu yazar
+ * ("chatgpt.com"). Bu yuzden hosts + utmSources birlikte kullanilir.
+ *
+ * bing.com HARIC: listede yalniz Copilot/sohbet YOLU sayiliyor (pathPattern) ama
+ * sessionSource yol tasimaz; "bing.com" kaynagi siradan Bing referansi da
+ * olabilir. Copilot'tan gelen tiklama copilot.microsoft.com olarak gorunur.
+ */
+export function analyticsSourceDomains(): string[] {
+  const out = new Set<string>();
+  for (const s of AI_SOURCES) {
+    for (const d of s.hosts) if (!PATH_CHECKED_HOSTS.has(d)) out.add(d);
+    for (const u of s.utmSources) out.add(u);
+  }
+  return [...out];
+}
+
+/** GA4 sessionSource degeri ("www.perplexity.ai", "chatgpt.com") → AI kaynagi; degilse null */
+export function classifySessionSource(raw: string): { key: string; label: string } | null {
+  const v = String(raw ?? '').trim().toLowerCase().replace(/\.$/, '').replace(/^www\./, '');
+  if (!v) return null;
+  for (const s of AI_SOURCES) {
+    const domains = [...s.hosts.filter((d) => !PATH_CHECKED_HOSTS.has(d)), ...s.utmSources];
+    if (domains.some((d) => hostMatches(v, d))) return { key: s.key, label: s.label };
+  }
+  return null;
+}

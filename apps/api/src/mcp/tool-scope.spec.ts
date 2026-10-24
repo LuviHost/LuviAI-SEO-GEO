@@ -91,6 +91,7 @@ const REST_IKIZI: Record<string, { method: 'GET' | 'POST' | 'PATCH'; path: strin
   list_prompts: { method: 'GET', path: '/api/sites/:siteId/audit/prompts' },
   run_prompt: { method: 'POST', path: '/api/sites/:siteId/audit/prompts/:promptId/run' },
   get_prompt_coverage: { method: 'GET', path: '/api/sites/:siteId/audit/prompts/coverage' },
+  get_cited_sources: { method: 'GET', path: '/api/sites/:siteId/audit/cited-sources' },
   list_content_opportunities: { method: 'GET', path: '/api/sites/:siteId/audit/opportunities' },
   derive_content_opportunities: { method: 'POST', path: '/api/sites/:siteId/audit/opportunities/derive' },
   generate_article_from_opportunity: { method: 'POST', path: '/api/sites/:siteId/audit/opportunities/:id/generate' },
@@ -109,7 +110,7 @@ const REST_IKIZI: Record<string, { method: 'GET' | 'POST' | 'PATCH'; path: strin
 };
 
 /** Gercek arac tanimlari (handler'lar cagrilmaz; list() yalniz tanimlari kurar) */
-const GERCEK = new McpToolsService(...(Array(12).fill(null) as [any, any, any, any, any, any, any, any, any, any, any, any])).list();
+const GERCEK = new McpToolsService(...(Array(13).fill(null) as [any, any, any, any, any, any, any, any, any, any, any, any, any])).list();
 const keys = new ApiKeysService(null as any);
 const somut = (sablon: string) => sablon.replace(/:[A-Za-z]+/g, 'x1');
 

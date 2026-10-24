@@ -152,7 +152,7 @@ describe('MCP belgeleri = kod', () => {
   it('agent-setup.txt\'te adi gecen her arac kayitta var', () => {
     const prisma = { user: { findUniqueOrThrow: async () => ({ plan: 'ENTERPRISE' }) } } as never;
     const n = null as never;
-    const names = new Set(new McpToolsService(prisma, n, new QuotaService(prisma), n, n, n, n, n, n, n, n, n).list().map((t) => t.name));
+    const names = new Set(new McpToolsService(prisma, n, new QuotaService(prisma), n, n, n, n, n, n, n, n, n, n).list().map((t) => t.name));
     const anilan = [...setup.matchAll(/\b(?:list|get|run|create|add|update|derive|generate|suggest)_[a-z_]+\b/g)].map((m) => m[0]);
     expect(anilan.length).toBeGreaterThan(0);
     for (const a of anilan) expect(names, `agent-setup.txt bilinmeyen arac: ${a}`).toContain(a);

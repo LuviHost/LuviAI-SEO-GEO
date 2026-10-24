@@ -13,7 +13,7 @@ import { QuotaService } from '../billing/quota.service.js';
 function toolsService(plan: string): McpToolsService {
   const prisma = { user: { findUniqueOrThrow: async () => ({ plan }) } } as never;
   const n = null as never;
-  return new McpToolsService(prisma, n, new QuotaService(prisma), n, n, n, n, n, n, n, n, n);
+  return new McpToolsService(prisma, n, new QuotaService(prisma), n, n, n, n, n, n, n, n, n, n);
 }
 
 const admin: ToolUser = { id: 'u1', role: 'ADMIN', plan: 'ENTERPRISE' };
