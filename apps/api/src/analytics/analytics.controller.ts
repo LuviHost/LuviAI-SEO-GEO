@@ -6,6 +6,7 @@ import { ReportsService, type ReportOpts, type ReportRange } from './reports.ser
 import { SiteReportService } from './site-report.service.js';
 import { GoogleAiSurfaceService } from './google-ai-surface.service.js';
 import { SearchOpportunityService } from './search-opportunity.service.js';
+import { AiTrafficService } from './ai-traffic.service.js';
 import { GscAiCsvImportDto, GscAiCsvPreviewDto } from './analytics-body.dto.js';
 
 /**
@@ -39,6 +40,7 @@ export class AnalyticsController {
     private readonly siteReports: SiteReportService,
     private readonly googleAi: GoogleAiSurfaceService,
     private readonly searchOpportunities: SearchOpportunityService,
+    private readonly aiTraffic: AiTrafficService,
   ) {}
 
   // ──────────────────────────────────────────────────────────────
@@ -135,6 +137,17 @@ export class AnalyticsController {
   @Get('search-opportunities')
   searchOpportunityList(@Param('siteId') siteId: string, @Query('limit') limit?: string) {
     return this.searchOpportunities.get(siteId, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  /**
+   * GET /sites/:siteId/analytics/ai-traffic?days=28|90 — AI asistanlarindan gelen
+   * ziyaretler: GA4 (sessionSource = AI alan adi; bagli degilse ga: null +
+   * reason) ve RanksUp izleme kodu serisi (her zaman). Plan kapisi YOK —
+   * search-opportunities gibi kendi verisinin okunmasi.
+   */
+  @Get('ai-traffic')
+  aiTrafficReport(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.aiTraffic.get(siteId, days);
   }
 
   /**

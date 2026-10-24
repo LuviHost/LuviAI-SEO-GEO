@@ -20,6 +20,8 @@ import { isCanonicalSiteId } from '../common/site-id.js';
 import { withAllowanceCharge } from '../articles/article-scheduler.service.js';
 import { settleUnstartedGeneration } from '../articles/allowance-refund.js';
 import { providersWithoutSources } from '../audit/citation-sources.js';
+import { CitedSourcesService } from '../audit/cited-sources.service.js';
+import { compactCitedSources } from '../audit/cited-sources.js';
 
 /**
  * RanksUp Tool Registry — MCP server VE uygulama ici Chat'in ORTAK tool seti.
@@ -195,6 +197,7 @@ export class McpToolsService {
     private readonly actionPlans: ActionPlansService,
     private readonly imageAltSuggest: ImageAltSuggestService,
     private readonly measurement: MeasurementAllowanceService,
+    private readonly citedSources: CitedSourcesService,
   ) {}
 
   list(): ToolDef[] {
@@ -573,6 +576,21 @@ export class McpToolsService {
           const out = await this.measurement.run(user, () => this.promptLab.runPrompt(site.id, String(args.prompt_id), {}));
           // Alintilanan kaynak listeleri ajan baglamina girmez (citation-sources.ts providersWithoutSources)
           return { ...out, providers: providersWithoutSources(out.providers) };
+        },
+      },
+      {
+        name: 'get_cited_sources',
+        scope: 'audit:read',
+        title: 'Alintilanan dis kaynaklar',
+        description: 'AI cevaplarinin kaynak olarak gosterdigi alan adlari (son 30 ya da 90 gun): kac cevapta alintilandi, hangi asistanlar, en cok hangi sorularda, tur (own/competitor/forum/review/video/encyclopedia/news/marketplace/docs/other — sezgisel etiket) ve "nerede yer almalisin" eylemleri. coverage.firstRecordedAt oncesindeki olcumlerde kaynak kaydi yok; answersWithoutSearch = kaynak listesi dondurmeyen (aramasiz) asistan cevaplari.',
+        inputSchema: this.schema({
+          ...SITE_ID_PROP,
+          days: { type: 'integer', enum: [30, 90], description: 'Pencere (gun) — varsayilan 30' },
+        }, ['site_id']),
+        handler: async (user, args) => {
+          const site = await this.resolveSite(user, args.site_id);
+          // Kompakt: alan basina en fazla 3 adres, eski metin-alanlari ozeti yok
+          return compactCitedSources(await this.citedSources.get(site.id, args.days));
         },
       },
       {

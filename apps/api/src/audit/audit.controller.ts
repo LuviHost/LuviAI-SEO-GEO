@@ -25,6 +25,7 @@ import { AiSitemapThrottlerGuard } from './ai-sitemap-throttler.guard.js';
 import { AuthorProfileService } from './author-profile.service.js';
 import { HaroParserService } from './haro-parser.service.js';
 import { AiReferrerService } from './ai-referrer.service.js';
+import { CitedSourcesService } from './cited-sources.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
 import { SnippetOptimizerService } from './snippet-optimizer.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
@@ -169,6 +170,7 @@ export class AuditController {
     private readonly communityAgent: CommunityAgentService,
     private readonly liveCrawler: LiveCrawlerService,
     private readonly prisma: PrismaService,
+    private readonly citedSources: CitedSourcesService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -823,6 +825,16 @@ export class AuditController {
     @Query('headline') headline?: string,
   ) {
     return this.tracker.getHistory(siteId, days ? parseInt(days, 10) : 30, headline === '1');
+  }
+
+  /**
+   * GET /sites/:siteId/audit/cited-sources?days=30|90 — AI cevaplarinin alintiladigi
+   * dis kaynaklar (alan adi bazinda, tur etiketli) + "nerede yer almalisin" listesi.
+   * Plan kapisi YOK: citation-history ile ayni — kendi olcum gecmisini okumak.
+   */
+  @Get('cited-sources')
+  citedSourcesReport(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.citedSources.get(siteId, days);
   }
 
   /** GET /sites/:siteId/audit/citation-runs?limit=30 — test gecmisi (her kosum kalici) */

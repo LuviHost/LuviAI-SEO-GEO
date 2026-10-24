@@ -23,7 +23,7 @@ describe('run_prompt', () => {
     const measurement = { run: vi.fn(async (_u: unknown, fn: () => Promise<unknown>) => fn()) };
     const prisma = { site: { findUnique: vi.fn(async () => SITE) } };
     const n = null as never;
-    const svc = new McpToolsService(prisma as never, n, n, n, n, n, n, n, promptLab as never, n, n, measurement as never);
+    const svc = new McpToolsService(prisma as never, n, n, n, n, n, n, n, promptLab as never, n, n, measurement as never, n);
     const out = await svc.list().find((t) => t.name === 'run_prompt')!.handler(user, { site_id: 's1', prompt_id: 'p1' });
 
     expect(promptLab.runPrompt).toHaveBeenCalledWith('s1', 'p1', {});
