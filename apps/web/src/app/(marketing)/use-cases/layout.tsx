@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { pageUpdated } from '@/lib/page-updated';
 
 const SITE_URL = 'https://ranksup.ai';
 
@@ -25,6 +26,8 @@ const useCasesJsonLd = {
       name: 'RanksUp Kullanım Senaryoları',
       description: 'KOBİ, e-ticaret, dijital ajans, freelancer ve blog yazarları için RanksUp kullanım senaryoları.',
       inLanguage: 'tr-TR',
+      // Gorunur "Son güncelleme" satiriyla ve sitemap lastModified ile ayni kaynak
+      dateModified: pageUpdated('/use-cases'),
       isPartOf: { '@id': `${SITE_URL}/#website` },
       about: [
         { '@type': 'Audience', audienceType: 'KOBİ ve küçük işletmeler' },

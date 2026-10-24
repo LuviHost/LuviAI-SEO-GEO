@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
+import { PageUpdatedLine } from '@/components/page-updated-line';
 
 // Maddeler plans.ts ile dogrulandi (Ekim 2026). Eskiden "Faz 3" yol haritasi
 // vaatleri (white-label panel, SLA'li kurumsal plan), calismayan white-label /
@@ -183,6 +184,7 @@ export default function UseCasesPage() {
             </span>
           </h1>
           <p className="text-lg text-muted-foreground">{data.subtitle}</p>
+          <PageUpdatedLine path="/use-cases" className="mt-4" />
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">

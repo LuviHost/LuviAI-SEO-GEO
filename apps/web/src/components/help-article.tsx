@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { PageUpdatedLine } from '@/components/page-updated-line';
+import { pageUpdated } from '@/lib/page-updated';
 
 export function HelpArticle({
   icon: Icon, badge, title, intro, children, slug, steps,
@@ -13,6 +15,9 @@ export function HelpArticle({
 }) {
   const siteUrl = 'https://ranksup.ai';
   const articleUrl = slug ? `${siteUrl}/help/${slug}` : `${siteUrl}/help`;
+  // Tarih tek kaynaktan (lib/page-updated.ts): gorunur satir, dateModified ve sitemap ayni
+  const path = slug ? `/help/${slug}` : '/help';
+  const updated = pageUpdated(path);
 
   return (
     <main className="relative min-h-screen">
@@ -44,6 +49,7 @@ export function HelpArticle({
             description: intro,
             url: articleUrl,
             inLanguage: 'tr-TR',
+            dateModified: updated,
             author: { '@type': 'Organization', name: 'RanksUp', url: siteUrl },
             publisher: { '@type': 'Organization', name: 'RanksUp', url: siteUrl, logo: { '@type': 'ImageObject', url: `${siteUrl}/og-image.png` } },
             // Speakable — Google Voice / Assistant için en üstteki paragraf okunabilir
@@ -92,6 +98,7 @@ export function HelpArticle({
             <div className="text-xs font-medium text-brand-600 mb-1">{badge}</div>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-2">{title}</h1>
             <p className="help-intro text-muted-foreground leading-relaxed">{intro}</p>
+            <PageUpdatedLine path={path} className="mt-2" />
           </div>
         </div>
         <article className="prose prose-neutral dark:prose-invert prose-headings:font-bold prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-3 prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2 prose-p:leading-relaxed prose-li:my-1 prose-strong:font-bold prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline max-w-none">

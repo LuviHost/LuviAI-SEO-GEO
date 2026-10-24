@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
+import { PageUpdatedLine } from '@/components/page-updated-line';
+import { pageUpdated } from '@/lib/page-updated';
 
 /*
  * Cevaplar kodla dogrulandi (18.10.2026). Kaynaklar:
@@ -301,6 +303,9 @@ function buildJsonLd(items: { q: string; a: string }[], breadcrumbHome: string, 
       {
         '@type': 'FAQPage',
         '@id': 'https://ranksup.ai/faq#faqpage',
+        url: 'https://ranksup.ai/faq',
+        // Gorunur "Son güncelleme" satiriyla ve sitemap lastModified ile ayni kaynak
+        dateModified: pageUpdated('/faq'),
         mainEntity: items.map((item) => ({
           '@type': 'Question',
           name: item.q,
@@ -359,6 +364,7 @@ export default function FaqPage() {
               {c.helpEmail}
             </a>
           </p>
+          <PageUpdatedLine path="/faq" className="mt-4" />
         </div>
 
         <div className="space-y-3">

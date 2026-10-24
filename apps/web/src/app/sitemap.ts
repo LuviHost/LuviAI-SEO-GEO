@@ -1,36 +1,17 @@
 import type { MetadataRoute } from 'next';
+// Goreli import: page-updated.spec.mts bu dosyayi alias cozumlemesi olmadan calistirir
+import { PUBLIC_PAGES, SITE_URL } from '../lib/page-updated';
 
-const SITE_URL = 'https://ranksup.ai';
-
+/**
+ * Statik public marketing sayfalari. lastModified sayfanin GERCEK son icerik
+ * degisikligidir (lib/page-updated.ts — tek kaynak, nasil guncellenecegi orada).
+ * Eskiden her URL `new Date()` aliyordu: sitemap her istekte "hepsi bugun degisti" diyordu.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
-
-  // Statik public marketing sayfaları
-  const staticPages: MetadataRoute.Sitemap = [
-    { url: `${SITE_URL}/`,            lastModified: now, changeFrequency: 'weekly',  priority: 1.0 },
-    { url: `${SITE_URL}/pricing`,     lastModified: now, changeFrequency: 'weekly',  priority: 0.9 },
-    { url: `${SITE_URL}/faq`,         lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
-    { url: `${SITE_URL}/use-cases`,   lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${SITE_URL}/compare`,     lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${SITE_URL}/about`,       lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${SITE_URL}/help`,        lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
-    // Help center alt sayfaları — SEO + AI cite için kritik (her biri detaylı modül rehberi).
-    // Yalniz VAR OLAN rotalar: /help/studio ve /help/social (modulleri kalkti) 404 veriyordu;
-    // /status uydurma uptime gosteriyordu ve kaldirildi (saglik ucu yok).
-    { url: `${SITE_URL}/help/getting-started`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/ai-visibility`,   lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/aso`,             lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/asa-asc`,         lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/auto-pilot`,      lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/api-keys`,        lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/billing`,         lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/video`,           lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/glossary`,        lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/privacy`,     lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
-    { url: `${SITE_URL}/terms`,       lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
-    { url: `${SITE_URL}/kvkk`,        lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
-    { url: `${SITE_URL}/bot`,         lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
-  ];
-
-  return staticPages;
+  return PUBLIC_PAGES.map((p) => ({
+    url: `${SITE_URL}${p.path}`,
+    lastModified: p.updated,
+    changeFrequency: p.changeFrequency,
+    priority: p.priority,
+  }));
 }
