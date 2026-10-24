@@ -1,6 +1,6 @@
 /**
  * Cerez onayi: karar mantigi + izleme etiketlerinin (Google Tag Manager,
- * Microsoft Clarity) onaya bagli yuklenmesi ve geri alinmasi.
+ * Google Analytics 4, Microsoft Clarity) onaya bagli yuklenmesi ve geri alinmasi.
  *
  * NEDEN: kok layout GTM'i (GA4, Google Ads donusum + yeniden pazarlama) ve
  * Clarity'yi (oturum kaydi + isi haritasi) HER sayfa goruntulemesinde, onaysiz
@@ -176,7 +176,7 @@ export type ConsentTrigger = 'load' | 'choice' | 'sync';
 export interface ConsentPlan {
   /** Bant gosterilsin mi (yalniz secim yokken) */
   showBanner: boolean;
-  /** GTM + Clarity yuklensin mi (yalniz 'granted') */
+  /** GTM + GA4 + Clarity yuklensin mi (yalniz 'granted') */
   loadTrackers: boolean;
   /** Bu sayfada yuklu etiketlere "onay geri alindi" sinyali gitsin mi */
   revokeTrackers: boolean;
@@ -250,6 +250,8 @@ export function planConsent(
  */
 const GTM_ID_RE = /^GTM-[A-Z0-9]{4,12}$/;
 const CLARITY_ID_RE = /^[a-z0-9]{6,20}$/;
+/** GA4 olcum kimligi: G- + buyuk harf/rakam (ornek G-Y5W4W5EHE7) */
+const GA_ID_RE = /^G-[A-Z0-9]{4,}$/;
 
 export function validGtmId(id: unknown): string | null {
   return typeof id === 'string' && GTM_ID_RE.test(id) ? id : null;
@@ -257,6 +259,56 @@ export function validGtmId(id: unknown): string | null {
 
 export function validClarityId(id: unknown): string | null {
   return typeof id === 'string' && CLARITY_ID_RE.test(id) ? id : null;
+}
+
+export function validGaId(id: unknown): string | null {
+  return typeof id === 'string' && GA_ID_RE.test(id) ? id : null;
+}
+
+// --- GA4'e giden sayfa adresi: paylasim jetonlari maskelenir ---
+
+/**
+ * Jetonlu herkese acik yollar: /rapor/<jeton> (musteri raporu paylasim
+ * baglantisi, lib/musteri-raporu.ts) ve /karne/<jeton> (AI gorunurluk karnesi).
+ * Jeton baglantinin kendisidir (bilen acar); Google'a gitmemeli. Uygulamada
+ * baska jetonlu yol (sifre sifirlama, davet) yok: giris yalniz Google OAuth.
+ */
+const TOKEN_ROUTE_RE = /^\/(rapor|karne)\/[^/]+/;
+
+/**
+ * Jetonlu yolsa maskelenmis adres (kok + /rapor/[token], sorgu ve parca atilir),
+ * degilse null. Bozuk adres de null (GA kendi adresini kullanir; jetonlu yolda
+ * bozuk adres olmaz).
+ */
+export function maskTokenUrl(url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const m = TOKEN_ROUTE_RE.exec(u.pathname);
+  return m ? `${u.origin}/${m[1]}/[token]` : null;
+}
+
+/**
+ * gtag config parametreleri: jetonlu sayfada page_location (ve ayni siteden
+ * gelen jetonlu page_referrer) maskelenir; diger sayfalarda parametre yok, GA4
+ * adresi kendisi okur (SPA gecmis olaylari bozulmasin: config'e yazilan
+ * page_location sonraki tum isabetlerde kalir). Jetonlu sayfalar yalniz tam
+ * sayfa yuklemesiyle acilir (uygulama ici baglanti yok; spec denetler), yani
+ * maskelenmis deger o sayfanin tum isabetlerini kapsar ve baska sayfaya tasinmaz.
+ * GA4 page_path kullanmaz (Universal Analytics alani); yol page_location'dan
+ * turetilir. GTM container'inin kendi etiketleri bu kapsamin disinda.
+ */
+export function gaPageParams(pageUrl: string, referrer: string): Record<string, string> | null {
+  const location = maskTokenUrl(pageUrl);
+  const ref = referrer ? maskTokenUrl(referrer) : null;
+  if (!location && !ref) return null;
+  const out: Record<string, string> = {};
+  if (location) out.page_location = location;
+  if (ref) out.page_referrer = ref;
+  return out;
 }
 
 // --- Izleme cerezleri (geri almada silinir) ---
@@ -321,11 +373,15 @@ export function expireCookieAssignments(names: readonly string[], hostname: stri
 
 export const GTM_SCRIPT_ID = 'ranksup-gtm';
 export const CLARITY_SCRIPT_ID = 'ranksup-clarity';
+/** Dogrudan GA4 (gtag.js); GTM container'indan bagimsiz */
+export const GA_SCRIPT_ID = 'ranksup-ga4';
 
 type ClarityFn = ((...args: unknown[]) => void) & { q?: unknown[] };
+export type GtagFn = (...args: unknown[]) => void;
 
 export interface TagWindow {
   dataLayer?: unknown[];
+  gtag?: GtagFn;
   clarity?: ClarityFn;
 }
 
@@ -333,6 +389,9 @@ export interface TagWindow {
 export interface TagEnv {
   win: TagWindow;
   hostname: string;
+  /** Su anki sayfa adresi ve document.referrer (GA4 jeton maskesi); yoksa maske yok */
+  pageUrl?(): string;
+  referrer?(): string;
   now(): number;
   hasScript(id: string): boolean;
   addScript(id: string, src: string): void;
@@ -364,14 +423,20 @@ const CLARITY_CONSENT_GRANTED = { ad_Storage: 'granted', analytics_Storage: 'gra
 /**
  * Google'in resmi gtag kalibi: `function gtag(){dataLayer.push(arguments);}`.
  * `arguments` nesnesi itilir (dizi degil); kalip birebir korunur.
+ * GTM ve GA4 ayni window.dataLayer'i paylasir (Google'in onerdigi kurulum);
+ * sayfada zaten bir gtag fonksiyonu varsa yeniden tanimlanmaz. window.gtag
+ * kayit olayi (signup-event.ts) icin de kullanilir.
  */
-function gtagFor(win: TagWindow): (...args: unknown[]) => void {
+function gtagFor(win: TagWindow): GtagFn {
   if (!Array.isArray(win.dataLayer)) win.dataLayer = [];
+  if (typeof win.gtag === 'function') return win.gtag;
   const dl = win.dataLayer;
-  return function gtag() {
+  const gtag: GtagFn = function gtag() {
     // eslint-disable-next-line prefer-rest-params -- Google kalibi arguments nesnesi bekler
     dl.push(arguments);
   };
+  win.gtag = gtag;
+  return gtag;
 }
 
 /** Clarity'nin resmi kurulum kalibindaki kuyruk: betik yuklenince kuyruktaki cagrilari isler. */
@@ -386,18 +451,25 @@ function clarityFor(win: TagWindow): ClarityFn {
   return win.clarity;
 }
 
+/** Bu sayfada bir Google etiketi (GTM ya da GA4) yuklu mu: consent varsayilani zaten itilmis demektir */
+function googlePresent(env: Pick<TagEnv, 'hasScript'>): boolean {
+  return env.hasScript(GTM_SCRIPT_ID) || env.hasScript(GA_SCRIPT_ID);
+}
+
 export function trackersPresent(env: Pick<TagEnv, 'hasScript'>): boolean {
-  return env.hasScript(GTM_SCRIPT_ID) || env.hasScript(CLARITY_SCRIPT_ID);
+  return googlePresent(env) || env.hasScript(CLARITY_SCRIPT_ID);
 }
 
 /** Kok layout'tan gelen kimlikler; bos ya da bicim disi kimlik o araci kapatir */
 export interface TrackerIds {
   gtmId?: string | null;
   clarityId?: string | null;
+  /** GA4 olcum kimligi (G-...); gtag.js ile dogrudan yuklenir */
+  gaId?: string | null;
 }
 
 /**
- * Onay varsa etiketleri yukler. `state` burada da denetlenir: cagiran
+ * Onay varsa etiketleri (GTM, GA4, Clarity) yukler. `state` burada da denetlenir: cagiran
  * yanlislikla cagirsa bile ret ya da secim yokken HICBIR sey yuklenmez.
  * Betik zaten yukluyse yeniden eklenmez; yalniz onay yeniden bildirilir
  * (ayni sayfada geri alinip yeniden verilen onay calissin).
@@ -406,21 +478,38 @@ export function loadTrackers(
   env: TagEnv,
   state: ConsentState,
   ids: TrackerIds,
-): { gtm: boolean; clarity: boolean } {
-  const result = { gtm: false, clarity: false };
+): { gtm: boolean; clarity: boolean; ga: boolean } {
+  const result = { gtm: false, clarity: false, ga: false };
   if (!shouldLoadTrackers(state)) return result;
 
   const gtmId = validGtmId(ids.gtmId);
-  if (gtmId) {
+  const gaId = validGaId(ids.gaId);
+  if (gtmId || gaId) {
+    // GTM ve GA4 tek dataLayer + tek consent sirasi paylasir: varsayilan
+    // "denied" ve "update granted" sayfada yalniz bir kez, ilk Google
+    // betiginden once itilir; sonraki cagrilar yalniz onayi yeniden bildirir.
     const gtag = gtagFor(env.win);
-    if (env.hasScript(GTM_SCRIPT_ID)) {
+    if (googlePresent(env)) {
       gtag('consent', 'update', GOOGLE_CONSENT_GRANTED);
     } else {
       gtag('consent', 'default', GOOGLE_CONSENT_DENIED);
       gtag('consent', 'update', GOOGLE_CONSENT_GRANTED);
+    }
+    if (gtmId && !env.hasScript(GTM_SCRIPT_ID)) {
       env.win.dataLayer!.push({ 'gtm.start': env.now(), event: 'gtm.js' });
       env.addScript(GTM_SCRIPT_ID, `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(gtmId)}`);
       result.gtm = true;
+    }
+    // Google'in gtag.js kurulum kalibi: js + config, betik en son
+    // (https://developers.google.com/tag-platform/gtagjs/install). Betik kimligi
+    // tekrar eklemeyi engeller: js/config sayfa basina bir kez.
+    if (gaId && !env.hasScript(GA_SCRIPT_ID)) {
+      gtag('js', new Date(env.now()));
+      const params = gaPageParams(env.pageUrl?.() ?? '', env.referrer?.() ?? '');
+      if (params) gtag('config', gaId, params);
+      else gtag('config', gaId);
+      env.addScript(GA_SCRIPT_ID, `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`);
+      result.ga = true;
     }
   }
 
@@ -526,6 +615,8 @@ export function browserTagEnv(): TagEnv {
   return {
     win: window as unknown as TagWindow,
     hostname: window.location.hostname,
+    pageUrl: () => window.location.href,
+    referrer: () => document.referrer,
     now: () => Date.now(),
     hasScript: (id) => document.getElementById(id) !== null,
     addScript: (id, src) => {

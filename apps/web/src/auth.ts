@@ -3,6 +3,7 @@ import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { PrismaClient } from '@prisma/client';
 import { trialEndsAtFrom } from './lib/trial-access';
+import { freshSignupAt, keepSignupAt, signupEventDue } from './lib/signup-event';
 
 // Bazı sunucular (örn. public IPv6'sız VM'ler) Node 20 fetch IPv6'ya
 // timeout veriyor (ETIMEDOUT). undici (Node built-in) global dispatcher'ı
@@ -23,6 +24,8 @@ declare module 'next-auth' {
       role: 'USER' | 'ADMIN' | 'AGENCY_OWNER';
       plan: 'TRIAL' | 'STARTER' | 'PRO' | 'AGENCY' | 'ENTERPRISE';
       subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED';
+      /** Yeni hesap: olusturulma zamani (ms), yalniz kayittan sonraki 24 saat; GA4 sign_up icin (lib/signup-event.ts) */
+      signupAt?: number;
     };
   }
 }
@@ -156,6 +159,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           (token as any).role = dbUser.role;
           (token as any).plan = dbUser.plan;
           (token as any).subscriptionStatus = dbUser.subscriptionStatus;
+          // Yeni hesap mi: signIn callback'i az once olusturduysa (GA4 sign_up, lib/signup-event.ts)
+          const signupAt = freshSignupAt(dbUser.createdAt, Date.now());
+          if (signupAt !== null) (token as any).signupAt = signupAt;
+          else delete (token as any).signupAt;
         }
         return token;
       }
@@ -173,6 +180,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (token as any).role = dbUser.role;
         (token as any).plan = dbUser.plan;
         (token as any).subscriptionStatus = dbUser.subscriptionStatus;
+        // sign_up penceresi (24 saat) doldu: signupAt token'dan duser
+        if ('signupAt' in token && keepSignupAt((token as any).signupAt, Date.now()) === undefined) {
+          delete (token as any).signupAt;
+        }
       }
       return token;
     },
@@ -182,6 +193,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = ((token as any).role ?? 'USER') as any;
         session.user.plan = ((token as any).plan ?? 'TRIAL') as any;
         session.user.subscriptionStatus = ((token as any).subscriptionStatus ?? 'TRIAL') as any;
+        const signupAt = (token as any).signupAt;
+        if (signupEventDue(signupAt, Date.now())) session.user.signupAt = signupAt;
       }
       return session;
     },

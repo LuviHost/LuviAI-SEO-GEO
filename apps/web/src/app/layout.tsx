@@ -6,6 +6,7 @@ import { CookieConsent } from '@/components/cookie-consent';
 import { AppSessionProvider } from '@/components/session-provider';
 import { Toaster } from 'sonner';
 import { RefTracker } from '@/components/ref-tracker';
+import { SignupEvent } from '@/components/signup-event';
 import { fontVariables } from '@/lib/fonts';
 
 // Microsoft Clarity project ID — heatmap + session recording.
@@ -23,6 +24,15 @@ const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'x8l5as
 // 2002/58/EC m. 5(3), Google Consent Mode temel kip). Kimlikler yalniz bu
 // bilesene gecer.
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TSH8KWCC';
+
+// Dogrudan gtag.js ile GA4 olcum kimligi. VARSAYILAN BOS: ranksup.ai GA4'e zaten
+// GTM-TSH8KWCC icindeki Google etiketiyle olculuyor (Analytics hesabi "LuviAI",
+// mulk 537885751; 25.10.2026'da veri akisi gorulerek dogrulandi). Burada ayrica
+// bir kimlik verilirse page_view'ler cift sayilir ya da iki mulke bolunur.
+// Bos iken sign_up olayi dataLayer'a gider (SignupEvent) ve GTM'deki "sign_up"
+// ozel olay tetikleyicisi GA4'e iletir. Dolu ve gecerli bir kimlik verilirse
+// GTM gibi YALNIZ "Kabul et" sonrasi CookieConsent yukler (lib/consent.ts).
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? '';
 
 const SITE_URL = 'https://ranksup.ai';
 // Browser tab + Google snippet için uzun başlık (60 char)
@@ -249,7 +259,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppSessionProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {children}
-            <CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} />
+            <CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} gaId={GA_MEASUREMENT_ID} />
+            <SignupEvent gaId={GA_MEASUREMENT_ID} />
             <Toaster position="top-right" richColors closeButton />
           </ThemeProvider>
         </AppSessionProvider>

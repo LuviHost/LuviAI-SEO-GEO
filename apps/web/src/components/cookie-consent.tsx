@@ -24,7 +24,7 @@ import {
 /**
  * Cerez bandi + onaya bagli etiket yukleyici.
  *
- * NEDEN tek bilesen: GTM ve Clarity artik kok layout'ta degil, yalniz burada
+ * NEDEN tek bilesen: GTM, GA4 ve Clarity artik kok layout'ta degil, yalniz burada
  * ve yalniz "Kabul et" sonrasi yuklenir (karar mantigi ve kaynaklar:
  * lib/consent.ts). Eski bant tercihi yalniz kaydediyordu; etiketler her
  * durumda yukleniyordu ve metin onayi Gizlilik Politikasi onayina bagliyordu
@@ -70,7 +70,7 @@ const TEXT = {
   },
 } as const;
 
-export function CookieConsent({ gtmId, clarityId }: { gtmId?: string; clarityId?: string }) {
+export function CookieConsent({ gtmId, clarityId, gaId }: { gtmId?: string; clarityId?: string; gaId?: string }) {
   const { locale } = useT();
   const d = TEXT[locale];
   // null: depo henuz okunmadi (sunucu ve ilk istemci cizimi). Bu arada hicbir
@@ -94,11 +94,11 @@ export function CookieConsent({ gtmId, clarityId }: { gtmId?: string; clarityId?
 
   const apply = useCallback(
     (next: ConsentState, trigger: ConsentTrigger) => {
-      const plan = controller().apply(next, trigger, { gtmId, clarityId });
+      const plan = controller().apply(next, trigger, { gtmId, clarityId, gaId });
       setState(next);
       setOpen(plan.showBanner);
     },
-    [controller, gtmId, clarityId],
+    [controller, gtmId, clarityId, gaId],
   );
 
   // Ilk okuma
