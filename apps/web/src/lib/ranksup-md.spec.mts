@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 // plans.ts'in importu yok — API'nin tek kaynagi dogrudan okunur
 import { BASE_PLANS } from '../../../api/src/billing/plans';
-import { buildRanksupMd, type SummaryPlan } from './ranksup-md';
+import { RANKSUP_MD_UPDATED, buildRanksupMd, type SummaryPlan } from './ranksup-md';
 import { formatPageDate, pageUpdated } from './page-updated';
 
 /** /billing/plans?locale=tr yanitinin bu ozetin kullandigi alanlari (billing.service toDefinition) */
@@ -29,7 +29,8 @@ const PLANS: SummaryPlan[] = BASE_PLANS.map((p) => ({
 }));
 
 const tl = (n: number) => n.toLocaleString('tr-TR');
-const md = buildRanksupMd(PLANS);
+const ALINDI = new Date('2026-10-24T18:30:12Z');
+const md = buildRanksupMd(PLANS, ALINDI);
 
 describe('/ranksup.md', () => {
   it('her ucretli plan tabloda: ad, aylik/yillik fiyat, makale, site, calistirma tavani plans.ts ile ayni', () => {
@@ -60,8 +61,21 @@ describe('/ranksup.md', () => {
     expect(md).toContain('hesap başına 7 günde 1 AI görünürlük ölçümü');
   });
 
-  it('gorunur tarih /pricing ile ayni kaynaktan; baslangic adimlari ve baglantilar var', () => {
-    expect(md).toContain(`Son güncelleme: ${formatPageDate(pageUpdated('/pricing'), 'tr')} · RanksUp Ekibi`);
+  it('gorunur tarih ozetin kendi metin tarihi ile /pricing tarihinin yenisi; plan verisinin alindigi an ayrica', () => {
+    const fiyat = pageUpdated('/pricing');
+    const beklenen = RANKSUP_MD_UPDATED > fiyat ? RANKSUP_MD_UPDATED : fiyat;
+    expect(md).toContain(`Son güncelleme: ${formatPageDate(beklenen, 'tr')} · RanksUp Ekibi`);
+    expect(md).toContain('Plan verisinin alındığı an: 2026-10-24 18:30 UTC.');
+    expect(md).toContain('en geç 10 dakikada bir yenilenir');
+    expect(md).not.toContain('istendiğinde');
+  });
+
+  it('"Ne yapar" bolumu elle sayi yazmiyor (kesin sayilar plan maddelerinde)', () => {
+    const bolum = md.slice(md.indexOf('## Ne yapar'), md.indexOf('## Kimler için'));
+    expect(bolum).not.toMatch(/\d/);
+  });
+
+  it('baslangic adimlari ve baglantilar var', () => {
     expect(md).toContain('https://ranksup.ai/signin?signup=1');
     expect(md).toContain('## Nasıl başlanır');
     expect(md).toContain('https://ranksup.ai/llms.txt');
@@ -73,6 +87,7 @@ describe('/ranksup.md', () => {
     expect(bos).toContain('Güncel plan ve fiyatlar: https://ranksup.ai/pricing');
     expect(bos).toContain('Deneme koşulları: https://ranksup.ai/pricing');
     expect(bos).not.toContain('## Ölçülen AI asistanları');
+    expect(bos).not.toContain('Plan verisinin alındığı an');
   });
 
   it('route ayni yolu kullaniyor (landing-data fetchPlans, ISR) ve Markdown icerik turuyle donuyor', () => {

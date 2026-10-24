@@ -832,6 +832,23 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(en).toContain('read-only');
   });
 
+  // trial-policy.ts kural 4: sure dolunca salt okunur YALNIZ satin alma acikken; satin alma
+  // kapaliyken (PayTR test modu) kilit uygulanmaz. Ajan belgeleri ve /ranksup.md bunu
+  // kosulsuz yaziyordu ("14 gün dolunca ... salt okunur olur"); SSS dogru yaziyordu.
+  it('deneme sonu salt okunur kurali ajan belgelerinde ve /ranksup.md\'de koşullu (satın alma kapalıyken kilit yok)', () => {
+    const policy = read(path.resolve(HERE, '../billing/trial-policy.ts'));
+    expect(policy, 'trial-policy kural 4 degisti — belgeleri guncelle').toContain('readOnly: opts.checkoutOpen');
+    const KOSUL = 'satın alma geçici olarak kapalıyken hesap kilitlenmez';
+    expect(stripComments(read(path.join(MARKETING, 'faq/page.tsx')))).toContain(KOSUL);
+    const kaynaklar: Source[] = [
+      ...docSources,
+      { rel: 'lib/ranksup-md.ts', text: stripComments(read(path.join(WEB_SRC, 'lib/ranksup-md.ts'))) },
+    ];
+    const kosulsuz = offenders(kaynaklar, /salt okunur olur/, (l) => l.includes(KOSUL));
+    expect(kosulsuz).toEqual([]);
+    expect(offenders(kaynaklar, /salt okunur olur/).length, 'kural belgelerde anilmiyor').toBeGreaterThanOrEqual(3);
+  });
+
   it('kök layout: kaldırılan sosyal modül, Shopify ve bayat TL fiyat yok; fiyat aralığı plans.ts ile aynı', () => {
     // Yorumlar neyin neden kaldirildigini anlatir; yalniz kod taranir
     const lay = stripComments(read(path.join(WEB_SRC, 'app/layout.tsx')));

@@ -94,7 +94,7 @@ Fiyatlar USD bazlıdır. TL tutarı sabit değildir: ödeme anında günün TCMB
 
 AI görünürlük ölçümü her planda hesap başına 7 günde 1'dir ve tüm siteler bu hakkı paylaşır: AI testi, yol haritası, Prompt Lab, panelden başlatılan site taramasındaki AI testi ve diğer ölçümler aynı haftalık hakka sayılır; sonuç vermeyen ölçüm hakkı yakmaz. Ölçümlerde ayrıca plana göre aylık bir görünürlük çalıştırması tavanı vardır: AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma sayılır; tek bir haftalık ölçüm (örneğin Prompt Lab'de tüm soruları çalıştırmak) birden çok çalıştırma kullanır. Çalıştırma sayacı her takvim ayının başında sıfırlanır.
 
-- **Ücretsiz Deneme**: $0 — 2 AI makale, haftada 1 AI ölçümü, 3 görünürlük çalıştırması, 1 site, 1 izlenen uygulama · destek: topluluk · 14 gün · kredi kartı istemez · makaleleri yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı plan seçilince yazılır · 14 gün dolunca plan seçene kadar hesap salt okunur olur, veriler silinmez
+- **Ücretsiz Deneme**: $0 — 2 AI makale, haftada 1 AI ölçümü, 3 görünürlük çalıştırması, 1 site, 1 izlenen uygulama · destek: topluluk · 14 gün · kredi kartı istemez · makaleleri yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı plan seçilince yazılır · 14 gün dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez), veriler silinmez
 - **Büyüme**: $149/ay, yıllık $1.490 — 15 AI makale/ay, haftada 1 AI ölçümü, en fazla 20 görünürlük çalıştırması/ay, 2 site, 1 izlenen uygulama · destek: e-posta 24 saat
 - **Profesyonel** (en çok tercih edilen): $349/ay, yıllık $3.490 — 40 AI makale/ay, haftada 1 AI ölçümü, en fazla 75 görünürlük çalıştırması/ay, 5 site, 3 izlenen uygulama · destek: e-posta 4 saat
 - **Ajans**: $749/ay, yıllık $7.490 — 100 AI makale/ay, haftada 1 AI ölçümü, en fazla 300 görünürlük çalıştırması/ay, 15 site, 10 izlenen uygulama · destek: öncelikli + Slack
@@ -128,7 +128,7 @@ AI görünürlük ölçümü her planda hesap başına 7 günde 1'dir ve tüm si
 ## Sık sorulan sorular
 
 **S: Kart bilgisi vermeden deneyebilir miyim?**
-C: Evet. Ücretsiz Deneme kredi kartı istemez ve 14 gün sürer: 2 AI makale (yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı plan seçilince yazılır), 3 görünürlük çalıştırması (haftada en fazla 1 ölçüm), 1 site. 14 gün dolunca plan seçene kadar hesap salt okunur olur; veriler silinmez.
+C: Evet. Ücretsiz Deneme kredi kartı istemez ve 14 gün sürer: 2 AI makale (yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı plan seçilince yazılır), 3 görünürlük çalıştırması (haftada en fazla 1 ölçüm), 1 site. 14 gün dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez); veriler silinmez.
 
 **S: Ayda kaç AI görünürlük ölçümü yapabilirim?**
 C: Her planda hesap başına 7 günde 1 ölçüm, yani ayda en fazla 5; tüm siteler bu hakkı paylaşır. Planlar ölçüm sıklığında değil, aylık görünürlük çalıştırması tavanında ayrışır: AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma sayılır.

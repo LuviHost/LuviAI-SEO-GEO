@@ -13,6 +13,13 @@
  */
 import { CONTENT_AUTHOR, SITE_URL, formatPageDate, pageUpdated } from './page-updated';
 
+/**
+ * Bu ozetin KENDI metninin son anlamli degisikligi (YYYY-MM-DD). Ozet metni (ne yapar,
+ * kimler icin, nasil baslanir) degisince guncellenir. Gorunur tarih bununla /pricing'in
+ * tarihinden (plan maddeleri) hangisi yeniyse odur; plan verisinin alindigi an ayrica yazilir.
+ */
+export const RANKSUP_MD_UPDATED = '2026-10-24';
+
 /** /billing/plans planinin bu ozette kullanilan alanlari (LandingPlan ile uyumlu) */
 export interface SummaryPlan {
   id: string;
@@ -60,8 +67,12 @@ function planBlock(p: SummaryPlan): string {
   return lines.join('\n');
 }
 
-export function buildRanksupMd(plans: readonly SummaryPlan[]): string {
-  const guncel = pageUpdated('/pricing');
+/** '2026-10-24T18:30:12.000Z' → '2026-10-24 18:30 UTC' */
+const utcDakika = (d: Date) => `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+
+export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = new Date()): string {
+  const fiyatTarihi = pageUpdated('/pricing');
+  const guncel = RANKSUP_MD_UPDATED > fiyatTarihi ? RANKSUP_MD_UPDATED : fiyatTarihi;
   const trial = plans.find((p) => p.id === 'trial');
   const paid = plans.filter((p) => p.id !== 'trial');
   const asistanlar = assistantsFrom(plans);
@@ -73,13 +84,15 @@ export function buildRanksupMd(plans: readonly SummaryPlan[]): string {
     '',
     `Son güncelleme: ${formatPageDate(guncel, 'tr')} · ${CONTENT_AUTHOR.tr}`,
     '',
-    `Plan, fiyat ve sınırlar bu sayfa istendiğinde ürünün plan tanımından üretilir; ${SITE_URL}/pricing ile aynıdır. Ayrıntılı ürün bilgisi: ${SITE_URL}/llms-full.txt`,
+    `Plan, fiyat ve sınırlar ürünün plan tanımından otomatik üretilir ve en geç 10 dakikada bir yenilenir; ${SITE_URL}/pricing ile aynı kaynaktır. Ayrıntılı ürün bilgisi: ${SITE_URL}/llms-full.txt`,
     '',
     '## Ne yapar',
     '',
     '- **AI görünürlük (GEO)**: İzlediğin soruları yapay zekâ asistanlarına sorar; markan anılıyor mu, siten kaynak gösteriliyor mu, rakiplerin kimler, ölçer.',
-    '- **Site denetimi**: 14 teknik SEO/GEO kontrolü, PageSpeed ve harf notu.',
-    '- **AI makale ve yayın**: 5 ajanlı üretim hattı ve yayın öncesi QA kapısı; 14 yayın hedefi (WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…).',
+    // Sayi yazilmaz (kontrol / ajan / yayin hedefi sayisi): kesin sayilar asagidaki plan
+    // maddelerinde, tek kaynak plans.ts.
+    '- **Site denetimi**: teknik SEO/GEO kontrolleri, PageSpeed ve harf notu.',
+    '- **AI makale ve yayın**: çok ajanlı üretim hattı ve yayın öncesi QA kapısı; WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity gibi yayın hedeflerine otomatik yayın.',
     '- **ASO**: App Store ve Google Play metadata optimizasyonu ve günlük anahtar kelime sıra takibi; üst planlarda Apple Search Ads ve App Store Connect.',
     '',
     '## Kimler için',
@@ -109,6 +122,8 @@ export function buildRanksupMd(plans: readonly SummaryPlan[]): string {
     out.push(`Güncel plan ve fiyatlar: ${SITE_URL}/pricing`, '');
   } else {
     out.push(
+      `Plan verisinin alındığı an: ${utcDakika(fetchedAt)}.`,
+      '',
       'Fiyatlar USD bazlıdır; TL tutarı sabit değildir, ödeme anında günün TCMB USD/TRY kuruyla hesaplanır. Yıllık ödemede 10 ay fiyatına 12 ay (2 ay bedava). Aylık plan istediğin zaman iptal edilir; ödenen dönemin sonuna kadar erişim sürer.',
       '',
       '| Plan | Aylık | Yıllık | AI makale / ay | Site | Görünürlük çalıştırması / ay (en fazla) |',
@@ -122,7 +137,7 @@ export function buildRanksupMd(plans: readonly SummaryPlan[]): string {
   out.push('## Ücretsiz deneme', '');
   if (trial) {
     for (const f of trial.features) out.push(`- ${f}`);
-    out.push('- Süre dolunca plan seçene kadar hesap salt okunur olur; veriler silinmez.', '');
+    out.push('- Süre dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez); veriler silinmez.', '');
   } else {
     out.push(`Deneme koşulları: ${SITE_URL}/pricing`, '');
   }
