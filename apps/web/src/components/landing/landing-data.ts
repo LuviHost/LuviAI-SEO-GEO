@@ -1,10 +1,14 @@
+import { requireForCache } from '@/lib/isr-guard';
+
 /**
  * Landing verisi — SUNUCUDA, ISR ile cekilir (page.tsx; /pricing ve /compare de ayni
  * yolu kullanir). Eskiden plan ve yorumlar istemcide cekiliyordu; ilk boyamada fiyat
  * bolumu bos geliyordu.
  *
- * Basarisizlikta (API kapali, `next build` aninda API yok) bos dizi doner; fiyat
- * bolumu o durumda istemcide yeniden dener, yorum bolumu gizli kalir.
+ * Basarisizlikta (API kapali, `next build` aninda API yok): build ve gelistirmede plan
+ * listesi bos doner, fiyat bolumu istemcide yeniden dener. Uretim sunucusunda plan istegi
+ * FIRLATIR — ISR son basarili (fiyatli) sayfayi sunmaya devam eder (lib/isr-guard.ts).
+ * Yorumlar her durumda bos dizi (bolum gizli kalir).
  */
 
 export type LandingPlan = {
@@ -42,7 +46,7 @@ export type PublicTestimonial = {
 /** Fiyat/yorumlar 10 dakikada bir tazelenir */
 export const LANDING_REVALIDATE = 600;
 
-function apiBase() {
+export function apiBase() {
   return (process.env.NEXT_PUBLIC_API_URL ?? process.env.API_BASE_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
 }
 
@@ -59,18 +63,23 @@ async function getJson<T>(path: string): Promise<T | null> {
   }
 }
 
+/**
+ * Plan listesi. Uretimde (build disinda) bos gelirse FIRLATIR: ISR son basarili sayfayi
+ * korur, fiyatsiz sayfa onbellege girmez (lib/isr-guard.ts). Build ve gelistirmede bos dizi.
+ */
 export async function fetchPlans(locale: 'tr' | 'en'): Promise<LandingPlan[]> {
   const data = await getJson<{ plans?: LandingPlan[] }>(`/billing/plans?locale=${locale}`);
-  return Array.isArray(data?.plans) ? data.plans : [];
+  return requireForCache(Array.isArray(data?.plans) ? data.plans : [], `/billing/plans?locale=${locale}`);
 }
 
 /**
  * /billing/plans TAM yaniti (plan + gunun kuru + satin alma durumu) — /pricing sunucuda
- * ceker. Plan listesi bos ya da istek basarisizsa null: sayfa istemcide yeniden dener.
+ * ceker. Plan listesi bos ya da istek basarisizsa: uretimde FIRLATIR (ISR son basarili
+ * sayfayi korur); build ve gelistirmede null, sayfa istemcide yeniden dener.
  */
 export async function fetchPlansResponse<T extends { plans: unknown[] }>(locale: 'tr' | 'en'): Promise<T | null> {
   const data = await getJson<T>(`/billing/plans?locale=${locale}`);
-  return Array.isArray(data?.plans) && data.plans.length > 0 ? data : null;
+  return requireForCache(Array.isArray(data?.plans) && data.plans.length > 0 ? data : null, `/billing/plans?locale=${locale}`);
 }
 
 export async function fetchTestimonials(limit = 6): Promise<PublicTestimonial[]> {
