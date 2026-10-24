@@ -13,7 +13,14 @@
  * KASITLI OLARAK YOK: kelime sayısı eşiği. 03-writer prompt'u (index.ts "Uzunluk"
  * bölümü) sert kelime hedefini bilerek yasakladı; sayı tutturma baskısı modeli
  * dolgu metne iter, bilgi yoğunluğunu düşürür.
+ *
+ * ÖNEM DERECESİ: 'block' bulgular PASS'i engeller (editör turu revizyona düşer);
+ * 'warn' bulgular engellemez, yalnız revizyon turunda editöre öneri olarak gider.
+ * Uzun cümle ve yazar satırı 'warn' — bugün geçen makaleyi bu yüzden durdurmuyoruz.
+ * TEMPLATE_STRUCTURE yalnız rehber DIŞI içerik tipinde ölçülür ('block').
  */
+
+import type { ContentType } from '../prompts/content-templates.js';
 
 export type GeoGateCode =
   | 'NO_TABLE'
@@ -21,10 +28,17 @@ export type GeoGateCode =
   | 'LOW_QUESTION_H2_RATIO'
   | 'NO_UPDATED_DATE'
   | 'UNSOURCED_NUMERIC_CLAIM'
-  | 'WEAK_LEDE';
+  | 'WEAK_LEDE'
+  | 'LONG_SENTENCES'
+  | 'TEMPLATE_STRUCTURE'
+  | 'MISSING_AUTHOR_LINE';
+
+export type GeoGateSeverity = 'block' | 'warn';
 
 export interface GeoGateIssue {
   code: GeoGateCode;
+  /** 'block' PASS'i engeller; 'warn' yalnız öneri */
+  severity: GeoGateSeverity;
   /** Editöre doğrudan verilecek Türkçe talimat */
   message: string;
   /** Somut örnekler (başlık adı, satır metni) — max birkaç tane */
@@ -43,6 +57,16 @@ export interface GeoGateStats {
   ledeChars: number;
   /** H1'den sonraki ilk anlamli blok cevap tasiyor mu (Hizli cevap blockquote'u ya da klise-siz cumle) */
   ledeHasAnswer: boolean;
+  /** Düz metin cümle sayısı (tablo, kod, liste, başlık hariç) */
+  sentences: number;
+  /** Eşikten (varsayılan 25 kelime) uzun cümlelerin oranı */
+  longSentenceRatio: number;
+  /** Görünür yazar satırı ("Bu makale ... tarafından hazırlandı") var mı */
+  hasAuthorLine: boolean;
+  /** Ölçülen içerik tipi (verilmediyse 'guide') */
+  contentType: ContentType;
+  /** Tip şablonunda eksik bulunan zorunlu öğeler */
+  templateMissing: string[];
 }
 
 export interface GeoGateResult {
@@ -60,6 +84,16 @@ export interface GeoGateOptions {
   maxSamples?: number;
   /** Lede penceresi — H1 sonrasi kac karakter cevap tasimali (varsayilan 200) */
   ledeWindow?: number;
+  /** İçerik tipi; 'guide' (varsayılan) için şablon kontrolü yapılmaz */
+  contentType?: ContentType;
+  /** Sitenin gerçek yazar adı; verilirse yazar satırında bu ad aranır */
+  authorName?: string | null;
+  /** Uzun cümle eşiği, kelime (varsayılan 25) */
+  longSentenceWords?: number;
+  /** Uzun cümle oranı üst sınırı (varsayılan 0.2 = %20) */
+  maxLongSentenceRatio?: number;
+  /** Uzun cümle kuralının uygulanması için en az cümle sayısı (varsayılan 10) */
+  minSentencesForLength?: number;
 }
 
 /**
@@ -89,7 +123,12 @@ const SOURCE_MARKERS: RegExp[] = [
 
 /** Sayısal iddia kalıpları — YMYL (vergi/faiz/kredi) odaklı, dar tutuldu. */
 const PERCENT_RE = /(%\s?\d|\d\s?%)/;
-const MONEY_RE = /\d[\d.,]*\s?(TL|₺|lira|USD|\$|EUR|€|dolar|avro)\b/i;
+/**
+ * Tutar: "99 TL", "1.039 ₺", "29$", "$29", "€15". Eskiden sembolden sonra `\b`
+ * aranıyordu; ₺/$/€ harf olmadığı için "1.039 ₺" ve "$29" HİÇ yakalanmıyordu.
+ * Sembol/kısaltmadan sonra harf gelmemeli ("TLS", "liralık" tutar değil).
+ */
+const MONEY_RE = /\d[\d.,]*\s?(TL|₺|lira|USD|\$|EUR|€|dolar|avro)(?![\p{L}\p{N}_])|(₺|\$|€)\s?\d/iu;
 const UNIT_RE = /\d[\d.,]*\s?(baz puan|puan|kat)\b/i;
 const FINANCE_WORD_RE =
   /(faiz|oran(ı|i|lar)?|vergi|stopaj|komisyon|kdv|prim|ceza|limit|tutar|tarife|iskonto|vade|taksit|kâr|kar\s?marj)/i;
@@ -252,6 +291,163 @@ function findUnsourcedClaims(body: string, limit: number): string[] {
   return hits;
 }
 
+// ────────────────────────────────────────────────────────────
+//  Cümle uzunluğu (Türkçe)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Nokta ile bitip cümle bitirmeyen kısaltmalar (küçük harfe indirgenmiş, noktasız).
+ * "vb.", "örn.", "bkz.", "Dr.", "A.Ş." cümleyi bölmesin.
+ */
+const ABBREVIATIONS = new Set([
+  'vb', 'vs', 'vd', 'örn', 'orn', 'bkz', 'krş', 'yy', 'sn', 'dk', 'sa', 'no', 'nr', 'tel',
+  'dr', 'prof', 'doç', 'doc', 'av', 'mah', 'cad', 'sok', 'apt', 'ltd', 'şti', 'sti', 'inc', 'co',
+  'a.ş', 'a.s', 't.c', 'e.g', 'i.e', 'etc', 'st', 'mr', 'mrs', 'ms', 'jr', 'yak', 'max', 'min', 'ort',
+]);
+
+/**
+ * Ölçülecek düz metni çıkarır: tablo, kod, liste, başlık, görsel, HTML satırı
+ * ve frontmatter atılır; blockquote'un ">" işareti ve kalın etiket ("Kısa cevap:")
+ * soyulur, link metni korunur, URL'ler tek kelimeye iner.
+ */
+function proseForSentences(body: string): string {
+  const out: string[] = [];
+  for (const raw of body.split('\n')) {
+    let line = raw.trim();
+    if (!line) { out.push(''); continue; }
+    if (line.startsWith('#')) { out.push(''); continue; }
+    if (line.startsWith('|')) { out.push(''); continue; }
+    if (/^([-*+]|\d+[.)])\s+/.test(line)) { out.push(''); continue; }
+    if (/^!\[/.test(line)) { out.push(''); continue; }
+    if (/^<\/?[a-z][^>]*>$/i.test(line) || /^<!--/.test(line)) { out.push(''); continue; }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) { out.push(''); continue; }
+    line = line.replace(/^>\s*/, '');
+    line = line.replace(/<[^>]+>/g, ' ');
+    line = line.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ');
+    line = line.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+    line = line.replace(/https?:\/\/\S+/g, 'URL');
+    line = line.replace(/\*\*[^*]{1,40}:\*\*/g, ' ');
+    line = line.replace(/[*_`]/g, '');
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+/** Türkçe metni cümlelere böler; kısaltma, ondalık ("3,5" / "3.5"), "1.039" ve URL cümle bitirmez. */
+export function splitSentences(text: string): string[] {
+  const sentences: string[] = [];
+  // Paragraf sınırı her zaman cümle sınırıdır
+  for (const para of text.split(/\n\s*\n/)) {
+    const flat = para.replace(/\s+/g, ' ').trim();
+    if (!flat) continue;
+    let buf = '';
+    const parts = flat.split(/(?<=[.!?…])\s+/);
+    for (const part of parts) {
+      buf = buf ? `${buf} ${part}` : part;
+      const lastWord = (buf.split(' ').pop() ?? '').replace(/^["'“‘([]+/, '').replace(/["'”’)\]]+$/, '');
+      const endsWithAbbr = /\.$/.test(lastWord)
+        && (ABBREVIATIONS.has(lastWord.slice(0, -1).toLocaleLowerCase('tr'))
+          || /^(\p{L}\.)+$/u.test(lastWord) // "A.Ş." "T.C." "e.g."
+          || /^\d+\.$/.test(lastWord)); // "3." sıra sayısı ("3. adımda")
+      if (endsWithAbbr) continue;
+      sentences.push(buf);
+      buf = '';
+    }
+    if (buf) sentences.push(buf);
+  }
+  return sentences;
+}
+
+function countWords(sentence: string): number {
+  return sentence.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+}
+
+// ────────────────────────────────────────────────────────────
+//  Yazar satırı
+// ────────────────────────────────────────────────────────────
+
+const AUTHOR_LINE_RE = /bu (makale|yaz[ıi]|i[çc]erik|rehber)[^\n]{1,160}?taraf[ıi]ndan (haz[ıi]rland[ıi]|yaz[ıi]ld[ıi]|derlendi)/i;
+const AUTHOR_LABEL_RE = /^\s*[*_]*\s*yazar\s*[*_]*\s*:/im;
+
+function findAuthorLine(body: string): string | null {
+  const m = body.match(AUTHOR_LINE_RE);
+  if (m) return m[0];
+  const lbl = body.match(new RegExp(AUTHOR_LABEL_RE.source + '.*', 'im'));
+  return lbl ? lbl[0] : null;
+}
+
+// ────────────────────────────────────────────────────────────
+//  İçerik tipi şablonu
+// ────────────────────────────────────────────────────────────
+
+/** Her markdown tablosunun veri satırı sayısı (başlık + ayraç hariç) */
+function tableDataRows(body: string): number[] {
+  const rows: number[] = [];
+  const lines = body.split('\n');
+  for (let i = 1; i < lines.length; i++) {
+    if (!/^\s*\|?[\s:]*-{3,}[\s:|-]*\|[\s:|-]*$/.test(lines[i])) continue;
+    let n = 0;
+    for (let j = i + 1; j < lines.length && /^\s*\|/.test(lines[j]); j++) n++;
+    rows.push(n);
+  }
+  return rows;
+}
+
+/** En uzun ardışık numaralı liste (1. 2. 3. ya da 1) 2) 3)) */
+function longestOrderedList(body: string): number {
+  let best = 0;
+  let run = 0;
+  for (const line of body.split('\n')) {
+    if (/^\s*\d+[.)]\s+\S/.test(line)) { run++; best = Math.max(best, run); continue; }
+    if (!line.trim() || /^\s{2,}\S/.test(line)) continue; // boş satır / girintili devam satırı listeyi kesmez
+    run = 0;
+  }
+  return best;
+}
+
+/** SSS dışındaki H3 başlık sayısı */
+function contentH3Count(sections: H2Section[]): number {
+  return sections
+    .filter((s) => !s.structural)
+    .reduce((n, s) => n + (s.body.match(/^###\s+(?!#)\S/gm)?.length ?? 0), 0);
+}
+
+/**
+ * Tip şablonunun zorunlu öğeleri — yalnız deterministik ölçülebilenler, cömert eşikle.
+ * guide ve listicle için kontrol yok (bugünkü yapı).
+ */
+function missingTemplateElements(
+  type: ContentType,
+  ctx: { body: string; sections: H2Section[]; tables: number; hasQuickAnswer: boolean },
+): string[] {
+  const missing: string[] = [];
+  const rows = tableDataRows(ctx.body);
+  switch (type) {
+    case 'comparison':
+      if (!ctx.hasQuickAnswer) missing.push('H1 altında hükmü ilk cümlede veren "> **Hızlı cevap:**" bloğu');
+      if (ctx.tables === 0) missing.push('yan yana karşılaştırma tablosu (Özellikler, Fiyat, Entegrasyon, Destek)');
+      break;
+    case 'best_for':
+      if (!ctx.hasQuickAnswer) missing.push('H1 altında tek cümlelik cevap ("> **Hızlı cevap:**")');
+      if (!rows.some((n) => n >= 3)) missing.push('en az 3 satırlı sıralı tablo (Ad, Kime uygun, Fiyat, Temel sınırlama)');
+      break;
+    case 'alternatives':
+      if (Math.max(contentH3Count(ctx.sections), ...rows, 0) < 5) {
+        missing.push('en az 5 alternatif (her biri H3 başlık ya da özet tabloda satır, "Kime uygun" etiketiyle)');
+      }
+      break;
+    case 'howto':
+      if (longestOrderedList(ctx.body) < 3) missing.push('en az 3 adımlık numaralı liste (1. 2. 3.)');
+      break;
+    case 'pricing':
+      if (ctx.tables === 0) missing.push('plan karşılaştırma tablosu (Plan, Fiyat, Limitler, Kime uygun)');
+      break;
+    default:
+      break;
+  }
+  return missing;
+}
+
 /**
  * Temizlenmiş markdown'ı GEO kurallarına karşı ölçer.
  * LLM çağırmaz, deterministiktir — aynı metin her zaman aynı sonucu verir.
@@ -260,6 +456,10 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   const minRatio = opts.minQuestionRatio ?? 0.5;
   const maxSamples = opts.maxSamples ?? 6;
   const ledeWindow = opts.ledeWindow ?? 200;
+  const contentType: ContentType = opts.contentType ?? 'guide';
+  const longWords = opts.longSentenceWords ?? 25;
+  const maxLongRatio = opts.maxLongSentenceRatio ?? 0.2;
+  const minSentences = opts.minSentencesForLength ?? 10;
 
   const body = stripNonProse(markdown);
   const sections = splitH2Sections(body);
@@ -276,11 +476,26 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   const ledeHasAnswer = lede.present && !lede.firstBlockIsImage && lede.text.length > 0
     && (lede.hasQuickAnswer || !LEDE_CLICHE.test(ledeHead));
 
+  const sentences = splitSentences(proseForSentences(body));
+  const longSentences = sentences.filter((x) => countWords(x) > longWords);
+  const longRatio = sentences.length > 0 ? longSentences.length / sentences.length : 0;
+  const authorLine = findAuthorLine(body);
+  const authorName = (opts.authorName ?? '').trim();
+  const authorLineOk = !!authorLine
+    && (!authorName || authorLine.toLocaleLowerCase('tr').includes(authorName.toLocaleLowerCase('tr')));
+  const templateMissing = missingTemplateElements(contentType, {
+    body,
+    sections,
+    tables,
+    hasQuickAnswer: lede.hasQuickAnswer,
+  });
+
   const issues: GeoGateIssue[] = [];
 
   if (lede.present && !ledeHasAnswer) {
     issues.push({
       code: 'WEAK_LEDE',
+      severity: 'block',
       message:
         `H1'den sonraki ilk ${ledeWindow} karakter cevap taşımıyor` +
         (lede.firstBlockIsImage ? ' (ilk blok görsel)' : lede.text.length === 0 ? ' (H1 ile ilk H2 arası boş)' : ' (giriş klişesiyle başlıyor)') +
@@ -293,6 +508,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   if (tables === 0) {
     issues.push({
       code: 'NO_TABLE',
+      severity: 'block',
       message:
         'Makalede hiç markdown tablosu yok. Karşılaştırma, oran/tarife veya adım-kriter ' +
         'verisini en az 1 tabloya taşı. Tabloyu dolgu için uydurma; metinde zaten anlattığın ' +
@@ -303,6 +519,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   if (missingShortAnswer.length > 0) {
     issues.push({
       code: 'MISSING_SHORT_ANSWER',
+      severity: 'block',
       message:
         `${missingShortAnswer.length} H2 bölümünde "> **Kısa cevap:** ..." satırı yok. ` +
         'Her içerik H2\'sinin hemen altına, ilk paragraftan ÖNCE max 25 kelimelik atomik ' +
@@ -314,6 +531,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   if (content.length > 0 && questionRatio < minRatio) {
     issues.push({
       code: 'LOW_QUESTION_H2_RATIO',
+      severity: 'block',
       message:
         `Soru formatlı H2 oranı %${Math.round(questionRatio * 100)} (${questionH2}/${content.length}); ` +
         `alt sınır %${Math.round(minRatio * 100)}. Başlıkları okurun arama kutusuna yazdığı ` +
@@ -328,6 +546,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   if (!hasUpdatedDate) {
     issues.push({
       code: 'NO_UPDATED_DATE',
+      severity: 'block',
       message:
         'Makale sonunda görünür "*Son güncelleme: YYYY-MM-DD*" satırı yok. ' +
         'Frontmatter yetmez; AI tazelik filtresi görünür metne bakar.',
@@ -337,6 +556,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   if (unsourced.length > 0) {
     issues.push({
       code: 'UNSOURCED_NUMERIC_CLAIM',
+      severity: 'block',
       message:
         `${unsourced.length} yerde kaynağı gösterilmemiş sayısal iddia var (oran, tutar, faiz, vergi). ` +
         'Her birinin yanına resmî kaynağı ekle (GİB, TÜİK, TCMB, Resmî Gazete, mevzuat.gov.tr gibi) ' +
@@ -344,6 +564,42 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
       samples: unsourced,
     });
   }
+
+  if (templateMissing.length > 0) {
+    issues.push({
+      code: 'TEMPLATE_STRUCTURE',
+      severity: 'block',
+      message:
+        `İçerik tipi "${contentType}" şablonunun zorunlu öğeleri eksik. Okurun bu tip soruda aradığı ` +
+        'iskelet AI cevaplarında alıntılanan kısımdır; eksik öğeyi ekle, var olan bölümleri silme. ' +
+        'Doğrulayamadığın fiyat/özellik için rakam uydurma, niteliksel yaz.',
+      samples: templateMissing,
+    });
+  }
+
+  if (sentences.length >= minSentences && longRatio > maxLongRatio) {
+    issues.push({
+      code: 'LONG_SENTENCES',
+      severity: 'warn',
+      message:
+        `Cümlelerin %${Math.round(longRatio * 100)}'i ${longWords} kelimeden uzun (${longSentences.length}/${sentences.length}; ` +
+        `üst sınır %${Math.round(maxLongRatio * 100)}). Uzun cümleleri ikiye böl: bir cümle, bir bilgi. ` +
+        '"ve", "ancak", "çünkü" ile bağlanan yan cümleleri ayrı cümle yap; anlamı ve rakamları değiştirme.',
+      samples: longSentences.slice(0, Math.min(3, maxSamples)).map((x) => (x.length > 160 ? `${x.slice(0, 157)}...` : x)),
+    });
+  }
+
+  if (!authorLineOk) {
+    issues.push({
+      code: 'MISSING_AUTHOR_LINE',
+      severity: 'warn',
+      message: authorName
+        ? `Görünür yazar satırı "${authorName}" adını taşımıyor. Sonuç bölümünden sonra "**Bu makale ${authorName} tarafından hazırlandı.**" satırını yaz; başka ad uydurma.`
+        : 'Görünür yazar satırı yok. Sonuç bölümünden sonra "**Bu makale [kurum adı] tarafından hazırlandı.**" satırını ekle; kişi adı uydurma, persona adı yazma.',
+    });
+  }
+
+  const blocking = issues.filter((i) => i.severity === 'block');
 
   const stats: GeoGateStats = {
     contentH2: content.length,
@@ -355,13 +611,20 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
     unsourcedNumericClaims: unsourced.length,
     ledeChars: lede.text.length,
     ledeHasAnswer,
+    sentences: sentences.length,
+    longSentenceRatio: Number(longRatio.toFixed(3)),
+    hasAuthorLine: authorLineOk,
+    contentType,
+    templateMissing,
   };
 
+  // Yalnız 'block' bulgular kapıyı düşürür. Öneriler (warn) PASS'te editöre
+  // GİTMEZ (bugünkü girdi değişmesin); revizyon turunda listenin sonuna eklenir.
   return {
-    pass: issues.length === 0,
+    pass: blocking.length === 0,
     issues,
     stats,
-    feedback: issues.length === 0 ? '' : buildFeedback(issues),
+    feedback: blocking.length === 0 ? '' : buildFeedback(issues),
   };
 }
 
@@ -375,11 +638,19 @@ function buildFeedback(issues: GeoGateIssue[]): string {
     'düzeltilmiş tam makaleyi mutlaka döndür.',
     '',
   ];
-  for (const issue of issues) {
+  const pushIssue = (issue: GeoGateIssue) => {
     lines.push(`- **[${issue.code}]** ${issue.message}`);
     if (issue.samples?.length) {
       for (const s of issue.samples) lines.push(`  - ${s}`);
     }
+  };
+  issues.filter((i) => i.severity === 'block').forEach(pushIssue);
+  const warnings = issues.filter((i) => i.severity === 'warn');
+  if (warnings.length > 0) {
+    lines.push('');
+    lines.push('### Öneriler (PASS\'i engellemez, düzeltirken birlikte gider)');
+    lines.push('');
+    warnings.forEach(pushIssue);
   }
   lines.push('');
   lines.push(

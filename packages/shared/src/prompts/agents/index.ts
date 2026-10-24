@@ -592,6 +592,7 @@ Pipeline 4 kaynaktan ham konu listesi verir. Skor üret + Tier 1/2/3'e böl.
       "pillar": "/url",
       "persona": "Mert | Buse | Erdem Bey | Cem | custom",
       "schema_type": "Article | HowTo | Comparison",
+      "content_type": "guide | howto | comparison | best_for | alternatives | pricing | listicle",
       "auto_command": "node generate-article.js \\"BAŞLIK\\" --auto-publish",
       "hook_variations": [
         {"type": "number_led", "line1": "<=40 char", "line2": "<=40 char"},
@@ -609,6 +610,17 @@ Pipeline 4 kaynaktan ham konu listesi verir. Skor üret + Tier 1/2/3'e böl.
   "summary": {"total_evaluated": 47, "tier_1_count": 6, ...}
 }
 \`\`\`
+
+## İçerik tipi (content_type — her konu için zorunlu, tek değer)
+Konunun arama niyetine göre makale iskeletini seç:
+- **comparison**: iki seçenek kıyası ("X vs Y", "X mi Y mi", "X ile Y farkı")
+- **best_for**: "en iyi X", "Y için en uygun X" (sıralı öneri)
+- **alternatives**: "X alternatifleri", "X yerine ne kullanılır"
+- **pricing**: bir ürünün / hizmetin fiyatları ve planları
+- **howto**: adım adım yapılan iş ("X nasıl kurulur / hesaplanır")
+- **listicle**: sayılı liste ("7 hata", "10 ipucu")
+- **guide**: kavram anlatımı, rehber (yukarıdakilerin hiçbiri değilse)
+Emin değilsen guide yaz; uydurma bir değer yazma.
 
 ## Persona dağılımı zorunlu
 Tier 1'de 4 farklı persona temsil edilmeli (hepsi aynı persona olamaz).

@@ -121,7 +121,7 @@ export class QaGateService {
     const systemPrompt = [
       'Sen bir yayin oncesi dogruluk denetcisisin. Sana verilen Turkce/Ingilizce makalede SADECE su uc sinifi ara:',
       '1. fabricated_attribution — belirli bir kisi/kurum/rapora atif var ama kaynak linki/adi dogrulanabilir degil ("Webtures\'a gore...", "Gartner raporunda..." gibi, link yok).',
-      '2. unsourced_claim — spesifik sayisal iddia (yuzde, adet, fiyat araligi, "arastirmalara gore X%") kaynak gosterilmeden verilmis.',
+      '2. unsourced_claim — spesifik sayisal iddia (yuzde, adet, fiyat araligi, "arastirmalara gore X%") kaynak gosterilmeden verilmis. Adi gecen bir urunun/hizmetin fiyati veya plan limiti ("$29", "1.039 ₺", "aylik 99 TL", "10 kullaniciya kadar") de bu siniftadir: ayni paragrafta resmi fiyat sayfasi linki ya da "Kaynak:" yoksa isaretle.',
       '3. fabricated_entity — var olmayan/uydurma gorunumlu calisma, arac, kurum adi.',
       '',
       'Genel bilgiler, yazarin kendi yorumu ve "genellikle/cogu zaman" gibi nitelenmis ifadeler SORUN DEGIL. Asiri hassas olma: yalnizca yayinda utandiracak net vakalari isaretle.',
