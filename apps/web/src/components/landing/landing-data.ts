@@ -1,6 +1,7 @@
 /**
- * Landing verisi — SUNUCUDA, ISR ile cekilir (page.tsx). Eskiden plan ve yorumlar
- * istemcide cekiliyordu; ilk boyamada fiyat bolumu bos geliyordu.
+ * Landing verisi — SUNUCUDA, ISR ile cekilir (page.tsx; /pricing ve /compare de ayni
+ * yolu kullanir). Eskiden plan ve yorumlar istemcide cekiliyordu; ilk boyamada fiyat
+ * bolumu bos geliyordu.
  *
  * Basarisizlikta (API kapali, `next build` aninda API yok) bos dizi doner; fiyat
  * bolumu o durumda istemcide yeniden dener, yorum bolumu gizli kalir.
@@ -61,6 +62,15 @@ async function getJson<T>(path: string): Promise<T | null> {
 export async function fetchPlans(locale: 'tr' | 'en'): Promise<LandingPlan[]> {
   const data = await getJson<{ plans?: LandingPlan[] }>(`/billing/plans?locale=${locale}`);
   return Array.isArray(data?.plans) ? data.plans : [];
+}
+
+/**
+ * /billing/plans TAM yaniti (plan + gunun kuru + satin alma durumu) — /pricing sunucuda
+ * ceker. Plan listesi bos ya da istek basarisizsa null: sayfa istemcide yeniden dener.
+ */
+export async function fetchPlansResponse<T extends { plans: unknown[] }>(locale: 'tr' | 'en'): Promise<T | null> {
+  const data = await getJson<T>(`/billing/plans?locale=${locale}`);
+  return Array.isArray(data?.plans) && data.plans.length > 0 ? data : null;
 }
 
 export async function fetchTestimonials(limit = 6): Promise<PublicTestimonial[]> {

@@ -79,8 +79,10 @@ describe('gorunur tarih ve JSON-LD ayni kaynaktan', () => {
     const satirVar = (rel: string, yol: string) =>
       read(join(SRC, rel)).includes(`PageUpdatedLine path="${yol}"`);
     expect(satirVar('app/page.tsx', '/')).toBe(true);
+    expect(satirVar('app/(marketing)/pricing/pricing-view.tsx', '/pricing')).toBe(true);
     expect(satirVar('app/(marketing)/faq/page.tsx', '/faq')).toBe(true);
     expect(satirVar('app/(marketing)/use-cases/page.tsx', '/use-cases')).toBe(true);
+    expect(satirVar('app/(marketing)/compare/compare-view.tsx', '/compare')).toBe(true);
     expect(satirVar('app/(marketing)/help/page.tsx', '/help')).toBe(true);
     expect(satirVar('app/(marketing)/help/glossary/page.tsx', '/help/glossary')).toBe(true);
     // Diger yardim sayfalari HelpArticle uzerinden: slug -> /help/<slug>
