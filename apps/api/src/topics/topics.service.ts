@@ -7,6 +7,7 @@ import { ScorerService } from './scorer.service.js';
 import { GaService } from '../analytics/ga.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import type { AgentContext } from '@luviai/shared';
+import { annotateRankedTopics } from '../articles/content-plan.js';
 
 @Injectable()
 export class TopicsService {
@@ -167,9 +168,11 @@ export class TopicsService {
         gscOpportunities: gscOpportunities as any,
         geoGaps: geoResult.gaps as any,
         competitorMoves: competitorMoves as any,
-        tier1Topics: ranked.tier_1_immediate ?? [],
-        tier2Topics: ranked.tier_2_this_week ?? [],
-        tier3Topics: ranked.tier_3_planned ?? [],
+        // Her konuya gecerli content_type + kaynagi (siralayici gecersiz deger yazdiysa
+        // schema_type / baslik siniflandiricisi); panel rozeti ve uretim hatti okur
+        tier1Topics: annotateRankedTopics(ranked.tier_1_immediate) as any,
+        tier2Topics: annotateRankedTopics(ranked.tier_2_this_week) as any,
+        tier3Topics: annotateRankedTopics(ranked.tier_3_planned) as any,
         improvements: mergedImprovements,
         totalEvaluated: ranked.summary?.total_evaluated ?? planTopics.length,
         expiresAt,

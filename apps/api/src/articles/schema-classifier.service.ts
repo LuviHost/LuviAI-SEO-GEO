@@ -149,7 +149,8 @@ export class SchemaClassifierService {
       dateModified?: string | null;
       heroImage?: string | null;
       faqs?: Array<{ q: string; a: string }>;
-      author?: { name: string; url?: string } | null;
+      /** Sitenin kayitli gercek yazari; yoksa Organization basilir (yazar uydurulmaz) */
+      author?: { name: string; url?: string; sameAs?: string[]; jobTitle?: string } | null;
       /**
        * Kirinti yolu. Cagiran taraf gercek URL hiyerarsisinden uretip verir;
        * verilmezse a.url'in path segmentlerinden turetilir.
@@ -181,7 +182,13 @@ export class SchemaClassifierService {
         url: a.url,
         mainEntityOfPage: { '@type': 'WebPage', '@id': a.url },
         author: a.author
-          ? { '@type': 'Person', name: a.author.name, ...(a.author.url ? { url: a.author.url } : {}) }
+          ? {
+              '@type': 'Person',
+              name: a.author.name,
+              ...(a.author.url ? { url: a.author.url } : {}),
+              ...(a.author.sameAs?.length ? { sameAs: a.author.sameAs } : {}),
+              ...(a.author.jobTitle ? { jobTitle: a.author.jobTitle } : {}),
+            }
           : { '@type': 'Organization', name: s.name, url: baseUrl },
         publisher: {
           '@type': 'Organization',

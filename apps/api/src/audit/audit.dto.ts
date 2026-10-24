@@ -404,6 +404,33 @@ export class SchemaValidateDto {
   url!: string;
 }
 
+/**
+ * Sitenin gercek yazari (author-profile.service SiteAuthor). Adres dogrulamasi
+ * (yalniz http/https) ve kirpma serviste de yapilir; burada tip ve uzunluk.
+ */
+export class SiteAuthorDto {
+  @IsString({ message: 'Yazar adı (name) gerekli.' })
+  @MaxLength(120, { message: 'Yazar adı en fazla 120 karakter olabilir' })
+  name!: string;
+
+  @IsOptional()
+  @IsString({ message: 'Yazar sayfası (url) metin olmalı' })
+  @MaxLength(300, { message: 'Yazar sayfası (url) en fazla 300 karakter olabilir' })
+  url?: string;
+
+  @IsOptional()
+  @IsArray({ message: 'sameAs bir adres listesi olmalı' })
+  @ArrayMaxSize(10, { message: 'En fazla 10 profil adresi verilebilir' })
+  @IsString({ each: true, message: 'sameAs adresleri metin olmalı' })
+  @MaxLength(300, { each: true, message: 'Profil adresi en fazla 300 karakter olabilir' })
+  sameAs?: string[];
+
+  @IsOptional()
+  @IsString({ message: 'Unvan (jobTitle) metin olmalı' })
+  @MaxLength(120, { message: 'Unvan en fazla 120 karakter olabilir' })
+  jobTitle?: string;
+}
+
 export class HaroParseDto {
   @IsString({ message: 'E-posta içeriği (emailContent) gerekli.' })
   @MaxLength(100_000, { message: 'E-posta içeriği en fazla 100.000 karakter olabilir' })

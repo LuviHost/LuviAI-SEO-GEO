@@ -19,8 +19,12 @@ import {
   extractFAQs,
   parseFrontmatter,
   turkishSlug,
+  resolveContentType,
+  withContentTemplate,
 } from '@luviai/shared';
-import type { AgentContext, ExtractedFaq, GeoGateResult } from '@luviai/shared';
+import type { AgentContext, ContentTypeDecision, ExtractedFaq, GeoGateOptions, GeoGateResult } from '@luviai/shared';
+import { findRankerTopicHint, readStoredContentPlan, type RankerTopicHint } from './content-plan.js';
+import { readSiteAuthor, type SiteAuthor } from '../audit/author-profile.service.js';
 import { safeParseJson } from '../common/safe-json.js';
 // Tek kaynak: canonical (publisher.service.ts) ile JSON-LD (burası) aynı URL'i üretsin.
 import { resolveArticleUrl as buildArticleUrl } from './article-url.util.js';
@@ -333,7 +337,20 @@ export class PipelineService {
 
     const dateNote = `\n\n[ZORUNLU: Bugünün tarihi ${brainContext.today}. Frontmatter'da date_published bu olacak. Geçmiş yıl YASAK. Kod-fence sarmalama yok.]`;
 
-    const agentOutputs: Record<string, any> = {};
+    // İçerik tipi (açık seçim > sıralayıcı > başlık sınıflandırıcı > rehber) ve
+    // sitenin GERÇEK yazarı. İkisi de yoksa ('guide' + yazar yok) ajan girdileri
+    // ve kapı bugünküyle birebir aynıdır.
+    const contentPlan = await this.resolveContentPlan(opts.siteId, opts.topic, opts.articleId);
+    const siteAuthor = await readSiteAuthor(this.prisma, opts.siteId);
+    const contentType = contentPlan.type;
+    const authorNote = siteAuthor ? PipelineService.authorNote(siteAuthor) : '';
+    const gateOpts: GeoGateOptions = {
+      ...(contentType !== 'guide' ? { contentType } : {}),
+      ...(siteAuthor ? { authorName: siteAuthor.name } : {}),
+    };
+    this.log.log(`[${opts.siteId}] İçerik tipi: ${contentType} (${contentPlan.source})${siteAuthor ? `, yazar: ${siteAuthor.name}` : ''}`);
+
+    const agentOutputs: Record<string, any> = { contentPlan };
     let totalCost = 0;
 
     // 01 — Anahtar Kelime
@@ -353,7 +370,7 @@ export class PipelineService {
       agentName: '02-outline',
       agentSystemSuffix: AGENT_02_OUTLINE.systemSuffix,
       brainContext,
-      input: keyword.output,
+      input: withContentTemplate(keyword.output, contentType, 'outline'),
     });
     agentOutputs.outline = { output: outline.output, usage: outline.usage };
     totalCost += outline.costUsd;
@@ -364,7 +381,7 @@ export class PipelineService {
       agentName: '03-writer',
       agentSystemSuffix: AGENT_03_WRITER.systemSuffix,
       brainContext,
-      input: outline.output + dateNote,
+      input: withContentTemplate(outline.output + dateNote + authorNote, contentType, 'writer'),
     });
     agentOutputs.writer = { output: writer.output, usage: writer.usage };
     totalCost += writer.costUsd;
@@ -387,12 +404,13 @@ export class PipelineService {
     const MAX_PARSE_RETRIES = 1;
     let parseRetries = 0;
 
-    let geoGate: GeoGateResult = checkGeoGate(this.cleanCodeFences(currentDraft));
+    let geoGate: GeoGateResult = checkGeoGate(this.cleanCodeFences(currentDraft), gateOpts);
     this.log.log(
       `[${opts.siteId}] GEO kapısı (yazar çıktısı): ${geoGate.pass ? 'GEÇTİ' : 'KALDI'} — ` +
         `soru H2 %${Math.round(geoGate.stats.questionRatio * 100)}, tablo ${geoGate.stats.tables}, ` +
         `kısa cevap ${geoGate.stats.shortAnswerCovered}/${geoGate.stats.contentH2}, ` +
-        `kaynaksız sayı ${geoGate.stats.unsourcedNumericClaims}`,
+        `kaynaksız sayı ${geoGate.stats.unsourcedNumericClaims}` +
+        (contentType !== 'guide' ? `, şablon eksiği ${geoGate.stats.templateMissing.length}` : ''),
     );
 
     for (let attempt = 0; attempt <= maxRevize; attempt++) {
@@ -403,7 +421,8 @@ export class PipelineService {
         brainContext,
         // Kapı bulguları editöre madde madde gider — "kaliteyi artır" gibi
         // muğlak bir istek değil, kapatılacak somut liste.
-        input: currentDraft + dateNote + (geoGate.pass ? '' : geoGate.feedback),
+        // Tip şablonu kontrolü ve yazar notu yalnız rehber dışı tipte / yazar kayıtlıysa eklenir.
+        input: withContentTemplate(currentDraft + dateNote + authorNote + (geoGate.pass ? '' : geoGate.feedback), contentType, 'editor'),
       });
       agentOutputs[`editor_attempt_${attempt}`] = { output: editor.output, usage: editor.usage };
       totalCost += editor.costUsd;
@@ -436,13 +455,13 @@ export class PipelineService {
       }
 
       // Kapı, editörün düzeltilmiş metni üzerinde yeniden ölçülür.
-      geoGate = checkGeoGate(this.cleanCodeFences(currentDraft));
+      geoGate = checkGeoGate(this.cleanCodeFences(currentDraft), gateOpts);
 
       let effective = verdict.verdict;
       if (effective === 'PASS' && !geoGate.pass) {
         effective = 'REVIZE';
         this.log.warn(
-          `[${opts.siteId}]   → GEO kapısı PASS'i bloke etti: ${geoGate.issues.map((i) => i.code).join(', ')}`,
+          `[${opts.siteId}]   → GEO kapısı PASS'i bloke etti: ${geoGate.issues.filter((i) => i.severity === 'block').map((i) => i.code).join(', ')}`,
         );
       }
       editorVerdict = effective;
@@ -460,7 +479,7 @@ export class PipelineService {
     agentOutputs.geoGate = {
       pass: geoGate.pass,
       stats: geoGate.stats,
-      issues: geoGate.issues.map((i) => ({ code: i.code, samples: i.samples ?? [] })),
+      issues: geoGate.issues.map((i) => ({ code: i.code, severity: i.severity, samples: i.samples ?? [] })),
     };
 
     // Ezilecek kayit YAYINDA mi? Uretimin SONUNDA okunur (hat dakikalar surer;
@@ -611,10 +630,18 @@ export class PipelineService {
             // image); gerçek mutlak URL publisher'da hero üretilince eklenir.
             heroImage: isHeroPlaceholder((fm as any).hero_image) ? null : (((fm as any).hero_image as string) ?? null),
             faqs,
-            // author BİLEREK verilmiyor: fm.persona okuyucu profilidir (hedef
-            // kitle), makalenin yazarı değil. Person olarak basmak schema.org
-            // açısından yanlış beyandır; Organization fallback'i doğru olan.
-            author: null,
+            // author YALNIZ sitenin kayıtlı GERÇEK yazarından (author-profile.service
+            // readSiteAuthor). fm.persona okuyucu profilidir (hedef kitle), yazar
+            // değil; Person olarak basmak yanlış beyan olur. Kayıt yoksa
+            // Organization fallback'i (bugünkü davranış).
+            author: siteAuthor
+              ? {
+                  name: siteAuthor.name,
+                  ...(siteAuthor.url ? { url: siteAuthor.url } : {}),
+                  ...(siteAuthor.sameAs?.length ? { sameAs: siteAuthor.sameAs } : {}),
+                  ...(siteAuthor.jobTitle ? { jobTitle: siteAuthor.jobTitle } : {}),
+                }
+              : null,
             // Kırıntı yolu gerçek URL hiyerarşisinden gelir ve ara sayfa
             // yalnızca site envanterinde GERÇEKTEN varsa eklenir.
             breadcrumbs: this.buildBreadcrumbs({
@@ -782,6 +809,40 @@ export class PipelineService {
   }
 
   /** Yeniden yazilan kaydin (opts.articleId) mevcut hali; yoksa null */
+  /**
+   * İçerik tipi kararı. Öncelik: kayıttaki AÇIK seçim (agentOutputs.contentPlan,
+   * source 'explicit') > sıralayıcı (kayda yazılmış karar, yoksa son konu
+   * kuyruğundaki ipucu) > başlık sınıflandırıcı > 'guide'. Okuma hataları
+   * üretimi durdurmaz ('guide'a düşer).
+   */
+  private async resolveContentPlan(siteId: string, topic: string, articleId?: string): Promise<ContentTypeDecision> {
+    let stored: ContentTypeDecision | null = null;
+    if (articleId) {
+      const row = await Promise.resolve()
+        .then(() => this.prisma.article.findUnique({ where: { id: articleId }, select: { agentOutputs: true } }))
+        .catch(() => null);
+      stored = readStoredContentPlan((row as { agentOutputs?: unknown } | null)?.agentOutputs);
+    }
+    const explicit = stored?.source === 'explicit' ? stored.type : null;
+    let hint: RankerTopicHint | null = null;
+    if (!explicit) {
+      hint = stored?.source === 'ranker'
+        ? { contentType: stored.type, schemaType: null }
+        : await findRankerTopicHint(this.prisma as any, siteId, topic);
+    }
+    return resolveContentType({
+      explicit,
+      rankerContentType: hint?.contentType,
+      rankerSchemaType: hint?.schemaType,
+      title: topic,
+    });
+  }
+
+  /** Yazar/editör girdisine eklenen not: görünür yazar satırı kayıtlı gerçek adla yazılır */
+  private static authorNote(author: SiteAuthor): string {
+    return `\n\n[YAZAR: Sonuç bölümünden sonraki yazar imzası tam olarak "**Bu makale ${author.name} tarafından hazırlandı.**" olacak. Başka kişi adı yazma, persona adı yazma.]`;
+  }
+
   private async readExistingRow(articleId: string): Promise<ExistingArticleRow | null> {
     const row = await this.prisma.article.findUnique({ where: { id: articleId }, select: EXISTING_ARTICLE_SELECT });
     return (row as ExistingArticleRow | null) ?? null;
@@ -822,7 +883,8 @@ export class PipelineService {
       title: typeof parsed.data.title === 'string' ? parsed.data.title : null,
       wordCount: parsed.content.split(/\s+/).filter(Boolean).length,
       blockingIssues: args.blockingIssues.slice(0, 5),
-      geoGateIssues: args.geoGate.issues.map((i) => i.code),
+      // Yalnız engelleyen bulgular (öneriler — uzun cümle, yazar satırı — red sebebi değil)
+      geoGateIssues: args.geoGate.issues.filter((i) => i.severity === 'block').map((i) => i.code),
       totalCostUsd: args.totalCost,
     };
     await this.prisma.article.update({

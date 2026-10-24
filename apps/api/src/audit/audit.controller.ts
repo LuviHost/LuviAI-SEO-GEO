@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Header, NotFoundException, Param, Patch, Post, Query, Req, Res, BadRequestException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Header, NotFoundException, Param, Patch, Post, Put, Query, Req, Res, BadRequestException, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { StuckPageStatus } from '@prisma/client';
 import type { Request, Response } from 'express';
@@ -46,7 +46,7 @@ import { PersonaChatThrottlerGuard } from './persona-chat-throttler.guard.js';
 import {
   AddFanoutDto, ApplySnippetsDto, ArticleRefDto, AutoFixApplyDto, AutoFixNowDto, AutoFixPreviewDto,
   CommunityLimitDto, CrawlerIngestDto, CreateLocalPromptsDto, CreatePromptDto, CrossLinkApplyDto,
-  CrossLinkSuggestDto, GenerateFanoutDto, GeoHeatmapDto, HaroParseDto, LocalPromptSpecDto,
+  CrossLinkSuggestDto, GenerateFanoutDto, GeoHeatmapDto, HaroParseDto, LocalPromptSpecDto, SiteAuthorDto,
   PersonaChatDto, RecoverStuckBatchDto, RunAllPromptsDto, RunPromptDto, SchemaValidateDto,
   SnippetOptimizeApplyDto, StaticSnippetsDto, SubmitKnowledgeDto, ToggleFanoutDto, UpdateCommunityDto,
   UpdateOpportunityDto, UpdatePromptDto,
@@ -1066,6 +1066,29 @@ export class AuditController {
   authorProfileGet(@Param('siteId') siteId: string, @Query('persona') persona: string) {
     // Persona adi istem metnine girer: dize disi (dizi/nesne) ve uzun girdi kesilir
     return this.authorProfile.buildForPersona(siteId, queryText(persona, 80) ?? 'Yazar');
+  }
+
+  /**
+   * GET /sites/:siteId/audit/author-profile/site — sitenin kayitli GERCEK yazari (yoksa null).
+   * Uretim hatti makale JSON-LD author'unu ve gorunur yazar satirini yalniz bundan uretir.
+   */
+  @Get('author-profile/site')
+  siteAuthorGet(@Param('siteId') siteId: string) {
+    return this.authorProfile.getSiteAuthor(siteId);
+  }
+
+  /** PUT /sites/:siteId/audit/author-profile/site — gercek yazari kaydet (insan beyani: yalniz panel oturumu) */
+  @SessionOnly()
+  @Put('author-profile/site')
+  siteAuthorPut(@Param('siteId') siteId: string, @Body() body: SiteAuthorDto) {
+    return this.authorProfile.setSiteAuthor(siteId, body);
+  }
+
+  /** DELETE /sites/:siteId/audit/author-profile/site — yazari kaldir; author yeniden Organization olur */
+  @SessionOnly()
+  @Delete('author-profile/site')
+  siteAuthorDelete(@Param('siteId') siteId: string) {
+    return this.authorProfile.clearSiteAuthor(siteId);
   }
 
   /** POST /sites/:siteId/audit/haro/parse — HARO email digest parse + draft pitch (soru basina bir model cagrisi) */

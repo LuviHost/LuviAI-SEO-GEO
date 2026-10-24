@@ -71,6 +71,7 @@ export class ArticlesController {
       scheduledAt: body.scheduledAt,
       slug: body.slug,
       pillar: body.pillar,
+      contentType: body.contentType,
     });
   }
 
@@ -121,7 +122,7 @@ export class ArticlesController {
   /** POST /sites/:siteId/articles/generate — queue */
   @Post('generate')
   generate(@Param('siteId') siteId: string, @Body() body: GenerateArticleDto) {
-    return this.articles.queueGeneration(siteId, body.topic, body.targetIds);
+    return this.articles.queueGeneration(siteId, body.topic, body.targetIds, body.contentType);
   }
 
   /** POST /sites/:siteId/articles/run-now — senkron pipeline (quota'li) */

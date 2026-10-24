@@ -3,6 +3,9 @@ import {
   Max, MaxLength, Min, MinLength, ValidateBy, type ValidationOptions,
 } from 'class-validator';
 import { isCanonicalSiteId } from '../common/site-id.js';
+import { CONTENT_TYPES, type ContentType } from '@luviai/shared';
+
+const CONTENT_TYPE_MESSAGE = `contentType şunlardan biri olmalı: ${CONTENT_TYPES.join(', ')}`;
 
 /*
  * NEDEN SINIF DTO: bu controller'daki govdelerin hepsi satir ici tipliydi;
@@ -32,6 +35,11 @@ export class ScheduleTopicDto {
   @IsString()
   @MaxLength(200)
   pillar?: string;
+
+  /** Acik icerik tipi (karsilastirma, fiyat...); verilmezse siralayici / baslik siniflandiricisi karar verir */
+  @IsOptional()
+  @IsIn([...CONTENT_TYPES], { message: CONTENT_TYPE_MESSAGE })
+  contentType?: ContentType;
 }
 
 export class RescheduleArticleDto {
@@ -62,6 +70,11 @@ export class GenerateArticleDto {
   @IsString({ each: true })
   @MaxLength(64, { each: true })
   targetIds?: string[];
+
+  /** Acik icerik tipi; verilmezse siralayici / baslik siniflandiricisi karar verir */
+  @IsOptional()
+  @IsIn([...CONTENT_TYPES], { message: CONTENT_TYPE_MESSAGE })
+  contentType?: ContentType;
 }
 
 export class RunPipelineNowDto {
