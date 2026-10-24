@@ -98,7 +98,7 @@ export function HelpArticle({
             <div className="text-xs font-medium text-brand-600 mb-1">{badge}</div>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-2">{title}</h1>
             <p className="help-intro text-muted-foreground leading-relaxed">{intro}</p>
-            <PageUpdatedLine path={path} className="mt-2" />
+            <PageUpdatedLine path={path} className="mt-2" fixedLocale="tr" />
           </div>
         </div>
         <article className="prose prose-neutral dark:prose-invert prose-headings:font-bold prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-3 prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2 prose-p:leading-relaxed prose-li:my-1 prose-strong:font-bold prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline max-w-none">

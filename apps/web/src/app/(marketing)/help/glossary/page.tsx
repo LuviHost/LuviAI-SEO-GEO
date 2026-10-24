@@ -103,7 +103,7 @@ export default function GlossaryPage() {
               SEO, GEO (Generative Engine Optimization), AEO, schema markup, AI citation,
               llms.txt ve dijital pazarlama terimlerinin sade Türkçe tanımları. {ENTRIES.length} terim.
             </p>
-            <PageUpdatedLine path="/help/glossary" className="mt-2" />
+            <PageUpdatedLine path="/help/glossary" className="mt-2" fixedLocale="tr" />
           </div>
         </div>
 

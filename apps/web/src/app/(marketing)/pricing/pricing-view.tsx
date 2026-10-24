@@ -51,7 +51,10 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
   // oldugu icin yanlislikla silinmisti; sayfa o tarihten beri bos grid basiyordu.
   useEffect(() => {
     api.getPlans(locale)
-      .then((res) => setFresh((f) => ({ ...f, [locale]: res })))
+      // Bos ya da bozuk yanit sunucudan gelen dolu veriyi EZMEZ
+      .then((res) => {
+        if (Array.isArray(res?.plans) && res.plans.length > 0) setFresh((f) => ({ ...f, [locale]: res }));
+      })
       .catch(() => { if (!initial[locale]) toast.error(t('common.error')); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
@@ -220,7 +223,9 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
             <strong className="tabular-nums">1 USD = ₺{fx.rate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</strong>{' '}
             kuruyla hesaplanmıştır
             {fx.source === 'TCMB' && ' (TCMB)'}
-            {fx.fetchedAt && ` · ${new Date(fx.fetchedAt).toLocaleDateString('tr-TR')}`}.
+            {/* Saat dilimi sabit: bu satir artik sunucuda da basiliyor; tarayicinin dilimiyle
+                formatlansa UTC+11 gibi bir istemcide gun kayar ve hidrasyon uyusmazligi olur. */}
+            {fx.fetchedAt && ` · ${new Date(fx.fetchedAt).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`}.
             {fx.stale && (
               <span className="block mt-1 text-amber-600 dark:text-amber-400">
                 Güncel kur alınamadı, son bilinen kur gösteriliyor. Ödeme sırasında güncel kur uygulanır.

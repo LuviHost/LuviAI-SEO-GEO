@@ -87,7 +87,9 @@ describe('gorunur tarih ve JSON-LD ayni kaynaktan', () => {
     expect(satirVar('app/(marketing)/help/glossary/page.tsx', '/help/glossary')).toBe(true);
     // Diger yardim sayfalari HelpArticle uzerinden: slug -> /help/<slug>
     const ha = read(join(SRC, 'components/help-article.tsx'));
-    expect(ha).toContain('<PageUpdatedLine path={path}');
+    // Rehberler ve sozluk yalniz Turkce: satir da Turkce sabit
+    expect(ha).toContain('<PageUpdatedLine path={path} className="mt-2" fixedLocale="tr" />');
+    expect(read(join(SRC, 'app/(marketing)/help/glossary/page.tsx'))).toContain('fixedLocale="tr"');
     expect(ha).toContain('dateModified: updated');
     for (const p of PUBLIC_PAGES.filter((x) => x.path.startsWith('/help/') && x.path !== '/help/glossary')) {
       const slug = p.path.slice('/help/'.length);

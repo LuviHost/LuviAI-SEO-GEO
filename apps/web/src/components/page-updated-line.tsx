@@ -12,8 +12,17 @@ import { cn } from '@/lib/utils';
  * Istemci bileseni yalniz dil secimi icin (useT); sunucu 'tr' basar, yani JS calistirmayan
  * tarayici da Turkce satiri ve makine-okunur <time dateTime> degerini gorur.
  */
-export function PageUpdatedLine({ path, className }: { path: string; className?: string }) {
-  const { locale } = useT();
+export function PageUpdatedLine({ path, className, fixedLocale }: {
+  path: string;
+  className?: string;
+  /**
+   * Yalniz Turkce olan sayfalar (yardim rehberleri, sozluk) 'tr' verir: icerik Turkce iken
+   * EN ziyaretciye "Last updated … RanksUp Team" gostermek tutarsizdi.
+   */
+  fixedLocale?: 'tr' | 'en';
+}) {
+  const { locale: uiLocale } = useT();
+  const locale = fixedLocale ?? uiLocale;
   const iso = pageUpdated(path);
   return (
     <p className={cn('text-xs text-muted-foreground', className)}>
