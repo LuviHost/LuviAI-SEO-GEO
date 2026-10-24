@@ -60,6 +60,56 @@ describe('buildTrackerJs — site degeri her zaman veri', () => {
   });
 });
 
+/** Insan ziyaretcisiyle betigi calistirir (referer ve inis adresi verilir); beacon adresi ya da null */
+function runAsVisitor(js: string, referrer: string, href: string): string | null {
+  let src: string | null = null;
+  class FakeImage {
+    constructor(public w: number, public h: number) {}
+    set src(v: string) { src = v; }
+  }
+  new Function('navigator', 'document', 'location', 'Image', js)(
+    { userAgent: 'Mozilla/5.0 (Macintosh) Safari/605.1.15' },
+    { referrer },
+    { href },
+    FakeImage,
+  );
+  return src;
+}
+
+describe('buildTrackerJs — AI kaynagi on suzgeci (ai-source.ts ile ayni liste)', () => {
+  const js = buildTrackerJs('s1', 'https://api.ranksup.ai');
+
+  it('referer\'siz ama utm_source=chatgpt.com ile gelen ziyaret beacon atar (eskiden atmiyordu)', () => {
+    const src = runAsVisitor(js, '', 'https://ornek.com/blog/a?utm_source=chatgpt.com');
+    expect(src).not.toBeNull();
+    const u = new URL(src!);
+    expect(u.searchParams.get('ref')).toBe('');
+    expect(u.searchParams.get('url')).toBe('https://ornek.com/blog/a?utm_source=chatgpt.com');
+  });
+
+  it.each([
+    ['https://www.perplexity.ai/search/x', 'https://ornek.com/'],
+    ['https://chat.openai.com/', 'https://ornek.com/'],
+    ['https://www.bing.com/chat?q=x', 'https://ornek.com/'],
+    ['https://www.google.com/', 'https://ornek.com/?utm_source=perplexity'],
+  ])('AI ziyareti beacon atar: ref=%s url=%s', (ref, href) => {
+    expect(runAsVisitor(js, ref, href)).not.toBeNull();
+  });
+
+  it.each([
+    // eski alt dize desenleri bunlari AI sayiyordu
+    ['https://playyou.com/', 'https://ornek.com/'],
+    ['https://notperplexity.ai/', 'https://ornek.com/'],
+    ['https://www.anthropic.com/news', 'https://ornek.com/'],
+    ['https://www.google.com/search?q=chatgpt.com', 'https://ornek.com/'],
+    ['https://www.bing.com/search?q=ranksup', 'https://ornek.com/'],
+    ['', 'https://ornek.com/?utm_source=newsletter'],
+    ['', 'https://ornek.com/?utm_source=chatgpt-ads'],
+  ])('AI olmayan ziyaret beacon atmaz: ref=%s url=%s', (ref, href) => {
+    expect(runAsVisitor(js, ref, href)).toBeNull();
+  });
+});
+
 describe('TrackerController — sorgu degerleri yalniz duz metin', () => {
   function ctl() {
     const aiReferrer = { record: vi.fn(async () => undefined) };
@@ -103,5 +153,16 @@ describe('TrackerController — sorgu degerleri yalniz duz metin', () => {
     const r2 = res();
     await c.beacon('s1', { u: 1 }, 'https://chatgpt.com/', r2 as any);
     expect(aiReferrer.record).toHaveBeenCalledWith('s1', 'https://chatgpt.com/', '');
+  });
+
+  it('beacon: referer bos ama inis URL\'i varsa kaydedilir (utm_source); botun kendi ziyareti AI ziyareti sayilmaz', async () => {
+    const { c, aiReferrer, res } = ctl();
+    await c.beacon('s1', 'https://ornek.com/?utm_source=chatgpt.com', '', res() as any, 'Mozilla/5.0 Safari');
+    expect(aiReferrer.record).toHaveBeenCalledWith('s1', '', 'https://ornek.com/?utm_source=chatgpt.com');
+    aiReferrer.record.mockClear();
+    await c.beacon('s1', 'https://ornek.com/?utm_source=chatgpt.com', 'https://chatgpt.com/', res() as any, 'Mozilla/5.0 (compatible; GPTBot/1.2)');
+    expect(aiReferrer.record).not.toHaveBeenCalled();
+    await c.beacon('s1', '', '', res() as any, 'Mozilla/5.0 Safari');
+    expect(aiReferrer.record).not.toHaveBeenCalled();
   });
 });

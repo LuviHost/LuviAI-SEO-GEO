@@ -7,6 +7,7 @@ import { LiveCrawlerService, type IngestEvent } from './live-crawler.service.js'
 import { Public } from '../auth/public.decorator.js';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { INGEST_SIGNATURE_HEADER, INGEST_TIMESTAMP_HEADER } from './ingest-auth.js';
+import { trackerFilterData } from './ai-source.js';
 
 /**
  * Public tracker beacon — site sahibinin html'ine eklediği <script>
@@ -61,19 +62,50 @@ function queryText(value: unknown): string {
  * (yansitilan girdi). Simdi once encodeURIComponent (URL bileseni), sonra
  * JSON.stringify (gecerli JS dize sabiti) — deger her zaman veri kalir.
  */
+/**
+ * Betigi calistiran AI botu kullanici ajanlari. Google-Extended desende YOK: ayri bir HTTP
+ * kullanici ajani yok, yalniz robots.txt belirteci
+ * (https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers).
+ * Beacon ucu da bunu kullanir: bot ziyareti AI'dan gelen insan ziyareti sayilmaz.
+ */
+export const TRACKER_BOT_PATTERN = /GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-Web|PerplexityBot|Bytespider|Amazonbot|CCBot|YouBot|cohere-ai|DuckAssistBot|Meta-ExternalAgent|Mistral|DeepSeek/i;
+
 export function buildTrackerJs(siteId: string, apiBase: string): string {
   const beaconBase = `${apiBase}/api/tracker/beacon?site=${encodeURIComponent(siteId)}`;
-  // Google-Extended desende YOK: ayri bir HTTP kullanici ajani yok, yalniz
-  // robots.txt belirteci (https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers)
+  // AI kaynagi on suzgeci ai-source.ts'ten (sunucudaki siniflandirmayla ayni liste).
+  // Eskiden referer METNINDE regex araniyordu (/you\.com/ "playyou.com"u da tutuyordu) ve
+  // utm_source=chatgpt.com ile gelen, referer'siz ziyaretler hic beacon atmiyordu.
   return `
 (function(){
   var ua = navigator.userAgent || '';
-  var botPatterns = /GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-Web|PerplexityBot|Bytespider|Amazonbot|CCBot|YouBot|cohere-ai|DuckAssistBot|Meta-ExternalAgent|Mistral|DeepSeek/i;
-  var aiReferrers = /chat\\.openai\\.com|chatgpt\\.com|perplexity\\.ai|claude\\.ai|gemini\\.google\\.com|bard\\.google\\.com|copilot\\.microsoft\\.com|you\\.com|phind\\.com|poe\\.com/i;
+  var botPatterns = ${TRACKER_BOT_PATTERN.toString()};
+  var AI = ${JSON.stringify(trackerFilterData())};
 
   var ref = document.referrer || '';
+  var href = location.href || '';
+  function parse(u) { try { return new URL(u); } catch (e) { return null; } }
+  // Host tam eslesir ya da listedeki alan adinin alt alan adidir
+  function aiRef(r) {
+    var u = parse(r);
+    if (!u) return false;
+    var h = u.hostname.toLowerCase();
+    for (var i = 0; i < AI.hosts.length; i++) {
+      var d = AI.hosts[i][0], p = AI.hosts[i][1];
+      if (h !== d && h.slice(-d.length - 1) !== '.' + d) continue;
+      if (p && !new RegExp(p, 'i').test(u.pathname + u.search)) continue;
+      return true;
+    }
+    return false;
+  }
+  // utm_source tam esitlikle (utm_source=chatgpt.com)
+  function aiUtm(l) {
+    var u = parse(l);
+    if (!u) return false;
+    var v = (u.searchParams.get('utm_source') || '').toLowerCase().replace(/^www\\./, '');
+    return v !== '' && AI.utm.indexOf(v) !== -1;
+  }
   var isBot = botPatterns.test(ua);
-  var isAiReferrer = aiReferrers.test(ref);
+  var isAiReferrer = aiRef(ref) || aiUtm(href);
 
   // Bot zaten gelmiş ya da AI'den yönlendirilmis kullanici — track et
   if (!isBot && !isAiReferrer) return;
@@ -176,12 +208,16 @@ export class TrackerController {
     @Query('url') rawUrl: unknown,
     @Query('ref') rawRef: unknown,
     @Res() res: Response,
+    @Headers('user-agent') userAgent?: string,
   ) {
     const siteId = queryText(rawSite);
     const ref = queryText(rawRef);
-    // AI referrer match ediyorsa kaydet (bot olmayan kullanici)
-    if (siteId && ref) {
-      this.aiReferrer.record(siteId, ref, queryText(rawUrl)).catch(() => {});
+    const url = queryText(rawUrl);
+    // AI kaynagi (referer host'u ya da inis URL'inin utm_source'u) match ediyorsa kaydet.
+    // Referer bos olabilir (ChatGPT uygulamasi + utm_source=chatgpt.com). Botun kendi
+    // ziyareti insan trafigi sayilmaz — bot sayaci crawler-tracking.middleware'de.
+    if (siteId && (ref || url) && !TRACKER_BOT_PATTERN.test(userAgent ?? '')) {
+      this.aiReferrer.record(siteId, ref, url).catch(() => {});
     }
 
     // Transparent 1x1 GIF

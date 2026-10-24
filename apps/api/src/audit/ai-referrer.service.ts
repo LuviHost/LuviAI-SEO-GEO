@@ -1,34 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AI_SOURCES, classifyAiVisit } from './ai-source.js';
 
 /**
  * AI Referrer Service — ChatGPT/Perplexity/Claude'dan gelen KULLANICI trafigi.
  *
- * AI cevap kutucuklarindan link tıklayan kullanicinin Referer header'ini
- * kontrol eder. AI bot'larindan farkli — bunlar gercek satin alma niyeti
- * olan ziyaretciler.
+ * AI cevap kutucuklarindan link tiklayan kullanicinin ziyaretini sayar. AI bot'larindan
+ * farkli — bunlar gercek satin alma niyeti olan ziyaretciler.
  *
- * Pattern matching:
- *   - chat.openai.com / chatgpt.com         -> ChatGPT
- *   - perplexity.ai                          -> Perplexity
- *   - claude.ai                              -> Claude
- *   - bard.google.com / gemini.google.com    -> Gemini
- *   - bing.com/search?form=*COPILOT*         -> Bing Copilot
- *   - you.com                                -> You.com
- *   - phind.com                              -> Phind
- *   - poe.com                                -> Poe (ChatGPT/Claude)
+ * Siniflandirma (referer HOST'u, yoksa inis URL'inin utm_source'u), kaynak listesi ve
+ * anthropic.com karari: ./ai-source.ts (tracker.js on suzgeciyle ortak tek kaynak).
  */
-const REFERRER_REGISTRY: Array<{ key: string; pattern: RegExp; label: string }> = [
-  { key: 'chatgpt', pattern: /chat\.openai\.com|chatgpt\.com/i, label: 'ChatGPT' },
-  { key: 'perplexity', pattern: /perplexity\.ai/i, label: 'Perplexity' },
-  { key: 'claude', pattern: /claude\.ai|anthropic\.com/i, label: 'Claude' },
-  { key: 'gemini', pattern: /gemini\.google\.com|bard\.google\.com/i, label: 'Gemini' },
-  { key: 'bing-copilot', pattern: /bing\.com.*copilot|copilot\.microsoft\.com/i, label: 'Bing Copilot' },
-  { key: 'you', pattern: /you\.com/i, label: 'You.com' },
-  { key: 'phind', pattern: /phind\.com/i, label: 'Phind' },
-  { key: 'poe', pattern: /poe\.com/i, label: 'Poe' },
-];
-
 @Injectable()
 export class AiReferrerService {
   private readonly log = new Logger(AiReferrerService.name);
@@ -36,10 +18,12 @@ export class AiReferrerService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Tracker beacon'dan gelen referer'i sınıflandırır + DB'ye yazar.
+   * Tracker beacon'dan gelen ziyareti siniflandirir + DB'ye yazar. Referer bos olabilir:
+   * ChatGPT uygulamasindan gelen tiklama cogu zaman referer tasimaz, kaynak inis
+   * URL'indeki utm_source=chatgpt.com'dan anlasilir.
    */
   async record(siteId: string, referer: string, url: string): Promise<{ matched: boolean }> {
-    const matched = this.classify(referer);
+    const matched = this.classify(referer, url);
     if (!matched) return { matched: false };
 
     const date = new Date();
@@ -75,11 +59,9 @@ export class AiReferrerService {
     return { matched: true };
   }
 
-  classify(referer: string): { key: string; label: string } | null {
-    for (const r of REFERRER_REGISTRY) {
-      if (r.pattern.test(referer)) return { key: r.key, label: r.label };
-    }
-    return null;
+  classify(referer: string, landingUrl = ''): { key: string; label: string } | null {
+    const m = classifyAiVisit(referer, landingUrl);
+    return m ? { key: m.key, label: m.label } : null;
   }
 
   async getHistory(siteId: string, days = 30) {
@@ -107,7 +89,7 @@ export class AiReferrerService {
       totalHits,
       byReferrer,
       byDate,
-      registry: REFERRER_REGISTRY.map((r) => ({ key: r.key, label: r.label })),
+      registry: AI_SOURCES.map((r) => ({ key: r.key, label: r.label })),
     };
   }
 }
