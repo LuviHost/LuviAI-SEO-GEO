@@ -361,8 +361,19 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
 
               {detay && (
                 <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t">
-                  <Kutu etiket="AI bot ziyareti" deger={sayi(geo.aiBotZiyareti)} />
-                  <Kutu etiket="AI'dan gelen ziyaret" deger={sayi(geo.aiReferrer)} />
+                  {/* 24.10.2026 oncesi dondurulan raporlar hits toplami degil satir sayisi
+                      (gun × bot / kaynak) tasir; damga yoksa notr etiket (site-report.service AI_SAYIM_YONTEMI). */}
+                  {geo.aiSayimYontemi === 'hits_toplami' ? (
+                    <>
+                      <Kutu etiket="AI bot ziyareti" deger={sayi(geo.aiBotZiyareti)} />
+                      <Kutu etiket="AI'dan gelen ziyaret (referer veya utm etiketi)" deger={sayi(geo.aiReferrer)} />
+                    </>
+                  ) : (
+                    <>
+                      <Kutu etiket="AI bot kaydı (gün × bot)" deger={sayi(geo.aiBotZiyareti)} />
+                      <Kutu etiket="AI yönlendirme kaydı (gün × kaynak)" deger={sayi(geo.aiReferrer)} />
+                    </>
+                  )}
                 </div>
               )}
             </>

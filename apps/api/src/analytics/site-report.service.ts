@@ -49,10 +49,15 @@ export interface GeoBolumu {
   alintilanan: number;
   /** Kac probe'ta marka adi anildi (alinti olmadan da olabilir) */
   anilan: number;
-  /** AI botlarinin siteyi ziyaret sayisi */
+  /** Donemde AI botlarinin istek toplami (ai_crawler_hits.hits) */
   aiBotZiyareti: number;
-  /** AI'dan gelen gercek ziyaretci */
+  /** Donemde AI kaynakli insan ziyareti toplami (ai_referrer_hits.hits; referer ya da utm) */
   aiReferrer: number;
+  /**
+   * Sayim yontemi damgasi ('hits_toplami'). Bu alan olmayan, daha once dondurulmus raporlarda
+   * aiBotZiyareti / aiReferrer satir sayisidir (gun × bot / kaynak); UI notr etiket gosterir.
+   */
+  aiSayimYontemi?: typeof AI_SAYIM_YONTEMI;
 }
 
 export interface AsoBolumu {
@@ -180,6 +185,12 @@ function ort(sayilar: number[]): number | null {
   if (!sayilar.length) return null;
   return sayilar.reduce((a, b) => a + b, 0) / sayilar.length;
 }
+
+/**
+ * Rapordaki AI bot / AI referrer sayilarinin yontemi. 'hits_toplami' (24.10.2026): donemdeki
+ * hits toplami. Bu alan olmayan (daha once dondurulmus) raporlarda sayi satir sayisidir.
+ */
+export const AI_SAYIM_YONTEMI = 'hits_toplami' as const;
 
 @Injectable()
 export class SiteReportService {
@@ -376,6 +387,9 @@ export class SiteReportService {
       anilan,
       aiBotZiyareti,
       aiReferrer,
+      // Dondurulmus rapor bu damgayla sayinin hits toplami oldugunu bilir; damgasiz eski
+      // raporlar satir sayisi (gun × bot / kaynak) tasir ve notr etiketle gosterilir.
+      aiSayimYontemi: AI_SAYIM_YONTEMI,
     };
   }
 

@@ -168,6 +168,8 @@ describe('GEO bolumu — AI bot ve AI referrer sayilari', () => {
     const r = await cagir(servis({ ...temel, aiCrawlerHit: bot, aiReferrerHit: referrer }), 'geoBolumu', 's1', DONEM);
     expect(r.aiReferrer, 'eski hata: satir sayisi (4)').toBe(112);
     expect(r.aiBotZiyareti, 'eski hata: satir sayisi (4)').toBe(1230);
+    // Dondurulmus rapor yeni etiketi yalniz bu damgayla gosterir
+    expect(r.aiSayimYontemi).toBe('hits_toplami');
   });
 
   it('donem disi ve baska sitenin satirlari sayilmaz; kayit yoksa 0', async () => {
