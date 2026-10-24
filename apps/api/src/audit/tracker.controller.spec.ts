@@ -91,7 +91,7 @@ describe('buildTrackerJs — AI kaynagi on suzgeci (ai-source.ts ile ayni liste)
     ['https://www.perplexity.ai/search/x', 'https://ornek.com/'],
     ['https://chat.openai.com/', 'https://ornek.com/'],
     ['https://www.bing.com/chat?q=x', 'https://ornek.com/'],
-    ['https://www.google.com/', 'https://ornek.com/?utm_source=perplexity'],
+    ['https://www.google.com/', 'https://ornek.com/?utm_source=perplexity.ai'],
   ])('AI ziyareti beacon atar: ref=%s url=%s', (ref, href) => {
     expect(runAsVisitor(js, ref, href)).not.toBeNull();
   });
@@ -107,6 +107,41 @@ describe('buildTrackerJs — AI kaynagi on suzgeci (ai-source.ts ile ayni liste)
     ['', 'https://ornek.com/?utm_source=chatgpt-ads'],
   ])('AI olmayan ziyaret beacon atmaz: ref=%s url=%s', (ref, href) => {
     expect(runAsVisitor(js, ref, href)).toBeNull();
+  });
+});
+
+describe('buildTrackerJs — AI ziyareti oturumda bir kez', () => {
+  const js = buildTrackerJs('s1', 'https://api.ranksup.ai');
+  function run(store: unknown, ua = 'Mozilla/5.0 Safari') {
+    let src: string | null = null;
+    class FakeImage { set src(v: string) { src = v; } }
+    new Function('navigator', 'document', 'location', 'Image', 'sessionStorage', js)(
+      { userAgent: ua }, { referrer: 'https://chatgpt.com/' }, { href: 'https://ornek.com/?utm_source=chatgpt.com' }, FakeImage, store,
+    );
+    return src;
+  }
+  const depo = () => {
+    const m = new Map<string, string>();
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); } };
+  };
+
+  it('ayni oturumda ikinci sayfa / yenileme beacon atmaz', () => {
+    const d = depo();
+    expect(run(d)).not.toBeNull();
+    expect(run(d)).toBeNull();
+    expect(run(depo())).not.toBeNull();
+  });
+
+  it('depolama firlatirsa ya da yoksa yine sayilir', () => {
+    const bozuk = { getItem: () => { throw new Error('SecurityError'); }, setItem: () => { throw new Error('x'); } };
+    expect(run(bozuk)).not.toBeNull();
+    expect(run(undefined)).not.toBeNull();
+  });
+
+  it('bot beacon\'i oturum kilidinden etkilenmez', () => {
+    const d = depo();
+    expect(run(d)).not.toBeNull();
+    expect(run(d, 'Mozilla/5.0 (compatible; GPTBot/1.2)')).not.toBeNull();
   });
 });
 

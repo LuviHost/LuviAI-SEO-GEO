@@ -65,9 +65,8 @@ describe('classifyUtm — inis URL\'inin utm_source degeri (tam esitlik)', () =>
   it.each([
     ['https://ornek.com/blog/a?utm_source=chatgpt.com', 'chatgpt'],
     ['https://ornek.com/?utm_source=ChatGPT.com&utm_medium=referral', 'chatgpt'],
-    ['https://ornek.com/?utm_source=perplexity', 'perplexity'],
     ['https://ornek.com/?utm_source=perplexity.ai', 'perplexity'],
-    ['https://ornek.com/?utm_source=gemini', 'gemini'],
+    ['https://ornek.com/?utm_source=gemini.google.com', 'gemini'],
     ['https://ornek.com/?utm_source=copilot.com', 'bing-copilot'],
     ['https://ornek.com/?utm_source=claude.ai', 'claude'],
     ['https://ornek.com/?utm_source=www.chatgpt.com', 'chatgpt'],
@@ -80,6 +79,15 @@ describe('classifyUtm — inis URL\'inin utm_source degeri (tam esitlik)', () =>
     'https://ornek.com/?utm_source=newsletter',
     'https://ornek.com/?utm_source=chatgpt-ads-campaign',
     'https://ornek.com/?utm_source=notperplexity',
+    // genel degerler sitenin kendi kampanyalariyla cakisir — sayilmaz (ai-source.ts)
+    'https://ornek.com/?utm_source=openai',
+    'https://ornek.com/?utm_source=claude',
+    'https://ornek.com/?utm_source=gemini',
+    'https://ornek.com/?utm_source=copilot',
+    'https://ornek.com/?utm_source=poe',
+    'https://ornek.com/?utm_source=bard',
+    'https://ornek.com/?utm_source=perplexity',
+    'https://ornek.com/?utm_source=chatgpt',
     'https://ornek.com/?utm_campaign=chatgpt.com',
     'https://ornek.com/?q=utm_source%3Dchatgpt.com',
     '',
@@ -107,6 +115,8 @@ describe('trackerFilterData — tracker.js on suzgeci ayni listeden', () => {
     expect(f.hosts.map(([h]) => h).sort()).toEqual(AI_SOURCES.flatMap((s) => s.hosts).sort());
     expect(f.hosts.filter(([, p]) => p !== null).map(([h]) => h)).toEqual(['bing.com']);
     expect(f.utm).toContain('chatgpt.com');
+    // yalniz alan adi bicimi
+    for (const v of f.utm) expect(v, v).toMatch(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/);
     expect(f.hosts.map(([h]) => h)).not.toContain('anthropic.com');
   });
 });

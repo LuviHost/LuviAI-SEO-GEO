@@ -211,10 +211,10 @@ function AiSearchConsoleTab({ siteId }: { siteId: string }) {
         AI ziyaretleri eksik sayilabiliyor. https://ahrefs.com/blog/ai-chatbot-traffic/
       */}
       <p className="text-xs text-muted-foreground">
-        Bu sayfa <strong>AI cevaplarındaki bağlantılardan gelen kullanıcı trafiği</strong>ni gösterir. ChatGPT/Perplexity/Claude cevabında sitenizin bağlantısı yer alıp kullanıcı tıkladığında, tarayıcının gönderdiği yönlendiren adres (referrer) yakalanır. <strong>Bot trafiği değil — AI cevabındaki bağlantıya tıklayan gerçek ziyaretçi.</strong>
+        Bu sayfa <strong>AI cevaplarındaki bağlantılardan gelen kullanıcı trafiği</strong>ni gösterir. ChatGPT/Perplexity/Claude cevabında sitenizin bağlantısı yer alıp kullanıcı tıkladığında kaynak, tarayıcının gönderdiği yönlendiren adresten (referrer) ya da bağlantıdaki utm etiketinden (ör. ChatGPT&apos;nin eklediği <code>utm_source=chatgpt.com</code>) anlaşılır; aynı oturumdaki ziyaret bir kez sayılır. <strong>Bot trafiği değil — AI cevabındaki bağlantıya tıklayan gerçek ziyaretçi.</strong>
       </p>
       <p className="text-label text-muted-foreground">
-        Bağlam: bağımsız ölçümler AI asistanlarından gelen ziyaretin toplam web trafiğinin küçük bir bölümü olduğunu gösteriyor (Ahrefs, Mart 2026: %0,28). Bu ziyaretçi soruyu sormuş, cevabı okumuş ve sonra tıklamıştır. Bazı AI uygulamaları yönlendiren adresi iletmediği için bu ziyaretlerin bir kısmı analitikte &quot;Direct&quot; görünür; bu sayfa <strong>ölçülebilen alt küme</strong>dir, tamamı değil.
+        Bağlam: bağımsız ölçümler AI asistanlarından gelen ziyaretin toplam web trafiğinin küçük bir bölümü olduğunu gösteriyor (Ahrefs, Mart 2026: %0,28). Bu ziyaretçi soruyu sormuş, cevabı okumuş ve sonra tıklamıştır. Bazı AI uygulamaları yönlendiren adresi iletmediği ve bağlantıya utm etiketi eklemediği için bu ziyaretlerin bir kısmı analitikte &quot;Direct&quot; görünür; bu sayfa <strong>ölçülebilen alt küme</strong>dir, tamamı değil.
       </p>
 
       <div className="flex items-center justify-between flex-wrap gap-2">

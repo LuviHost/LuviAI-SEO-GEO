@@ -9,7 +9,8 @@
  *     tam eslesir ya da listedeki alan adinin alt alan adidir (www.perplexity.ai).
  *  2) Inis URL'indeki utm_source. ChatGPT cevaptaki baglantilara `utm_source=chatgpt.com`
  *     ekler ve tarayici cogu zaman referer gondermez (uygulama, noreferrer); bu ziyaretler
- *     eskiden hic sayilmiyordu. utm_source TAM esitlikle eslenir (alt dize degil).
+ *     eskiden hic sayilmiyordu. utm_source TAM esitlikle ve yalniz alan adi bicimindeki
+ *     degerlerle eslenir (bkz. AiSource.utmSources).
  *
  * anthropic.com KARARI (24.10.2026): yalniz claude.ai Claude sohbet referer'idir.
  * anthropic.com sirketin sitesi (blog, dokumantasyon, haberler); oradan gelen tiklama bir
@@ -30,26 +31,32 @@ export interface AiSource {
   hosts: string[];
   /** Host eslesse bile yol + sorgu bu desene uymali (bing.com'un yalniz Copilot/sohbet sayfasi) */
   pathPattern?: RegExp;
-  /** utm_source degerleri (kucuk harf, tam esitlik) */
+  /**
+   * utm_source degerleri (kucuk harf, tam esitlik). YALNIZ alan adi bicimi: 'openai',
+   * 'claude', 'gemini', 'copilot', 'poe' gibi genel degerler sitenin KENDI kampanyalariyla
+   * cakisir (ornegin "gemini" adli bir kampanya) ve asistanlarin bunlari ekledigine dair
+   * kanit yok. Dogrulanan: ChatGPT baglantilara utm_source=chatgpt.com ekler. Digerleri
+   * ayni kalibin alan adi karsiligi — cakisma riski yok, gelmezse zarari da yok.
+   */
   utmSources: string[];
 }
 
 export const AI_SOURCES: readonly AiSource[] = [
-  { key: 'chatgpt', label: 'ChatGPT', hosts: ['chatgpt.com', 'chat.openai.com'], utmSources: ['chatgpt.com', 'chatgpt', 'chat.openai.com', 'openai'] },
-  { key: 'perplexity', label: 'Perplexity', hosts: ['perplexity.ai'], utmSources: ['perplexity.ai', 'perplexity'] },
-  { key: 'claude', label: 'Claude', hosts: ['claude.ai'], utmSources: ['claude.ai', 'claude'] },
-  { key: 'gemini', label: 'Gemini', hosts: ['gemini.google.com', 'bard.google.com'], utmSources: ['gemini.google.com', 'gemini', 'bard'] },
+  { key: 'chatgpt', label: 'ChatGPT', hosts: ['chatgpt.com', 'chat.openai.com'], utmSources: ['chatgpt.com', 'chat.openai.com'] },
+  { key: 'perplexity', label: 'Perplexity', hosts: ['perplexity.ai'], utmSources: ['perplexity.ai'] },
+  { key: 'claude', label: 'Claude', hosts: ['claude.ai'], utmSources: ['claude.ai'] },
+  { key: 'gemini', label: 'Gemini', hosts: ['gemini.google.com', 'bard.google.com'], utmSources: ['gemini.google.com'] },
   {
     key: 'bing-copilot',
     label: 'Bing Copilot',
     hosts: ['copilot.microsoft.com', 'bing.com'],
     // copilot.microsoft.com her yolda; bing.com yalniz Copilot / sohbet sayfasinda (normal Bing aramasi AI degil)
     pathPattern: /copilot|^\/chat\b/i,
-    utmSources: ['copilot.microsoft.com', 'copilot.com', 'copilot', 'bing-copilot'],
+    utmSources: ['copilot.microsoft.com', 'copilot.com'],
   },
   { key: 'you', label: 'You.com', hosts: ['you.com'], utmSources: ['you.com'] },
-  { key: 'phind', label: 'Phind', hosts: ['phind.com'], utmSources: ['phind.com', 'phind'] },
-  { key: 'poe', label: 'Poe', hosts: ['poe.com'], utmSources: ['poe.com', 'poe'] },
+  { key: 'phind', label: 'Phind', hosts: ['phind.com'], utmSources: ['phind.com'] },
+  { key: 'poe', label: 'Poe', hosts: ['poe.com'], utmSources: ['poe.com'] },
 ];
 
 /** Yalniz bu host icin pathPattern gecerli (copilot.microsoft.com her yolda sayilir) */

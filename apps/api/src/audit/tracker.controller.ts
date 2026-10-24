@@ -110,6 +110,16 @@ export function buildTrackerJs(siteId: string, apiBase: string): string {
   // Bot zaten gelmiş ya da AI'den yönlendirilmis kullanici — track et
   if (!isBot && !isAiReferrer) return;
 
+  // Ayni sekme oturumunda AI ziyareti BIR KEZ sayilir: utm etiketli inis sayfasi yenilenince
+  // ya da geri donulunce yeniden sayilmasin. Depolama yoksa ya da firlatirsa (gizli mod,
+  // engelli cerez) yine sayilir — eksik saymaktansa nadir cift sayim.
+  if (!isBot) {
+    try {
+      if (sessionStorage.getItem('ranksup_ai_visit')) return;
+      sessionStorage.setItem('ranksup_ai_visit', '1');
+    } catch (e) {}
+  }
+
   var img = new Image(1, 1);
   img.src = ${JSON.stringify(beaconBase)} +
     '&url=' + encodeURIComponent(location.href) +
