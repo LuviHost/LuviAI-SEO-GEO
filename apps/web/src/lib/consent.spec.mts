@@ -15,6 +15,7 @@ import {
   CONSENT_REOPEN_EVENT,
   CONSENT_STORAGE_KEY,
   CONSENT_VERSION,
+  GA_SCRIPT_ID,
   GTM_SCRIPT_ID,
   announceConsentChange,
   clearTrackingCookies,
@@ -33,6 +34,7 @@ import {
   trackersPresent,
   trackingCookieNames,
   validClarityId,
+  validGaId,
   validGtmId,
   writeConsent,
   type ConsentPageEnv,
@@ -173,8 +175,8 @@ describe('karar tablosu: depodaki kayit -> sayfa acilisinda yuklenen etiketler',
       }
     }
     const env = fakeEnv();
-    expect(loadTrackers(env, 'denied', IDS)).toEqual({ gtm: false, clarity: false });
-    expect(loadTrackers(env, 'unset', IDS)).toEqual({ gtm: false, clarity: false });
+    expect(loadTrackers(env, 'denied', IDS)).toEqual({ gtm: false, clarity: false, ga: false });
+    expect(loadTrackers(env, 'unset', IDS)).toEqual({ gtm: false, clarity: false, ga: false });
     expect(env.scripts.size).toBe(0);
     expect(env.win.dataLayer).toBeUndefined();
     expect(env.win.clarity).toBeUndefined();
@@ -266,7 +268,7 @@ describe('loadTrackers — Google temel kip sirasi ve Clarity onayi', () => {
       sira.push(`${id}@${env.win.dataLayer?.length ?? 0}`);
       env.scripts.set(id, src);
     };
-    expect(loadTrackers(env, 'granted', IDS)).toEqual({ gtm: true, clarity: true });
+    expect(loadTrackers(env, 'granted', IDS)).toEqual({ gtm: true, clarity: true, ga: false });
 
     const dl = env.win.dataLayer!;
     expect(dl).toHaveLength(3);
@@ -288,20 +290,20 @@ describe('loadTrackers — Google temel kip sirasi ve Clarity onayi', () => {
 
   it('bicim disi kimlik yuklenmez; bos kimlik o araci kapatir', () => {
     const env = fakeEnv();
-    expect(loadTrackers(env, 'granted', { gtmId: "GTM-X'+alert(1)+'", clarityId: '' })).toEqual({ gtm: false, clarity: false });
+    expect(loadTrackers(env, 'granted', { gtmId: "GTM-X'+alert(1)+'", clarityId: '' })).toEqual({ gtm: false, clarity: false, ga: false });
     expect(env.scripts.size).toBe(0);
     expect(env.win.dataLayer).toBeUndefined();
     expect(env.win.clarity).toBeUndefined();
 
     const yalnizClarity = fakeEnv();
-    expect(loadTrackers(yalnizClarity, 'granted', { gtmId: '', clarityId: IDS.clarityId })).toEqual({ gtm: false, clarity: true });
+    expect(loadTrackers(yalnizClarity, 'granted', { gtmId: '', clarityId: IDS.clarityId })).toEqual({ gtm: false, clarity: true, ga: false });
     expect(yalnizClarity.win.dataLayer).toBeUndefined();
   });
 
   it('ikinci cagri betigi yeniden eklemez, gtm.js olayini tekrarlamaz; yalniz onayi yeniden bildirir', () => {
     const env = fakeEnv();
     loadTrackers(env, 'granted', IDS);
-    expect(loadTrackers(env, 'granted', IDS)).toEqual({ gtm: false, clarity: false });
+    expect(loadTrackers(env, 'granted', IDS)).toEqual({ gtm: false, clarity: false, ga: false });
     expect(env.scripts.size).toBe(2);
     const dl = env.win.dataLayer!;
     expect(dl.filter((e) => (e as { event?: string })?.event === 'gtm.js')).toHaveLength(1);
@@ -516,6 +518,156 @@ describe('olaylar', () => {
   });
 });
 
+describe('GA4 (gtag.js) — yalniz onayla, tek kez, GTM ile ayni dataLayer', () => {
+  const GA = 'G-Y5W4W5EHE7';
+  const GA_URL = 'https://www.googletagmanager.com/gtag/js?id=G-Y5W4W5EHE7';
+  const IDS_GA = { ...IDS, gaId: GA };
+  const cmds = (env: FakeEnv) => env.win.dataLayer!.map((e) => (isArguments(e) ? argsOf(e) : e));
+  type PageEnv = FakeEnv & ConsentPageEnv;
+  const page = (opts: { cookies?: string; hostname?: string } = {}) => {
+    let reloads = 0;
+    const env: PageEnv = Object.assign(fakeEnv(opts), {
+      reload: () => {
+        reloads++;
+      },
+    });
+    return { env, c: createConsentController(env), reloads: () => reloads };
+  };
+
+  it('kimlik bicimi: G- + buyuk harf/rakam; bicim disi ve enjeksiyon reddedilir', () => {
+    expect(validGaId(GA)).toBe(GA);
+    expect(validGaId('G-ABCD')).toBe('G-ABCD');
+    for (const bad of [undefined, null, '', 'G-', 'G-ABC', 'g-y5w4w5ehe7', 'G-y5w4w5ehe7', 'UA-12345-1', 'GTM-TSH8KWCC', ' G-Y5W4W5EHE7', 'G-Y5W4W5EHE7 ', "G-ABCD'+alert(1)+'", 'G-ABCD&l=x', 'G-ABCD"></script>']) {
+      expect(validGaId(bad), String(bad)).toBeNull();
+    }
+  });
+
+  it('kabul: consent varsayilan/update bir kez, sonra gtm.js, sonra js + config; gtag.js en son eklenir', () => {
+    const env = fakeEnv();
+    const sira: string[] = [];
+    env.addScript = (id, src) => {
+      sira.push(`${id}@${env.win.dataLayer?.length ?? 0}`);
+      env.scripts.set(id, src);
+    };
+    expect(loadTrackers(env, 'granted', IDS_GA)).toEqual({ gtm: true, clarity: true, ga: true });
+    const dl = env.win.dataLayer!;
+    expect(dl).toHaveLength(5);
+    expect(argsOf(dl[0])).toEqual(['consent', 'default', DENIED]);
+    expect(argsOf(dl[1])).toEqual(['consent', 'update', GRANTED]);
+    expect(dl[2]).toEqual({ 'gtm.start': NOW, event: 'gtm.js' });
+    // Google kalibi: arguments nesnesi, js'e Date, config'e kimlik
+    expect(isArguments(dl[3])).toBe(true);
+    const js = argsOf(dl[3]);
+    expect(js[0]).toBe('js');
+    expect(js[1]).toBeInstanceOf(Date);
+    expect((js[1] as Date).getTime()).toBe(NOW);
+    expect(isArguments(dl[4])).toBe(true);
+    expect(argsOf(dl[4])).toEqual(['config', GA]);
+    expect(env.scripts.get(GA_SCRIPT_ID)).toBe(GA_URL);
+    expect(sira).toEqual([`${GTM_SCRIPT_ID}@3`, `${GA_SCRIPT_ID}@5`, `${CLARITY_SCRIPT_ID}@5`]);
+    // window.gtag tanimlanir (sign_up olayi bunu kullanir) ve ayni dataLayer'a iter
+    expect(typeof env.win.gtag).toBe('function');
+    env.win.gtag!('event', 'x');
+    expect(argsOf(dl[5])).toEqual(['event', 'x']);
+  });
+
+  it('yalniz GA4 (GTM kapali): consent sirasi yine once, gtag.js en son', () => {
+    const env = fakeEnv();
+    expect(loadTrackers(env, 'granted', { gtmId: '', clarityId: '', gaId: GA })).toEqual({ gtm: false, clarity: false, ga: true });
+    expect(cmds(env)).toEqual([
+      ['consent', 'default', DENIED],
+      ['consent', 'update', GRANTED],
+      ['js', new Date(NOW)],
+      ['config', GA],
+    ]);
+    expect([...env.scripts.keys()]).toEqual([GA_SCRIPT_ID]);
+    expect(trackersPresent(env)).toBe(true);
+  });
+
+  it('ret ve secim yok: hicbir tetikleyicide gtag.js eklenmez, gtag/dataLayer olusmaz', () => {
+    for (const state of ['denied', 'unset'] as ConsentState[]) {
+      for (const trigger of ['load', 'choice', 'sync'] as ConsentTrigger[]) {
+        const t = page();
+        t.c.apply(state, trigger, IDS_GA);
+        expect(t.env.scripts.size, `${state}/${trigger}`).toBe(0);
+        expect(t.env.win.dataLayer).toBeUndefined();
+        expect(t.env.win.gtag).toBeUndefined();
+      }
+    }
+    const env = fakeEnv();
+    expect(loadTrackers(env, 'denied', IDS_GA)).toEqual({ gtm: false, clarity: false, ga: false });
+  });
+
+  it('bicim disi kimlik yok sayilir: gtag.js eklenmez, GTM etkilenmez', () => {
+    for (const bad of ['', 'G-abc', "G-ABCD'+alert(1)+'", 'UA-1-1']) {
+      const env = fakeEnv();
+      expect(loadTrackers(env, 'granted', { gtmId: IDS.gtmId, gaId: bad }), bad).toEqual({ gtm: true, clarity: false, ga: false });
+      expect(env.scripts.has(GA_SCRIPT_ID)).toBe(false);
+      expect(cmds(env).some((c) => Array.isArray(c) && (c[0] === 'config' || c[0] === 'js'))).toBe(false);
+    }
+    const yok = fakeEnv();
+    expect(loadTrackers(yok, 'granted', { gaId: 'G-x' })).toEqual({ gtm: false, clarity: false, ga: false });
+    expect(yok.win.dataLayer).toBeUndefined();
+    expect(yok.win.gtag).toBeUndefined();
+  });
+
+  it('tekrar yok: ikinci yukleme gtag.js/js/config/consent varsayilanini tekrarlamaz; yalniz onayi yeniden bildirir', () => {
+    const t = page();
+    t.c.apply('granted', 'load', IDS_GA);
+    t.c.apply('granted', 'sync', IDS_GA);
+    t.c.apply('granted', 'choice', IDS_GA);
+    const c = cmds(t.env);
+    const say = (ad: string) => c.filter((x) => Array.isArray(x) && x[0] === ad).length;
+    expect(say('config')).toBe(1);
+    expect(say('js')).toBe(1);
+    expect(c.filter((x) => Array.isArray(x) && x[1] === 'default')).toHaveLength(1);
+    expect(c[c.length - 1]).toEqual(['consent', 'update', GRANTED]);
+    expect(t.env.scripts.size).toBe(3);
+  });
+
+  it('sayfada zaten gtag ve dataLayer varsa yeniden tanimlanmaz; ayni dizi ve mevcut kayitlar korunur', () => {
+    const env = fakeEnv();
+    const onceki = { event: 'onceki' };
+    const dl: unknown[] = [onceki];
+    const cagrilar: unknown[][] = [];
+    const mevcut = function gtag(...a: unknown[]) {
+      cagrilar.push(a);
+      dl.push(a);
+    };
+    env.win.dataLayer = dl;
+    env.win.gtag = mevcut;
+    loadTrackers(env, 'granted', IDS_GA);
+    expect(env.win.gtag).toBe(mevcut);
+    expect(env.win.dataLayer).toBe(dl);
+    expect(dl[0]).toBe(onceki);
+    expect(cagrilar.map((a) => a[0])).toEqual(['consent', 'consent', 'js', 'config']);
+  });
+
+  it('geri alma: _ga ve _ga_<kimlik> ust alanda ve alt alanda silinir, sayfa yenilenir', () => {
+    const t = page({ hostname: 'www.ranksup.ai', cookies: '_ga=GA1.1.1.1; _ga_Y5W4W5EHE7=GS2.1.s1; luvi_ref=ortak' });
+    t.c.apply('granted', 'load', { gaId: GA });
+    expect(t.env.scripts.has(GA_SCRIPT_ID)).toBe(true);
+    expect(t.env.written).toEqual([]);
+    const plan = t.c.apply('denied', 'choice', { gaId: GA });
+    expect(plan).toMatchObject({ revokeTrackers: true, clearCookies: true, reload: true });
+    expect(t.reloads()).toBe(1);
+    expect(cmds(t.env).at(-1)).toEqual(['consent', 'update', DENIED]);
+    for (const ad of ['_ga', '_ga_Y5W4W5EHE7']) {
+      expect(t.env.written).toContain(`${ad}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/`);
+      expect(t.env.written).toContain(`${ad}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.www.ranksup.ai`);
+      expect(t.env.written).toContain(`${ad}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.ranksup.ai`);
+    }
+    expect(t.env.written.some((w) => w.startsWith('luvi_ref='))).toBe(false);
+  });
+
+  it('baska sekmede geri alma: yalniz GA4 yuklu sekme de yenilenir', () => {
+    const t = page({ cookies: '_ga=1' });
+    t.c.apply('granted', 'load', { gaId: GA });
+    t.c.apply('denied', 'sync', { gaId: GA });
+    expect(t.reloads()).toBe(1);
+  });
+});
+
 // --- Kaynak metin denetimi: onaysiz yukleme ve yanlis gizlilik iddiasi geri gelmesin ---
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
@@ -531,7 +683,9 @@ describe('kaynak: kok layout, bant ve gizlilik metni', () => {
   it('kok layout GTM ve Clarity\'yi kendisi yuklemez (noscript iframe dahil); kimlikleri banda verir; AI sayaci kalir', () => {
     const lay = stripComments(read('../app/layout.tsx'));
     expect(lay).not.toMatch(/googletagmanager\.com|clarity\.ms|ns\.html|<noscript/);
-    expect(lay).toContain('<CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} />');
+    expect(lay).toContain('<CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} gaId={GA_MEASUREMENT_ID} />');
+    expect(lay).toContain("const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-Y5W4W5EHE7';");
+    expect(lay).toContain('<SignupEvent />');
     expect(lay).toContain('/api/tracker.js?site=');
   });
 
@@ -551,7 +705,7 @@ describe('kaynak: kok layout, bant ve gizlilik metni', () => {
   it('bant bileşeni kararı denetleyiciyle uygular: storage ve bfcache dönüşü "sync", form yazımı ve sayfa geçişi bildirilir (rv18 C1)', () => {
     const cc = stripComments(read('../components/cookie-consent.tsx'));
     expect(cc).toContain('createConsentController(browserPageEnv())');
-    expect(cc).toContain('controller().apply(next, trigger, { gtmId, clarityId })');
+    expect(cc).toContain('controller().apply(next, trigger, { gtmId, clarityId, gaId })');
     // Yenileme yalniz denetleyicinin ortamindan (planla); bilesen kendi basina yenilemez
     expect(cc).not.toContain('location.reload');
     // Baska sekmedeki karar
