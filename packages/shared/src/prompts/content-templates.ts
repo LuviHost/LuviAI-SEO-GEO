@@ -113,6 +113,7 @@ const COMPARISON_RE: RegExp[] = [
   /(^|\s)(vs\.?|versus)(\s|$)/,
   /\b(mi|mu) yoksa\b/,
   /\bkarsilastirma(si|lari)?\b|\bkiyaslama(si)?\b|\bcomparison\b|\bcompared to\b/,
+  /\bwhich (one )?is better\b.*\bor\b/,
   /\barasindaki fark(lar)?(i)?\b/,
 ];
 /** "A ile B farkı", "brüt ve net maaş farkı": iki seçenek bağlacı + fark */
@@ -153,9 +154,18 @@ const ALTERNATIVES_RE = /\S\s+alternatif(i|leri|lerine|lerini|leri nelerdir)\b|\
 const PRICE_WORD_RE = /\bfiyat(i|lari|listesi)\b|\bucret(i|leri)\b|\bprices?\b/;
 const PLAN_CONTEXT_RE = /\b(plan(i|lari)?|paket(i|leri)?|abonelik|uyelik|lisans|program(i|lari)?|yazilim(i|lari)?|uygulama(si|lari)?|platform(u|lari)?|hosting|sunucu|vps|domain|crm|erp|saas|eklenti(si|leri)?|tema(si|lari)?|software|app|tool)\b/;
 const WHY_RE = /\b(neden|nicin|niye|why)\b/;
-function isPricingTitle(t: string): boolean {
+/** Bilinen abonelik ürünleri: "Notion fiyatları", "Google Workspace ücretleri" (belirsiz adlar — Logo, Paraşüt — bilerek yok) */
+const KNOWN_SAAS_RE = /\b(notion|google workspace|slack|shopify|wix|webflow|squarespace|canva|hubspot|mailchimp|zoom|trello|asana|figma|chatgpt|microsoft 365|office 365|semrush|ahrefs|ikas|ticimax|ideasoft|jira|clickup|airtable|zapier|dropbox|github)\b/;
+/** Genel fiyatlandırma konusu, bir ürünün planları değil: "pricing strategies", "SaaS pricing models" */
+const PRICING_TOPIC_RE = /\bpricing (strateg|model|psycholog|tips|tactic|framework)/;
+/** "Webflow pricing": özel ad + pricing (orijinal başlıkta büyük harfle) */
+const NAMED_PRICING_RE = /(^|\s)(?!SaaS\b|B2B\b|B2C\b)\p{Lu}[\p{L}\d.]*\s+pricing\b/u;
+function isPricingTitle(t: string, original: string): boolean {
   if (WHY_RE.test(t)) return false;
-  if (/\bpricing\b|\bplans? (and|&) pric/.test(t)) return true;
+  if (PRICING_TOPIC_RE.test(t)) return false;
+  if (/\bpricing (page|plans?)\b|\bplans? (and|&) pric/.test(t)) return true;
+  if (/\bpricing\b/.test(t)) return NAMED_PRICING_RE.test(original);
+  if (KNOWN_SAAS_RE.test(t) && PRICE_WORD_RE.test(t)) return true;
   // "Notion fiyatlandırması" (X'in fiyatlandırması); yalın "fiyatlandırma stratejisi" değil
   if (/\bfiyatlandirmasi\b/.test(t)) return true;
   return PRICE_WORD_RE.test(t) && PLAN_CONTEXT_RE.test(t);
@@ -197,10 +207,14 @@ export function classifyTopicTitle(title: unknown): ContentType | null {
   if (!TERM_FARK_RE.test(t) && PAIR_FARK_RE.test(t)) return 'comparison';
   if (isTwoOptionQuestion(t)) return 'comparison';
   if (ALTERNATIVES_RE.test(t)) return 'alternatives';
-  if (isPricingTitle(t)) return 'pricing';
-  if (BEST_FOR_RE.test(t)) return 'best_for';
-  if (HOWTO_PHRASE_RE.test(t) || HOWTO_VERB_RE.test(t)) return 'howto';
-  if (LISTICLE_RE.test(t)) return 'listicle';
+  const isHowto = HOWTO_PHRASE_RE.test(t) || HOWTO_VERB_RE.test(t);
+  // "ücretleri nasıl iade edilir": iş tarif eden yüklem fiyat sözcüğünden önce gelir
+  if (!isHowto && isPricingTitle(t, title)) return 'pricing';
+  const isListicle = LISTICLE_RE.test(t);
+  // "Top 10 SEO mistakes" liste; "Top 5 hosting providers" en iyi seçenekler
+  if (BEST_FOR_RE.test(t) && !(/\btop \d{1,2}\b/.test(t) && !/\b(en iyi|en uygun|best)\b/.test(t) && isListicle)) return 'best_for';
+  if (isHowto) return 'howto';
+  if (isListicle) return 'listicle';
   return null;
 }
 

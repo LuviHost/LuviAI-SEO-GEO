@@ -94,3 +94,69 @@ describe('classifyTopicTitle — 68 basliklik gercekci derlem', () => {
     expect(classifyTopicTitle(title) ?? 'guide').toBe(expected);
   });
 });
+
+/**
+ * Dogrulama incelemesinin ek 50 baslik yoklamasi: evet/hayir sorulari, "nasil
+ * etkiler", sifat "alternatif", genel fiyatlandirma konulari ("Pricing strategies
+ * for SaaS"), "Top 10 SEO mistakes" (liste), fiyat sozcugu + is tarif eden yuklem
+ * ("ücretleri nasıl iade edilir" → howto), bilinen abonelik urunleri.
+ */
+const PROBES: Array<[string, string]> = [
+  ['Kredi kartı aidatı iade edilir mi?', 'guide'],
+  ['E-fatura zorunlu mu?', 'guide'],
+  ['Vergi borcu silinir mi?', 'guide'],
+  ['Bitcoin almak mantıklı mı?', 'guide'],
+  ['Kira gelir vergisi beyannamesi verilir mi?', 'guide'],
+  ['Asgari ücret artışı enflasyonu nasıl etkiler?', 'guide'],
+  ['Kur artışı ihracatçıyı nasıl etkiler', 'guide'],
+  ['Alternatif enerji kaynakları nelerdir', 'guide'],
+  ['Alternatif yatırım araçları', 'guide'],
+  ['Hosting fiyatları neden arttı?', 'guide'],
+  ['WordPress eklenti fiyatları neden yüksek', 'guide'],
+  ['Noter ücretleri 2026', 'guide'],
+  ['Avukatlık ücretleri ne kadar', 'guide'],
+  ['Shopify fiyatları ve planları', 'pricing'],
+  ['VPS fiyatları', 'pricing'],
+  ['Notion fiyatları ne kadar?', 'pricing'],
+  ['Google Workspace ücretleri', 'pricing'],
+  ['Notion vs Obsidian', 'comparison'],
+  ['ChatGPT vs Gemini: hangisi daha iyi?', 'comparison'],
+  ['iPhone mu Samsung mu?', 'comparison'],
+  ['Kredi kartı mı banka kartı mı daha avantajlı?', 'comparison'],
+  ['Ev almak mantıklı mı yoksa kirada oturmak mı?', 'comparison'],
+  ['SEO mu Google Ads mi?', 'comparison'],
+  ['Faiz ve kâr payı farkı', 'comparison'],
+  ['Yaş farkı olan çiftler', 'guide'],
+  ['Which is better, Shopify or Wix?', 'comparison'],
+  ['Best CRM for small business', 'best_for'],
+  ['How to set up a VPS', 'howto'],
+  ['Shopify alternatives', 'alternatives'],
+  ['Alternatives to Mailchimp', 'alternatives'],
+  ["Zoom'un en iyi alternatifleri", 'alternatives'],
+  ['Pricing strategies for SaaS', 'guide'],
+  ['SaaS pricing models explained', 'guide'],
+  ['Top 10 SEO mistakes', 'listicle'],
+  ['En çok yapılan 5 SEO hatası', 'listicle'],
+  ["2026'da öne çıkan 10 SEO trendi", 'listicle'],
+  ['E-ticaret sitesi kurmanın 5 yolu', 'listicle'],
+  ['SEO nasıl öğrenilir', 'howto'],
+  ['Sigorta poliçesi nasıl iptal edilir', 'howto'],
+  ['Vergi dairesine nasıl başvurulur', 'howto'],
+  ['Is web hosting worth it?', 'guide'],
+  ['How much does a website cost', 'guide'],
+  ['Wix vs Squarespace pricing', 'comparison'],
+  ['Hangi muhasebe programı daha iyi?', 'guide'],
+  ['Kripto para nasıl çalışır?', 'guide'],
+  ['Kredi notu neden düşer, nasıl yükselir?', 'howto'],
+  ['Mobil uygulama ücretleri', 'pricing'],
+  ['Uygulama içi satın alma ücretleri nasıl iade edilir', 'howto'],
+  ['Banka hesap işletim ücreti iadesi nasıl alınır', 'howto'],
+  ['En iyi kredi kartı hangisi?', 'best_for'],
+];
+
+describe('classifyTopicTitle — inceleme yoklamasi (50 baslik)', () => {
+  it('yoklama 50 baslik', () => expect(PROBES).toHaveLength(50));
+  it.each(PROBES)('%s → %s', (title, expected) => {
+    expect(classifyTopicTitle(title) ?? 'guide').toBe(expected);
+  });
+});

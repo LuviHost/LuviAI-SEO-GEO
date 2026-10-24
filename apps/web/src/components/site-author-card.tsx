@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/ui/async-state';
 
 /**
  * Sitenin gercek yazari (E-E-A-T). Kayit varsa yeni makalelerin JSON-LD author'u
@@ -22,19 +23,24 @@ export function SiteAuthorCard({ siteId }: { siteId: string }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<SiteAuthor | null>(null);
   const [form, setForm] = useState<SiteAuthorForm>(EMPTY_AUTHOR_FORM);
+  // Okuma hatasi bos form gibi gosterilmez: kayitli yazar varken "kurum adi" sanilip uzerine yazilmasin
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    setLoading(true);
+    setLoadError(null);
     api.getSiteAuthor(siteId)
       .then((r) => {
         if (!alive) return;
         setSaved(r?.author ?? null);
         setForm(authorToForm(r?.author));
       })
-      .catch(() => undefined)
-      .finally(() => alive && setLoading(false));
+      .catch((err) => { if (alive) setLoadError(err); })
+      .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [siteId]);
+  }, [siteId, reloadKey]);
 
   const set = (k: keyof SiteAuthorForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -83,8 +89,8 @@ export function SiteAuthorCard({ siteId }: { siteId: string }) {
               </p>
             </div>
           </div>
-          {!loading && (
-            <Badge variant={saved ? ('success' as any) : ('outline' as any)}>
+          {!loading && !loadError && (
+            <Badge variant={saved ? 'success' : 'outline'}>
               {saved ? 'Tanımlı' : 'Kurum adı kullanılıyor'}
             </Badge>
           )}
@@ -93,6 +99,8 @@ export function SiteAuthorCard({ siteId }: { siteId: string }) {
       <CardContent>
         {loading ? (
           <Skeleton className="h-24 w-full" />
+        ) : loadError ? (
+          <ErrorState error={loadError} onRetry={() => setReloadKey((k) => k + 1)} />
         ) : (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">

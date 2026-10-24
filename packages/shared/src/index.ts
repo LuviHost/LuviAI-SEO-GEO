@@ -13,6 +13,8 @@ export {
   resolveContentType,
   contentTemplateBlock,
   withContentTemplate,
+  isProductFactType,
+  isAuthoritativeSource,
 } from './prompts/content-templates.js';
 export type {
   ContentType,

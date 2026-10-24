@@ -148,13 +148,26 @@ const MONEY_RE = /\d[\d.,]*\s?(TL|₺|lira|USD|\$|EUR|€|dolar|avro)\b/i;
  * ("₺ 2012'de") tutar sayılmaz.
  */
 const PRICE_SUFFIX_RE = /\d[\d.,]*\s?(TL|₺|lira|USD|\$|EUR|€|dolar|avro)(?![\p{L}\p{N}_$])/iu;
-const PRICE_PREFIX_RE = /(?<![\p{L}\p{N}_$=\\{(])(₺|\$|€)\s?(?!(19|20)\d{2}\b)\d[\d.,]*(?![\p{L}\p{N}$}\]])/u;
+// "(" kasitli olarak engel degil: "Trello Standard ($5/ay)", "(₺199/ay)" tutardir; "$(document)" zaten rakam istemez.
+const PRICE_PREFIX_RE = /(?<![\p{L}\p{N}_$=\\{])(₺|\$|€)\s?(?!(19|20)\d{2}\b)(\d[\d.,]*)(?![\p{L}\p{N}$}\]])/gu;
+/**
+ * Kabuk konumsal argumani: "$1 ilk argümandır", "$2 ikinci parametre". Tek haneli
+ * "$N" ardindan argüman sözcüğü gelirse tutar degildir.
+ */
+const SHELL_ARG_AFTER_RE = /^\s+(ilk|ikinci|üçüncü|dördüncü|son|sonraki|argüman|argumani|parametre|değişken|değişkeni|is the|refers|holds)/iu;
 /** Kabuk / sunucu yapılandırması / kod gibi görünen satır — fiyat taramasına girmez */
 const CODE_LIKE_RE = /[{};^]|=\s?\$|\b(echo|awk|sed|grep|sudo|printf|export|RewriteRule|RewriteCond|SetEnv)\b/;
 /** Satır içi kod (`...`) taramadan önce atılır */
 const INLINE_CODE_RE = /`[^`\n]*`/g;
-/** İçinde 2+ "$" geçen kelime (bcrypt/şifre özeti "$2y$10$...") tutar değildir; taramadan önce atılır */
+/**
+ * İçinde 2+ "$" geçen kelime (bcrypt/şifre özeti "$2y$10$...", "$PATH:$HOME") tutar değildir;
+ * taramadan önce atılır. Fiyat aralığı ("$10-$20", "$10–$20", "$0,30/$0,50") istisnadır.
+ */
 const HASH_TOKEN_RE = /\S*\$\S*\$\S*/g;
+const PRICE_RANGE_TOKEN_RE = /^[([]?\$\d[\d.,]*(\s?[-–/]\s?\$\d[\d.,]*)+[)\].,;:!?]*$/;
+function stripHashTokens(text: string): string {
+  return text.replace(HASH_TOKEN_RE, (tok) => (PRICE_RANGE_TOKEN_RE.test(tok) ? tok : ' '));
+}
 const UNIT_RE = /\d[\d.,]*\s?(baz puan|puan|kat)\b/i;
 const FINANCE_WORD_RE =
   /(faiz|oran(ı|i|lar)?|vergi|stopaj|komisyon|kdv|prim|ceza|limit|tutar|tarife|iskonto|vade|taksit|kâr|kar\s?marj)/i;
@@ -283,7 +296,14 @@ function isNumericClaim(line: string): boolean {
 /** Eski kalıbın kaçırdığı kaynaksız fiyat (yalnız yeni yakalama) */
 function isNewPriceClaim(line: string): boolean {
   if (CODE_LIKE_RE.test(line)) return false;
-  return PRICE_SUFFIX_RE.test(line) || PRICE_PREFIX_RE.test(line);
+  if (PRICE_SUFFIX_RE.test(line)) return true;
+  for (const m of line.matchAll(PRICE_PREFIX_RE)) {
+    const digits = m[3];
+    const after = line.slice((m.index ?? 0) + m[0].length);
+    if (m[1] === '$' && /^\d$/.test(digits) && SHELL_ARG_AFTER_RE.test(after)) continue;
+    return true;
+  }
+  return false;
 }
 
 function hasSource(text: string): boolean {
@@ -297,8 +317,11 @@ function hasSource(text: string): boolean {
  * hemen ardından gelen kısa "Kaynak/dipnot" bloğu. Başlık satırları taranmaz.
  */
 function findUnsourcedClaims(body: string, limit: number): { legacy: string[]; price: string[] } {
-  // Yalniz yanlis pozitif azaltir: kod ve ozet dizgileri eskiden de tutar sayilmamaliydi
-  const blocks = body.replace(INLINE_CODE_RE, ' ').replace(HASH_TOKEN_RE, ' ').split(/\n\s*\n/);
+  // Kaynak kontrolu ORIJINAL blokta yapilir (backtick icindeki ya da "$" iceren
+  // kaynak adresi silinmesin). Kod / ozet dizgisi yalniz IDDIA taranirken atilir;
+  // degistirmeler satir sonu silmez, bloklar ve satirlar 1:1 eslesir.
+  const blocks = body.split(/\n\s*\n/);
+  const scanBlocks = stripHashTokens(body.replace(INLINE_CODE_RE, ' ')).split(/\n\s*\n/);
   const hits: string[] = [];
   const price: string[] = [];
   const clip = (line: string) => (line.length > 160 ? `${line.slice(0, 157)}...` : line);
@@ -315,16 +338,21 @@ function findUnsourcedClaims(body: string, limit: number): { legacy: string[]; p
 
     let priceHit: string | null = null;
     let legacyHit = false;
-    for (const rawLine of block.split('\n')) {
-      const line = rawLine.trim();
+    const rawLines = block.split('\n');
+    const scanLines = (scanBlocks[i] ?? block).split('\n');
+    for (let j = 0; j < rawLines.length; j++) {
+      const line = rawLines[j].trim();
+      const scan = (scanLines[j] ?? rawLines[j]).trim();
       if (!line || line.startsWith('#')) continue;
       if (/^\|?[\s:|-]+\|?$/.test(line)) continue; // tablo separator
-      if (isNumericClaim(line)) {
+      // Eski kalip: orijinal satir eskisi gibi eslesmeli VE kod atildiktan sonra da
+      // eslesmeli. Boylece eski yakalamalarin alt kumesi kalir (atma yeni eslesme yaratamaz).
+      if (isNumericClaim(line) && isNumericClaim(scan)) {
         legacyHit = true;
-        if (hits.length < limit) hits.push(clip(line));
+        if (hits.length < limit) hits.push(clip(line)); // ornek: orijinal satir
         break; // blok başına tek örnek yeter
       }
-      if (!priceHit && isNewPriceClaim(line)) priceHit = line;
+      if (!priceHit && isNewPriceClaim(scan)) priceHit = line;
     }
     // Eski kalıbın yakaladığı blokta yeni yakalama tekrar sayılmaz
     if (!legacyHit && priceHit && price.length < limit) price.push(clip(priceHit));
