@@ -91,6 +91,15 @@ describe('runAudit — AI adimi atlandiginda', () => {
     expect(dusuk.description).toContain('20/100');
   });
 
+  it('alintilanan kaynak listeleri audit\'e yazilmaz; probe\'un geri kalani ve surum damgasi kalir', async () => {
+    const probe = { query: 'q', cited: true, brandMentioned: true, excerpt: 'x', sourcesVersion: 1, sources: [{ url: 'https://reddit.com/r/a/', domain: 'reddit.com' }] };
+    const t = servis(async () => [{ provider: 'openai', label: 'OpenAI ChatGPT', available: true, score: 100, probes: [probe] }]);
+    await t.svc.runAudit('s1');
+    const saved = t.kaydedilen().checks.aiCitations.providers[0].probes[0];
+    expect(saved).toEqual({ query: 'q', cited: true, brandMentioned: true, excerpt: 'x', sourcesVersion: 1 });
+    expect(probe.sources).toHaveLength(1); // bellekteki sonuc degismez
+  });
+
   it('GEO sonucu yontem surumuyle birlikte kaydedilir (checks.geo.details.methodVersion)', async () => {
     const t = servis(async () => []);
     await t.svc.runAudit('s1');

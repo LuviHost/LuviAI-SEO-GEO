@@ -19,6 +19,7 @@ import { SITE_NOT_FOUND_MESSAGE } from '../auth/site-access.guard.js';
 import { isCanonicalSiteId } from '../common/site-id.js';
 import { withAllowanceCharge } from '../articles/article-scheduler.service.js';
 import { settleUnstartedGeneration } from '../articles/allowance-refund.js';
+import { providersWithoutSources } from '../audit/citation-sources.js';
 
 /**
  * RanksUp Tool Registry — MCP server VE uygulama ici Chat'in ORTAK tool seti.
@@ -569,7 +570,9 @@ export class McpToolsService {
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           // Haftalik AI olcum hakki — panel uclariyla ayni kural (measurement-allowance.ts)
-          return this.measurement.run(user, () => this.promptLab.runPrompt(site.id, String(args.prompt_id), {}));
+          const out = await this.measurement.run(user, () => this.promptLab.runPrompt(site.id, String(args.prompt_id), {}));
+          // Alintilanan kaynak listeleri ajan baglamina girmez (citation-sources.ts providersWithoutSources)
+          return { ...out, providers: providersWithoutSources(out.providers) };
         },
       },
       {

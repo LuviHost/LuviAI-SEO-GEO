@@ -15,6 +15,7 @@ import { annotateAuditFixRoutes, withFixRoutes } from './fix-routes.js';
 import { ImageInventoryService } from './image-alt/image-inventory.service.js';
 import { recordSiteNapFromCrawl } from './site-nap.js';
 import { CITATION_MATCH_VERSION } from './host-match.js';
+import { providersWithoutSources } from './citation-sources.js';
 
 /**
  * Taramayi kim baslatti.
@@ -1024,7 +1025,9 @@ export class AuditService {
             // null = olculmedi, nedeni skipped'ta. Eskiden `?? 0` yaziliyordu:
             // panel 0/100, karsilastirma sahte dusus gosteriyordu.
             score: aiCitationAvg,
-            providers: citationResults,
+            // Alintilanan kaynak listeleri audit'e yazilmaz (citation-sources.ts
+            // providersWithoutSources): rapor snapshot + GeoPromptRun okur
+            providers: providersWithoutSources(citationResults),
             ...(aiSkip ? { skipped: aiSkip } : {}),
             ranAt: new Date().toISOString(),
             // Olcum yontemi surumu (host-match.ts CITATION_MATCH_VERSION). Eskiden

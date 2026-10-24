@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CITATION_MATCH_VERSION } from '../audit/host-match.js';
+import { sourceColumns } from '../audit/citation-sources.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
 import { isUnconfiguredProvider } from '../audit/citation-providers.js';
 import { containsBrand } from '../audit/brand-in-query.js';
@@ -220,13 +221,23 @@ export class AsoPromptLabService {
         sentiment: probe.sentiment ?? null,
         excerpt: probe.excerpt?.slice(0, 2000) ?? null,
         competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
+        // Alintilanan dis kaynaklar (GEO Faz 2) — bkz. audit/citation-sources.ts
+        ...sourceColumns(probe),
         // Magaza linki artik tam metinden (appStoreRefs) — olcum surumu 2
         matchVersion: CITATION_MATCH_VERSION,
       });
     }
 
     if (runRows.length > 0) {
-      await this.prisma.geoPromptRun.createMany({ data: runRows });
+      // Gecmis yazimi basarisiz olsa da olcum yapildi ve hak/maliyet harcandi:
+      // cevap bellekteki sonuctan uretilir, yalniz gecmis eksilir (prompt-lab
+      // persistRuns ile ayni kural). Eskiden hata 500 donup odenen olcumu
+      // kullaniciya "basarisiz" gosteriyordu (orn. yeni kolon + eski sema).
+      try {
+        await this.prisma.geoPromptRun.createMany({ data: runRows });
+      } catch (err: any) {
+        this.log.error(`App GeoPromptRun yazilamadi (prompt=${prompt.id}): ${err?.message ?? err}`);
+      }
       const linked = runRows.filter((r) => r.cited).length;
       await this.prisma.geoPrompt.update({
         where: { id: prompt.id },
