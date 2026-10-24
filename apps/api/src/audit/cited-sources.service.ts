@@ -3,12 +3,13 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { isErrorProbe } from './citation-score.js';
 import type { CitationSource } from './citation-sources.js';
 import { aggregateCitedSources, CITED_SOURCES_DAYS, type AnswerRecord, type CitedSourcesResult } from './cited-sources.js';
-import { hostOf } from './source-domain-types.js';
+import { buildCompetitorMatchers, hostOf, type CompetitorMatcher } from './source-domain-types.js';
 
 /**
- * Prompt Lab kosum satiri tavani — 90 gunluk pencerede 50 soru x 6 saglayici
- * x haftalik olcum ~2 bin satir; tavan yalniz anormal hesaplar icin. Asilirsa
- * en yeni satirlar okunur ve yanit `promptRunsTruncated` tasir.
+ * Prompt Lab kosum satiri tavani. 90 gunluk pencerede 50 soru x 6 saglayici
+ * gunluk olculurse ~27 bin satir olur (haftalik olcumde ~4 bin). Tavan en
+ * yeni 10 bin satiri okur; asilirsa yanit `promptRunsTruncated` tasir ve
+ * panel bunu kapsam notunda yazar.
  */
 const MAX_PROMPT_RUNS = 10_000;
 
@@ -19,33 +20,44 @@ export function citedSourcesDays(raw: unknown): number {
   return (CITED_SOURCES_DAYS as readonly number[]).includes(n) ? n : 30;
 }
 
+/**
+ * Pencerenin ilk gunu (UTC gece yarisi): bugun DAHIL tam `days` takvim gunu.
+ * "30 gun" etiketi 30 gun kapsasin (eskiden bugun + 30 gun = 31 gundu).
+ */
+export function citedSourcesSince(now: Date, days: number): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (days - 1)));
+}
+
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Brain.competitors [{ name, url }] → www'siz host listesi (url'siz rakip atlanir) */
-export function competitorHostsFrom(raw: unknown): string[] {
+/**
+ * Brain.competitors [{ name, url }] → rakip eslestiricileri (url'siz rakip
+ * atlanir; platformdaki rakip yol onekiyle eslenir — source-domain-types.ts).
+ */
+export function competitorMatchersFrom(raw: unknown): CompetitorMatcher[] {
   if (!Array.isArray(raw)) return [];
-  const out = new Set<string>();
+  const urls: string[] = [];
   for (const c of raw) {
     const url = c && typeof c === 'object' ? (c as { url?: unknown }).url : null;
-    const h = typeof url === 'string' ? hostOf(url) : null;
-    if (h) out.add(h);
+    if (typeof url === 'string' && url.trim()) urls.push(url);
   }
-  return [...out];
+  return buildCompetitorMatchers(urls);
 }
 
 /**
  * Alintilanan dis kaynaklar — I/O katmani (toplama saf cited-sources.ts).
- * Okur: AiCitationSnapshot.probes (gunluk olcum) + GeoPromptRun (Prompt Lab,
- * ASO Prompt Lab). Yazmaz, dis servise gitmez.
+ * Okur: AiCitationSnapshot.probes (gunluk olcum) + GeoPromptRun (yalniz SITE
+ * Prompt Lab'i). App Prompt Lab (trackedAppId dolu prompt'lar) uygulamayi
+ * olcer, site raporuna KARISMAZ — prompt-lab.service, ai-kpis.service,
+ * client-report.service ile ayni kural. Yazmaz, dis servise gitmez.
  */
 @Injectable()
 export class CitedSourcesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async get(siteId: string, daysRaw?: unknown): Promise<CitedSourcesResult & { promptRunsTruncated: boolean }> {
+  async get(siteId: string, daysRaw?: unknown, now = new Date()): Promise<CitedSourcesResult & { promptRunsTruncated: boolean }> {
     const days = citedSourcesDays(daysRaw);
-    const since = new Date(Date.now() - days * 86400000);
-    since.setUTCHours(0, 0, 0, 0);
+    const since = citedSourcesSince(now, days);
 
     const [site, snapshots, runs] = await Promise.all([
       this.prisma.site.findUnique({ where: { id: siteId }, select: { url: true, brain: { select: { competitors: true } } } }),
@@ -55,9 +67,16 @@ export class CitedSourcesService {
         orderBy: { date: 'asc' },
       }),
       this.prisma.geoPromptRun.findMany({
-        where: { siteId, date: { gte: since } },
+        where: {
+          siteId,
+          date: { gte: since },
+          prompt: { trackedAppId: null },
+          // HATA satirlari DB'de elenir; excerpt (TEXT) okunmaz. excerpt NULL olan
+          // satir gecerlidir — NOT LIKE tek basina NULL'u da elerdi.
+          OR: [{ excerpt: null }, { NOT: { excerpt: { startsWith: 'HATA:' } } }],
+        },
         select: {
-          provider: true, date: true, excerpt: true, sources: true, sourcesVersion: true,
+          provider: true, date: true, sources: true, sourcesVersion: true, brandInQuery: true,
           prompt: { select: { text: true } },
           fanout: { select: { text: true } },
         },
@@ -83,6 +102,7 @@ export class CitedSourcesService {
           sourcesVersion,
           sources: Array.isArray(p.sources) ? (p.sources as CitationSource[]) : null,
           mentionedDomains: Array.isArray(p.mentionedDomains) ? p.mentionedDomains : null,
+          brandInQuery: p.brandInQuery === true,
         });
       }
       if (versioned) snapshotsWithVersion++;
@@ -90,7 +110,6 @@ export class CitedSourcesService {
 
     let runsWithVersion = 0;
     for (const r of runs) {
-      if (isErrorProbe({ excerpt: r.excerpt })) continue;
       if (typeof r.sourcesVersion === 'number') runsWithVersion++;
       answers.push({
         origin: 'prompt',
@@ -99,6 +118,7 @@ export class CitedSourcesService {
         date: day(r.date),
         sourcesVersion: r.sourcesVersion,
         sources: Array.isArray(r.sources) ? (r.sources as unknown as CitationSource[]) : null,
+        brandInQuery: r.brandInQuery === true,
       });
     }
 
@@ -107,7 +127,7 @@ export class CitedSourcesService {
       answers,
       ctx: {
         ownHost: hostOf(site?.url ?? null),
-        competitorHosts: competitorHostsFrom(site?.brain?.competitors),
+        competitors: competitorMatchersFrom(site?.brain?.competitors),
       },
       rowCounts: {
         snapshots: { total: snapshots.length, withSourcesVersion: snapshotsWithVersion },

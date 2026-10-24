@@ -3,7 +3,7 @@
  * Hesap sunucuda (api analytics/ai-traffic.ts); burada metin ve biçim.
  */
 
-export type AiTrafficReason = 'not_connected' | 'auth_error' | 'permission' | 'unavailable';
+export type AiTrafficReason = 'not_connected' | 'auth_error' | 'permission' | 'api_disabled' | 'unavailable';
 
 export interface AiTrafficMetrics {
   sessions: number;
@@ -15,13 +15,15 @@ export interface AiTrafficMetrics {
 export interface AiTrafficGa {
   totals: AiTrafficMetrics & { engagementRate: number | null };
   byAssistant: Array<AiTrafficMetrics & { key: string; label: string; engagementRate: number | null }>;
-  landingPages: Array<{ page: string; sessions: number; engagedSessions: number; keyEvents: number; byAssistant: Record<string, number> }>;
+  landingPages: Array<{ host: string; page: string; sessions: number; engagedSessions: number; keyEvents: number; byAssistant: Record<string, number> }>;
   daily: Array<{ date: string; total: number; byAssistant: Record<string, number> }>;
   siteSessions: number;
   aiShare: number | null;
   revenueAvailable: boolean;
   pagesTruncated: boolean;
   unclassifiedSessions: number;
+  multiHost: boolean;
+  thresholded: boolean;
   generatedAt: string;
 }
 
@@ -58,6 +60,11 @@ export const GA_REASON_TEXT: Readonly<Record<AiTrafficReason, { title: string; b
     body: 'Bağlı Google hesabının bu mülkü okuma yetkisi yok. Bağlantılar sayfasından mülkü kontrol et.',
     cta: true,
   },
+  api_disabled: {
+    title: 'GA4 verisi şu an okunamıyor',
+    body: 'Google Analytics Data API RanksUp tarafında kapalı görünüyor; senin ayarınla ilgili değil. Ekibimiz düzeltene kadar yalnız RanksUp izleme kodu verisi görünür.',
+    cta: false,
+  },
   unavailable: {
     title: 'GA4 şu an yanıt vermedi',
     body: 'Birazdan tekrar dene. RanksUp izleme kodu verisi aşağıda.',
@@ -71,6 +78,19 @@ export const MEASUREMENT_NOTE = [
   'Uygulamadan açılan ve iki sinyali de taşımayan ziyaretler “doğrudan” görünür ve sayılamaz.',
   'GA4, çerez onayı verilmeyen ziyaretleri eksik sayabilir; RanksUp izleme kodu oturum başına bir kez sayar. İki kaynak farklı şeyleri ölçtüğü için toplanmaz.',
 ] as const;
+
+export const THRESHOLD_NOTE =
+  'GA4 bu raporda eşik uyguladı: Google sinyalleri açık mülklerde düşük sayılar kişi gizliliği için gizlenir, bu yüzden sayılar eksik olabilir.';
+
+/** Panelde bağlantı olarak gösterilecek adres: yalnız http(s). Sunucu ayrıca yalnız sitenin kendi adreslerini döndürür. */
+export function isHttpUrl(url: unknown): url is string {
+  return typeof url === 'string' && /^https?:\/\//i.test(url.trim());
+}
+
+/** Açılış sayfası etiketi: birden çok host varsa host + yol */
+export function pageLabel(p: { host: string; page: string }, multiHost: boolean): string {
+  return multiHost && p.host ? `${p.host}${p.page === '(not set)' ? ' (not set)' : p.page}` : p.page;
+}
 
 /** Çubuk genişliği (%): sıfır değilse en az 4 (görünür kalsın) */
 export function barPct(value: number, max: number): number {

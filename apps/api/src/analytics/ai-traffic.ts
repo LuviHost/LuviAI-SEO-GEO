@@ -1,5 +1,6 @@
 import { AI_SOURCES, analyticsSourceDomains, classifySessionSource } from '../audit/ai-source.js';
 import { escapeRegex } from '../common/text-normalize.js';
+import { hostOf, hostWithin } from '../audit/source-domain-types.js';
 
 /**
  * "AI'dan gelen trafik" raporu — saf katman (GEO Faz 3). I/O ai-traffic.service.ts.
@@ -30,8 +31,10 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
  * Pencere: dun dahil son N tam gun (UTC). Bugun yarim gun oldugu ve GA4
- * verisi gecikmeli islendigi icin disarida; tracker serisi de ayni pencereyle
- * okunur ki iki kaynak ayni gunleri kapsasin.
+ * verisi gecikmeli islendigi icin disarida. Tracker serisi ve panel etiketi
+ * bu (UTC) pencereyi kullanir; GA4 istegi ise GORELI tarih tasir
+ * ("NdaysAgo" → "yesterday") ki gunler mulkun saat diliminde kesilsin —
+ * iki pencere en fazla bir gun kayabilir.
  */
 export function aiTrafficRange(now: Date, days: number): { startDate: string; endDate: string } {
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
@@ -69,15 +72,20 @@ function sourceFilter() {
  * Uc runReport govdesi (boyut/metrik adlari GA4 Data API semasindan):
  *  - daily: date x sessionSource — asistan toplamlari ve gunluk seri bundan
  *    (en fazla 90 gun x ~10 kaynak; satir siniri kesmez)
- *  - pages: sessionSource x landingPage — en cok AI ziyareti alan sayfalar.
- *    landingPage sorgusuz yol: landingPagePlusQueryString utm_source'lu
- *    adresleri ayri satirlara bolerdi.
+ *  - pages: sessionSource x hostName x landingPage — en cok AI ziyareti alan
+ *    sayfalar. landingPage sorgusuz yol (landingPagePlusQueryString utm_source'lu
+ *    adresleri ayri satirlara bolerdi); hostName birden cok alan adi olcen
+ *    mulkte ayni yolun (/fiyatlar) farkli sitelerde birlesmesini onler.
  *  - total: boyutsuz sessions — AI payinin paydasi
  * totalRevenue yalniz withRevenue'da istenir (gelir izlemeyen mulkte cagiran
  * hatayi yakalayip gelirsiz tekrar dener).
  */
-export function buildAiTrafficRequests(range: { startDate: string; endDate: string }, opts: { withRevenue: boolean }) {
-  const dateRanges = [range];
+export function gaDateRange(days: number): { startDate: string; endDate: string } {
+  return { startDate: `${days}daysAgo`, endDate: 'yesterday' };
+}
+
+export function buildAiTrafficRequests(days: number, opts: { withRevenue: boolean }) {
+  const dateRanges = [gaDateRange(days)];
   const metrics = [
     { name: 'sessions' },
     { name: 'engagedSessions' },
@@ -94,7 +102,7 @@ export function buildAiTrafficRequests(range: { startDate: string; endDate: stri
     },
     pages: {
       dateRanges,
-      dimensions: [{ name: 'sessionSource' }, { name: 'landingPage' }],
+      dimensions: [{ name: 'sessionSource' }, { name: 'hostName' }, { name: 'landingPage' }],
       metrics: [{ name: 'sessions' }, { name: 'engagedSessions' }, { name: 'keyEvents' }],
       dimensionFilter: sourceFilter(),
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
@@ -124,7 +132,9 @@ export interface AiTrafficMetrics {
 export interface AiTrafficGa {
   totals: AiTrafficMetrics & { engagementRate: number | null };
   byAssistant: Array<AiTrafficMetrics & { key: string; label: string; engagementRate: number | null }>;
-  landingPages: Array<{ page: string; sessions: number; engagedSessions: number; keyEvents: number; byAssistant: Record<string, number> }>;
+  landingPages: Array<{ host: string; page: string; sessions: number; engagedSessions: number; keyEvents: number; byAssistant: Record<string, number> }>;
+  /** Sayfa listesinde birden cok host var mi (panel host'u yalniz o zaman yazar) */
+  multiHost: boolean;
   daily: Array<{ date: string; total: number; byAssistant: Record<string, number> }>;
   /** Ayni pencerede sitenin tum oturumlari */
   siteSessions: number;
@@ -135,6 +145,11 @@ export interface AiTrafficGa {
   pagesTruncated: boolean;
   /** Regex'e uyup asistana eslenemeyen oturumlar (beklenen 0) */
   unclassifiedSessions: number;
+  /**
+   * GA4 yanit metadata.subjectToThresholding: Google sinyalleri acik mulkte
+   * dusuk sayilar gizlenebilir — sayilar eksik olabilir.
+   */
+  thresholded: boolean;
 }
 
 const num = (v: unknown) => {
@@ -157,6 +172,9 @@ export function mapAiTraffic(input: {
   pageRowCount?: number;
   totalRows: readonly GaRow[];
   withRevenue: boolean;
+  thresholded?: boolean;
+  /** Pencere uzunlugu — GA4 gunleri mulk saat diliminde; seri son N gune kirpilir */
+  days?: number;
 }): AiTrafficGa {
   const byKey = new Map<string, AiTrafficMetrics>();
   const byDay = new Map<string, Record<string, number>>();
@@ -198,24 +216,30 @@ export function mapAiTraffic(input: {
     { sessions: 0, engagedSessions: 0, keyEvents: 0, revenue: input.withRevenue ? 0 : null } as AiTrafficMetrics,
   );
 
-  const pages = new Map<string, { page: string; sessions: number; engagedSessions: number; keyEvents: number; byAssistant: Record<string, number> }>();
+  const pages = new Map<string, AiTrafficGa['landingPages'][number]>();
   for (const r of input.pageRows) {
     const cls = classifySessionSource(dim(r, 0));
     if (!cls) continue;
-    const page = dim(r, 1) || '(not set)';
-    const acc = pages.get(page) ?? { page, sessions: 0, engagedSessions: 0, keyEvents: 0, byAssistant: {} };
+    const host = dim(r, 1).toLowerCase().replace(/^www\./, '');
+    const page = dim(r, 2) || '(not set)';
+    const k = `${host}\u0000${page}`;
+    const acc = pages.get(k) ?? { host, page, sessions: 0, engagedSessions: 0, keyEvents: 0, byAssistant: {} };
     const s = met(r, 0);
     acc.sessions += s;
     acc.engagedSessions += met(r, 1);
     acc.keyEvents += met(r, 2);
     acc.byAssistant[cls.key] = (acc.byAssistant[cls.key] ?? 0) + s;
-    pages.set(page, acc);
+    pages.set(k, acc);
   }
   const landingPages = [...pages.values()]
-    .sort((a, b) => b.sessions - a.sessions || a.page.localeCompare(b.page))
+    .sort((a, b) => b.sessions - a.sessions || a.page.localeCompare(b.page) || a.host.localeCompare(b.host))
     .slice(0, MAX_LANDING_PAGES);
 
-  const daily = rangeDays(input.range).map((date) => {
+  // Gun listesi: UTC pencere + GA4'un dondurdugu gunler (mulk saat dilimi bir gun
+  // kaydirabilir), son N gun
+  const allDays = [...new Set([...rangeDays(input.range), ...byDay.keys()])].sort();
+  const keep = input.days ?? rangeDays(input.range).length;
+  const daily = allDays.slice(-keep).map((date) => {
     const m = byDay.get(date) ?? {};
     return { date, total: Object.values(m).reduce((a, b) => a + b, 0), byAssistant: m };
   });
@@ -231,6 +255,8 @@ export function mapAiTraffic(input: {
     revenueAvailable: input.withRevenue,
     pagesTruncated: typeof input.pageRowCount === 'number' && input.pageRowCount > input.pageRows.length,
     unclassifiedSessions: unclassified,
+    multiHost: new Set(landingPages.map((p) => p.host)).size > 1,
+    thresholded: input.thresholded === true,
   };
 }
 
@@ -254,7 +280,23 @@ export interface TrackerSeries {
   topPages: Array<{ url: string; count: number }>;
 }
 
-export function mapTrackerHits(rows: readonly TrackerHitRow[], range: { startDate: string; endDate: string }): TrackerSeries {
+/**
+ * Panelde TIKLANABILIR baglanti olarak gosterilecek adres mi: http(s) ve host'u
+ * sitenin kendi host'u (ya da alt alani). topUrls tracker beacon'indan gelir —
+ * herkese acik uca herkes istedigi adresi yazabilir; yabanci adres panelde
+ * baglanti olarak sunulmaz.
+ */
+export function isOwnSiteUrl(url: string, ownHost: string | null): boolean {
+  if (!ownHost || typeof url !== 'string' || !/^https?:\/\//i.test(url.trim())) return false;
+  const h = hostOf(url);
+  return !!h && hostWithin(h, ownHost);
+}
+
+export function mapTrackerHits(
+  rows: readonly TrackerHitRow[],
+  range: { startDate: string; endDate: string },
+  ownHost: string | null,
+): TrackerSeries {
   const byKey = new Map<string, number>();
   const byDay = new Map<string, Record<string, number>>();
   const urls = new Map<string, number>();
@@ -268,7 +310,7 @@ export function mapTrackerHits(rows: readonly TrackerHitRow[], range: { startDat
     byDay.set(d, day);
     if (Array.isArray(r.topUrls)) {
       for (const t of r.topUrls as Array<{ url?: unknown; count?: unknown }>) {
-        if (typeof t?.url !== 'string') continue;
+        if (typeof t?.url !== 'string' || !isOwnSiteUrl(t.url, ownHost)) continue;
         urls.set(t.url, (urls.get(t.url) ?? 0) + num(t.count));
       }
     }

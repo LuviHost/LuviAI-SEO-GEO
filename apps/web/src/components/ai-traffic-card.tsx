@@ -9,7 +9,7 @@ import { formatNum, formatPct } from '@/lib/format';
 import { siteHref } from '@/lib/site-routes';
 import { CHART } from '@/lib/chart-colors';
 import {
-  GA_REASON_TEXT, MEASUREMENT_NOTE, barPct, hasSeries, shareText, shortDay,
+  GA_REASON_TEXT, MEASUREMENT_NOTE, THRESHOLD_NOTE, barPct, hasSeries, isHttpUrl, pageLabel, shareText, shortDay,
   type AiTrafficGa, type AiTrafficResponse, type AiTrafficTracker,
 } from '@/lib/ai-traffic';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -69,9 +69,14 @@ function DailyChart({ daily, name, color }: { daily: Array<{ date: string; total
 
 type PageRow = AiTrafficGa['landingPages'][number];
 
-function pageColumns(labels: Record<string, string>): Column<PageRow>[] {
+function pageColumns(labels: Record<string, string>, multiHost: boolean): Column<PageRow>[] {
   return [
-    { key: 'page', header: 'Açılış sayfası', sortValue: (r) => r.page, cell: (r) => <span className="block max-w-xs truncate font-medium" title={r.page}>{r.page}</span> },
+    {
+      key: 'page',
+      header: 'Açılış sayfası',
+      sortValue: (r) => pageLabel(r, multiHost),
+      cell: (r) => <span className="block max-w-xs truncate font-medium" title={pageLabel(r, true)}>{pageLabel(r, multiHost)}</span>,
+    },
     { key: 'sessions', header: 'Oturum', align: 'right', sortValue: (r) => r.sessions, cell: (r) => formatNum(r.sessions) },
     { key: 'engaged', header: 'Etkileşimli', align: 'right', hideBelow: 'sm', sortValue: (r) => r.engagedSessions, cell: (r) => formatNum(r.engagedSessions) },
     { key: 'keyEvents', header: 'Önemli etkinlik', align: 'right', hideBelow: 'md', sortValue: (r) => r.keyEvents, cell: (r) => formatNum(r.keyEvents) },
@@ -99,6 +104,11 @@ function GaSection({ ga, labels }: { ga: AiTrafficGa; labels: Record<string, str
   const showRevenue = ga.revenueAvailable && (ga.totals.revenue ?? 0) > 0;
   return (
     <div className="space-y-4">
+      {ga.thresholded && (
+        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-label text-muted-foreground" role="note">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden /> <span>{THRESHOLD_NOTE}</span>
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MetricCard icon={MousePointerClick} label="AI oturumları" value={ga.totals.sessions} />
         <MetricCard icon={Percent} label="Tüm oturumlardaki payı" value={shareText(ga.aiShare)} accent="muted" hint={`${formatNum(ga.siteSessions)} oturumun içinde`} />
@@ -128,9 +138,9 @@ function GaSection({ ga, labels }: { ga: AiTrafficGa; labels: Record<string, str
           <h4 className="text-label font-medium text-muted-foreground">AI ziyaretçisinin açtığı sayfalar (ilk 20)</h4>
           <div className="rounded-lg border">
             <DataTable
-              columns={pageColumns(labels)}
+              columns={pageColumns(labels, ga.multiHost)}
               rows={ga.landingPages}
-              rowKey={(r) => r.page}
+              rowKey={(r) => `${r.host}${r.page}`}
               initialSort={{ key: 'sessions', dir: 'desc' }}
               caption="AI asistanlarından gelen oturumların açılış sayfaları"
             />
@@ -175,11 +185,16 @@ function TrackerSection({ tracker, siteId }: { tracker: AiTrafficTracker; siteId
           <ul className="divide-y rounded-lg border">
             {tracker.topPages.map((p) => (
               <li key={p.url} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                <a href={p.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1 hover:underline">
-                  <span className="truncate">{p.url.replace(/^https?:\/\//, '')}</span>
-                  <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="sr-only">(yeni sekmede açılır)</span>
-                </a>
+                {/* Sunucu yalniz sitenin kendi adreslerini dondurur; yine de yalniz http(s) baglanti olur */}
+                {isHttpUrl(p.url) ? (
+                  <a href={p.url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex min-w-0 items-center gap-1 hover:underline">
+                    <span className="truncate">{p.url.replace(/^https?:\/\//, '')}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="sr-only">(yeni sekmede açılır)</span>
+                  </a>
+                ) : (
+                  <span className="truncate">{p.url}</span>
+                )}
                 <span className="shrink-0 tabular-nums text-muted-foreground">{formatNum(p.count)}</span>
               </li>
             ))}

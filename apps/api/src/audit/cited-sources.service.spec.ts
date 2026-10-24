@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { describe, it, expect, vi } from 'vitest';
-import { CitedSourcesService, citedSourcesDays, competitorHostsFrom } from './cited-sources.service.js';
+import { CitedSourcesService, citedSourcesDays, citedSourcesSince, competitorMatchersFrom } from './cited-sources.service.js';
 import { PLAN_FEATURE_KEY } from '../billing/plan-feature.decorator.js';
 import { McpToolsService } from '../mcp/mcp-tools.service.js';
 
@@ -33,35 +33,46 @@ const SNAPSHOTS = [
 ];
 
 const RUNS = [
-  { provider: 'gemini', date: D('2026-10-25'), excerpt: 'ok', sourcesVersion: 1, sources: [{ url: 'https://rakip.com/', domain: 'rakip.com', originOnly: true }], prompt: { text: 'seo araci karsilastirma' }, fanout: null },
-  { provider: 'openai', date: D('2026-10-25'), excerpt: 'ok', sourcesVersion: 1, sources: [{ url: 'https://www.g2.com/y', domain: 'g2.com' }], prompt: { text: 'ana soru' }, fanout: { text: 'dal sorusu' } },
-  { provider: 'openai', date: D('2026-10-05'), excerpt: 'HATA: 500', sourcesVersion: null, sources: null, prompt: { text: 'x' }, fanout: null },
-  { provider: 'openai', date: D('2026-10-05'), excerpt: 'eski', sourcesVersion: null, sources: null, prompt: { text: 'x' }, fanout: null },
+  { provider: 'gemini', date: D('2026-10-25'), sourcesVersion: 1, sources: [{ url: 'https://rakip.com/', domain: 'rakip.com', originOnly: true }], prompt: { text: 'seo araci karsilastirma' }, fanout: null },
+  { provider: 'openai', date: D('2026-10-25'), sourcesVersion: 1, sources: [{ url: 'https://www.g2.com/y', domain: 'g2.com' }], prompt: { text: 'ana soru' }, fanout: { text: 'dal sorusu' } },
+  // HATA satirlari DB'de elenir (where) — sahte Prisma bunlari zaten dondurmez
+  { provider: 'openai', date: D('2026-10-05'), sourcesVersion: null, sources: null, prompt: { text: 'x' }, fanout: null },
+  { provider: 'openai', date: D('2026-10-25'), sourcesVersion: 1, brandInQuery: true, sources: [{ url: 'https://ornek.com.tr/', domain: 'ornek.com.tr' }], prompt: { text: 'ornek yorumlari' }, fanout: null },
 ];
 
-describe('citedSourcesDays / competitorHostsFrom', () => {
+describe('citedSourcesDays / citedSourcesSince / competitorMatchersFrom', () => {
+  it('pencere bugun dahil tam N gun', () => {
+    const now = new Date('2026-10-24T15:00:00Z');
+    expect(citedSourcesSince(now, 30).toISOString()).toBe('2026-09-25T00:00:00.000Z');
+    expect(citedSourcesSince(now, 90).toISOString()).toBe('2026-07-27T00:00:00.000Z');
+  });
+
   it('yalniz 30 ya da 90; digerleri 30', () => {
     expect(citedSourcesDays('90')).toBe(90);
     expect(citedSourcesDays(30)).toBe(30);
     for (const v of ['7', '365', 'abc', undefined, ['90']]) expect(citedSourcesDays(v)).toBe(30);
   });
 
-  it('rakip host listesi url\'den; url\'siz/bozuk atlanir, www atilir', () => {
-    expect(competitorHostsFrom([{ url: 'https://www.Rakip.com/a' }, { name: 'x' }, 'metin', { url: 'rakip2.com.tr' }, null])).toEqual(['rakip.com', 'rakip2.com.tr']);
-    expect(competitorHostsFrom(null)).toEqual([]);
+  it('rakip eslestiricileri url\'den; url\'siz/bozuk atlanir, www atilir, platformda yol oneki', () => {
+    expect(competitorMatchersFrom([{ url: 'https://www.Rakip.com/a' }, { name: 'x' }, 'metin', { url: 'rakip2.com.tr' }, null, { url: 'https://trendyol.com/magaza/r-m-1' }]))
+      .toEqual([
+        { host: 'rakip.com', pathPrefix: null, key: 'rakip.com' },
+        { host: 'rakip2.com.tr', pathPrefix: null, key: 'rakip2.com.tr' },
+        { host: 'trendyol.com', pathPrefix: '/magaza/r-m-1', key: 'trendyol.com/magaza/r-m-1' },
+      ]);
+    expect(competitorMatchersFrom(null)).toEqual([]);
   });
 });
 
 describe('CitedSourcesService.get', () => {
   it('snapshot + Prompt Lab kosumlarini toplar; HATA satirlari ne cevap ne kaynak sayilir', async () => {
     const prisma = prismaWith({ snapshots: SNAPSHOTS, runs: RUNS });
-    const r = await new CitedSourcesService(prisma as any).get('s1', '90');
+    const r = await new CitedSourcesService(prisma as any).get('s1', '90', new Date('2026-10-26T12:00:00Z'));
     expect(r.days).toBe(90);
     expect(r.coverage).toMatchObject({
-      answers: 6, answersWithSources: 3, answersWithoutSearch: 1, legacyAnswers: 2,
+      answers: 6, brandedAnswers: 1, answersWithSources: 3, answersWithoutSearch: 1, legacyAnswers: 2,
       snapshots: { total: 3, withSourcesVersion: 2, legacy: 1 },
-      // HATA satiri kosum sayisina girer ama damgasiz; kaynakli 2 satir
-      promptRuns: { total: 4, withSourcesVersion: 2, legacy: 2 },
+      promptRuns: { total: 4, withSourcesVersion: 3, legacy: 1 },
       firstRecordedAt: '2026-10-24',
     });
     expect(r.domains.map((d) => [d.domain, d.type, d.answers])).toEqual([
@@ -74,16 +85,20 @@ describe('CitedSourcesService.get', () => {
     expect(r.promptRunsTruncated).toBe(false);
   });
 
-  it('pencere sorgusu site + tarih ile sinirli, kosumlar en yeniden tavanli okunur', async () => {
+  it('pencere sorgusu: site + tam N gun; App Prompt Lab haric, HATA DB\'de elenir, excerpt okunmaz', async () => {
     const prisma = prismaWith();
-    await new CitedSourcesService(prisma as any).get('s1', '30');
+    await new CitedSourcesService(prisma as any).get('s1', '30', new Date('2026-10-24T15:00:00Z'));
     const snapArgs = (prisma.aiCitationSnapshot.findMany.mock.calls as any[])[0][0];
-    expect(snapArgs.where.siteId).toBe('s1');
-    const since: Date = snapArgs.where.date.gte;
-    expect(Date.now() - since.getTime()).toBeGreaterThan(29 * 86400000);
-    expect(Date.now() - since.getTime()).toBeLessThan(31 * 86400000);
+    expect(snapArgs.where).toEqual({ siteId: 's1', date: { gte: new Date('2026-09-25T00:00:00Z') } });
     const runArgs = (prisma.geoPromptRun.findMany.mock.calls as any[])[0][0];
-    expect(runArgs.where).toMatchObject({ siteId: 's1' });
+    expect(runArgs.where).toEqual({
+      siteId: 's1',
+      date: { gte: new Date('2026-09-25T00:00:00Z') },
+      prompt: { trackedAppId: null },
+      OR: [{ excerpt: null }, { NOT: { excerpt: { startsWith: 'HATA:' } } }],
+    });
+    expect(runArgs.select.excerpt).toBeUndefined();
+    expect(runArgs.select.brandInQuery).toBe(true);
     expect(runArgs.orderBy).toEqual({ date: 'desc' });
     expect(runArgs.take).toBeGreaterThan(0);
   });

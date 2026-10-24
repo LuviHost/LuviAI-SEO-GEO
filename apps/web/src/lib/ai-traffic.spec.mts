@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GA_REASON_TEXT, MEASUREMENT_NOTE, barPct, hasSeries, shareText, shortDay } from './ai-traffic';
+import { GA_REASON_TEXT, MEASUREMENT_NOTE, barPct, hasSeries, isHttpUrl, pageLabel, shareText, shortDay } from './ai-traffic';
 
 describe('GA4 nedenleri sunucuyla aynı', () => {
   it('api AiTrafficGaReason birleşimindeki her nedenin metni var', () => {
@@ -16,6 +16,8 @@ describe('GA4 nedenleri sunucuyla aynı', () => {
     expect(Object.keys(GA_REASON_TEXT).sort()).toEqual(reasons);
     // Bağlı değil yolu bağlantı akışına yönlendirir
     expect(GA_REASON_TEXT.not_connected.cta).toBe(true);
+    // API kapalı: kullanıcının düzeltebileceği bir şey değil — bağlantı butonu yok
+    expect(GA_REASON_TEXT.api_disabled.cta).toBe(false);
   });
 });
 
@@ -41,6 +43,18 @@ describe('shareText / shortDay / hasSeries', () => {
     expect(hasSeries([{ total: 0 }, { total: 0 }])).toBe(false);
     expect(hasSeries([{ total: 0 }, { total: 2 }])).toBe(true);
     expect(hasSeries(null)).toBe(false);
+  });
+});
+
+describe('bağlantı ve sayfa etiketi', () => {
+  it('yalnız http(s) bağlantı olur', () => {
+    expect(isHttpUrl('https://o.com/a')).toBe(true);
+    expect(isHttpUrl('javascript:alert(1)')).toBe(false);
+    expect(isHttpUrl(null)).toBe(false);
+  });
+  it('tek host: yalnız yol; çok host: host + yol', () => {
+    expect(pageLabel({ host: 'o.com', page: '/fiyat' }, false)).toBe('/fiyat');
+    expect(pageLabel({ host: 'magaza.o.com', page: '/fiyat' }, true)).toBe('magaza.o.com/fiyat');
   });
 });
 

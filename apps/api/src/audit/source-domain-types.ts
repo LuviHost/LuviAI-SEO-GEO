@@ -13,7 +13,10 @@ import { registrableDomain } from './host-match.js';
  *
  * SIRA (ilk eslesen kazanir):
  *   1) own        — sitenin kendi host'u ve alt alanlari (host-match.urlHostMatches kurali)
- *   2) competitor — Brain'deki rakiplerin host'u ve alt alanlari
+ *   2) competitor — Brain'deki rakiplerin host'u ve alt alanlari. Rakip adresi bilinen
+ *      bir PLATFORMDAYSA (trendyol.com/magaza/..., linkedin.com/company/...,
+ *      apps.apple.com/...) yalniz o host + yol oneki rakip sayilir; platformun tamami degil
+ *      (bkz. buildCompetitorMatchers).
  *   3) host duzeyi listeler (apps.apple.com, play.google.com, developers.google.com ...):
  *      ayni kayit edilebilir alan (google.com) altinda farkli turler olabildigi icin
  *   4) alt alan oneki sezgisi: docs./developer(s). → docs; forum./community. → forum
@@ -26,29 +29,33 @@ import { registrableDomain } from './host-match.js';
  */
 
 export const SOURCE_TYPES = [
-  'own', 'competitor', 'forum', 'review', 'video', 'encyclopedia', 'news', 'marketplace', 'docs', 'other',
+  'own', 'competitor', 'forum', 'review', 'social', 'video', 'encyclopedia', 'news', 'marketplace', 'docs', 'other',
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
 /** Forum / soru-cevap / sozluk siteleri — kayit edilebilir alan */
 const FORUM_DOMAINS = [
   'reddit.com', 'quora.com', 'stackexchange.com', 'stackoverflow.com', 'superuser.com', 'serverfault.com',
-  'askubuntu.com', 'mathoverflow.net', 'ycombinator.com',
-  // Turkiye
-  'eksisozluk.com', 'donanimhaber.com', 'technopat.net', 'r10.net', 'kizlarsoruyor.com', 'uludagsozluk.com',
-  'frmtr.com',
+  'askubuntu.com', 'mathoverflow.net',
+  // Turkiye (donanimhaber.com ve technopat.net kokte haber sitesi; forum.* alt alani forum — onek sezgisi)
+  'eksisozluk.com', 'r10.net', 'kizlarsoruyor.com', 'uludagsozluk.com', 'frmtr.com',
 ];
 
 /** Kullanici yorumu / yazilim karsilastirma / sikayet siteleri */
 const REVIEW_DOMAINS = [
   'g2.com', 'capterra.com', 'trustpilot.com', 'getapp.com', 'softwareadvice.com', 'producthunt.com',
   'alternativeto.net', 'toolradar.com', 'trustradius.com', 'saasworthy.com', 'sitejabber.com', 'yelp.com',
-  'tripadvisor.com', 'tripadvisor.com.tr', 'gartner.com', 'slant.co',
+  'tripadvisor.com', 'tripadvisor.com.tr', 'slant.co',
   // Turkiye
-  'sikayetvar.com', 'capterra.com.tr',
+  'sikayetvar.com',
 ];
 
-const VIDEO_DOMAINS = ['youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com', 'tiktok.com'];
+const VIDEO_DOMAINS = ['youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com'];
+
+/** Sosyal aglar — markanin kendi hesabi uzerinden yer alinir */
+const SOCIAL_DOMAINS = [
+  'linkedin.com', 'x.com', 'twitter.com', 'facebook.com', 'instagram.com', 'tiktok.com', 'threads.net', 'pinterest.com',
+];
 
 const ENCYCLOPEDIA_DOMAINS = ['wikipedia.org', 'wikiwand.com', 'britannica.com', 'wikimedia.org'];
 
@@ -60,7 +67,7 @@ const ENCYCLOPEDIA_DOMAINS = ['wikipedia.org', 'wikiwand.com', 'britannica.com',
 const NEWS_DOMAINS = [
   // Turkiye — teknoloji / is
   'webrazzi.com', 'webtekno.com', 'shiftdelete.net', 'chip.com.tr', 'log.com.tr', 'egirisim.com',
-  'donanimarsivi.com', 'bloomberght.com', 'dunya.com', 'ekonomim.com',
+  'donanimarsivi.com', 'bloomberght.com', 'dunya.com', 'ekonomim.com', 'donanimhaber.com', 'technopat.net',
   // Turkiye — genel
   'hurriyet.com.tr', 'milliyet.com.tr', 'sabah.com.tr', 'sozcu.com.tr', 'ntv.com.tr', 'cnnturk.com',
   'haberturk.com', 'aa.com.tr', 'trthaber.com', 'cumhuriyet.com.tr', 't24.com.tr', 'posta.com.tr',
@@ -108,6 +115,15 @@ const HOST_TYPES: Readonly<Record<string, SourceType>> = {
  */
 const PLATFORM_DOMAINS = new Set(['google.com', 'apple.com', 'microsoft.com', 'openai.com', 'mozilla.org', 'visualstudio.com']);
 
+/**
+ * Barindirma / blog platformlari: her alt alan BASKA bir yayinci
+ * (ali.github.io ile veli.github.io ayni site degil). Alt alanlar tam host'la
+ * ayri satir olur; tur bilinmedigi icin `other`.
+ */
+const HOSTING_DOMAINS = new Set([
+  'github.io', 'blogspot.com', 'wordpress.com', 'substack.com', 'medium.com', 'netlify.app', 'vercel.app', 'pages.dev',
+]);
+
 function index(list: readonly string[], type: SourceType, into: Map<string, SourceType>) {
   for (const d of list) into.set(d, type);
 }
@@ -116,6 +132,7 @@ const DOMAIN_TYPES = new Map<string, SourceType>();
 index(FORUM_DOMAINS, 'forum', DOMAIN_TYPES);
 index(REVIEW_DOMAINS, 'review', DOMAIN_TYPES);
 index(VIDEO_DOMAINS, 'video', DOMAIN_TYPES);
+index(SOCIAL_DOMAINS, 'social', DOMAIN_TYPES);
 index(ENCYCLOPEDIA_DOMAINS, 'encyclopedia', DOMAIN_TYPES);
 index(NEWS_DOMAINS, 'news', DOMAIN_TYPES);
 index(MARKETPLACE_DOMAINS, 'marketplace', DOMAIN_TYPES);
@@ -124,6 +141,7 @@ index(MARKETPLACE_DOMAINS, 'marketplace', DOMAIN_TYPES);
 export const SOURCE_TYPE_LISTS: Readonly<Record<Exclude<SourceType, 'own' | 'competitor' | 'other'>, readonly string[]>> = {
   forum: FORUM_DOMAINS,
   review: REVIEW_DOMAINS,
+  social: SOCIAL_DOMAINS,
   video: VIDEO_DOMAINS,
   encyclopedia: ENCYCLOPEDIA_DOMAINS,
   news: NEWS_DOMAINS,
@@ -150,11 +168,81 @@ export function hostWithin(host: string, domain: string): boolean {
   return host === domain || host.endsWith(`.${domain}`);
 }
 
+/**
+ * Rakip eslestiricisi. pathPrefix null → host ve alt alanlari; dolu → yalniz
+ * bu host (alt alan degil) ve yol oneki (segment sinirli).
+ */
+export interface CompetitorMatcher {
+  host: string;
+  pathPrefix: string | null;
+  /** Rapor satiri anahtari: "rakip.com" ya da "trendyol.com/magaza/rakip-m-1" */
+  key: string;
+}
+
 export interface SourceTypeContext {
   /** Sitenin host'u (www'siz) — alt alanlari da "own" sayilir */
   ownHost: string | null;
-  /** Rakiplerin host'lari (www'siz) */
-  competitorHosts: readonly string[];
+  /** buildCompetitorMatchers ciktisi */
+  competitors: readonly CompetitorMatcher[];
+}
+
+/**
+ * Host bilinen bir platform mu (rakip adresi platformdaysa platformun tamami
+ * rakip sayilmamali): host duzeyi siniflar, tur listeleri, platform alanlari
+ * ve barindirma platformunun KOKU (medium.com/@rakip). Barindirma alt alani
+ * (rakip.github.io) ayri yayinci oldugu icin platform sayilmaz.
+ */
+export function isPlatformHost(host: string): boolean {
+  const registrable = registrableDomain(host);
+  if (Object.keys(HOST_TYPES).some((h) => hostWithin(host, h))) return true;
+  if (DOMAIN_TYPES.has(registrable) || PLATFORM_DOMAINS.has(registrable)) return true;
+  return HOSTING_DOMAINS.has(registrable) && host === registrable;
+}
+
+/** Yol karsilastirmasi icin: kucuk harf, sondaki egik cizgiler atilir ("/" → "") */
+function normPath(p: string): string {
+  return p.toLowerCase().replace(/\/+$/, '');
+}
+
+/**
+ * Rakip adreslerinden eslestiriciler. Platformdaki rakip yol onekiyle eslenir;
+ * yolsuz platform adresi (sadece "trendyol.com") yok sayilir — tum platformu
+ * rakip yapardi.
+ */
+export function buildCompetitorMatchers(urls: readonly string[]): CompetitorMatcher[] {
+  const out = new Map<string, CompetitorMatcher>();
+  for (const raw of urls) {
+    const host = hostOf(raw);
+    if (!host) continue;
+    if (!isPlatformHost(host)) {
+      out.set(host, { host, pathPrefix: null, key: host });
+      continue;
+    }
+    let path = '';
+    try {
+      path = normPath(new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`).pathname);
+    } catch {
+      continue;
+    }
+    if (!path) continue;
+    const key = `${host}${path}`;
+    out.set(key, { host, pathPrefix: path, key });
+  }
+  return [...out.values()];
+}
+
+function pathOf(urlOrHost: string | null | undefined): string {
+  if (typeof urlOrHost !== 'string') return '';
+  try {
+    return normPath(new URL(urlOrHost.trim()).pathname);
+  } catch {
+    return '';
+  }
+}
+
+function competitorMatch(host: string, path: string, c: CompetitorMatcher): boolean {
+  if (c.pathPrefix === null) return hostWithin(host, c.host);
+  return host === c.host && (path === c.pathPrefix || path.startsWith(`${c.pathPrefix}/`));
 }
 
 export interface SourceClassification {
@@ -188,13 +276,17 @@ export function classifySource(
   const registrable = registrableDomain(host);
 
   if (ctx.ownHost && hostWithin(host, ctx.ownHost)) return { type: 'own', key: ctx.ownHost };
-  for (const c of ctx.competitorHosts) {
-    if (c && hostWithin(host, c)) return { type: 'competitor', key: c };
+  const path = pathOf(urlOrHost);
+  for (const c of ctx.competitors) {
+    if (competitorMatch(host, path, c)) return { type: 'competitor', key: c.key };
   }
 
   for (const [h, type] of Object.entries(HOST_TYPES)) {
     if (hostWithin(host, h)) return { type, key: h };
   }
+
+  // Barindirma platformu alt alani: ayri yayinci, tam host'la ayri satir
+  if (HOSTING_DOMAINS.has(registrable) && host !== registrable) return { type: 'other', key: host };
 
   const byDomain = DOMAIN_TYPES.get(registrable);
   const prefixType = docsOrForumPrefix(host, registrable);

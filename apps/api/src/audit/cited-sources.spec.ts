@@ -4,6 +4,7 @@ import {
   type AnswerRecord,
 } from './cited-sources.js';
 import { normalizeSources, SOURCES_VERSION } from './citation-sources.js';
+import { buildCompetitorMatchers } from './source-domain-types.js';
 
 /**
  * "Alintilanan dis kaynaklar" toplamasi — gercekci probe fiksturleri:
@@ -12,7 +13,7 @@ import { normalizeSources, SOURCES_VERSION } from './citation-sources.js';
  * Kaynak listeleri ureticideki normalizeSources'tan gecer — kayitli bicimin aynisi.
  */
 
-const ctx = { ownHost: 'ornek.com.tr', competitorHosts: ['rakip.com'] };
+const ctx = { ownHost: 'ornek.com.tr', competitors: buildCompetitorMatchers(['https://rakip.com']) };
 
 const src = (...raw: Parameters<typeof normalizeSources>[0]) => normalizeSources(raw);
 
@@ -78,6 +79,7 @@ describe('aggregateCitedSources — kapsam (coverage)', () => {
     const r = run();
     expect(r.coverage).toEqual({
       answers: 9,
+      brandedAnswers: 0,
       answersWithSources: 4,
       answersSearchedNoCitation: 1,
       answersWithoutSearch: 1,
@@ -159,6 +161,23 @@ describe('aggregateCitedSources — alan tablosu', () => {
   });
 });
 
+describe('aggregateCitedSources — markali sorular disarida (unbrandedOnly)', () => {
+  it('soruda marka gecen cevap ne paya ne tabloya girer; sayisi kapsamda', () => {
+    const branded = ans({
+      provider: 'openai', query: 'ornek yorumlari', date: '2026-10-26', brandInQuery: true,
+      sources: src({ url: 'https://ornek.com.tr/' }, { url: 'https://www.sikayetvar.com/ornek' }),
+    });
+    const base = run();
+    const r = run([...FIXTURE, branded]);
+    expect(r.coverage.brandedAnswers).toBe(1);
+    expect(r.coverage.answers).toBe(base.coverage.answers);
+    expect(r.totals.answersCitingOwn).toBe(base.totals.answersCitingOwn);
+    expect(r.totals.ownShare).toBe(base.totals.ownShare);
+    expect(r.domains.some((d) => d.domain === 'sikayetvar.com')).toBe(false);
+    expect(r.domains.find((d) => d.domain === 'ornek.com.tr')!.answers).toBe(1);
+  });
+});
+
 describe('aggregateCitedSources — eski satirlar ayri', () => {
   it('mentionedDomains ana tabloya KARISMAZ; ayri, notlu ozet', () => {
     const r = run();
@@ -196,7 +215,7 @@ describe('aggregateCitedSources — nerede yer almalisin', () => {
   });
 
   it('eylem metinleri dogrulanamayan iddia icermez (kontrol et) ve ansiklopedide dogrudan duzenleme onermez', () => {
-    for (const t of ['review', 'forum', 'news', 'video', 'marketplace', 'other'] as const) {
+    for (const t of ['review', 'forum', 'social', 'news', 'video', 'marketplace', 'other'] as const) {
       expect(PLACEMENT_ACTIONS[t], t).toMatch(/kontrol et/);
     }
     expect(PLACEMENT_ACTIONS.encyclopedia).toMatch(/doğrudan düzenleme yapma/);

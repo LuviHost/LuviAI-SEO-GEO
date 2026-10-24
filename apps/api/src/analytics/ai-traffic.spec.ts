@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   aiSessionSourceRegex, aiTrafficDays, aiTrafficRange, buildAiTrafficRequests, gaDate, mapAiTraffic, mapTrackerHits,
-  rangeDays, MAX_LANDING_PAGES,
+  rangeDays, isOwnSiteUrl, MAX_LANDING_PAGES,
 } from './ai-traffic.js';
 import { AI_SOURCES, analyticsSourceDomains, classifySessionSource } from '../audit/ai-source.js';
 
@@ -71,23 +71,22 @@ describe('pencere', () => {
 });
 
 describe('buildAiTrafficRequests', () => {
-  const range = { startDate: '2026-09-26', endDate: '2026-10-23' };
-
-  it('daily ve pages ayni regex filtresini tasir; total filtresiz', () => {
-    const r = buildAiTrafficRequests(range, { withRevenue: true });
+  it('daily ve pages ayni regex filtresini tasir; total filtresiz; GORELI tarih (mulk saat dilimi)', () => {
+    const r = buildAiTrafficRequests(28, { withRevenue: true });
     const filter = { filter: { fieldName: 'sessionSource', stringFilter: { matchType: 'FULL_REGEXP', value: aiSessionSourceRegex(), caseSensitive: false } } };
     expect(r.daily.dimensionFilter).toEqual(filter);
     expect(r.pages.dimensionFilter).toEqual(filter);
     expect('dimensionFilter' in r.total).toBe(false);
     expect(r.daily.dimensions).toEqual([{ name: 'date' }, { name: 'sessionSource' }]);
-    expect(r.pages.dimensions).toEqual([{ name: 'sessionSource' }, { name: 'landingPage' }]);
+    expect(r.pages.dimensions).toEqual([{ name: 'sessionSource' }, { name: 'hostName' }, { name: 'landingPage' }]);
     expect(r.daily.metrics.map((m) => m.name)).toEqual(['sessions', 'engagedSessions', 'keyEvents', 'totalRevenue']);
     expect(r.total.metrics).toEqual([{ name: 'sessions' }]);
-    for (const b of [r.daily, r.pages, r.total]) expect(b.dateRanges).toEqual([range]);
+    for (const b of [r.daily, r.pages, r.total]) expect(b.dateRanges).toEqual([{ startDate: '28daysAgo', endDate: 'yesterday' }]);
+    expect(buildAiTrafficRequests(90, { withRevenue: false }).total.dateRanges).toEqual([{ startDate: '90daysAgo', endDate: 'yesterday' }]);
   });
 
   it('gelirsiz surum totalRevenue istemez', () => {
-    expect(buildAiTrafficRequests(range, { withRevenue: false }).daily.metrics.map((m) => m.name)).toEqual(['sessions', 'engagedSessions', 'keyEvents']);
+    expect(buildAiTrafficRequests(28, { withRevenue: false }).daily.metrics.map((m) => m.name)).toEqual(['sessions', 'engagedSessions', 'keyEvents']);
   });
 });
 
@@ -101,10 +100,10 @@ describe('mapAiTraffic', () => {
     row(['20261023', 'bilinmeyen.ai'], [5, 0, 0, 0]),
   ];
   const pageRows = [
-    row(['chatgpt.com', '/blog/seo'], [8, 5, 1]),
-    row(['www.perplexity.ai', '/blog/seo'], [3, 1, 0]),
-    row(['chatgpt.com', '/fiyatlar'], [4, 2, 0]),
-    row(['copilot.com', ''], [3, 3, 1]),
+    row(['chatgpt.com', 'www.ornek.com', '/blog/seo'], [8, 5, 1]),
+    row(['www.perplexity.ai', 'ornek.com', '/blog/seo'], [3, 1, 0]),
+    row(['chatgpt.com', 'ornek.com', '/fiyatlar'], [4, 2, 0]),
+    row(['copilot.com', 'ornek.com', ''], [3, 3, 1]),
   ];
 
   it('asistan toplamlari, pay, gunluk seri (bos gunler sifir), sayfalar', () => {
@@ -124,10 +123,32 @@ describe('mapAiTraffic', () => {
       { date: '2026-10-22', total: 0, byAssistant: {} },
       { date: '2026-10-23', total: 5, byAssistant: { chatgpt: 2, 'bing-copilot': 3 } },
     ]);
-    expect(g.landingPages[0]).toEqual({ page: '/blog/seo', sessions: 11, engagedSessions: 6, keyEvents: 1, byAssistant: { chatgpt: 8, perplexity: 3 } });
+    expect(g.landingPages[0]).toEqual({ host: 'ornek.com', page: '/blog/seo', sessions: 11, engagedSessions: 6, keyEvents: 1, byAssistant: { chatgpt: 8, perplexity: 3 } });
     expect(g.landingPages.map((p) => p.page)).toEqual(['/blog/seo', '/fiyatlar', '(not set)']);
     expect(g.revenueAvailable).toBe(true);
     expect(g.pagesTruncated).toBe(false);
+    expect(g.multiHost).toBe(false);
+    expect(g.thresholded).toBe(false);
+  });
+
+  it('birden cok host: ayni yol ayri satir; esik bayragi tasinir', () => {
+    const g = mapAiTraffic({
+      range, dailyRows: [], totalRows: [], withRevenue: false, thresholded: true,
+      pageRows: [row(['chatgpt.com', 'ornek.com', '/fiyatlar'], [5, 0, 0]), row(['chatgpt.com', 'magaza.ornek.com', '/fiyatlar'], [2, 0, 0])],
+    });
+    expect(g.landingPages.map((p) => [p.host, p.page, p.sessions])).toEqual([['ornek.com', '/fiyatlar', 5], ['magaza.ornek.com', '/fiyatlar', 2]]);
+    expect(g.multiHost).toBe(true);
+    expect(g.thresholded).toBe(true);
+  });
+
+  it('GA4 gunleri mulk saat diliminde bir gun kayarsa seri son N gune kirpilir', () => {
+    const g = mapAiTraffic({
+      range, days: 3, pageRows: [], totalRows: [], withRevenue: false,
+      dailyRows: [row(['20261024', 'claude.ai'], [2, 1, 0]), row(['20261021', 'claude.ai'], [1, 1, 0])],
+    });
+    expect(g.daily.map((d) => [d.date, d.total])).toEqual([['2026-10-22', 0], ['2026-10-23', 0], ['2026-10-24', 2]]);
+    // toplamlar kirpmadan etkilenmez (GA4 penceresi zaten N gun)
+    expect(g.totals.sessions).toBe(3);
   });
 
   it('gelir okunamadiysa revenue null; site oturumu yoksa pay null; satir siniri isaretlenir', () => {
@@ -140,7 +161,7 @@ describe('mapAiTraffic', () => {
   });
 
   it('en fazla 20 acilis sayfasi', () => {
-    const many = Array.from({ length: 30 }, (_, i) => row(['chatgpt.com', `/s${i}`], [30 - i, 0, 0]));
+    const many = Array.from({ length: 30 }, (_, i) => row(['chatgpt.com', 'ornek.com', `/s${i}`], [30 - i, 0, 0]));
     const g = mapAiTraffic({ range, dailyRows: [], pageRows: many, totalRows: [], withRevenue: false });
     expect(g.landingPages).toHaveLength(MAX_LANDING_PAGES);
     expect(g.landingPages[0].page).toBe('/s0');
@@ -155,7 +176,7 @@ describe('mapTrackerHits — RanksUp izleme kodu', () => {
       { date: new Date('2026-10-21T00:00:00Z'), referrer: 'chatgpt', hits: 5, topUrls: [{ url: 'https://o.com/a', count: 4 }, { url: 'https://o.com/b', count: 1 }] },
       { date: new Date('2026-10-22T00:00:00Z'), referrer: 'perplexity', hits: 2, topUrls: [{ url: 'https://o.com/a', count: 2 }] },
       { date: '2026-10-22', referrer: 'chatgpt', hits: 1, topUrls: 'bozuk' },
-    ], range);
+    ], range, 'o.com');
     expect(t.totalHits).toBe(8);
     expect(t.byAssistant).toEqual([{ key: 'chatgpt', label: 'ChatGPT', hits: 6 }, { key: 'perplexity', label: 'Perplexity', hits: 2 }]);
     expect(t.daily).toEqual([
@@ -163,5 +184,23 @@ describe('mapTrackerHits — RanksUp izleme kodu', () => {
       { date: '2026-10-22', total: 3, byAssistant: { perplexity: 2, chatgpt: 1 } },
     ]);
     expect(t.topPages).toEqual([{ url: 'https://o.com/a', count: 6 }, { url: 'https://o.com/b', count: 1 }]);
+  });
+
+  it('yalniz sitenin kendi host\'undaki http(s) adresler doner (beacon\'a yabanci adres yazilabilir)', () => {
+    const range = { startDate: '2026-10-21', endDate: '2026-10-21' };
+    const t = mapTrackerHits([{
+      date: '2026-10-21', referrer: 'chatgpt', hits: 6,
+      topUrls: [
+        { url: 'https://evil.example/phish', count: 50 },
+        { url: 'javascript:alert(1)', count: 40 },
+        { url: 'https://o.com.evil.net/x', count: 30 },
+        { url: 'https://www.o.com/fiyat', count: 3 },
+        { url: 'https://blog.o.com/yazi', count: 2 },
+        { url: 'http://o.com/', count: 1 },
+      ],
+    }], range, 'o.com');
+    expect(t.topPages.map((p) => p.url)).toEqual(['https://www.o.com/fiyat', 'https://blog.o.com/yazi', 'http://o.com/']);
+    expect(mapTrackerHits([{ date: '2026-10-21', referrer: 'chatgpt', hits: 1, topUrls: [{ url: 'https://o.com/', count: 1 }] }], range, null).topPages).toEqual([]);
+    expect(isOwnSiteUrl('ftp://o.com/x', 'o.com')).toBe(false);
   });
 });

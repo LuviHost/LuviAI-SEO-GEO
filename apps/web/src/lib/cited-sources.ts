@@ -6,7 +6,7 @@
  */
 
 export type SourceType =
-  | 'own' | 'competitor' | 'forum' | 'review' | 'video' | 'encyclopedia' | 'news' | 'marketplace' | 'docs' | 'other';
+  | 'own' | 'competitor' | 'forum' | 'review' | 'social' | 'video' | 'encyclopedia' | 'news' | 'marketplace' | 'docs' | 'other';
 
 export interface CitedDomainRow {
   domain: string;
@@ -20,7 +20,10 @@ export interface CitedDomainRow {
 }
 
 export interface CitedSourcesCoverage {
+  /** Markasız ölçülen cevaplar */
   answers: number;
+  /** Soruda marka geçtiği için dışarıda bırakılan cevaplar */
+  brandedAnswers: number;
   answersWithSources: number;
   answersSearchedNoCitation: number;
   answersWithoutSearch: number;
@@ -51,7 +54,7 @@ export interface CitedSourcesResponse {
 
 /** Filtre çipi ve rozet sırası — sunucudaki SOURCE_TYPES ile aynı */
 export const SOURCE_TYPE_ORDER: readonly SourceType[] = [
-  'own', 'competitor', 'forum', 'review', 'video', 'encyclopedia', 'news', 'marketplace', 'docs', 'other',
+  'own', 'competitor', 'forum', 'review', 'social', 'video', 'encyclopedia', 'news', 'marketplace', 'docs', 'other',
 ];
 
 export const SOURCE_TYPE_LABELS: Readonly<Record<SourceType, string>> = {
@@ -59,6 +62,7 @@ export const SOURCE_TYPE_LABELS: Readonly<Record<SourceType, string>> = {
   competitor: 'Rakip',
   forum: 'Forum',
   review: 'İnceleme sitesi',
+  social: 'Sosyal ağ',
   video: 'Video',
   encyclopedia: 'Ansiklopedi',
   news: 'Haber',
@@ -73,6 +77,7 @@ export const SOURCE_TYPE_BADGE: Readonly<Record<SourceType, 'success' | 'warning
   competitor: 'warning',
   forum: 'secondary',
   review: 'secondary',
+  social: 'secondary',
   video: 'secondary',
   encyclopedia: 'secondary',
   news: 'secondary',
@@ -122,13 +127,21 @@ export function citedSourcesState(r: CitedSourcesResponse | null | undefined): C
   return 'ok';
 }
 
-/** Kapsam notu — "kaynak kaydı X'ten itibaren", eski ve aramasız cevaplar */
-export function coverageNote(c: CitedSourcesCoverage | null | undefined): string | null {
+/**
+ * Kapsam notu. firstRecordedAt sunucuda PENCEREDEKİ ilk kaynak kayıtlı ölçümün
+ * günüdür (kaydın sitede ilk başladığı gün değil) — metin buna göre yazılır.
+ */
+export function coverageNote(
+  c: CitedSourcesCoverage | null | undefined,
+  opts: { promptRunsTruncated?: boolean } = {},
+): string | null {
   if (!c || !c.firstRecordedAt) return null;
-  const parts = [`Kaynak kaydı ${formatDay(c.firstRecordedAt)} tarihinden itibaren tutuluyor.`];
-  if (c.legacyAnswers > 0) parts.push(`Bu dönemdeki ${c.legacyAnswers} cevap kayıt başlamadan önce ölçüldü; onların kaynak listesi yok.`);
+  const parts = [`Bu dönemde kaynak kaydı olan ilk ölçüm ${formatDay(c.firstRecordedAt)} tarihli.`];
+  if (c.legacyAnswers > 0) parts.push(`${c.legacyAnswers} cevap kaynak kaydı tutulmaya başlamadan önce ölçüldü; onların kaynak listesi yok.`);
   if (c.answersWithoutSearch > 0) parts.push(`${c.answersWithoutSearch} cevap web araması yapmayan asistanlardan geldi; bu asistanlar kaynak listesi döndürmez.`);
   if (c.answersSearchedNoCitation > 0) parts.push(`${c.answersSearchedNoCitation} cevapta arama yapıldı ama kaynak gösterilmedi.`);
+  if (c.brandedAnswers > 0) parts.push(`Sorusunda marka adın geçen ${c.brandedAnswers} cevap sayılmadı (alıntı skoruyla aynı kural).`);
+  if (opts.promptRunsTruncated) parts.push('Soru laboratuvarı ölçümleri çok fazla; en yeni 10.000 ölçüm sayıldı.');
   return parts.join(' ');
 }
 

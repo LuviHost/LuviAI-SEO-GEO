@@ -14,7 +14,7 @@ type ByType = Record<SourceType, { domains: number; answers: number }>;
 const emptyByType = (): ByType => Object.fromEntries(SOURCE_TYPE_ORDER.map((t) => [t, { domains: 0, answers: 0 }])) as ByType;
 
 const coverage = (p: Partial<CitedSourcesResponse['coverage']> = {}): CitedSourcesResponse['coverage'] => ({
-  answers: 10, answersWithSources: 6, answersSearchedNoCitation: 1, answersWithoutSearch: 2, legacyAnswers: 1,
+  answers: 10, brandedAnswers: 0, answersWithSources: 6, answersSearchedNoCitation: 1, answersWithoutSearch: 2, legacyAnswers: 1,
   snapshots: { total: 4, withSourcesVersion: 3, legacy: 1 }, promptRuns: { total: 0, withSourcesVersion: 0, legacy: 0 },
   firstRecordedAt: '2026-10-24', ...p,
 });
@@ -51,15 +51,17 @@ describe('citedSourcesState', () => {
 });
 
 describe('coverageNote', () => {
-  it('kayıt başlangıcı tarihle; eski, aramasız ve kaynaksız cevaplar sayılır', () => {
-    const n = coverageNote(coverage())!;
-    expect(n).toContain('Kaynak kaydı 24 Ekim 2026 tarihinden itibaren');
-    expect(n).toContain('1 cevap kayıt başlamadan önce');
+  it('penceredeki ilk kayıt tarihle; eski, aramasız, kaynaksız, markalı cevaplar ve tavan', () => {
+    const n = coverageNote(coverage({ brandedAnswers: 3 }), { promptRunsTruncated: true })!;
+    expect(n).toContain('Bu dönemde kaynak kaydı olan ilk ölçüm 24 Ekim 2026 tarihli');
+    expect(n).toContain('1 cevap kaynak kaydı tutulmaya başlamadan önce');
+    expect(n).toContain('marka adın geçen 3 cevap sayılmadı');
+    expect(n).toContain('en yeni 10.000');
     expect(n).toContain('2 cevap web araması yapmayan');
     expect(n).toContain('1 cevapta arama yapıldı ama kaynak gösterilmedi');
   });
   it('sıfır olan kalemler yazılmaz; kayıt yoksa not yok', () => {
-    expect(coverageNote(coverage({ legacyAnswers: 0, answersWithoutSearch: 0, answersSearchedNoCitation: 0 }))).toBe('Kaynak kaydı 24 Ekim 2026 tarihinden itibaren tutuluyor.');
+    expect(coverageNote(coverage({ legacyAnswers: 0, answersWithoutSearch: 0, answersSearchedNoCitation: 0 }))).toBe('Bu dönemde kaynak kaydı olan ilk ölçüm 24 Ekim 2026 tarihli.');
     expect(coverageNote(coverage({ firstRecordedAt: null }))).toBeNull();
     expect(coverageNote(null)).toBeNull();
   });

@@ -116,7 +116,7 @@ export function CitedSourcesCard({ siteId }: { siteId: string }) {
   const chips = useMemo(() => typeChips(data?.totals.byType), [data]);
   const rows = useMemo(() => filterDomains(data?.domains ?? [], type), [data, type]);
   const state = citedSourcesState(data);
-  const note = coverageNote(data?.coverage);
+  const note = coverageNote(data?.coverage, { promptRunsTruncated: data?.promptRunsTruncated });
 
   // Secili tur yeni pencerede yoksa tumune don
   useEffect(() => {
@@ -162,7 +162,7 @@ export function CitedSourcesCard({ siteId }: { siteId: string }) {
                   icon={BookOpen}
                   label="Seni alıntılayan cevaplar"
                   value={data.totals.ownShare === null ? '—' : formatPct(data.totals.ownShare, 0)}
-                  hint={`Kaynak gösteren ${formatNum(data.coverage.answersWithSources)} cevabın ${formatNum(data.totals.answersCitingOwn)} tanesi`}
+                  hint={`Markasız sorulara kaynak gösteren ${formatNum(data.coverage.answersWithSources)} cevabın ${formatNum(data.totals.answersCitingOwn)} tanesi`}
                 />
                 <MetricCard
                   label="Yalnız başka siteleri gösteren"

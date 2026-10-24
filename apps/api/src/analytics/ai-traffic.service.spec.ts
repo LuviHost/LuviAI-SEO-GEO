@@ -13,7 +13,7 @@ const { AiTrafficService } = await import('./ai-traffic.service.js');
 const { aiSessionSourceRegex } = await import('./ai-traffic.js');
 
 const NOW = new Date('2026-10-24T10:00:00Z');
-const CONNECTED = { gaPropertyId: '123', gaRefreshToken: 'enc' };
+const CONNECTED = { url: 'https://www.ornek.com', gaPropertyId: '123', gaRefreshToken: 'enc' };
 
 function setup(opts: { site?: any; cache?: any; hits?: any[]; client?: any } = {}) {
   const kv = new Map<string, any>(opts.cache ? [[opts.cache.key, opts.cache.row]] : []);
@@ -35,7 +35,7 @@ function gaReplies() {
   runReport.mockImplementation(async ({ requestBody }: any) => {
     const dims = (requestBody.dimensions ?? []).map((d: any) => d.name).join(',');
     if (dims === 'date,sessionSource') return { data: { rows: [row(['20261020', 'chatgpt.com'], [7, 4, 1, 0])] } };
-    if (dims === 'sessionSource,landingPage') return { data: { rows: [row(['chatgpt.com', '/blog'], [7, 4, 1])], rowCount: 1 } };
+    if (dims === 'sessionSource,hostName,landingPage') return { data: { rows: [row(['chatgpt.com', 'ornek.com', '/blog'], [7, 4, 1])], rowCount: 1, metadata: { subjectToThresholding: true } } };
     return { data: { rows: [row([], [700])] } };
   });
 }
@@ -65,7 +65,7 @@ describe('AiTrafficService.get', () => {
     expect(runReport).toHaveBeenCalledTimes(3);
     for (const [arg] of runReport.mock.calls) {
       expect(arg.property).toBe('properties/123');
-      expect(arg.requestBody.dateRanges).toEqual([{ startDate: '2026-07-26', endDate: '2026-10-23' }]);
+      expect(arg.requestBody.dateRanges).toEqual([{ startDate: '90daysAgo', endDate: 'yesterday' }]);
       if (arg.requestBody.dimensionFilter) expect(arg.requestBody.dimensionFilter.filter.stringFilter.value).toBe(aiSessionSourceRegex());
     }
     expect(r.ga?.totals.sessions).toBe(7);
@@ -73,6 +73,8 @@ describe('AiTrafficService.get', () => {
     expect(r.ga?.aiShare).toBeCloseTo(0.01);
     expect(r.ga?.landingPages[0].page).toBe('/blog');
     expect(r.ga?.daily).toHaveLength(90);
+    expect(r.ga?.thresholded).toBe(true);
+    expect(r.dateRange).toEqual({ startDate: '2026-07-26', endDate: '2026-10-23' });
     expect(prisma.kvStore.upsert).toHaveBeenCalledTimes(1);
     const saved = kv.get('ai-traffic:v1:s1:90');
     expect(JSON.parse(saved.value).fingerprint).toBe('2026-10-23|123');
@@ -98,7 +100,7 @@ describe('AiTrafficService.get', () => {
       const dims = (requestBody.dimensions ?? []).map((d: any) => d.name).join(',');
       if (dims === 'date,sessionSource') {
         dailyCalls++;
-        if (requestBody.metrics.some((m: any) => m.name === 'totalRevenue')) throw Object.assign(new Error('Field totalRevenue is not valid'), { code: 400 });
+        if (requestBody.metrics.some((m: any) => m.name === 'totalRevenue')) throw Object.assign(new Error('INVALID_ARGUMENT: Field totalRevenue is not valid'), { status: 400 });
         return { data: { rows: [row(['20261020', 'claude.ai'], [2, 1, 0])] } };
       }
       return { data: { rows: [] } };
@@ -110,19 +112,54 @@ describe('AiTrafficService.get', () => {
     expect(r.ga?.byAssistant[0].key).toBe('claude');
   });
 
-  it('yetki hatalari nedene cevrilir, onbellege yazilmaz; tracker yine doner', async () => {
-    runReport.mockRejectedValue(Object.assign(new Error('invalid_grant'), { code: 401 }));
+  it('gecici hatada gelirsiz tekrar YOK: hata firlar, gelirsiz sonuc 6 saat onbellege girmez', async () => {
+    runReport.mockImplementation(async ({ requestBody }: any) => {
+      const dims = (requestBody.dimensions ?? []).map((d: any) => d.name).join(',');
+      if (dims === 'date,sessionSource') throw Object.assign(new Error('backend error'), { status: 503 });
+      return { data: { rows: [] } };
+    });
     const a = setup();
     const r = await a.svc.get('s1', '28', NOW);
+    expect(r).toMatchObject({ ga: null, reason: 'unavailable' });
+    const dailyCalls = runReport.mock.calls.filter(([arg]: any) => arg.requestBody.dimensions?.[0]?.name === 'date');
+    expect(dailyCalls).toHaveLength(1);
+    // Yalniz kisa negatif onbellek
+    const saved = a.kv.get('ai-traffic:v1:s1:28');
+    expect(JSON.parse(saved.value)).toEqual({ fingerprint: '2026-10-23|123', error: 'unavailable' });
+    expect(saved.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(10 * 60_000);
+  });
+
+  it('hata nedenleri: gaxios status/code, API kapali ayri neden', async () => {
+    runReport.mockRejectedValue(Object.assign(new Error('invalid_grant'), { status: 401 }));
+    const r = await setup().svc.get('s1', '28', NOW);
     expect(r).toMatchObject({ ga: null, reason: 'auth_error' });
     expect(r.tracker.totalHits).toBe(0);
-    expect(a.prisma.kvStore.upsert).not.toHaveBeenCalled();
 
     runReport.mockRejectedValue(Object.assign(new Error('User does not have sufficient permissions'), { code: 403 }));
     expect((await setup().svc.get('s1', '28', NOW)).reason).toBe('permission');
 
+    runReport.mockRejectedValue(Object.assign(new Error('Google Analytics Data API has not been used in project 1 before or it is disabled'), {
+      status: 403, response: { data: { error: { status: 'PERMISSION_DENIED', details: [{ reason: 'SERVICE_DISABLED' }] } } },
+    }));
+    expect((await setup().svc.get('s1', '28', NOW)).reason).toBe('api_disabled');
+
     runReport.mockRejectedValue(new Error('socket hang up'));
     expect((await setup().svc.get('s1', '28', NOW)).reason).toBe('unavailable');
+  });
+
+  it('negatif onbellek isabeti: 10 dk icinde Google\'a tekrar gidilmez', async () => {
+    const cache = { key: 'ai-traffic:v1:s1:28', row: { value: JSON.stringify({ fingerprint: '2026-10-23|123', error: 'permission' }), expiresAt: new Date(Date.now() + 5 * 60_000) } };
+    const r = await setup({ cache }).svc.get('s1', '28', NOW);
+    expect(r).toMatchObject({ ga: null, reason: 'permission' });
+    expect(runReport).not.toHaveBeenCalled();
+  });
+
+  it('izleme kodu adresleri yalniz sitenin host\'undan', async () => {
+    const r = await setup({
+      site: { url: 'https://ornek.com', gaPropertyId: null, gaRefreshToken: null },
+      hits: [{ date: new Date('2026-10-20T00:00:00Z'), referrer: 'chatgpt', hits: 3, topUrls: [{ url: 'https://evil.example/', count: 9 }, { url: 'https://ornek.com/a', count: 3 }] }],
+    }).svc.get('s1', '28', NOW);
+    expect(r.tracker.topPages).toEqual([{ url: 'https://ornek.com/a', count: 3 }]);
   });
 
   it('OAuth istemcisi alinamazsa not_connected', async () => {

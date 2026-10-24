@@ -582,7 +582,7 @@ export class McpToolsService {
         name: 'get_cited_sources',
         scope: 'audit:read',
         title: 'Alintilanan dis kaynaklar',
-        description: 'AI cevaplarinin kaynak olarak gosterdigi alan adlari (son 30 ya da 90 gun): kac cevapta alintilandi, hangi asistanlar, en cok hangi sorularda, tur (own/competitor/forum/review/video/encyclopedia/news/marketplace/docs/other — sezgisel etiket) ve "nerede yer almalisin" eylemleri. coverage.firstRecordedAt oncesindeki olcumlerde kaynak kaydi yok; answersWithoutSearch = kaynak listesi dondurmeyen (aramasiz) asistan cevaplari.',
+        description: 'AI cevaplarinin kaynak olarak gosterdigi alan adlari (son 30 ya da 90 gun): kac cevapta alintilandi, hangi asistanlar, en cok hangi sorularda, tur (own/competitor/forum/review/social/video/encyclopedia/news/marketplace/docs/other — sezgisel etiket) ve "nerede yer almalisin" eylemleri. Yalniz markasiz sorular sayilir (brandedAnswersExcluded). coverage.firstRecordedAt = bu PENCEREDE kaynak kayitli ilk olcumun gunu; legacyAnswers = kaynak kaydi tutulmadan once olculen cevaplar; answersWithoutSearch = kaynak listesi dondurmeyen (aramasiz) asistan cevaplari.',
         inputSchema: this.schema({
           ...SITE_ID_PROP,
           days: { type: 'integer', enum: [30, 90], description: 'Pencere (gun) — varsayilan 30' },

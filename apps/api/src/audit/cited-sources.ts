@@ -12,6 +12,10 @@ import { classifySource, SOURCE_TYPES, type SourceType, type SourceTypeContext }
  *   - sourcesVersion YOK                → eski satir; kaynaklar hic yakalanmadi
  *   - sourcesVersion VAR + sources YOK  → saglayici aramasiz (Grok/DeepSeek/Llama)
  *   - sourcesVersion VAR + sources []   → arama yapildi, alinti yok
+ * MARKALI SORULAR (brandInQuery) toplamaya HIC girmez — sorunun kendisinde marka
+ * gecince asistanin markanin sitesini kaynak gostermesi neredeyse totolojik;
+ * ayni sayfadaki alinti skoru da yalniz markasiz cevaplardan hesaplanir
+ * (citation-score.ts unbrandedOnly). Sayilari coverage.brandedAnswers'ta.
  * Ana tablo YALNIZ kaynak kaydi olan cevaplardan kurulur. Eski satirlarin
  * `mentionedDomains` alani (cevap METNINDE gecen alan adlari, Reddit/YouTube/
  * Wikipedia gurultu filtresiyle) ayri `legacyMentionedDomains` ozetine gider;
@@ -40,6 +44,8 @@ export interface AnswerRecord {
   sources?: CitationSource[] | null;
   /** Yalniz eski snapshot probe'larinda anlamli */
   mentionedDomains?: string[] | null;
+  /** Soruda marka geciyor mu — true ise toplamaya girmez (unbrandedOnly) */
+  brandInQuery?: boolean;
 }
 
 export interface CitedDomainRow {
@@ -66,8 +72,10 @@ export interface PlacementRow {
 }
 
 export interface CitedSourcesCoverage {
-  /** Penceredeki olculen cevaplar (HATA satirlari haric) */
+  /** Penceredeki olculen MARKASIZ cevaplar (HATA ve markali satirlar haric) */
   answers: number;
+  /** Soruda marka gecen ve bu yuzden disarida birakilan cevaplar */
+  brandedAnswers: number;
   /** Kaynak kaydi olan ve en az bir kaynak alintilayan */
   answersWithSources: number;
   /** Arama yapildi, alinti yok (sources: []) */
@@ -78,7 +86,10 @@ export interface CitedSourcesCoverage {
   legacyAnswers: number;
   snapshots: { total: number; withSourcesVersion: number; legacy: number };
   promptRuns: { total: number; withSourcesVersion: number; legacy: number };
-  /** Penceredeki ilk kaynak kaydi gunu (YYYY-MM-DD) — "kaynak kaydi X'ten itibaren" */
+  /**
+   * PENCEREDEKI kaynak kayitli ilk olcumun gunu (YYYY-MM-DD). Kaydin sitede
+   * ilk basladigi gun DEGIL — pencere sonradan basliyorsa pencere icindeki ilk gun.
+   */
   firstRecordedAt: string | null;
 }
 
@@ -117,6 +128,7 @@ export interface CitedSourcesResult {
 export const PLACEMENT_ACTIONS: Readonly<Record<SourceType, string>> = {
   review: 'Bu sitede profilin olup olmadığını kontrol et; yoksa profil aç, varsa bilgilerini güncelle ve müşterilerinden yorum iste.',
   forum: 'Bu sorularla ilgili başlıkları kontrol et; uygun başlıkta kim olduğunu açıkça belirterek bağlantınla birlikte faydalı bir yanıt ver.',
+  social: 'Marka hesabını kontrol et; profilini güncel tut ve bu sorularla ilgili konularda paylaşım yap.',
   news: 'Bu yayının konuyla ilgili haberlerini kontrol et; basın bülteni ya da haber önerisi gönder.',
   encyclopedia: 'Yalnız bağımsız kaynaklarla desteklenen, tarafsız bilgi eklenebilir. Kendi markan hakkında doğrudan düzenleme yapma; ilgili maddenin tartışma sayfasında kaynak öner.',
   video: 'Bu sorularla ilgili videoları kontrol et; konuyu anlatan bir video yayınla, başlıkta ve açıklamada soruyu karşıla.',
@@ -181,7 +193,10 @@ export interface AggregateInput {
 }
 
 export function aggregateCitedSources(input: AggregateInput): CitedSourcesResult {
-  const { answers, ctx } = input;
+  const { ctx } = input;
+  // Markali sorular toplamaya girmez (ust not)
+  const answers = input.answers.filter((a) => a.brandInQuery !== true);
+  const brandedAnswers = input.answers.length - answers.length;
   const byDomain = new Map<string, DomainAcc>();
   const legacy = new Map<string, number>();
   let legacyAnswers = 0;
@@ -301,6 +316,7 @@ export function aggregateCitedSources(input: AggregateInput): CitedSourcesResult
     days: input.days,
     coverage: {
       answers: answers.length,
+      brandedAnswers,
       answersWithSources,
       answersSearchedNoCitation: searchedNoCitation,
       answersWithoutSearch: withoutSearch,
@@ -344,6 +360,7 @@ export function compactCitedSources(r: CitedSourcesResult, maxDomains = 20) {
     days: r.days,
     coverage: {
       answers: r.coverage.answers,
+      brandedAnswersExcluded: r.coverage.brandedAnswers,
       answersWithSources: r.coverage.answersWithSources,
       answersWithoutSearch: r.coverage.answersWithoutSearch,
       legacyAnswers: r.coverage.legacyAnswers,
