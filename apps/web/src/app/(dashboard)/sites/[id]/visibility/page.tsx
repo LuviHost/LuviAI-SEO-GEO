@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
+import { CitedSourcesCard } from '@/components/cited-sources-card';
 import { Sparkles, Compass, Loader2, FileText, Search, Star, Target } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -89,6 +90,9 @@ export default function VisibilityPage() {
       />
 
       <CitationHistoryChart siteId={site.id} siteName={site.name} siteUrl={site.url} />
+
+      {/* AI cevaplarinin kaynak gosterdigi siteler + "nerede yer almalisin" */}
+      <CitedSourcesCard siteId={site.id} />
 
       {/* GEO yol haritası — AI önerileri */}
       <Card className="overflow-hidden">
