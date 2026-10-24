@@ -1123,6 +1123,11 @@ export class AiCitationService {
           probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (finish_reason=${safeReasonToken(data?.choices?.[0]?.finish_reason)})` });
           continue;
         }
+        // NOT (olcum): alinti eslesmesi yalniz `citations` dizisine bakar.
+        // Perplexity bu alani `search_results` lehine kaldirirsa kaynak
+        // listesinden alinti sayimi sessizce durur (metindeki alan adi yine
+        // sayilir). probe.sources iki alani da okur (perplexitySources); olcumu
+        // degistirmek CITATION_MATCH_VERSION artisi gerektiren ayri bir karar.
         const citations: string[] = Array.isArray(data?.citations) ? data.citations : [];
         // Etiket sinirli: 'notranksup.ai' / 'ranksup.ai.tr' artik bizim alinti sayilmaz
         probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citations, host, perplexitySources(data)));

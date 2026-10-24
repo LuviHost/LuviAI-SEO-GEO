@@ -800,7 +800,7 @@ model AiCitationRun {
   mentionedCount Int  @default(0)
   poolSize       Int  @default(0)
 
-  providers    Json // [{ provider, label, available, score, reason, probes: [{ query, cited, brandMentioned, brandInQuery, position, sentiment, excerpt, citedPages, sources, sourcesVersion }] }]
+  providers    Json // [{ provider, label, available, score, reason, probes: [{ query, cited, brandMentioned, brandInQuery, position, sentiment, excerpt, citedPages }] }] — kaynak listesi BILEREK yok (citation-sources.ts)
   /// Alinti eslestirme yontemi surumu. 1 = metin.includes(host) (benzer alan
   /// adlarini da sayiyordu), 2 = etiket sinirli (audit/host-match.ts). Trend ve
   /// alarmlar farkli surumleri ayni seride kiyaslamaz.

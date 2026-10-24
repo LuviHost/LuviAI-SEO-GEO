@@ -83,6 +83,15 @@ describe('AiCitationTrackerService.getHistory — yontem surumu', () => {
     expect(latest).toEqual({ openai: 'son-openai', gemini: 'son-gemini' });
   });
 
+  it('iki okuma arasinda ayni gun yeniden test: skor ve probe\'lar ayni (ikinci) okumadan', async () => {
+    const findMany = vi.fn(async (args: any) => (args?.where?.id
+      ? [{ id: 'x1', available: true, score: 90, probes: [{ query: 'yeni-kosum' }] }]
+      : [{ id: 'x1', provider: 'openai', date: new Date(`${gunOnce(0)}T00:00:00Z`), score: 10, citedCount: 0, mentionedCount: 0, available: true, createdAt: new Date(), matchVersion: 4 }]));
+    const prisma = { aiCitationSnapshot: { findMany }, aiCitationRun: { findFirst: vi.fn(async () => null) } };
+    const h: any = await new AiCitationTrackerService(prisma as any, {} as any).getHistory('s1', 30);
+    expect(h.latestResults).toEqual([{ provider: 'openai', available: true, score: 90, probes: [{ query: 'yeni-kosum' }] }]);
+  });
+
   it('tek surum: delta ve methodChanged false', async () => {
     // manset farki icin pencere basina 2 olcum gerekir (citation-headline.ts)
     const { svc } = trackerWith([
@@ -128,7 +137,7 @@ describe('AiCitationTrackerService.snapshotSite — HATA satirlari sayilmaz', ()
 });
 
 describe('AiCitationTrackerService.snapshotSite — alintilanan kaynaklar (GEO Faz 2)', () => {
-  it('snapshot probes JSON\'u ve kosum probe\'u sources + sourcesVersion tasir; aramasiz/eski probe\'a alan eklenmez', async () => {
+  it('snapshot probes JSON\'u sources + sourcesVersion tasir; kosum probe\'u kaynak tasimaz', async () => {
     const sources = [
       { url: 'https://reddit.com/r/x/', domain: 'reddit.com', title: 'r/x' },
       { url: 'https://bankateklifi.com/', domain: 'bankateklifi.com', originOnly: true as const },
@@ -160,11 +169,12 @@ describe('AiCitationTrackerService.snapshotSite — alintilanan kaynaklar (GEO F
     expect(snap.create.probes[0].sources).toEqual(sources);
     expect(snap.update.probes[0].sourcesVersion).toBe(1);
 
+    // Kosum (AiCitationRun) kaynak tasimaz: rapor snapshot + GeoPromptRun okur
     const run = (p: string) => runData.providers.find((x: any) => x.provider === p).probes[0];
-    expect(run('gemini')).toMatchObject({ sources, sourcesVersion: 1 });
-    expect(run('xai').sourcesVersion).toBe(1);
-    expect(run('xai')).not.toHaveProperty('sources');
-    expect(run('openai')).not.toHaveProperty('sources');
-    expect(run('openai')).not.toHaveProperty('sourcesVersion');
+    for (const p of ['gemini', 'xai', 'openai']) {
+      expect(run(p)).not.toHaveProperty('sources');
+      expect(run(p)).not.toHaveProperty('sourcesVersion');
+    }
+    expect(JSON.stringify(runData.providers)).not.toContain('reddit.com');
   });
 });

@@ -64,6 +64,22 @@ describe('AsoPromptLabService.run — sağlayıcı listesi', () => {
   });
 });
 
+describe('AsoPromptLabService.run — gecmis kaydi', () => {
+  it('alintilanan kaynaklar ve surum satira yazilir', async () => {
+    const sources = [{ url: 'https://youtube.com/watch?v=1', domain: 'youtube.com' }];
+    const { svc, createMany } = make([{ provider: 'anthropic', label: 'Claude', available: true, probes: [probe({ sources, sourcesVersion: 1 })], cost: 0 }]);
+    await svc.run('s1', 'a1', 'p1');
+    expect(createMany.mock.calls[0][0].data[0]).toMatchObject({ sources, sourcesVersion: 1 });
+  });
+
+  it('gecmis yazimi basarisiz olsa da odenen olcum sonucu doner (500 yok)', async () => {
+    const { svc, createMany } = make([{ provider: 'anthropic', label: 'Claude', available: true, probes: [probe()], cost: 0 }]);
+    createMany.mockRejectedValueOnce(new Error("Unknown column 'sources'"));
+    const r = await svc.run('s1', 'a1', 'p1');
+    expect(r.summary).toMatchObject({ mentioned: 1, total: 1 });
+  });
+});
+
 describe('isUnconfiguredProvider (sonuç satırı — audit/citation-providers.ts ile ortak kural)', () => {
   it('yalnız anahtarsız ya da model tanımsız Llama yapılandırılmamış sayılır', () => {
     expect(isUnconfiguredProvider({ provider: 'perplexity', available: false, reason: 'NO_KEY' }, {})).toBe(true);

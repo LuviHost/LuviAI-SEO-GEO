@@ -229,7 +229,15 @@ export class AsoPromptLabService {
     }
 
     if (runRows.length > 0) {
-      await this.prisma.geoPromptRun.createMany({ data: runRows });
+      // Gecmis yazimi basarisiz olsa da olcum yapildi ve hak/maliyet harcandi:
+      // cevap bellekteki sonuctan uretilir, yalniz gecmis eksilir (prompt-lab
+      // persistRuns ile ayni kural). Eskiden hata 500 donup odenen olcumu
+      // kullaniciya "basarisiz" gosteriyordu (orn. yeni kolon + eski sema).
+      try {
+        await this.prisma.geoPromptRun.createMany({ data: runRows });
+      } catch (err: any) {
+        this.log.error(`App GeoPromptRun yazilamadi (prompt=${prompt.id}): ${err?.message ?? err}`);
+      }
       const linked = runRows.filter((r) => r.cited).length;
       await this.prisma.geoPrompt.update({
         where: { id: prompt.id },

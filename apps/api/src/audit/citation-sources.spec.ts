@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  normalizeSourceUrl, normalizeSources, isGroundingRedirect, asHostname, sourceColumns, checksWithoutSources,
+  normalizeSourceUrl, normalizeSources, isGroundingRedirect, asHostname, sourceColumns, providersWithoutSources, titleAsHostname,
   anthropicSources, geminiSources, openaiSources, perplexitySources,
   MAX_SOURCES_PER_PROBE, MAX_SOURCE_URL_LEN, MAX_SOURCE_TITLE_LEN,
 } from './citation-sources.js';
@@ -43,9 +43,20 @@ describe('normalizeSourceUrl', () => {
   it('uzun adres: once sorgu, sonra yol atilir — kirpilmis (kirik) URL yazilmaz', () => {
     const longQuery = `https://ornek.com/kisa-yol?q=${'a'.repeat(400)}`;
     expect(normalizeSourceUrl(longQuery)?.url).toBe('https://ornek.com/kisa-yol');
+    expect(normalizeSourceUrl(longQuery)?.originOnly).toBeUndefined();
     const longPath = `https://ornek.com/${'b'.repeat(400)}`;
-    expect(normalizeSourceUrl(longPath)?.url).toBe('https://ornek.com/');
+    expect(normalizeSourceUrl(longPath)).toEqual({ url: 'https://ornek.com/', host: 'ornek.com', originOnly: true });
     expect(normalizeSourceUrl(longPath)!.url.length).toBeLessThanOrEqual(MAX_SOURCE_URL_LEN);
+  });
+
+  it('yolu sigmayan URL koke duser ve kaynakta originOnly isaretlenir; ayni sitenin tam adresi gelirse tam olan kazanir', () => {
+    const longPath = `https://ornek.com/${'b'.repeat(400)}`;
+    expect(normalizeSources([{ url: longPath, title: 'Uzun' }])).toEqual([
+      { url: 'https://ornek.com/', domain: 'ornek.com', title: 'Uzun', originOnly: true },
+    ]);
+    expect(normalizeSources([{ url: longPath }, { url: 'https://ornek.com/' }])).toEqual([
+      { url: 'https://ornek.com/', domain: 'ornek.com' },
+    ]);
   });
 });
 
@@ -148,7 +159,11 @@ describe('Claude — text block citations', () => {
 describe('Gemini — groundingChunks (yonlendirme adresleri)', () => {
   const chunks = [
     { web: { uri: REDIRECT, title: 'bankateklifi.com' } },
-    { web: { uri: `${REDIRECT}2`, title: 'www.HangiKredi.com' } },
+    { web: { uri: `${REDIRECT}2`, title: 'www.hangikredi.com' } },
+    // urun adlari alan adi DEGIL: buyuk harf ya da bilinmeyen TLD
+    { web: { uri: `${REDIRECT}7`, title: 'Next.js' } },
+    { web: { uri: `${REDIRECT}8`, title: 'ASP.NET' } },
+    { web: { uri: `${REDIRECT}9`, title: 'vue.js' } },
     { web: { uri: `${REDIRECT}3`, title: 'tr.wikipedia.org' } },
     // basligi alan adi degil → alan adi bilinemez, atlanir
     { web: { uri: `${REDIRECT}4`, title: 'Kredi faiz oranlari 2026 - Guncel liste' } },
@@ -183,6 +198,19 @@ describe('Gemini — groundingChunks (yonlendirme adresleri)', () => {
     expect(asHostname('Kredi faiz oranlari')).toBeNull();
     expect(asHostname('1.2.3.4')).toBeNull();
     expect(asHostname(undefined)).toBeNull();
+  });
+
+  it('titleAsHostname: urun adlari reddedilir, gercek alan adlari kabul', () => {
+    for (const t of ['Next.js', 'Vue.js', 'vue.js', 'node.js', 'ASP.NET', 'Socket.IO', 'Three.js', 'D3.js', 'Chart.js', 'ornek.museumx']) {
+      expect(titleAsHostname(t), t).toBeNull();
+    }
+    expect(titleAsHostname('bankateklifi.com')).toBe('bankateklifi.com');
+    expect(titleAsHostname('www.ornek.com.tr')).toBe('ornek.com.tr');
+    expect(titleAsHostname('bbc.co.uk')).toBe('bbc.co.uk');
+    expect(titleAsHostname('perplexity.ai')).toBe('perplexity.ai');
+    expect(titleAsHostname('asp.net')).toBe('asp.net'); // kucuk harf + gercek TLD = gercek alan adi
+    // web.domain (Vertex) icin buyuk/kucuk harf serbest
+    expect(asHostname('Ornek.CO.UK')).toBe('ornek.co.uk');
   });
 });
 
@@ -236,24 +264,18 @@ describe('sourceColumns (GeoPromptRun)', () => {
   });
 });
 
-describe('checksWithoutSources (MCP get_audit)', () => {
-  it('probe kaynaklari cikar, diger alanlar ve girdi aynen kalir', () => {
-    const checks = {
-      robots: { score: 100 },
-      aiCitations: {
-        score: 40,
-        providers: [
-          { provider: 'openai', probes: [{ query: 'q', cited: true, sources: [{ url: 'https://a.com/', domain: 'a.com' }], sourcesVersion: 1 }] },
-          { provider: 'xai', available: false, reason: 'NO_KEY' },
-        ],
-      },
-    };
-    const out = checksWithoutSources(checks);
-    expect(out.aiCitations.providers[0].probes![0]).toEqual({ query: 'q', cited: true, sourcesVersion: 1 });
-    expect(out.aiCitations.providers[1]).toEqual({ provider: 'xai', available: false, reason: 'NO_KEY' });
-    expect(out.robots).toEqual({ score: 100 });
-    expect(checks.aiCitations.providers[0].probes![0].sources).toHaveLength(1);
-    expect(checksWithoutSources(null)).toBeNull();
-    expect(checksWithoutSources({ robots: 1 })).toEqual({ robots: 1 });
+describe('providersWithoutSources (Audit.checks yazimi, MCP run_prompt)', () => {
+  it('probe kaynaklari cikar; damga, diger alanlar ve girdi aynen kalir', () => {
+    const providers = [
+      { provider: 'openai', available: true, probes: [{ query: 'q', cited: true, sources: [{ url: 'https://a.com/', domain: 'a.com' }], sourcesVersion: 1 }, { query: 'h', excerpt: 'HATA: x' }] },
+      { provider: 'xai', available: false, reason: 'NO_KEY' },
+    ];
+    const out = providersWithoutSources(providers);
+    expect(out[0].probes![0]).toEqual({ query: 'q', cited: true, sourcesVersion: 1 });
+    expect(out[0].probes![1]).toBe(providers[0].probes![1]);
+    expect(out[1]).toEqual({ provider: 'xai', available: false, reason: 'NO_KEY' });
+    expect(providers[0].probes![0].sources).toHaveLength(1);
+    expect(providersWithoutSources(null)).toBeNull();
+    expect(providersWithoutSources(undefined)).toBeUndefined();
   });
 });

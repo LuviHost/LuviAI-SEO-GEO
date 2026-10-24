@@ -327,6 +327,8 @@ export class GeoScoreCardService {
     const last7 = new Date(Date.now() - 7 * 86400000);
     const recent = await this.prisma.aiCitationSnapshot.findMany({
       where: { siteId, date: { gte: last7 } },
+      // probes JSON'u (excerpt + alintilanan kaynaklar) burada kullanilmiyor
+      select: { provider: true, available: true, score: true },
     });
 
     const checks: GeoPillar['checks'] = [];

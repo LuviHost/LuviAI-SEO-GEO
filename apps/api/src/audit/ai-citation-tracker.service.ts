@@ -102,10 +102,10 @@ export class AiCitationTrackerService {
         sentiment: pr.sentiment ?? null,
         excerpt: pr.excerpt?.slice(0, 400) ?? null,
         ...(pr.citedPages?.length ? { citedPages: pr.citedPages } : {}),
-        // Alintilanan dis kaynaklar (GEO Faz 2) — snapshot gun icinde ezildigi
-        // icin kosum basina kaynak gecmisi burada kalir. Damga yoksa eski kosum.
-        ...(pr.sources ? { sources: pr.sources } : {}),
-        ...(pr.sourcesVersion ? { sourcesVersion: pr.sourcesVersion } : {}),
+        // Alintilanan kaynaklar (GEO Faz 2) kosuma BILEREK yazilmaz: kaynak
+        // raporu gunluk snapshot (yukarida, probes JSON'u) + GeoPromptRun'u
+        // okur; listRuns 100 kosumun providers JSON'unu tamamen okudugu icin
+        // kaynaklar her listeyi MB'larca buyuturdu (citation-sources.ts).
       })),
     }));
     const counts = citationCounts(results.flatMap((r) => r.probes ?? []) as any[]);
@@ -279,20 +279,26 @@ export class AiCitationTrackerService {
       return { days, since: since.toISOString(), trends, headline, stability, latestRunAt };
     }
 
+    // available/score/probes AYNI okumadan gelir: iki okuma arasinda ayni gun
+    // "Yeniden Test" satiri ezerse (upsert, id ayni) skor ile probe'lar
+    // farkli kosumlardan karismasin. Arada silinen satir ilk okumadan doner.
     const latest = Array.from(latestByProvider.values());
-    const probeRows = latest.length > 0
+    const detailRows = latest.length > 0
       ? await this.prisma.aiCitationSnapshot.findMany({
         where: { id: { in: latest.map((s) => s.id) } },
-        select: { id: true, probes: true },
+        select: { id: true, available: true, score: true, probes: true },
       })
       : [];
-    const probesById = new Map(probeRows.map((r) => [r.id, r.probes]));
-    const latestResults = latest.map((s) => ({
-      provider: s.provider,
-      available: s.available,
-      score: s.score,
-      probes: probesById.get(s.id) ?? [],
-    }));
+    const detailById = new Map(detailRows.map((r) => [r.id, r]));
+    const latestResults = latest.map((s) => {
+      const d = detailById.get(s.id);
+      return {
+        provider: s.provider,
+        available: d ? d.available : s.available,
+        score: d ? d.score : s.score,
+        probes: d?.probes ?? [],
+      };
+    });
 
     return {
       days,

@@ -79,11 +79,51 @@ export function isGroundingRedirect(url: string): boolean {
 // En az iki etiket, harfle biten TLD; IP ve bosluklu metin eslesmez
 const HOSTNAME_RE = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$/;
 
-/** "www.Ornek.com.tr" → "ornek.com.tr"; host degilse null (orn. sayfa basligi) */
+/**
+ * Kabul edilen ust alanlar (kurate). NEDEN: Gemini basligindan alan adi
+ * cikarirken "Next.js", "Vue.js" gibi teknoloji adlari host kalibina uyuyor;
+ * ".js" gercek bir TLD degil. Liste PSL'nin tamami degil — Turkiye pazarinda
+ * kaynak olarak gorulen gTLD'ler + yaygin ccTLD'ler. Listede olmayan TLD'li
+ * Gemini kaynagi atlanir (gercek URL'li saglayicilar bu listeye TABI DEGIL).
+ */
+const KNOWN_TLDS = new Set([
+  // gTLD
+  'com', 'net', 'org', 'edu', 'gov', 'mil', 'int', 'info', 'biz', 'io', 'ai', 'app', 'dev', 'co',
+  'me', 'tv', 'gg', 'xyz', 'online', 'site', 'store', 'shop', 'news', 'blog', 'tech', 'cloud',
+  'page', 'wiki', 'pro', 'mobi', 'name', 'agency', 'digital', 'media', 'academy', 'health',
+  'finance', 'bank', 'insurance', 'law', 'travel', 'global', 'world', 'live', 'life', 'today',
+  'center', 'group', 'company', 'solutions', 'services', 'network', 'software', 'systems', 'tools',
+  'review', 'reviews', 'guide', 'expert', 'money', 'market', 'marketing', 'studio', 'design',
+  'education', 'school', 'university', 'eu', 'asia', 'istanbul',
+  // ccTLD
+  'tr', 'uk', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'pl', 'ru', 'ua', 'us', 'ca', 'mx',
+  'br', 'ar', 'cl', 'jp', 'cn', 'kr', 'in', 'au', 'nz', 'za', 'ie', 'pt', 'se', 'no', 'dk', 'fi',
+  'gr', 'cz', 'sk', 'hu', 'ro', 'bg', 'hr', 'rs', 'si', 'ee', 'lv', 'lt', 'cy', 'il', 'ae', 'sa',
+  'qa', 'kw', 'eg', 'ma', 'ng', 'ke', 'id', 'my', 'sg', 'th', 'vn', 'ph', 'tw', 'hk', 'pk', 'az',
+  'ge', 'kz', 'uz', 'by', 'md', 'lu', 'is', 'mt', 'al', 'ba', 'mk', 'ly', 'fm', 'to', 'sh',
+]);
+
+/**
+ * "www.ornek.com.tr" → "ornek.com.tr"; host degilse ya da TLD bilinmiyorsa
+ * null (orn. sayfa basligi, "Next.js").
+ */
 export function asHostname(raw: string | null | undefined): string | null {
   if (typeof raw !== 'string') return null;
   const h = raw.trim().toLowerCase().replace(/\.$/, '').replace(/^www\./, '');
-  return HOSTNAME_RE.test(h) ? h : null;
+  if (!HOSTNAME_RE.test(h)) return null;
+  return KNOWN_TLDS.has(h.slice(h.lastIndexOf('.') + 1)) ? h : null;
+}
+
+/**
+ * Gemini BASLIGI alan adi mi? asHostname + basligin tamami kucuk harf.
+ * Alan adi olan basliklar Gemini'de kucuk harfle gelir ("bankateklifi.com");
+ * "ASP.NET", "Socket.IO" gibi urun adlari buyuk harf tasir ve host
+ * kalibina + gercek TLD'ye uysa da alan adi degildir.
+ */
+export function titleAsHostname(raw: string | null | undefined): string | null {
+  if (typeof raw !== 'string') return null;
+  const t = raw.trim();
+  return t === t.toLowerCase() ? asHostname(t) : null;
 }
 
 const IPV4_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/;
@@ -109,7 +149,7 @@ function cleanTitle(raw: string | null | undefined, host: string, domain: string
  * Sinir asiminda once sorgu dizgesi, sonra yol atilir (kirpilmis bir URL
  * kirik link olurdu; kok adres en azindan dogru siteyi gosterir).
  */
-export function normalizeSourceUrl(raw: string): { url: string; host: string } | null {
+export function normalizeSourceUrl(raw: string): { url: string; host: string; originOnly?: true } | null {
   if (typeof raw !== 'string') return null;
   const s = raw.trim();
   if (!s || s.length > 4096) return null;
@@ -136,9 +176,11 @@ export function normalizeSourceUrl(raw: string): { url: string; host: string } |
     u.search = '';
     url = u.toString();
   }
-  if (url.length > MAX_SOURCE_URL_LEN) url = `${u.origin}/`;
+  if (url.length <= MAX_SOURCE_URL_LEN) return { url, host };
+  // Yol da sigmiyor: yalniz kok adres — gercek sayfa bilinmiyor (originOnly)
+  url = `${u.origin}/`;
   if (url.length > MAX_SOURCE_URL_LEN) return null;
-  return { url, host };
+  return { url, host, originOnly: true };
 }
 
 /**
@@ -150,15 +192,16 @@ export function normalizeSources(raw: readonly RawSource[], max = MAX_SOURCES_PE
   const byUrl = new Map<string, CitationSource>();
   for (const r of raw) {
     if (!r) continue;
-    let norm: { url: string; host: string } | null = null;
-    const originOnly = !!r.originOnly;
-    if (originOnly) {
+    let norm: { url: string; host: string; originOnly?: true } | null = null;
+    if (r.originOnly) {
       const h = asHostname(r.domain);
       norm = h ? normalizeSourceUrl(`https://${h}/`) : null;
     } else if (typeof r.url === 'string') {
       norm = normalizeSourceUrl(r.url);
     }
     if (!norm) continue;
+    // Gemini kok adresi ya da sigmayan uzun URL'in koke dusmesi: sayfa bilinmiyor
+    const originOnly = !!r.originOnly || !!norm.originOnly;
     const domain = domainOf(norm.host);
     const title = cleanTitle(r.title, norm.host, domain);
     const existing = byUrl.get(norm.url);
@@ -206,7 +249,9 @@ export function anthropicSources(content: unknown): RawSource[] {
  * Bunun yerine alan adi `web.domain` (yalniz Vertex doldurur) ya da
  * basliktan (Gemini API'de baslik cogu zaman "ornek.com") alinir ve kaynak
  * sitenin kok adresiyle `originOnly: true` yazilir. Baslik alan adi degilse
- * (sayfa basligi) kaynak alan adi bilinemedigi icin ATLANIR. Yonlendirme
+ * (sayfa basligi; "Next.js"/"ASP.NET" gibi urun adlari — titleAsHostname:
+ * tamami kucuk harf + bilinen TLD) kaynak alan adi bilinemedigi icin
+ * ATLANIR. Yonlendirme
  * olmayan (gercek) uri oldugu gibi normalize edilir.
  */
 export function geminiSources(chunks: unknown): RawSource[] {
@@ -221,7 +266,7 @@ export function geminiSources(chunks: unknown): RawSource[] {
       out.push({ url: uri, title });
       continue;
     }
-    const domain = asHostname(web.domain) ?? asHostname(title);
+    const domain = asHostname(web.domain) ?? titleAsHostname(title);
     if (domain) out.push({ originOnly: true, domain, title });
   }
   return out;
@@ -274,22 +319,27 @@ export function sourceColumns(probe: { sources?: CitationSource[]; sourcesVersio
 }
 
 /**
- * Audit.checks'ten probe kaynak listelerini cikarir (kopya; girdi degismez).
- * NEDEN: MCP get_audit checks'i ajana oldugu gibi veriyor; 4 aramali
- * saglayici x 5 probe x ~20 kaynak cevabi on binlerce token buyuturdu.
- * Kaynak raporu ayri bir yuzeyden sunulana kadar bu cikis eskisi gibi kalir.
+ * Saglayici sonuclarindan probe kaynak listelerini cikarir (kopya; girdi
+ * degismez). Kaynaklar YALNIZ AiCitationSnapshot.probes ve GeoPromptRun'da
+ * tutulur — "alintilanan dis kaynaklar" raporu bu ikisini okur. Diger
+ * yuzeyler kaynak tasimaz:
+ *  - Audit.checks.aiCitations.providers: audit gecmisi/raporlar 100 satira
+ *    kadar checks okuyor; kaynaklar her satiri ~20 KB buyuturdu
+ *  - MCP/Chat run_prompt cevabi: 20 probe x 20 kaynak ajan baglamina
+ *    15-30 KB (binlerce token) eklerdi
+ * sourcesVersion damgasi kalir (kucuk; olcumun hangi surumle yapildigini soyler).
  */
-export function checksWithoutSources<T>(checks: T): T {
-  const c = checks as any;
-  const providers = c?.aiCitations?.providers;
-  if (!Array.isArray(providers)) return checks;
-  return {
-    ...c,
-    aiCitations: {
-      ...c.aiCitations,
-      providers: providers.map((p: any) => (Array.isArray(p?.probes)
-        ? { ...p, probes: p.probes.map((pr: any) => { const copy = { ...pr }; delete copy.sources; return copy; }) }
-        : p)),
-    },
-  } as T;
+export function providersWithoutSources<T>(providers: T): T {
+  if (!Array.isArray(providers)) return providers;
+  return providers.map((p: any) => (Array.isArray(p?.probes)
+    ? {
+      ...p,
+      probes: p.probes.map((pr: any) => {
+        if (!pr || typeof pr !== 'object' || !('sources' in pr)) return pr;
+        const copy = { ...pr };
+        delete copy.sources;
+        return copy;
+      }),
+    }
+    : p)) as T;
 }
