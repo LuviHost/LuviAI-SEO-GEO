@@ -19,7 +19,10 @@ import { SiteReportService, olculemedi } from './site-report.service.js';
 
 /** Sadece ilgili modelleri tanimlayan sahte Prisma. */
 function sahtePrisma(veri: Record<string, any>) {
-  const bos = { findMany: async () => [], findFirst: async () => null, count: async () => 0, groupBy: async () => [] };
+  const bos = {
+    findMany: async () => [], findFirst: async () => null, count: async () => 0, groupBy: async () => [],
+    aggregate: async () => ({ _sum: { hits: null } }),
+  };
   return new Proxy({} as any, {
     get: (_t, ad: string) => veri[ad] ?? bos,
   });
@@ -32,6 +35,9 @@ function servis(veri: Record<string, any>) {
   };
   return new SiteReportService(sahtePrisma(veri) as never, null as never, sahteFix as never);
 }
+
+/** Donemde hic bot / referrer kaydi yok (Prisma aggregate bos donemde _sum.hits = null verir) */
+const TOPLAM_YOK = { aggregate: async () => ({ _sum: { hits: null } }) };
 
 /** private bolum ureticilerine testten erisim */
 const cagir = (s: SiteReportService, ad: string, ...args: any[]) => (s as any)[ad](...args);
@@ -66,8 +72,8 @@ describe('GEO bolumu', () => {
         ],
       },
       audit: { findMany: async () => [] },
-      aiCrawlerHit: { count: async () => 0 },
-      aiReferrerHit: { count: async () => 0 },
+      aiCrawlerHit: TOPLAM_YOK,
+      aiReferrerHit: TOPLAM_YOK,
     };
     const r = await cagir(servis(veri), 'geoBolumu', 's1', DONEM);
     expect(r.olculemedi).toBe(false);
@@ -89,8 +95,8 @@ describe('GEO bolumu', () => {
         ],
       },
       audit: { findMany: async () => [] },
-      aiCrawlerHit: { count: async () => 0 },
-      aiReferrerHit: { count: async () => 0 },
+      aiCrawlerHit: TOPLAM_YOK,
+      aiReferrerHit: TOPLAM_YOK,
     };
     const r = await cagir(servis(veri), 'geoBolumu', 's1', DONEM);
     expect(r.sonSkor, 'olculemeyen saglayici ortalamaya karismis').toBe(40);
@@ -105,8 +111,8 @@ describe('GEO bolumu', () => {
         findMany: async () => [snap('2026-05-01', 'anthropic', 40), snap('2026-08-01', 'anthropic', 0)],
       },
       audit: { findMany: async () => [] },
-      aiCrawlerHit: { count: async () => 0 },
-      aiReferrerHit: { count: async () => 0 },
+      aiCrawlerHit: TOPLAM_YOK,
+      aiReferrerHit: TOPLAM_YOK,
     };
     const r = await cagir(servis(veri), 'geoBolumu', 's1', DONEM);
     expect(r.sonSkor).toBe(0);
@@ -119,12 +125,56 @@ describe('GEO bolumu', () => {
         findMany: async () => [snap('2026-05-01', 'anthropic', 40, true, 2, 3), snap('2026-08-01', 'anthropic', 50, true, 5, 6)],
       },
       audit: { findMany: async () => [] },
-      aiCrawlerHit: { count: async () => 0 },
-      aiReferrerHit: { count: async () => 0 },
+      aiCrawlerHit: TOPLAM_YOK,
+      aiReferrerHit: TOPLAM_YOK,
     };
     const r = await cagir(servis(veri), 'geoBolumu', 's1', DONEM);
     expect(r.alintilanan).toBe(7);
     expect(r.anilan).toBe(9);
+  });
+});
+
+/**
+ * AI bot ziyareti / AI'dan gelen ziyaret = donemdeki `hits` TOPLAMI.
+ * Hata (24.10.2026'ya kadar): count() satir sayisini donduruyordu; tablolar gunluk ozet
+ * oldugu icin rapor "gun × bot" sayisini ziyaret diye gosteriyordu.
+ */
+describe('GEO bolumu — AI bot ve AI referrer sayilari', () => {
+  type Satir = { siteId: string; date: Date; hits: number };
+  /** Gercek Prisma gibi davranan sahte tablo: count satir sayar, aggregate hits toplar (where uygulanir) */
+  const tablo = (satirlar: Satir[]) => {
+    const suz = (where: any) => satirlar.filter((r) =>
+      r.siteId === where.siteId && r.date >= where.date.gte && r.date <= where.date.lte);
+    return {
+      count: async ({ where }: any) => suz(where).length,
+      aggregate: async ({ where, _sum }: any) => {
+        expect(_sum).toEqual({ hits: true });
+        const s = suz(where);
+        return { _sum: { hits: s.length ? s.reduce((a, r) => a + r.hits, 0) : null } };
+      },
+    };
+  };
+  const g = (gun: string, hits: number, siteId = 's1'): Satir => ({ siteId, date: new Date(gun), hits });
+  const temel = {
+    aiCitationSnapshot: { findMany: async () => [snap('2026-05-01', 'anthropic', 40), snap('2026-08-01', 'anthropic', 50)] },
+    audit: { findMany: async () => [] },
+  };
+
+  it('gunluk ozet satirlarinin hits toplamini verir, satir sayisini degil', async () => {
+    // 3 gun ChatGPT (40 + 25 + 35) + 1 gun Perplexity (12) = 4 satir, 112 ziyaret
+    const referrer = tablo([g('2026-06-01', 40), g('2026-06-02', 25), g('2026-06-03', 35), g('2026-06-03', 12)]);
+    // 2 gun × 2 bot = 4 satir, 1.230 istek
+    const bot = tablo([g('2026-07-01', 500), g('2026-07-01', 30), g('2026-07-02', 600), g('2026-07-02', 100)]);
+    const r = await cagir(servis({ ...temel, aiCrawlerHit: bot, aiReferrerHit: referrer }), 'geoBolumu', 's1', DONEM);
+    expect(r.aiReferrer, 'eski hata: satir sayisi (4)').toBe(112);
+    expect(r.aiBotZiyareti, 'eski hata: satir sayisi (4)').toBe(1230);
+  });
+
+  it('donem disi ve baska sitenin satirlari sayilmaz; kayit yoksa 0', async () => {
+    const referrer = tablo([g('2026-04-30', 99), g('2026-06-01', 7), g('2026-06-01', 50, 's2'), g('2026-08-02', 99)]);
+    const r = await cagir(servis({ ...temel, aiCrawlerHit: tablo([]), aiReferrerHit: referrer }), 'geoBolumu', 's1', DONEM);
+    expect(r.aiReferrer).toBe(7);
+    expect(r.aiBotZiyareti).toBe(0);
   });
 });
 
@@ -519,8 +569,8 @@ describe('GEO bolumu — teknik GEO yontemi', () => {
       findMany: async () => [{ id: 'ilk', geoScore: 60 }, { id: 'orta', geoScore: 55 }, { id: 'son', geoScore: 51 }],
       findUnique: async ({ where }: any) => ({ checks: checksById[where.id] ?? {} }),
     },
-    aiCrawlerHit: { count: async () => 0 },
-    aiReferrerHit: { count: async () => 0 },
+    aiCrawlerHit: TOPLAM_YOK,
+    aiReferrerHit: TOPLAM_YOK,
   });
   const v2 = { geo: { score: 51, details: { methodVersion: 2 } } };
 

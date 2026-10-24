@@ -362,7 +362,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               {detay && (
                 <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t">
                   <Kutu etiket="AI bot ziyareti" deger={sayi(geo.aiBotZiyareti)} />
-                  <Kutu etiket="AI'dan gelen ziyaretçi" deger={sayi(geo.aiReferrer)} />
+                  <Kutu etiket="AI'dan gelen ziyaret" deger={sayi(geo.aiReferrer)} />
                 </div>
               )}
             </>

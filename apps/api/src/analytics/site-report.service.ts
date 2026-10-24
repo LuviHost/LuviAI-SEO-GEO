@@ -349,10 +349,17 @@ export class SiteReportService {
     const teknikYontemFarkli =
       auditler.length >= 2 && (await this.geoYontemi(auditler[0].id)) !== (await this.geoYontemi(auditler[auditler.length - 1].id));
 
-    const [aiBotZiyareti, aiReferrer] = await Promise.all([
-      this.prisma.aiCrawlerHit.count({ where: { siteId, date: { gte: d.rangeStart, lte: d.rangeEnd } } }),
-      this.prisma.aiReferrerHit.count({ where: { siteId, date: { gte: d.rangeStart, lte: d.rangeEnd } } }),
+    // Istek / ziyaret TOPLAMI: tablolar gunluk ozet (site × gun × bot / referrer basina
+    // tek satir, `hits` o gunun sayisi). Eskiden count() satir sayisini donduruyordu —
+    // 30 gun boyunca her gun ChatGPT'den 40 ziyaret alan site raporda "30" goruyordu,
+    // tek gunde 500 bot istegi alan site "1". ai-kpis ve client-report zaten hits topluyor.
+    const donemde = { siteId, date: { gte: d.rangeStart, lte: d.rangeEnd } };
+    const [botToplami, referrerToplami] = await Promise.all([
+      this.prisma.aiCrawlerHit.aggregate({ where: donemde, _sum: { hits: true } }),
+      this.prisma.aiReferrerHit.aggregate({ where: donemde, _sum: { hits: true } }),
     ]);
+    const aiBotZiyareti = botToplami._sum.hits ?? 0;
+    const aiReferrer = referrerToplami._sum.hits ?? 0;
 
     return {
       olculemedi: false,
