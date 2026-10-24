@@ -68,7 +68,7 @@ describe('AuthorProfileService — site yazari kaydi', () => {
 
   it('clearSiteAuthor kaydi siler', async () => {
     const { prisma, svc } = build();
-    expect(await svc.clearSiteAuthor('s1')).toEqual({ cleared: true });
+    expect(await svc.clearSiteAuthor('s1')).toEqual({ author: null });
     expect(prisma.kvStore.deleteMany).toHaveBeenCalledWith({ where: { key: 'site-author:s1' } });
   });
 });
@@ -98,5 +98,17 @@ describe('SchemaClassifierService.buildJsonLd — author', () => {
       sameAs: ['https://linkedin.com/in/ayse'],
       jobTitle: 'Mali müşavir',
     });
+  });
+});
+
+describe('site yazari uclari — JSON govde', () => {
+  it('GET kayit yokken bos govde degil { author: null }; PUT { author }', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('./audit.controller.ts', import.meta.url), 'utf8');
+    expect(src).toContain('return { author: await this.authorProfile.getSiteAuthor(siteId) };');
+    expect(src).toContain('return { author: await this.authorProfile.setSiteAuthor(siteId, body) };');
+    // yazma yalniz panel oturumu
+    expect(src).toMatch(/@SessionOnly\(\)\n\s+@Put\('author-profile\/site'\)/);
+    expect(src).toMatch(/@SessionOnly\(\)\n\s+@Delete\('author-profile\/site'\)/);
   });
 });

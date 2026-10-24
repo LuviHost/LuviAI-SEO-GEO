@@ -1343,6 +1343,17 @@ export const api = {
     return `${apiBase}/api/sites/${siteId}/audit/sitemap-ai.xml`;
   },
 
+  /** Sitenin gercek yazari (yoksa author: null) — api audit/author-profile.service.ts */
+  getSiteAuthor: (siteId: string) =>
+    request<{ author: import('./site-author').SiteAuthor | null }>(`/sites/${siteId}/audit/author-profile/site`),
+  saveSiteAuthor: (siteId: string, author: import('./site-author').SiteAuthor) =>
+    request<{ author: import('./site-author').SiteAuthor }>(`/sites/${siteId}/audit/author-profile/site`, {
+      method: 'PUT',
+      body: JSON.stringify(author),
+    }),
+  deleteSiteAuthor: (siteId: string) =>
+    request<{ author: null }>(`/sites/${siteId}/audit/author-profile/site`, { method: 'DELETE' }),
+
   getAuthorProfile: (siteId: string, persona: string) =>
     request<any>(`/sites/${siteId}/audit/author-profile?persona=${encodeURIComponent(persona)}`),
 

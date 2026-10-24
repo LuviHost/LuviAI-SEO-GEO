@@ -117,9 +117,9 @@ export class AuthorProfileService {
   }
 
   /** Yazar kaydini siler: sonraki makalelerde author yeniden Organization olur */
-  async clearSiteAuthor(siteId: string): Promise<{ cleared: true }> {
+  async clearSiteAuthor(siteId: string): Promise<{ author: null }> {
     await this.prisma.kvStore.deleteMany({ where: { key: `${SITE_AUTHOR_KV_PREFIX}${siteId}` } });
-    return { cleared: true };
+    return { author: null };
   }
 
   /**

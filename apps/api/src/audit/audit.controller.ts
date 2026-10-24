@@ -1073,15 +1073,16 @@ export class AuditController {
    * Uretim hatti makale JSON-LD author'unu ve gorunur yazar satirini yalniz bundan uretir.
    */
   @Get('author-profile/site')
-  siteAuthorGet(@Param('siteId') siteId: string) {
-    return this.authorProfile.getSiteAuthor(siteId);
+  async siteAuthorGet(@Param('siteId') siteId: string) {
+    // Kayit yoksa bos govde degil { author: null } (panel JSON bekler)
+    return { author: await this.authorProfile.getSiteAuthor(siteId) };
   }
 
   /** PUT /sites/:siteId/audit/author-profile/site — gercek yazari kaydet (insan beyani: yalniz panel oturumu) */
   @SessionOnly()
   @Put('author-profile/site')
-  siteAuthorPut(@Param('siteId') siteId: string, @Body() body: SiteAuthorDto) {
-    return this.authorProfile.setSiteAuthor(siteId, body);
+  async siteAuthorPut(@Param('siteId') siteId: string, @Body() body: SiteAuthorDto) {
+    return { author: await this.authorProfile.setSiteAuthor(siteId, body) };
   }
 
   /** DELETE /sites/:siteId/audit/author-profile/site — yazari kaldir; author yeniden Organization olur */
