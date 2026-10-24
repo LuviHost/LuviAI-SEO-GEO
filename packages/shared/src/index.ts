@@ -2,8 +2,27 @@ export { encrypt, decrypt, decryptCredentials } from './utils/crypto.js';
 export { turkishSlug } from './utils/slug.js';
 export { mdToHtml, extractFAQs, readingTime, parseFrontmatter } from './utils/markdown.js';
 export type { ExtractedFaq } from './utils/markdown.js';
-export { checkGeoGate } from './utils/geo-gate.js';
-export type { GeoGateResult, GeoGateIssue, GeoGateStats, GeoGateCode } from './utils/geo-gate.js';
+export { checkGeoGate, splitSentences } from './utils/geo-gate.js';
+export type { GeoGateResult, GeoGateIssue, GeoGateStats, GeoGateCode, GeoGateSeverity, GeoGateOptions } from './utils/geo-gate.js';
+export {
+  CONTENT_TYPES,
+  CONTENT_TYPE_LABELS,
+  normalizeContentType,
+  contentTypeFromSchemaType,
+  classifyTopicTitle,
+  resolveContentType,
+  contentTemplateBlock,
+  withContentTemplate,
+  isProductFactType,
+  isAuthoritativeSource,
+} from './prompts/content-templates.js';
+export type {
+  ContentType,
+  ContentTypeSource,
+  ContentTypeDecision,
+  ResolveContentTypeInput,
+  TemplateStage,
+} from './prompts/content-templates.js';
 export {
   buildBrainContext,
   AGENT_01_KEYWORD,

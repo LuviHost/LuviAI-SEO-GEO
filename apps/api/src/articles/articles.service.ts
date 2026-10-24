@@ -8,6 +8,7 @@ import { automationPublishFields } from './publish-approval.js';
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 import { hasAllowanceCharge, scheduledGenerationJobId, withAllowanceCharge } from './article-scheduler.service.js';
 import { settleUnstartedGeneration } from './allowance-refund.js';
+import { explicitContentPlan, withContentPlan } from './content-plan.js';
 import {
   agentOutputsWithoutLiveWriteBlocked, articleContentHash, liveEntryFor, siteLiveEntries, statusAfterRetirement, withoutManualUpdateFlag,
 } from './republish-policy.js';
@@ -93,7 +94,7 @@ export class ArticlesService {
     return site ? loadPlanLockedIds(this.prisma, this.quota, site.userId) : new Set();
   }
 
-  async queueGeneration(siteId: string, topic: string, targetIds?: string[]) {
+  async queueGeneration(siteId: string, topic: string, targetIds?: string[], contentType?: string) {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
 
     // Makale hakki uretim baslamadan ONCE, tek kosullu UPDATE ile duser (hak doluysa
@@ -118,7 +119,8 @@ export class ArticlesService {
           title: topic,
           status: 'GENERATING' as any,
           language: site.language ?? 'tr',
-          agentOutputs: withAllowanceCharge(null, 'user_start', new Date()) as any,
+          // Acik icerik tipi (verildiyse) yer tutucuda tasinir; hat onu kayittan okur (content-plan.ts)
+          agentOutputs: withContentPlan(withAllowanceCharge(null, 'user_start', new Date()), explicitContentPlan(contentType)) as any,
         },
       });
       placeholderId = article.id;

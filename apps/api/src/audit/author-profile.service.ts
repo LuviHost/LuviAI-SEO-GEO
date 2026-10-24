@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { safeParseJson } from '../common/safe-json.js';
@@ -16,6 +16,77 @@ export interface AuthorProfile {
 }
 
 /**
+ * Sitenin GERCEK yazari (site sahibinin girdigi). Uretim hatti makalenin
+ * JSON-LD author'unu ve gorunur "Bu makale ... tarafindan hazirlandi" satirini
+ * YALNIZ bundan uretir. Kayit yoksa author Organization kalir (bugunku davranis).
+ *
+ * NEDEN buildForPersona kullanilmiyor: persona okuyucu profilidir (hedef kitle),
+ * yazar degil; ustelik eksik biyografiyi modelle URETIYOR. Uydurma kisiyi Person
+ * olarak yayinlamak schema.org acisindan yanlis beyan olur.
+ *
+ * Saklama: kv_store 'site-author:<siteId>' (JSON). Yeni kolon/migration yok;
+ * brain'e konmadi cunku brain yeniden uretilince brandVoice ezilir.
+ */
+export interface SiteAuthor {
+  name: string;
+  url?: string;
+  sameAs?: string[];
+  jobTitle?: string;
+}
+
+export const SITE_AUTHOR_KV_PREFIX = 'site-author:';
+
+function cleanHttpUrl(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s || s.length > 300) return null;
+  try {
+    const u = new URL(s);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Saklanan / gelen degeri dogrular; ad yoksa null (yazar yok sayilir). */
+export function normalizeSiteAuthor(raw: unknown): SiteAuthor | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  // Ad yazar prompt'una ve gorunur satira girer: satir sonu ve markdown/HTML isaretleri atilir
+  const name = typeof r.name === 'string' ? r.name.replace(/[[\]*_`<>#|\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+  if (!name) return null;
+  const url = cleanHttpUrl(r.url);
+  const sameAs = Array.isArray(r.sameAs)
+    ? Array.from(new Set(r.sameAs.map(cleanHttpUrl).filter((x): x is string => !!x))).slice(0, 10)
+    : [];
+  const jobTitle = typeof r.jobTitle === 'string' ? r.jobTitle.replace(/[[\]*_`<>#|\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+  return {
+    name,
+    ...(url ? { url } : {}),
+    ...(sameAs.length ? { sameAs } : {}),
+    ...(jobTitle ? { jobTitle } : {}),
+  };
+}
+
+interface KvReader {
+  kvStore?: { findUnique: (args: any) => Promise<{ value: string } | null> };
+}
+
+/**
+ * Sitenin kayitli gercek yazari; yoksa / okunamazsa null. Hata uretimi durdurmaz
+ * (yazar yoksa Organization'a dusulur).
+ */
+export async function readSiteAuthor(prisma: KvReader, siteId: string): Promise<SiteAuthor | null> {
+  try {
+    const row = await prisma.kvStore?.findUnique({ where: { key: `${SITE_AUTHOR_KV_PREFIX}${siteId}` } });
+    if (!row?.value) return null;
+    return normalizeSiteAuthor(JSON.parse(row.value));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Author Profile (E-E-A-T) — her makalenin yazar imzasi icin Person schema
  * uretir. Google ve AI'lar yazarin uzmanligini bu sayede dogrular.
  *
@@ -29,6 +100,27 @@ export class AuthorProfileService {
     : null;
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Sitenin kayitli gercek yazari (yoksa null) */
+  getSiteAuthor(siteId: string): Promise<SiteAuthor | null> {
+    return readSiteAuthor(this.prisma, siteId);
+  }
+
+  /** Gercek yazari kaydeder; adsiz / gecersiz girdi 400 */
+  async setSiteAuthor(siteId: string, input: unknown): Promise<SiteAuthor> {
+    const author = normalizeSiteAuthor(input);
+    if (!author) throw new BadRequestException('Yazar adı zorunlu.');
+    const key = `${SITE_AUTHOR_KV_PREFIX}${siteId}`;
+    const value = JSON.stringify(author);
+    await this.prisma.kvStore.upsert({ where: { key }, create: { key, value }, update: { value } });
+    return author;
+  }
+
+  /** Yazar kaydini siler: sonraki makalelerde author yeniden Organization olur */
+  async clearSiteAuthor(siteId: string): Promise<{ author: null }> {
+    await this.prisma.kvStore.deleteMany({ where: { key: `${SITE_AUTHOR_KV_PREFIX}${siteId}` } });
+    return { author: null };
+  }
 
   /**
    * Site brain'deki persona icin yazar profili uret.

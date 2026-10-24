@@ -6,6 +6,7 @@ import { QuotaService } from '../billing/quota.service.js';
 import { automationPublishFields, type PublishApprovalSite } from './publish-approval.js';
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 import { automaticGenerationAllowed } from '../billing/trial-policy.js';
+import { explicitContentPlan, findRankerTopicHint, rankerPlanFromHint, rankerPlanFromTopic, withContentPlan } from './content-plan.js';
 
 /**
  * Takvimin gecikmeli uretim isinin BullMQ kimligi: makale basina tekil, ayni
@@ -424,6 +425,9 @@ export class ArticleSchedulerService {
       // kullanici tiklamadan makale icin LLM harcanmamasi.
       const generateNow = i === 0 && autoGenerate;
       const firstMark: AllowanceChargeSource | null = generateNow ? 'onboarding_free' : null;
+      // Siralayicinin icerik tipi karari kayda yazilir: uretim gunune kadar yeni
+      // kuyruk eskisinin yerini alsa da ipucu kaybolmaz (content-plan.ts)
+      const initialOutputs = withContentPlan(firstMark ? withAllowanceCharge(null, firstMark, new Date()) : null, rankerPlanFromTopic(t));
 
       try {
         const article = await this.prisma.article.create({
@@ -436,8 +440,9 @@ export class ArticleSchedulerService {
             status: generateNow ? ('GENERATING' as any) : ('SCHEDULED' as any),
             scheduledAt: slot,
             // Isaret: takili uretim supurucusu ilk yaziyi takvime geri koyarsa
-            // (scheduledAt dolu) tarama yeniden alirken haktan DUSMESIN
-            ...(firstMark ? { agentOutputs: withAllowanceCharge(null, firstMark, new Date()) as any } : {}),
+            // (scheduledAt dolu) tarama yeniden alirken haktan DUSMESIN.
+            // Siralayicinin icerik tipi karari da kayda yazilir (content-plan.ts).
+            ...(initialOutputs ? { agentOutputs: initialOutputs as any } : {}),
           },
         });
 
@@ -908,7 +913,7 @@ export class ArticleSchedulerService {
    * Tek bir Tier-1 konuyu manuel olarak takvime ekler (drag-drop).
    * Frontend'den scheduledAt + topic + slug + pillar gelir.
    */
-  async scheduleTopic(siteId: string, args: { topic: string; scheduledAt: string; slug?: string; pillar?: string }) {
+  async scheduleTopic(siteId: string, args: { topic: string; scheduledAt: string; slug?: string; pillar?: string; contentType?: string }) {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, include: { user: { select: { plan: true } } } });
     const at = new Date(args.scheduledAt);
     // Eskiden duz Error → 500 (rescheduleArticle ile ayni 400)
@@ -944,6 +949,10 @@ export class ArticleSchedulerService {
     }
 
     const slug = `scheduled-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    // Icerik tipi: acik secim; yoksa toplu planlamadaki gibi siralayici karari kayda yazilir
+    // (uretim gunune kadar yeni kuyruk gelse de ipucu kaybolmaz; content-plan.ts)
+    const plan = explicitContentPlan(args.contentType)
+      ?? rankerPlanFromHint(await findRankerTopicHint(this.prisma as any, siteId, args.topic));
     const article = await this.prisma.article.create({
       data: {
         siteId,
@@ -954,6 +963,8 @@ export class ArticleSchedulerService {
         language: site.language ?? 'tr',
         status: 'SCHEDULED' as any,
         scheduledAt: at,
+        // Karar yoksa alan yazilmaz (bugunku kayitla ayni)
+        ...(plan ? { agentOutputs: withContentPlan(null, plan) as any } : {}),
       },
     });
     this.log.log(`[${siteId}] Konu takvime eklendi: '${args.topic}' @ ${at.toISOString()}`);

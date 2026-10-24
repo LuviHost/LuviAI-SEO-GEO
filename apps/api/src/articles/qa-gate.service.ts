@@ -3,6 +3,36 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
 import { deterministicQaIssues, type QaIssue } from './qa-deterministic.js';
+import { isProductFactType } from '@luviai/shared';
+import { readStoredContentPlan } from './content-plan.js';
+
+/**
+ * QA LLM istemi. productMode=false (rehber ve diger her makale) bugunku istemin
+ * birebir aynisidir (qa-gate-prompt.spec.ts dize esitligi). productMode=true:
+ * adi gecen urunun fiyati / plan limiti de unsourced_claim sayilir; sitenin
+ * kendi urunu blocker sayilmaz.
+ */
+export function buildQaSystemPrompt(opts: { productMode: boolean; site?: { name?: string | null; url?: string | null } | null }): string {
+  const claimLine = opts.productMode
+    ? '2. unsourced_claim — spesifik sayisal iddia (yuzde, adet, fiyat araligi, "arastirmalara gore X%") kaynak gosterilmeden verilmis. Adi gecen bir urunun/hizmetin fiyati veya plan limiti ("$29", "1.039 ₺", "aylik 99 TL", "10 kullaniciya kadar") de bu siniftadir: ayni paragrafta resmi fiyat sayfasi linki ya da "Kaynak:" yoksa isaretle.'
+    : '2. unsourced_claim — spesifik sayisal iddia (yuzde, adet, fiyat araligi, "arastirmalara gore X%") kaynak gosterilmeden verilmis.';
+  const ownBrandLine = opts.productMode && opts.site?.name
+    ? `Makale ${String(opts.site.name).slice(0, 100)} (${String(opts.site.url ?? '').slice(0, 200)}) sitesinde yayinlanacak. Sitenin KENDI urun/hizmetinin fiyati ve plan limiti (bu marka adiyla anilan) blocker DEGILDIR: kendi sitesine link verilmisse hic isaretleme, link yoksa en fazla warning. Blocker yalniz BASKA markalarin kaynaksiz fiyat/limitleri icin.`
+    : '';
+  return [
+    'Sen bir yayin oncesi dogruluk denetcisisin. Sana verilen Turkce/Ingilizce makalede SADECE su uc sinifi ara:',
+    '1. fabricated_attribution — belirli bir kisi/kurum/rapora atif var ama kaynak linki/adi dogrulanabilir degil ("Webtures\'a gore...", "Gartner raporunda..." gibi, link yok).',
+    claimLine,
+    '3. fabricated_entity — var olmayan/uydurma gorunumlu calisma, arac, kurum adi.',
+    '',
+    ...(ownBrandLine ? [ownBrandLine] : []),
+    'Genel bilgiler, yazarin kendi yorumu ve "genellikle/cogu zaman" gibi nitelenmis ifadeler SORUN DEGIL. Asiri hassas olma: yalnizca yayinda utandiracak net vakalari isaretle.',
+    '',
+    'YANIT FORMATI — yalnizca JSON dizi, baska hicbir sey yazma:',
+    '[{"severity":"blocker|warning","type":"fabricated_attribution|unsourced_claim|fabricated_entity","detail":"tek cumle Turkce aciklama","excerpt":"makaleden ilgili kesit (max 150 karakter)"}]',
+    'Sorun yoksa [] dondur. En fazla 8 madde. Kaynakli net atiflar (linkli) blocker DEGILDIR; belirsiz ama zararsiz olanlar warning.',
+  ].join('\n');
+}
 
 export type { QaIssue } from './qa-deterministic.js';
 
@@ -59,7 +89,7 @@ export class QaGateService {
     let llmUsed = false;
     if (body.length > 400) {
       try {
-        const llmIssues = await this.checkWithLlm(article.siteId, body);
+        const llmIssues = await this.checkWithLlm(article.siteId, body, article.agentOutputs);
         blockers.push(...llmIssues.filter((i) => i.severity === 'blocker').map(this.toIssue));
         warnings.push(...llmIssues.filter((i) => i.severity !== 'blocker').map(this.toIssue));
         llmUsed = true;
@@ -112,24 +142,24 @@ export class QaGateService {
 
   // ────────────────────────────────────────────────────────────
 
-  private async checkWithLlm(siteId: string, body: string): Promise<Array<{
+  private async checkWithLlm(siteId: string, body: string, agentOutputs?: unknown): Promise<Array<{
     severity: 'blocker' | 'warning';
     type: string;
     detail: string;
     excerpt?: string;
   }>> {
-    const systemPrompt = [
-      'Sen bir yayin oncesi dogruluk denetcisisin. Sana verilen Turkce/Ingilizce makalede SADECE su uc sinifi ara:',
-      '1. fabricated_attribution — belirli bir kisi/kurum/rapora atif var ama kaynak linki/adi dogrulanabilir degil ("Webtures\'a gore...", "Gartner raporunda..." gibi, link yok).',
-      '2. unsourced_claim — spesifik sayisal iddia (yuzde, adet, fiyat araligi, "arastirmalara gore X%") kaynak gosterilmeden verilmis.',
-      '3. fabricated_entity — var olmayan/uydurma gorunumlu calisma, arac, kurum adi.',
-      '',
-      'Genel bilgiler, yazarin kendi yorumu ve "genellikle/cogu zaman" gibi nitelenmis ifadeler SORUN DEGIL. Asiri hassas olma: yalnizca yayinda utandiracak net vakalari isaretle.',
-      '',
-      'YANIT FORMATI — yalnizca JSON dizi, baska hicbir sey yazma:',
-      '[{"severity":"blocker|warning","type":"fabricated_attribution|unsourced_claim|fabricated_entity","detail":"tek cumle Turkce aciklama","excerpt":"makaleden ilgili kesit (max 150 karakter)"}]',
-      'Sorun yoksa [] dondur. En fazla 8 madde. Kaynakli net atiflar (linkli) blocker DEGILDIR; belirsiz ama zararsiz olanlar warning.',
-    ].join('\n');
+    // Urun fiyati / plan limiti talimati YALNIZ acikca belirlenmis urun tipinde
+    // (comparison, best_for, alternatives, pricing; kaynak acik secim / siralayici).
+    // Diger her makale bugunku istemin BIREBIR aynisini alir: QA blocker yayini
+    // durdurur (publisher QA_BLOCKED), yeni talimat rehberde yeni engel uretmemeli.
+    const plan = readStoredContentPlan(agentOutputs);
+    const productMode = !!plan && isProductFactType(plan.type);
+    const site = productMode
+      ? await Promise.resolve()
+        .then(() => this.prisma.site.findUnique({ where: { id: siteId }, select: { name: true, url: true } }))
+        .catch(() => null)
+      : null;
+    const systemPrompt = buildQaSystemPrompt({ productMode, site });
 
     const res = await this.llm.chat({
       context: 'qa-gate',

@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { overwriteRemoteEditsConfirm, pollJob, publishJobOutcome, publishOutcomeView } from '@/lib/publish-result';
 import { tablePublishDescription, tablePublishPlan, targetDisplayName } from '@/lib/publish-targets';
 import { manualUpdateBadge } from '@/lib/manual-update';
+import { contentTypeBadge } from '@/lib/content-type';
 import { showNotice } from '@/lib/notice';
 import { cn } from '@/lib/utils';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -56,6 +57,8 @@ type Row = {
   hasBody?: boolean; // gerçek içerik üretildi mi (Detay butonu için)
   /** Yazinin eski surumu yerinde guncellenemeyen bir hedefte yayinda (lib/manual-update.ts) */
   manualUpdate?: { label: string; title: string } | null;
+  /** Oneri satiri: siralayicinin icerik tipi rozeti (rehber disi; lib/content-type.ts) */
+  contentTypeLabel?: string | null;
 };
 
 export type ContentRowState = Row['state'];
@@ -346,6 +349,7 @@ export function ContentFlowTable({
         pillar: t.pillar ?? null,
         score: t.score ?? null,
         persona: t.persona ?? null,
+        contentTypeLabel: contentTypeBadge(t.content_type),
         state: 'suggested',
       });
     });
@@ -553,6 +557,11 @@ export function ContentFlowTable({
                             </div>
                           ) : (
                             <div className="font-medium leading-snug">{row.topic}</div>
+                          )}
+                          {row.contentTypeLabel && (
+                            <Badge variant="outline" className="mt-1 flex w-fit text-label" title="Makale bu içerik tipinin şablonuyla yazılır">
+                              {row.contentTypeLabel}
+                            </Badge>
                           )}
                           {row.scheduledAt && row.state === 'scheduled' && (() => {
                             const d = new Date(row.scheduledAt);

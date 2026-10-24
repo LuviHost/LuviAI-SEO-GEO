@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GoogleAdsOAuthCard, MetaAdsOAuthCard } from '@/components/ads-lab-panel';
 import { AiKeysPanel } from '@/components/ai-keys-panel';
+import { SiteAuthorCard } from '@/components/site-author-card';
 import { BrandIcon } from '@/components/brand-icon';
 import { refreshGenerationReadiness } from '@/lib/use-article-allowance';
 
@@ -316,6 +317,7 @@ export function SettingsTab({ siteId }: { siteId: string; onRefresh?: () => void
       <Ga4ConnectionCard siteId={siteId} />
       <AdsAccountsCard siteId={siteId} />
       <AiKeysPanel siteId={siteId} />
+      <SiteAuthorCard siteId={siteId} />
       {/* "Sosyal Kanallar" karti kaldirildi: icerigi bostu ve sosyal modul olmadigi halde
           "makaleler secili kanallarda otomatik paylasilir" vaadi veriyordu. */}
     </div>

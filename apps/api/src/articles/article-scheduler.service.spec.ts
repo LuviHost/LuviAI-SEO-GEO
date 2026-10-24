@@ -1294,3 +1294,34 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     expect(w.users.u1.articlesUsedThisMonth).toBe(15);
   });
 });
+
+describe('scheduleTopic — icerik tipi karari kayda yazilir (surukle-birak, toplu planlamayla ayni)', () => {
+  const RANKED = { tier1Topics: [{ topic: 'Shopify vs WooCommerce', content_type: 'best_for', content_type_source: 'ranker', content_type_v: 1 }], tier2Topics: [], tier3Topics: [] };
+
+  it('acik contentType siralayiciyi ezer', async () => {
+    const ctx = build();
+    (ctx.prisma as any).topicQueue = { findFirst: vi.fn(async () => RANKED) };
+    await ctx.svc.scheduleTopic('s1', { topic: 'Shopify vs WooCommerce', scheduledAt: AT, contentType: 'pricing' });
+    expect((ctx.prisma.article.create.mock.calls[0][0] as any).data.agentOutputs).toEqual({ contentPlan: { type: 'pricing', source: 'explicit' } });
+  });
+
+  it('acik secim yoksa son kuyruktaki siralayici karari yazilir', async () => {
+    const ctx = build();
+    (ctx.prisma as any).topicQueue = { findFirst: vi.fn(async () => RANKED) };
+    await ctx.svc.scheduleTopic('s1', { topic: 'Shopify vs WooCommerce', scheduledAt: AT });
+    expect((ctx.prisma.article.create.mock.calls[0][0] as any).data.agentOutputs).toEqual({ contentPlan: { type: 'best_for', source: 'ranker' } });
+  });
+
+  it('karar yoksa (konu kuyrukta degil / eski kuyruk / kuyruk okunamadi) agentOutputs yazilmaz', async () => {
+    for (const findFirst of [
+      vi.fn(async () => RANKED),
+      vi.fn(async () => ({ tier1Topics: [{ topic: 'Konu', schema_type: 'HowTo' }], tier2Topics: [], tier3Topics: [] })),
+      vi.fn(async () => { throw new Error('db'); }),
+    ]) {
+      const ctx = build();
+      (ctx.prisma as any).topicQueue = { findFirst };
+      await ctx.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT });
+      expect((ctx.prisma.article.create.mock.calls[0][0] as any).data).not.toHaveProperty('agentOutputs');
+    }
+  });
+});
