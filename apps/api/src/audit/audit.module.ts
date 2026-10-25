@@ -44,6 +44,7 @@ import { StuckPageDetectorService } from './stuck-page-detector.service.js';
 import { StuckPageRecoveryService } from './stuck-page-recovery.service.js';
 import { StuckPageExternalRecoveryService } from './stuck-page-external-recovery.service.js';
 import { PromptLabService } from './prompt-lab.service.js';
+import { PromptLabRunAllJobs } from './prompt-lab-run-all-jobs.js';
 import { FanoutService } from './fanout.service.js';
 import { StuckPagePerformanceCheckService } from './stuck-page-performance-check.service.js';
 import { PublicCitationService } from './public-citation.service.js';
@@ -111,6 +112,7 @@ import { AuditCron } from './audit.cron.js';
     PublicCitationSubscriberService,
     PublicCitationRetestCron,
     PromptLabService,
+    PromptLabRunAllJobs,
     FanoutService,
     AgentReadinessService,
     ContentOpportunityService,

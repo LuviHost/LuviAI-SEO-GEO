@@ -560,7 +560,13 @@ export class PromptLabService {
    * SIRALAMA: en uzun suredir olculmeyen once (lastRunAt asc, null'lar basta).
    * Eskiden createdAt asc idi ve limit 25 oldugundan 26. prompt HIC olculmuyordu.
    */
-  async runAll(siteId: string, opts: { withFanout?: boolean; limit?: number; scope?: string } = {}) {
+  async runAll(siteId: string, opts: {
+    withFanout?: boolean;
+    limit?: number;
+    scope?: string;
+    /** Arka plan isi (PromptLabRunAllJobs) ilerlemeyi buradan izler */
+    onProgress?: (p: { requested: number; done: number; failed: number }) => void;
+  } = {}) {
     const rawLimit = typeof opts.limit === 'number' ? opts.limit : parseInt(String(opts.limit ?? ''), 10);
     const limit = Number.isFinite(rawLimit)
       ? Math.min(Math.max(Math.trunc(rawLimit), 1), MAX_RUN_ALL)
@@ -578,6 +584,12 @@ export class PromptLabService {
 
     const summaries: PromptRunSummary[] = [];
     const failed: Array<{ promptId: string; error: string }> = [];
+    const progress = () => opts.onProgress?.({
+      requested: prompts.length,
+      done: summaries.length + failed.length,
+      failed: failed.length,
+    });
+    progress();
     for (const p of prompts) {
       try {
         summaries.push(await this.runPrompt(siteId, p.id, { withFanout: opts.withFanout }));
@@ -585,6 +597,7 @@ export class PromptLabService {
         this.log.warn(`Prompt calistirilamadi (${p.id}): ${err.message}`);
         failed.push({ promptId: p.id, error: err.message?.slice(0, 200) ?? 'bilinmeyen hata' });
       }
+      progress();
     }
     return {
       siteId,

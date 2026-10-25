@@ -161,6 +161,21 @@ async function parseResponse<T>(res: Response, path: string): Promise<T> {
 }
 
 /** Audit delta raporu — GET /sites/:id/audit/compare cevabi */
+/** Prompt Lab "Tümünü çalıştır" arka plan isi — api prompt-lab-run-all-jobs.ts ile ayni bicim */
+export interface RunAllJobState {
+  status: 'running' | 'done' | 'failed';
+  scope: 'all' | 'local';
+  startedAt: string;
+  finishedAt: string | null;
+  requested: number | null;
+  done: number;
+  ran: number;
+  failed: number;
+  error: string | null;
+  /** start: ayni sitede zaten calisan is dondu (yeni hak harcanmadi) */
+  alreadyRunning?: boolean;
+}
+
 export interface AuditComparison {
   from: { id: string; ranAt: string; overallScore: number; geoScore: number | null } | null;
   to: { id: string; ranAt: string; overallScore: number; geoScore: number | null } | null;
@@ -776,6 +791,13 @@ export const api = {
   /** scope 'local': yalniz yerel sorular (ayni haftalik olcum hakki) */
   runAllPrompts: (siteId: string, body: { withFanout?: boolean; limit?: number; scope?: 'all' | 'local' } = {}) =>
     request<any>(`/sites/${siteId}/audit/prompts/run-all`, { method: 'POST', body: JSON.stringify(body) }),
+
+  /** Arka planda baslatir (Cloudflare 100 sn sinirina takilmaz); durum runAllPromptsStatus ile izlenir */
+  startRunAllPrompts: (siteId: string, body: { withFanout?: boolean; limit?: number; scope?: 'all' | 'local' } = {}) =>
+    request<RunAllJobState>(`/sites/${siteId}/audit/prompts/run-all/start`, { method: 'POST', body: JSON.stringify(body) }),
+
+  runAllPromptsStatus: (siteId: string) =>
+    request<RunAllJobState | { status: 'idle' }>(`/sites/${siteId}/audit/prompts/run-all/status`),
 
   // ── Prompt Lab yerel mod — il/ilce + hizmet sorulari (AI cagrisi yok, olcum hakki harcamaz) ──
   previewLocalPrompts: (siteId: string, body: LocalPromptInput) =>

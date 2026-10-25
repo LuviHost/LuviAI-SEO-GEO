@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Info, Loader2, MapPin, Play, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
+import { watchRunAll } from '@/lib/prompt-lab-run-all';
 import {
   ADDRESS_LABEL, PHONE_LABEL, TONE_CLASS, placeLabel,
   type LocalPromptDraft, type LocalPromptMeta, type LocalRunSummary, type SiteNapView,
@@ -220,6 +221,12 @@ export function LocalPromptsTab({ siteId }: { siteId: string }) {
   const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  // Sekme degisince Radix icerigi sokuyor — yoklama da dursun
+  const unmounted = useRef(false);
+  useEffect(() => {
+    unmounted.current = false;
+    return () => { unmounted.current = true; };
+  }, []);
   const [nap, setNap] = useState<SiteNapView | null>(null);
   const [napLoading, setNapLoading] = useState(true);
   const [napRefreshing, setNapRefreshing] = useState(false);
@@ -273,10 +280,22 @@ export function LocalPromptsTab({ siteId }: { siteId: string }) {
   async function runLocal() {
     setRunning(true);
     try {
-      const res = await api.runAllPrompts(siteId, { withFanout: false, limit: 25, scope: 'local' });
-      toast.success(res.ran > 0
-        ? `${res.ran} yerel soru çalıştırıldı — sonuçlar Sorular sekmesinde her sorunun altında`
-        : 'Çalıştırılacak yerel soru yok');
+      // Arka plan isi: tek istekli yol Cloudflare'in 100 sn sinirina takiliyordu
+      const started = await api.startRunAllPrompts(siteId, { withFanout: false, limit: 25, scope: 'local' });
+      refreshMeasurementAllowance();
+      if (started.alreadyRunning) toast.info('Zaten süren bir çalıştırma var — onu izliyorum');
+      else toast.info('Yerel sorular arka planda çalışıyor. Birkaç dakika sürebilir.');
+      const outcome = await watchRunAll(siteId, () => {}, () => unmounted.current);
+      if (outcome.kind === 'cancelled') return;
+      if (outcome.kind === 'finished') {
+        const job = outcome.job;
+        if (job.status === 'failed') toast.error(`Çalıştırma yarıda kaldı — ${job.ran} soru ölçüldü`);
+        else toast.success(job.ran > 0
+          ? `${job.ran} soru çalıştırıldı — sonuçlar Sorular sekmesinde her sorunun altında`
+          : 'Çalıştırılacak yerel soru yok');
+      } else {
+        toast.info('Çalıştırma durumu alınamadı — ölçülen sorular Sorular sekmesinde');
+      }
       refreshMeasurementAllowance();
       void loadNap();
     } catch (err: any) {
