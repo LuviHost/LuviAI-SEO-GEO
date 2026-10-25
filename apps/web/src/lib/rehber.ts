@@ -76,6 +76,7 @@ export function blockTexts(b: RehberBlock): string[] {
     case 'code':
       return [b.label, b.code];
     case 'callout':
+    case 'tool':
       return [b.title, b.text];
   }
 }

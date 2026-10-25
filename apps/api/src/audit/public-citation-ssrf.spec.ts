@@ -47,6 +47,9 @@ function prismaSahte() {
 
 function aiSahte() {
   return {
+    plannedPublicCost: vi.fn(() => 0.8),
+    readPublicAnonSpent: vi.fn(async () => 0),
+    addPublicAnonSpend: vi.fn(async () => undefined),
     runPublicProbes: vi.fn(async () => []),
     publicAggregate: vi.fn(() => ({ shareOfVoice: [] })),
     classifyRealCompetitors: vi.fn(async () => new Set<string>()),

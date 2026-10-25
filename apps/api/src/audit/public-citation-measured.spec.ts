@@ -27,7 +27,7 @@ vi.mock('../common/safe-fetch.js', async (importOriginal) => {
   };
 });
 
-import { PublicCitationService, withMeasuredCounts } from './public-citation.service.js';
+import { PUBLIC_BUDGET_MESSAGE, PublicCitationService, publicDailyBudgetUsd, withMeasuredCounts } from './public-citation.service.js';
 
 const ALTI = [
   ['anthropic', 'Anthropic Claude'], ['gemini', 'Google Gemini'], ['openai', 'OpenAI ChatGPT'],
@@ -71,6 +71,9 @@ function servis(o: { probeFor: (provider: string, query: string) => Probe; cache
     },
   };
   const ai = {
+    plannedPublicCost: vi.fn(() => 0.8),
+    readPublicAnonSpent: vi.fn(async () => 0),
+    addPublicAnonSpend: vi.fn(async () => undefined),
     runPublicProbes: vi.fn(async ({ queries }: { queries: string[] }) => probeSonucu(queries, o.probeFor)),
     publicAggregate: vi.fn(() => ({ shareOfVoice: [] })),
     classifyRealCompetitors: vi.fn(async () => new Set<string>()),
@@ -283,5 +286,54 @@ describe('IP basina haftalik hak (7 gunde 1 taze test) — kayittaki hash ile so
   it('IP okunamazsa hak yok (Turkce neden)', async () => {
     const t = servis({ probeFor: (_p, q) => andi(q) });
     await expect(t.svc.checkRateLimit('')).resolves.toEqual({ ok: false, remaining: 0, resetIn: 'IP adresi okunamadı' });
+  });
+});
+
+describe('anonim test gunluk harcama tavani (varsayilan 10 USD, havuzdan ayri)', () => {
+  const ORJ = process.env.PUBLIC_CITATION_DAILY_BUDGET_USD;
+  beforeEach(() => { delete process.env.PUBLIC_CITATION_DAILY_BUDGET_USD; });
+  afterEach(() => {
+    if (ORJ === undefined) delete process.env.PUBLIC_CITATION_DAILY_BUDGET_USD;
+    else process.env.PUBLIC_CITATION_DAILY_BUDGET_USD = ORJ;
+  });
+
+  it('varsayilan 10; gecersiz env varsayilana duser; env ile degisir', () => {
+    expect(publicDailyBudgetUsd()).toBe(10);
+    process.env.PUBLIC_CITATION_DAILY_BUDGET_USD = 'abc';
+    expect(publicDailyBudgetUsd()).toBe(10);
+    process.env.PUBLIC_CITATION_DAILY_BUDGET_USD = '0';
+    expect(publicDailyBudgetUsd()).toBe(10);
+    process.env.PUBLIC_CITATION_DAILY_BUDGET_USD = '25';
+    expect(publicDailyBudgetUsd()).toBe(25);
+  });
+
+  it('harcanan + bu testin tavan maliyeti tavani asarsa 429, probe ve nis tespiti calismaz', async () => {
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [] });
+    t.ai.readPublicAnonSpent.mockResolvedValue(9.5);
+    const err = await t.svc.check('kobipratik.com', '5.6.7.8').catch((e: unknown) => e);
+    expect((err as HttpException).getStatus()).toBe(429);
+    expect((err as HttpException).message).toBe(PUBLIC_BUDGET_MESSAGE);
+    expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
+    expect(t.niche.detectFromUrl).not.toHaveBeenCalled();
+    expect(t.ai.plannedPublicCost).toHaveBeenCalledWith(3);
+  });
+
+  it('tavanin altindaysa test calisir ve saglayici maliyetlerinin toplami deftere yazilir', async () => {
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [] });
+    t.ai.readPublicAnonSpent.mockResolvedValue(9.0);
+    t.ai.runPublicProbes.mockImplementation(async ({ queries }: { queries: string[] }) =>
+      probeSonucu(queries, (_p, q) => andi(q)).map((r: any) => ({ ...r, cost: r.available ? 0.1 : 0 })));
+    await t.svc.check('kobipratik.com', '5.6.7.8');
+    expect(t.ai.runPublicProbes).toHaveBeenCalledTimes(1);
+    const yazilan = (t.ai.addPublicAnonSpend.mock.calls as unknown as number[][])[0][0];
+    expect(yazilan).toBeCloseTo(0.6, 5);
+  });
+
+  it('onbellekten donus tavana takilmaz ve deftere yazmaz', async () => {
+    const t = servis({ probeFor: (_p, q) => andi(q), cached: [{ domain: 'kobipratik.com', createdAt: new Date(), result: { brand: 'Kobipratik', queries: [], access: { tier: 'anon' } } }] });
+    t.ai.readPublicAnonSpent.mockResolvedValue(999);
+    await t.svc.check('kobipratik.com', '5.6.7.8');
+    expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
+    expect(t.ai.addPublicAnonSpend).not.toHaveBeenCalled();
   });
 });

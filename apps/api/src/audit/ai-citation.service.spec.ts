@@ -245,3 +245,16 @@ describe('jenerik marka korumasi (CITATION_MATCH_VERSION 4)', () => {
     expect(pr.probes[0]).toMatchObject({ brandMentioned: true, brandInQuery: true, cited: false });
   });
 });
+
+describe('anonim test tavan maliyeti (plannedPublicCost)', () => {
+  it('yalniz anahtari olan saglayicilar x soru sayisi; anahtarsiz saglayici sayilmaz', () => {
+    // beforeEach yalniz Perplexity anahtarini birakir: 0.0006 USD x 3 soru
+    expect(service().plannedPublicCost(3)).toBeCloseTo(0.0018, 6);
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test-1234567890';
+    expect(service().plannedPublicCost(3)).toBeCloseTo(0.0018 + 0.6, 6);
+  });
+
+  it('anonim defter anahtari havuz anahtarlarindan ayri', () => {
+    expect(service().publicAnonCostKey('2026-10-25')).toBe('ai-cost:public-anon:2026-10-25');
+  });
+});
