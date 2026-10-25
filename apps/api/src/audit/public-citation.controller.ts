@@ -77,9 +77,9 @@ export function subscriptionLinkErrorCode(err: unknown): SubscriptionLinkErrorCo
 export const PUBLIC_CHECK_FAILED_MESSAGE = 'Kontrol şu an tamamlanamadı, lütfen biraz sonra tekrar deneyin.';
 
 /**
- * Turnstile token'i olmadan gelen MOBIL UYGULAMA kontrolunun IP basina 24
- * saatlik farkli alan adi siniri (normal kademe PUBLIC_CITATION_IP_DAILY_LIMIT,
- * varsayilan 3). Urun parametresi — olculmus bir esik degil: mesru kullanici
+ * Turnstile token'i olmadan gelen MOBIL UYGULAMA kontrolunun IP basina 7
+ * gunluk farkli alan adi siniri (normal kademe PUBLIC_CITATION_IP_WEEKLY_LIMIT,
+ * varsayilan 1; genel sinir 2'nin altindayken o gecerlidir). Urun parametresi — olculmus bir esik degil: mesru kullanici
  * kendi sitesini ve bir rakibini dener; taklitci daha az hak alir. Genel sinir
  * daha dusuk ayarlanirsa o gecerlidir (public-citation.service.ts effectiveIpLimit).
  */
@@ -129,7 +129,7 @@ export class PublicCitationController {
    * dogrulandi: https://developers.cloudflare.com/turnstile/get-started/mobile-implementation/).
    * Bu yuzden User-Agent'inda `RanksUp-iOS/<rakam>` ya da `RanksUp-Android/<rakam>`
    * olan ve token GONDERMEYEN istek kabul edilir AMA siki kademeyle: IP basina
-   * 24 saatte PUBLIC_CHECK_IP_LIMIT_STRICT farkli alan adi (normal 3).
+   * 7 gunde PUBLIC_CHECK_IP_LIMIT_STRICT farkli alan adi; genel sinir (varsayilan 1) daha dar.
    *
    * DIKKAT — User-Agent istemcinin kendi yazdigi basliktir, TAKLIT EDILEBILIR.
    * Bu bir kimlik dogrulamasi ya da guvenlik siniri DEGIL; Turnstile
