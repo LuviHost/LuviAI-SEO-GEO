@@ -25,7 +25,7 @@ import { assertPublicDomainResolves, normalizePublicDomainInput, type PublicReso
  *
  * Abuse kontrolu:
  *   - Sonuc 24h cache (PublicCitationCheck.domain unique)
- *   - IP rate-limit (PublicCitationService.checkRateLimit) → her IP gunde 3 farkli domain
+ *   - IP rate-limit (PublicCitationService.checkRateLimit) → her IP 7 gunde 1 yeni test (onbellekten donus serbest)
  *   - Cloudflare Turnstile (controller'da, env-gated)
  *   - Bot UA bloklanir (controller)
  *
@@ -171,6 +171,13 @@ const QUERY_MIN_LEN = 8;
 const QUERY_MAX_LEN = 160;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Ucretsiz test hakkinin penceresi (sahip karari 25.10.2026: ziyaretci haftada 1 test) */
+export const PUBLIC_CHECK_WINDOW_MS = 7 * DAY_MS;
+
+/** "1 Kasım" — hak yenilenme tarihi, Istanbul saatiyle */
+function trDay(d: Date): string {
+  return new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' }).format(d);
+}
 
 /**
  * Kayitli sonucun saglayici alintilarini guvenli bicime cevirir.
@@ -361,10 +368,10 @@ export interface PublicCheckOptions {
    */
   fixed?: FixedQuestionSet;
   /**
-   * IP basina 24 saatlik farkli alan adi siniri bu istekte daha DAR olsun
+   * IP basina 7 gunluk farkli alan adi siniri bu istekte daha DAR olsun
    * (yalniz 'manual'). Controller, Turnstile token'i olmadan gelen mobil
    * uygulama istegi icin verir (public-citation.controller.ts check()).
-   * Genel sinirdan (PUBLIC_CITATION_IP_DAILY_LIMIT) buyuk deger yok sayilir:
+   * Genel sinirdan (PUBLIC_CITATION_IP_WEEKLY_LIMIT) buyuk deger yok sayilir:
    * siki kademe hicbir ayarda normal kademeden genis olamaz.
    */
   ipDailyLimit?: number;
@@ -529,11 +536,15 @@ export class PublicCitationService {
   private readonly log = new Logger(PublicCitationService.name);
   private readonly CACHE_TTL_HOURS = 24;
 
-  // IP rate limit: IP basina son 24 saatte max N farkli domain. Gecersiz env
-  // (NaN) eskiden kalan hakki NaN yapip HER istegi reddederdi → varsayilan 3.
-  private readonly IP_DAILY_DOMAIN_LIMIT = (() => {
-    const n = parseInt(process.env.PUBLIC_CITATION_IP_DAILY_LIMIT ?? '3', 10);
-    return Number.isFinite(n) && n > 0 ? n : 3;
+  // IP rate limit: IP basina son 7 gunde max N farkli domain icin TAZE olcum
+  // (sahip karari 25.10.2026: haftada 1; eskiden 24 saatte 3). Her taze test
+  // 3 soru x 7 saglayici ucretli probe calistirir. Gecersiz env (NaN) kalan
+  // hakki NaN yapip HER istegi reddederdi → varsayilan 1. Eski
+  // PUBLIC_CITATION_IP_DAILY_LIMIT bilerek okunmaz: sunucuda 3 kalmissa
+  // haftalik sinir sessizce 3'e cikardi.
+  private readonly IP_WEEKLY_DOMAIN_LIMIT = (() => {
+    const n = parseInt(process.env.PUBLIC_CITATION_IP_WEEKLY_LIMIT ?? '1', 10);
+    return Number.isFinite(n) && n > 0 ? n : 1;
   })();
 
   /** Yalnizca test: gercek DNS yerine sahte cozumleyici. Uretimde bos → assertResolvesPublic. */
@@ -546,8 +557,11 @@ export class PublicCitationService {
   ) {}
 
   /**
-   * IP basina rate-limit kontrol — son 24h icinde ayni IP'den kac farkli domain
+   * IP basina rate-limit kontrol — son 7 gun icinde ayni IP'den kac farkli domain
    * icin TAZE olcum yapildi (onbellekten donus kayit yazmaz, sayilmaz).
+   * Hak doluysa resetIn, bir alan adinin pencereden cikacagi gun: alan adlari
+   * en son testlerine gore yeniden eskiye siralanir; sayi cap'in altina, cap.
+   * siradaki alan adinin son testi 7 gunu doldurunca iner.
    *
    * KAYITTAKI IP HASH'LIDIR (check() → hashIp). Sorgu eskiden ham IP ile
    * yapiliyordu: hicbir kayitla eslesmedigi icin "IP basina gunde 3 domain"
@@ -558,25 +572,29 @@ export class PublicCitationService {
   async checkRateLimit(ip: string, limit?: number): Promise<{ ok: boolean; remaining: number; resetIn?: string }> {
     if (!ip) return { ok: false, remaining: 0, resetIn: 'IP adresi okunamadı' };
     const cap = this.effectiveIpLimit(limit);
-    const cutoff = new Date(Date.now() - DAY_MS);
-    const distinctDomains = await this.prisma.publicCitationCheck.findMany({
+    const now = Date.now();
+    const cutoff = new Date(now - PUBLIC_CHECK_WINDOW_MS);
+    // distinct + createdAt desc → alan adi basina EN SON test satiri
+    const distinctDomains: Array<{ domain: string; createdAt?: Date }> = await this.prisma.publicCitationCheck.findMany({
       where: { ip: this.hashIp(ip), source: 'manual', createdAt: { gte: cutoff } },
-      select: { domain: true },
+      select: { domain: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
       distinct: ['domain'],
     });
     const used = distinctDomains.length;
     const remaining = Math.max(0, cap - used);
-    return {
-      ok: remaining > 0,
-      remaining,
-      resetIn: remaining === 0 ? '24 saat içinde yenilenir' : undefined,
-    };
+    if (remaining > 0) return { ok: true, remaining, resetIn: undefined };
+    const latest = distinctDomains
+      .map((d) => (d.createdAt instanceof Date ? d.createdAt.getTime() : now))
+      .sort((a, b) => b - a);
+    const opensAt = new Date((latest[cap - 1] ?? now) + PUBLIC_CHECK_WINDOW_MS);
+    return { ok: false, remaining: 0, resetIn: `${trDay(opensAt)} itibarıyla yenilenir` };
   }
 
   /** Istekteki IP siniri: verilen deger genel sinirdan buyukse genel sinir (siki kademe hep daha dar) */
   private effectiveIpLimit(limit?: number): number {
-    if (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 1) return this.IP_DAILY_DOMAIN_LIMIT;
-    return Math.min(this.IP_DAILY_DOMAIN_LIMIT, Math.floor(limit));
+    if (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 1) return this.IP_WEEKLY_DOMAIN_LIMIT;
+    return Math.min(this.IP_WEEKLY_DOMAIN_LIMIT, Math.floor(limit));
   }
 
   /**
@@ -751,8 +769,9 @@ export class PublicCitationService {
       const limit = this.effectiveIpLimit(opts.ipDailyLimit);
       const rl = await this.checkRateLimit(ip, limit);
       if (!rl.ok) {
+        const sinir = limit === 1 ? '1 alan adı' : `en fazla ${limit} farklı alan adı`;
         throw new HttpException(
-          `Günlük ücretsiz test hakkınız doldu: aynı IP adresinden 24 saatte en fazla ${limit} farklı alan adı test edilebilir. Son 24 saatte test ettiğiniz alan adlarının sonuçlarını yeniden açabilirsiniz.`,
+          `Haftalık ücretsiz test hakkınız doldu: aynı IP adresinden 7 günde ${sinir} test edilebilir; hakkınız ${rl.resetIn ?? '7 gün içinde yenilenir'}. Daha sık ve 6 asistanda ölçüm için 14 gün ücretsiz deneme hesabı açabilirsiniz.`,
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }

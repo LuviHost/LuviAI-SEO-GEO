@@ -186,67 +186,98 @@ describe('onbellekten donen eski kayit ayni kurala getirilir', () => {
   });
 });
 
-describe('IP basina gunluk hak — kayittaki hash ile sorgulanir', () => {
-  const ORJ_LIMIT = process.env.PUBLIC_CITATION_IP_DAILY_LIMIT;
+describe('IP basina haftalik hak (7 gunde 1 taze test) — kayittaki hash ile sorgulanir', () => {
+  const ORJ_LIMIT = process.env.PUBLIC_CITATION_IP_WEEKLY_LIMIT;
+  const ORJ_ESKI = process.env.PUBLIC_CITATION_IP_DAILY_LIMIT;
   const ORJ_TUZ = process.env.IP_HASH_SALT;
   beforeEach(() => {
+    delete process.env.PUBLIC_CITATION_IP_WEEKLY_LIMIT;
     delete process.env.PUBLIC_CITATION_IP_DAILY_LIMIT;
     process.env.IP_HASH_SALT = 'test-tuzu';
   });
   afterEach(() => {
-    if (ORJ_LIMIT === undefined) delete process.env.PUBLIC_CITATION_IP_DAILY_LIMIT;
-    else process.env.PUBLIC_CITATION_IP_DAILY_LIMIT = ORJ_LIMIT;
+    if (ORJ_LIMIT === undefined) delete process.env.PUBLIC_CITATION_IP_WEEKLY_LIMIT;
+    else process.env.PUBLIC_CITATION_IP_WEEKLY_LIMIT = ORJ_LIMIT;
+    if (ORJ_ESKI === undefined) delete process.env.PUBLIC_CITATION_IP_DAILY_LIMIT;
+    else process.env.PUBLIC_CITATION_IP_DAILY_LIMIT = ORJ_ESKI;
     if (ORJ_TUZ === undefined) delete process.env.IP_HASH_SALT;
     else process.env.IP_HASH_SALT = ORJ_TUZ;
   });
   const hashli = (ip: string) => createHash('sha256').update(`test-tuzu:${ip}`).digest('hex').slice(0, 32);
+  const gunOnce = (g: number) => new Date(Date.now() - g * 86400_000);
 
-  it('sorgu ham IP degil hash ile ve yalniz anonim landing kayitlari (manual) uzerinden', async () => {
-    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'a.com' }] });
+  it('sorgu hash ile, yalniz manual kayitlar, son 7 gun; alan adi basina en son satir', async () => {
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [] });
     const rl = await t.svc.checkRateLimit('5.6.7.8');
     const args = t.prisma.publicCitationCheck.findMany.mock.calls[0][0] as any;
     expect(args.where).toMatchObject({ ip: hashli('5.6.7.8'), source: 'manual' });
     expect(args.where.ip).not.toBe('5.6.7.8');
     expect(args.distinct).toEqual(['domain']);
-    expect(rl).toEqual({ ok: true, remaining: 2, resetIn: undefined });
-    // check() kaydi da ayni hash ile yazar — sorgu ile kayit eslesir
+    expect(args.orderBy).toEqual({ createdAt: 'desc' });
+    const pencereGun = (Date.now() - (args.where.createdAt.gte as Date).getTime()) / 86400_000;
+    expect(pencereGun).toBeGreaterThan(6.99);
+    expect(pencereGun).toBeLessThan(7.01);
+    expect(rl).toEqual({ ok: true, remaining: 1, resetIn: undefined });
     await t.svc.check('kobipratik.com', '5.6.7.8');
     expect((t.prisma.publicCitationCheck.create.mock.calls[0] as any[])[0].data.ip).toBe(hashli('5.6.7.8'));
   });
 
-  it('24 saatte 3 farkli alan adi dolunca yeni alan adi 429 alir, probe calismaz', async () => {
-    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'a.com' }, { domain: 'b.com' }, { domain: 'c.com' }] });
+  it('7 gun icinde 1 taze test yapildiysa yeni test 429 alir, probe calismaz, mesaj yenilenme gununu soyler', async () => {
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'a.com', createdAt: gunOnce(2) }] });
     const err = await t.svc.check('kobipratik.com', '5.6.7.8').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(HttpException);
     expect((err as HttpException).getStatus()).toBe(429);
-    expect((err as HttpException).message).toContain('Günlük ücretsiz test hakkınız doldu');
-    expect((err as HttpException).message).toContain('en fazla 3 farklı alan adı');
+    const msg = (err as HttpException).message;
+    expect(msg).toContain('Haftalık ücretsiz test hakkınız doldu');
+    expect(msg).toContain('7 günde 1 alan adı');
+    expect(msg).toContain('itibarıyla yenilenir');
+    expect(msg).toContain('14 gün ücretsiz deneme');
     expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
     expect(t.niche.detectFromUrl).not.toHaveBeenCalled();
   });
 
-  it('token siz mobil kademe (ipDailyLimit 2): 2 alan adi dolunca 429, mesaj gercek siniri soyler', async () => {
-    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'a.com' }, { domain: 'b.com' }] });
-    const err = await t.svc.check('kobipratik.com', '5.6.7.8', 'manual', { ipDailyLimit: 2 }).catch((e: unknown) => e);
-    expect((err as HttpException).getStatus()).toBe(429);
-    expect((err as HttpException).message).toContain('en fazla 2 farklı alan adı');
-    expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
-    await expect(t.svc.checkRateLimit('5.6.7.8', 2)).resolves.toMatchObject({ ok: false, remaining: 0 });
+  it('yenilenme gunu: en son testten 7 gun sonra (Istanbul saatiyle gun adi)', async () => {
+    const son = gunOnce(2);
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'a.com', createdAt: son }] });
+    const rl = await t.svc.checkRateLimit('5.6.7.8');
+    const beklenen = new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' })
+      .format(new Date(son.getTime() + 7 * 86400_000));
+    expect(rl).toEqual({ ok: false, remaining: 0, resetIn: `${beklenen} itibarıyla yenilenir` });
   });
 
-  it('siki kademe genel siniri asamaz: ipDailyLimit genelden buyukse genel sinir (3) gecerli', async () => {
-    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'a.com' }, { domain: 'b.com' }, { domain: 'c.com' }] });
-    const err = await t.svc.check('kobipratik.com', '5.6.7.8', 'manual', { ipDailyLimit: 10 }).catch((e: unknown) => e);
+  it('ayni alan adini tekrar (onbellek disi) test etmek de haktan duser', async () => {
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'kobipratik.com', createdAt: gunOnce(3) }] });
+    const err = await t.svc.check('kobipratik.com', '5.6.7.8').catch((e: unknown) => e);
     expect((err as HttpException).getStatus()).toBe(429);
-    expect((err as HttpException).message).toContain('en fazla 3 farklı alan adı');
-    // Gecersiz deger yok sayilir
+    expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
+  });
+
+  it('token siz mobil kademe (ipDailyLimit 2) genel siniri (1) asamaz', async () => {
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'a.com', createdAt: gunOnce(1) }] });
+    const err = await t.svc.check('kobipratik.com', '5.6.7.8', 'manual', { ipDailyLimit: 2 }).catch((e: unknown) => e);
+    expect((err as HttpException).getStatus()).toBe(429);
+    expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
+    await expect(t.svc.checkRateLimit('5.6.7.8', 2)).resolves.toMatchObject({ ok: false, remaining: 0 });
     await expect(t.svc.checkRateLimit('5.6.7.8', Number.NaN)).resolves.toMatchObject({ remaining: 0 });
   });
 
-  it('gecersiz env limiti her istegi reddetmez, varsayilan 3 kullanilir', async () => {
-    process.env.PUBLIC_CITATION_IP_DAILY_LIMIT = 'abc';
+  it('env ile genisletilebilir; birden fazla hakta mesaj gercek siniri soyler', async () => {
+    process.env.PUBLIC_CITATION_IP_WEEKLY_LIMIT = '3';
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [{ domain: 'a.com' }, { domain: 'b.com' }, { domain: 'c.com' }] });
+    const err = await t.svc.check('kobipratik.com', '5.6.7.8').catch((e: unknown) => e);
+    expect((err as HttpException).message).toContain('en fazla 3 farklı alan adı');
+  });
+
+  it('eski gunluk env (PUBLIC_CITATION_IP_DAILY_LIMIT) haftalik siniri genisletmez', async () => {
+    process.env.PUBLIC_CITATION_IP_DAILY_LIMIT = '3';
     const t = servis({ probeFor: (_p, q) => andi(q), distinct: [] });
-    await expect(t.svc.checkRateLimit('5.6.7.8')).resolves.toMatchObject({ ok: true, remaining: 3 });
+    await expect(t.svc.checkRateLimit('5.6.7.8')).resolves.toMatchObject({ ok: true, remaining: 1 });
+  });
+
+  it('gecersiz env limiti her istegi reddetmez, varsayilan 1 kullanilir', async () => {
+    process.env.PUBLIC_CITATION_IP_WEEKLY_LIMIT = 'abc';
+    const t = servis({ probeFor: (_p, q) => andi(q), distinct: [] });
+    await expect(t.svc.checkRateLimit('5.6.7.8')).resolves.toMatchObject({ ok: true, remaining: 1 });
   });
 
   it('IP okunamazsa hak yok (Turkce neden)', async () => {
