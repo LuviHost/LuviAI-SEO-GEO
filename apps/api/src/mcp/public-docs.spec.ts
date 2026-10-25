@@ -1114,7 +1114,7 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
   /** 31 gunluk ayda kayan 7 gunluk pencereyle en fazla kac olcum yapilabilir */
   const ayEnFazla = Math.ceil((31 * 24 * 60 * 60 * 1000) / MEASUREMENT_WINDOW_MS);
   /** Paneldeki "Tumunu calistir" tek olcumde en fazla kac soru calistirir */
-  const tumuLimit = Number(panel.match(/runAllPrompts\(siteId, \{ withFanout: false, limit: (\d+) \}\)/)?.[1]);
+  const tumuLimit = Number(panel.match(/(?:start)?[rR]unAllPrompts\(siteId, \{ withFanout: false, limit: (\d+) \}\)/)?.[1]);
   const trial = findPlan('trial')!;
   const ucretli = BASE_PLANS.filter((p) => p.id !== 'trial');
   /** Kartta gorunen maddeler: planin kendi maddeleri + "X'teki her sey, arti:" zinciri */

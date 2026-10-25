@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Beaker, Plus, Play, Trash2, GitBranch, Sparkles, Download,
@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { displayProbeText } from '@/lib/probe-error-text';
+import { runAllProgressText, watchRunAll } from '@/lib/prompt-lab-run-all';
 import type { LocalPromptMeta, LocalRunSummary } from '@/lib/local-visibility';
 import { LocalPromptBadge, LocalPromptsTab, LocalResultView } from '@/components/prompt-lab-local';
 import { Button } from '@/components/ui/button';
@@ -123,8 +124,17 @@ function PromptsTab({ siteId }: { siteId: string }) {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [runningAll, setRunningAll] = useState(false);
+  const [runProgress, setRunProgress] = useState('');
   const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const unmounted = useRef(false);
+  // StrictMode sahte sok-tak yapar: govdede sifirlanmazsa ref true kalir
+  useEffect(() => {
+    unmounted.current = false;
+    return () => { unmounted.current = true; };
+  }, []);
+  // Tek yoklayici: tik ve sayfa acilisindaki yakalama ayni anda baslatmasin
+  const following = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -138,6 +148,49 @@ function PromptsTab({ siteId }: { siteId: string }) {
   }, [siteId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Yoklama turlarinda iskelet gostermeden yenile (acik satir kapanmasin)
+  const refreshQuietly = useCallback(async () => {
+    try {
+      setPrompts(await api.listPrompts(siteId));
+    } catch { /* bir sonraki turda tekrar denenir */ }
+  }, [siteId]);
+
+  // Arka plandaki "Tümünü çalıştır" isini bitene kadar izle
+  const followRunAll = useCallback(async () => {
+    if (following.current) return;
+    following.current = true;
+    setRunningAll(true);
+    const outcome = await watchRunAll(siteId, async (job) => {
+      setRunProgress(runAllProgressText(job));
+      await refreshQuietly();
+    }, () => unmounted.current);
+    following.current = false;
+    if (outcome.kind === 'cancelled' || unmounted.current) return;
+    setRunningAll(false);
+    setRunProgress('');
+    refreshMeasurementAllowance();
+    await refreshQuietly();
+    if (outcome.kind === 'finished') {
+      const job = outcome.job;
+      if (job.status === 'failed') toast.error(`Çalıştırma yarıda kaldı — ${job.ran} soru ölçüldü`);
+      else if (job.failed > 0) toast.warning(`${job.ran} soru çalıştırıldı, ${job.failed} soru ölçülemedi`);
+      else toast.success(`${job.ran} soru çalıştırıldı`);
+    } else if (outcome.kind === 'lost') {
+      toast.info('Çalıştırma durumu alınamadı — ölçülen sorular listede görünüyor');
+    } else {
+      toast.info('Çalıştırma hâlâ sürüyor; sayfayı birazdan yenileyin');
+    }
+  }, [siteId, refreshQuietly]);
+
+  // Sayfa yenilendiyse ya da baska sekmede baslatildiysa calisan isi yakala
+  useEffect(() => {
+    let off = false;
+    api.runAllPromptsStatus(siteId)
+      .then((s) => { if (!off && s.status === 'running') void followRunAll(); })
+      .catch(() => { /* durum alinamazsa dugme normal kalir */ });
+    return () => { off = true; };
+  }, [siteId, followRunAll]);
 
   async function add() {
     if (newText.trim().length < 5) {
@@ -173,14 +226,16 @@ function PromptsTab({ siteId }: { siteId: string }) {
   async function runAll() {
     setRunningAll(true);
     try {
-      const res = await api.runAllPrompts(siteId, { withFanout: false, limit: 25 });
-      toast.success(`${res.ran} soru çalıştırıldı`);
+      const job = await api.startRunAllPrompts(siteId, { withFanout: false, limit: 25 });
       refreshMeasurementAllowance();
-      await load();
+      toast.info(job.alreadyRunning
+        ? 'Zaten süren bir çalıştırma var — onu izliyorum'
+        : 'Sorular arka planda çalışıyor. Birkaç dakika sürebilir; satırlar ölçüldükçe dolar.');
+      setRunProgress(runAllProgressText(job));
+      void followRunAll();
     } catch (err: any) {
       if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err?.message ?? 'Çalıştırılamadı');
-    } finally {
       setRunningAll(false);
     }
   }
@@ -227,7 +282,7 @@ function PromptsTab({ siteId }: { siteId: string }) {
         </Button>
         <Button size="sm" variant="outline" onClick={runAll} disabled={runningAll || prompts.length === 0 || measurementBlocked}>
           {runningAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-          Tümünü çalıştır
+          {runningAll ? `Çalışıyor${runProgress ? ` ${runProgress}` : ''}` : 'Tümünü çalıştır'}
         </Button>
       </div>
       <MeasurementLimitNote />

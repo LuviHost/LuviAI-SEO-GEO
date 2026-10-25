@@ -40,6 +40,7 @@ import { StuckPageExternalRecoveryService } from './stuck-page-external-recovery
 import { STUCK_PAGE_NOT_FOUND } from './stuck-page-messages.js';
 import { STUCK_CLAIM_LEASE_MS } from './stuck-page-autopilot.js';
 import { PromptLabService } from './prompt-lab.service.js';
+import { PromptLabRunAllJobs } from './prompt-lab-run-all-jobs.js';
 import { FanoutService } from './fanout.service.js';
 import { AgentReadinessService, readinessForResponse } from './agent-readiness.service.js';
 import { SiteUserThrottlerGuard, SITE_USER_THROTTLE } from './site-user-throttler.guard.js';
@@ -171,6 +172,7 @@ export class AuditController {
     private readonly liveCrawler: LiveCrawlerService,
     private readonly prisma: PrismaService,
     private readonly citedSources: CitedSourcesService,
+    private readonly runAllJobs: PromptLabRunAllJobs,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -628,6 +630,32 @@ export class AuditController {
     @Body() body: RunAllPromptsDto,
   ) {
     return this.promptLab.runAll(siteId, { withFanout: body?.withFanout === true, limit: body?.limit, scope: body?.scope });
+  }
+
+  /**
+   * POST /sites/:siteId/audit/prompts/run-all/start — ayni is, ARKA PLANDA.
+   * Panel bunu kullanir: tek istekli yol Cloudflare'in 100 sn sinirina
+   * takiliyordu (bkz. prompt-lab-run-all-jobs.ts). @MeasurementSession YOK:
+   * hak isin tamamina PromptLabRunAllJobs icinde baglanir; hak doluysa 429
+   * yine aninda doner.
+   */
+  @Post('prompts/run-all/start')
+  startRunAllPrompts(
+    @Param('siteId') siteId: string,
+    @Body() body: RunAllPromptsDto,
+    @Req() req: Request,
+  ) {
+    return this.runAllJobs.start(siteId, (req as any).user, {
+      withFanout: body?.withFanout === true,
+      limit: body?.limit,
+      scope: body?.scope,
+    });
+  }
+
+  /** GET /sites/:siteId/audit/prompts/run-all/status — arka plan isinin durumu */
+  @Get('prompts/run-all/status')
+  runAllPromptsStatus(@Param('siteId') siteId: string) {
+    return this.runAllJobs.status(siteId);
   }
 
   /** GET /sites/:siteId/audit/prompts/coverage?days=30 — ana soru vs fan-out farki */
