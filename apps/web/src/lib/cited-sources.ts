@@ -172,3 +172,45 @@ export function shortUrl(url: string, max = 60): string {
   }
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
+
+// ────────────────────────────────────────────────────────────
+//  CSV dışa aktarma — tablo + "nerede yer almalısın" önerisi tek dosyada
+// ────────────────────────────────────────────────────────────
+
+const PROVIDER_CSV_NAMES: Readonly<Record<string, string>> = {
+  anthropic: 'Claude', gemini: 'Gemini', openai: 'ChatGPT', perplexity: 'Perplexity',
+  xai: 'Grok', grok: 'Grok', deepseek: 'DeepSeek', meta: 'Meta AI',
+};
+
+/**
+ * Tek hücre: noktalı virgül/tırnak/satır sonu varsa tırnakla; = + - @ ile
+ * başlayan hücreler Excel'de formül olarak çalışmasın diye başına ' eklenir
+ * (alan adları ve sorular dış kaynaklı).
+ */
+export function csvCell(value: string | number | null | undefined): string {
+  let s = value === null || value === undefined ? '' : String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Türkçe Excel ayırıcısı noktalı virgül; UTF-8 BOM ile ş/ğ/ı doğru açılır.
+ * Satır sırası tablodaki gibi (cevap sayısı azalan).
+ */
+export function citedSourcesCsv(r: Pick<CitedSourcesResponse, 'domains' | 'placements'>): string {
+  const placement = new Map(r.placements.map((p) => [p.domain, p.action]));
+  const header = ['alan_adi', 'tur', 'cevap_sayisi', 'asistanlar', 'sorular', 'ornek_adresler', 'ilk_gorulme', 'son_gorulme', 'yer_almalisin', 'oneri'];
+  const lines = r.domains.map((d) => [
+    d.domain,
+    SOURCE_TYPE_LABELS[d.type] ?? d.type,
+    d.answers,
+    d.providers.map((p) => PROVIDER_CSV_NAMES[p] ?? p).join(', '),
+    d.topQueries.join(' | '),
+    d.exampleUrls.map((u) => u.url).join(' | '),
+    d.firstSeen.slice(0, 10),
+    d.lastSeen.slice(0, 10),
+    placement.has(d.domain) ? 'evet' : '',
+    placement.get(d.domain) ?? '',
+  ].map(csvCell).join(';'));
+  return `\uFEFF${[header.join(';'), ...lines].join('\r\n')}\r\n`;
+}

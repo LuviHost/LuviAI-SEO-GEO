@@ -100,9 +100,26 @@ function sourceList(raw: unknown, ctx: SourceTypeContext) {
   return out;
 }
 
+/**
+ * Cevap metnindeki Markdown isaretlerini atar: panel alintiyi duz metin
+ * basar, "**Acik" gibi ham isaretler gorunuyordu. Alinti kesik saklandigi
+ * icin (ilk ~220 karakter) kapanmamis isaretler de olabilir — eslesme
+ * aramadan hepsini kaldirir.
+ */
+export function plainExcerpt(text: string): string {
+  return text
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1') // [metin](adres) → metin
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '') // basliklar
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '') // liste isaretleri
+    .replace(/\*\*|__|`+/g, '') // kalin, kod
+    .replace(/(^|\s)[*_](?=\S)|(?<=\S)[*_](?=\s|$)/g, '$1') // italik
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function trimExcerpt(text: string | null): string | null {
   if (!text) return null;
-  const t = text.trim();
+  const t = plainExcerpt(text);
   if (!t) return null;
   return t.length > LATEST_RUN_EXCERPT_MAX ? `${t.slice(0, LATEST_RUN_EXCERPT_MAX - 1)}…` : t;
 }
