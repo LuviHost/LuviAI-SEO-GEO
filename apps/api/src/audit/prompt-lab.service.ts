@@ -3,7 +3,10 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { safeFetchText } from '../common/safe-fetch.js';
 import { CITATION_MATCH_VERSION } from './host-match.js';
 import { sourceColumns } from './citation-sources.js';
-import { AiCitationService, type CitationProbe, type CitationResult, type Provider } from './ai-citation.service.js';
+import { AiCitationService, PROVIDER_LABELS, type CitationProbe, type CitationResult, type Provider } from './ai-citation.service.js';
+import { buildLatestRun, type LatestRunView } from './prompt-latest-run.js';
+import { hostOf } from './source-domain-types.js';
+import { competitorMatchersFrom } from './cited-sources.service.js';
 import { FanoutService } from './fanout.service.js';
 import { unbrandedOnly } from './brand-in-query.js';
 import { compareAddress, comparePhone, type AddressCheck, type AnswerNapSignal, type PhoneCheck } from './local-nap.js';
@@ -694,6 +697,42 @@ export class PromptLabService {
    * Ana soru ve fan-out dallari AYRI seriler — eskiden ayni kovaya
    * karistiginda fan-out'lu gunler yapay olarak farkli gorunuyordu.
    */
+  /**
+   * Sorunun son olcum gunu, saglayici bazinda: kaynak gosterdi mi, adimizi
+   * andi mi, hangi siteleri kaynak gosterdi (bkz. prompt-latest-run.ts).
+   * Yalniz okur; AI cagrisi yapmaz, olcum hakki harcamaz.
+   */
+  async latestRun(siteId: string, promptId: string): Promise<LatestRunView> {
+    await this.requirePrompt(siteId, promptId);
+    const last = await this.prisma.geoPromptRun.findFirst({
+      where: { promptId, siteId, fanoutId: null },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    });
+    if (!last) return { date: null, providers: [] };
+
+    const [rows, site] = await Promise.all([
+      this.prisma.geoPromptRun.findMany({
+        where: { promptId, siteId, fanoutId: null, date: last.date },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: {
+          provider: true, date: true, createdAt: true, cited: true, brandMentioned: true,
+          brandInQuery: true, position: true, sentiment: true, excerpt: true,
+          competitors: true, sources: true, sourcesVersion: true,
+        },
+      }),
+      this.prisma.site.findUnique({
+        where: { id: siteId },
+        select: { url: true, brain: { select: { competitors: true } } },
+      }),
+    ]);
+    return buildLatestRun(rows, {
+      ownHost: hostOf(site?.url ?? null),
+      competitors: competitorMatchersFrom(site?.brain?.competitors),
+    }, PROVIDER_LABELS);
+  }
+
   async history(siteId: string, promptId: string, daysInput: unknown = 30) {
     await this.requirePrompt(siteId, promptId);
 

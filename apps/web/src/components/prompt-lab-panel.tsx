@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Beaker, Plus, Play, Trash2, GitBranch, Sparkles, Download,
-  ChevronDown, ChevronRight, AlertTriangle, Check, Loader2, X, MapPin,
+  ChevronDown, ChevronRight, Loader2, X, MapPin,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
@@ -13,6 +13,7 @@ import { displayProbeText } from '@/lib/probe-error-text';
 import { runAllProgressText, watchRunAll } from '@/lib/prompt-lab-run-all';
 import type { LocalPromptMeta, LocalRunSummary } from '@/lib/local-visibility';
 import { LocalPromptBadge, LocalPromptsTab, LocalResultView } from '@/components/prompt-lab-local';
+import { PromptLatestRunView } from '@/components/prompt-latest-run';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -307,7 +308,7 @@ function PromptsTab({ siteId }: { siteId: string }) {
               isOpen={expanded === p.id}
               onToggle={() => setExpanded(expanded === p.id ? null : p.id)}
               onDelete={() => remove(p.id)}
-              onRan={load}
+              onRan={refreshQuietly}
             />
           ))}
         </div>
@@ -437,14 +438,38 @@ function PromptRow({
       </div>
 
       {isOpen && (
-        <div className="border-t px-3 py-2.5 space-y-2.5 bg-muted/30">
-          {/* Fan-out açıklaması — kullanıcı bunun tahmin olduğunu bilmeli */}
-          <div className="flex items-start gap-1.5 text-label text-muted-foreground">
-            <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-            <span>
-              Fan-out dalları, modellerin bu soruyu cevaplarken arka planda açması <em>muhtemel</em> alt
-              sorgulardır. Sağlayıcılar gerçek iç sorgularını paylaşmadığı için bunlar tahmindir.
-            </span>
+        <div className="border-t px-3 py-2.5 space-y-3 bg-muted/30">
+          {/* Önce asıl sonuç: her asistan ne dedi, hangi siteleri kaynak gösterdi */}
+          <PromptLatestRunView siteId={siteId} promptId={prompt.id} refreshKey={prompt.lastRunAt} />
+
+          {/* Bu oturumdaki çalıştırmada ölçülemeyen asistanlar (kayda geçmez, yalnız burada) */}
+          {lastRun && lastRun.providers.some((pr) => !pr.available) && (
+            <p className="flex flex-wrap items-center gap-1 text-label text-muted-foreground">
+              <X className="h-2.5 w-2.5" aria-hidden /> Ölçülemedi:
+              {lastRun.providers.filter((pr) => !pr.available).map((pr, i, arr) => (
+                <span key={pr.provider} title={displayProbeText(pr.reason) ?? pr.label}>
+                  {pr.label}{i < arr.length - 1 ? ',' : ''}
+                </span>
+              ))}
+            </p>
+          )}
+
+          {/* Yerel soru: marka + telefon/adres dogrulugu — bu oturumdaki calistirma ya da son kayitli olcum */}
+          {(lastRun?.local ?? prompt.lastLocal) && (
+            <LocalResultView result={(lastRun?.local ?? prompt.lastLocal)!} />
+          )}
+
+          {/* İleri düzey: alt sorgu dalları (fan-out) — tahmin, ölçmek ek AI çağrısı */}
+          <div className="space-y-2 border-t pt-2.5">
+          <div>
+            <p className="text-xs font-semibold inline-flex items-center gap-1">
+              <GitBranch className="h-3 w-3" /> Alt sorgu dalları
+              <span className="font-normal text-muted-foreground">(isteğe bağlı)</span>
+            </p>
+            <p className="text-label text-muted-foreground mt-0.5">
+              Asistanlar bir soruyu cevaplarken arka planda birkaç alt arama yapabilir. Bunlar o aramaların
+              tahminidir; dallarla çalıştırmak ek AI çağrısı yapar.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -488,8 +513,8 @@ function PromptRow({
             </div>
           )}
 
-          {/* Son çalıştırma sonucu */}
-          {lastRun && (
+          {/* Dallarla çalıştırma sonucu (asistan bazlı sonuç yukarıdaki "Son ölçüm"de) */}
+          {lastRun?.fanout && (
             <div className="rounded-md border bg-background p-2 space-y-1.5">
               <div className="flex gap-4 text-label">
                 <span>
@@ -517,30 +542,9 @@ function PromptRow({
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-1">
-                {lastRun.providers.map((pr) => (
-                  <Badge
-                    key={pr.provider}
-                    variant="outline"
-                    className="text-label px-1 py-0"
-                    title={displayProbeText(pr.reason) ?? pr.label}
-                  >
-                    {pr.available
-                      ? (pr.probes.some((x: any) => x.cited)
-                          ? <Check className="h-2.5 w-2.5 text-success inline" />
-                          : <span className="text-muted-foreground">·</span>)
-                      : <X className="h-2.5 w-2.5 text-muted-foreground inline" aria-label="kullanılamıyor" />}
-                    {' '}{pr.label}
-                  </Badge>
-                ))}
-              </div>
             </div>
           )}
-
-          {/* Yerel soru: marka + telefon/adres dogrulugu — bu oturumdaki calistirma ya da son kayitli olcum */}
-          {(lastRun?.local ?? prompt.lastLocal) && (
-            <LocalResultView result={(lastRun?.local ?? prompt.lastLocal)!} />
-          )}
+          </div>
         </div>
       )}
     </div>

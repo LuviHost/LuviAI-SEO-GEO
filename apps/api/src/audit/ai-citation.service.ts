@@ -98,7 +98,7 @@ interface KeyResolution {
   reason?: string; // 'BYOK_REQUIRED' | 'NO_KEY'
 }
 
-const PROVIDER_LABELS: Record<Provider, string> = {
+export const PROVIDER_LABELS: Record<Provider, string> = {
   anthropic:  'Anthropic Claude',
   gemini:     'Google Gemini',
   openai:     'OpenAI ChatGPT',
