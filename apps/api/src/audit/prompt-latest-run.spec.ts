@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildLatestRun, LATEST_RUN_EXCERPT_MAX, LATEST_RUN_SOURCES_MAX, type LatestRunRow } from './prompt-latest-run.js';
+import { buildLatestRun, LATEST_RUN_EXCERPT_MAX, LATEST_RUN_SOURCES_MAX, plainExcerpt, type LatestRunRow } from './prompt-latest-run.js';
 import { buildCompetitorMatchers } from './source-domain-types.js';
 
 const ctx = { ownHost: 'ranksup.ai', competitors: buildCompetitorMatchers(['https://rakip.com']) };
@@ -84,5 +84,18 @@ describe('buildLatestRun', () => {
   it('bilinmeyen saglayici sona gider, etiketi kendi adi', () => {
     const v = buildLatestRun([row({ provider: 'yeni' }), row({ provider: 'gemini' })], ctx, labels);
     expect(v.providers.map((p) => [p.provider, p.label])).toEqual([['gemini', 'Google Gemini'], ['yeni', 'yeni']]);
+  });
+});
+
+describe('plainExcerpt', () => {
+  it('kalin, baslik, liste, baglanti ve kod isaretlerini atar; satirlari birlestirir', () => {
+    expect(plainExcerpt('Şu adımları izleyin: 1. **Açık')).toBe('Şu adımları izleyin: 1. Açık');
+    expect(plainExcerpt('## Başlık\n- **Bir** madde\n2) [RanksUp](https://ranksup.ai) ve `llms.txt`'))
+      .toBe('Başlık Bir madde RanksUp ve llms.txt');
+    expect(plainExcerpt('*italik* ve _vurgu_ metni')).toBe('italik ve vurgu metni');
+  });
+
+  it('düz metne ve sayılara dokunmaz', () => {
+    expect(plainExcerpt('2026 yılında 3*4 = 12 ve e-posta_adı kalır')).toBe('2026 yılında 3*4 = 12 ve e-posta_adı kalır');
   });
 });

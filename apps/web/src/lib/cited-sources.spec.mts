@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  ALL_BRANDED_TEXT, SOURCE_TYPE_LABELS, SOURCE_TYPE_ORDER, brandedNote, citedSourcesState, coverageNote, filterDomains, formatDay, shortUrl, typeChips,
+  ALL_BRANDED_TEXT, SOURCE_TYPE_LABELS, SOURCE_TYPE_ORDER, brandedNote, citedSourcesCsv, citedSourcesState, coverageNote, csvCell, filterDomains, formatDay, shortUrl, typeChips,
   type CitedSourcesResponse, type CitedDomainRow, type SourceType,
 } from './cited-sources';
 
@@ -110,5 +110,33 @@ describe('biçim', () => {
     expect(shortUrl('https://reddit.com/r/SEO/')).toBe('reddit.com/r/SEO');
     expect(shortUrl('https://tr.wikipedia.org/wiki/Arama_motoru_optimizasyonu', 20)).toBe('tr.wikipedia.org/wi…');
     expect(shortUrl('https://ornek.com/%C3%A7ay')).toBe('ornek.com/çay');
+  });
+});
+
+describe('CSV dışa aktarma', () => {
+  const row = (over: Partial<CitedDomainRow>): CitedDomainRow => ({
+    domain: 'ornek.com', type: 'other', answers: 2, providers: ['openai', 'perplexity'],
+    topQueries: ['GEO nedir?'], exampleUrls: [{ url: 'https://ornek.com/a' }],
+    firstSeen: '2026-10-24T00:00:00.000Z', lastSeen: '2026-10-25T00:00:00.000Z', ...over,
+  });
+
+  it('BOM + noktalı virgüllü başlık, Türkçe tür ve asistan adları, öneri sütunu', () => {
+    const csv = citedSourcesCsv({
+      domains: [row({}), row({ domain: 'rakip.com', type: 'competitor', providers: ['xai'] })],
+      placements: [{ domain: 'ornek.com', type: 'other', answers: 2, providers: [], topQueries: [], action: 'Yazara ulaş' }],
+    });
+    expect(csv.startsWith('\uFEFFalan_adi;tur;cevap_sayisi;')).toBe(true);
+    const lines = csv.trim().split('\r\n');
+    expect(lines[1]).toBe('ornek.com;Diğer;2;ChatGPT, Perplexity;GEO nedir?;https://ornek.com/a;2026-10-24;2026-10-25;evet;Yazara ulaş');
+    expect(lines[2]).toContain('rakip.com;Rakip;2;Grok;');
+    expect(lines[2].endsWith(';;')).toBe(true);
+  });
+
+  it('tırnak/ayırıcı içeren hücreyi tırnaklar, formül başlangıcını etkisizleştirir', () => {
+    expect(csvCell('a;b')).toBe('"a;b"');
+    expect(csvCell('"x"')).toBe('"""x"""');
+    expect(csvCell('=HYPERLINK("kotu")')).toBe(`"'=HYPERLINK(""kotu"")"`);
+    expect(csvCell('-1')).toBe("'-1");
+    expect(csvCell(null)).toBe('');
   });
 });

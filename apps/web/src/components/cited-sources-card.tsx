@@ -1,16 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, ExternalLink, Info, MapPin } from 'lucide-react';
+import { BookOpen, Download, ExternalLink, Info, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNum, formatPct } from '@/lib/format';
 import { PROVIDER_LABELS } from '@/lib/chart-colors';
 import {
   ALL_BRANDED_TEXT, HEURISTIC_NOTE, PLACEMENT_NOTE, brandedNote, SOURCE_TYPE_BADGE, SOURCE_TYPE_LABELS, citedSourcesState, coverageNote, filterDomains,
-  formatDay, shortUrl, typeChips, type CitedDomainRow, type CitedSourcesResponse, type SourceType,
+  citedSourcesCsv, formatDay, shortUrl, typeChips, type CitedDomainRow, type CitedSourcesResponse, type SourceType,
 } from '@/lib/cited-sources';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { SectionHeader } from '@/components/ui/section-header';
 import { AsyncState } from '@/components/ui/async-state';
@@ -93,6 +94,16 @@ const COLUMNS: Column<CitedDomainRow>[] = [
   { key: 'lastSeen', header: 'Son görülme', hideBelow: 'lg', sortValue: (r) => r.lastSeen, cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{formatDay(r.lastSeen)}</span> },
 ];
 
+function downloadCsv(data: CitedSourcesResponse, days: number) {
+  const blob = new Blob([citedSourcesCsv(data)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `alintilanan-kaynaklar-${days}g-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function CitedSourcesCard({ siteId }: { siteId: string }) {
   const [days, setDays] = useState<30 | 90>(30);
   const [data, setData] = useState<CitedSourcesResponse | null>(null);
@@ -132,10 +143,17 @@ export function CitedSourcesCard({ siteId }: { siteId: string }) {
           title="Alıntılanan dış kaynaklar"
           description="AI asistanları cevap verirken hangi siteleri kaynak gösteriyor? Senin siten, rakiplerin ve diğerleri."
           actions={
-            <div className="flex gap-1.5" role="group" aria-label="Dönem">
-              {([30, 90] as const).map((d) => (
-                <FilterChip key={d} selected={days === d} onClick={() => setDays(d)}>{d} gün</FilterChip>
-              ))}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex gap-1.5" role="group" aria-label="Dönem">
+                {([30, 90] as const).map((d) => (
+                  <FilterChip key={d} selected={days === d} onClick={() => setDays(d)}>{d} gün</FilterChip>
+                ))}
+              </div>
+              {state === 'ok' && data && data.domains.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => downloadCsv(data, days)} title="Tablodaki tüm alan adlarını CSV olarak indir">
+                  <Download className="h-3 w-3" /> CSV indir
+                </Button>
+              )}
             </div>
           }
         />
