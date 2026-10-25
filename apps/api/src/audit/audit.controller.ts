@@ -755,6 +755,12 @@ export class AuditController {
     });
   }
 
+  /** GET /sites/:siteId/audit/prompts/:promptId/latest — son olcum, saglayici bazinda (AI cagrisi yok) */
+  @Get('prompts/:promptId/latest')
+  promptLatestRun(@Param('siteId') siteId: string, @Param('promptId') promptId: string) {
+    return this.promptLab.latestRun(siteId, promptId);
+  }
+
   /** GET /sites/:siteId/audit/prompts/:promptId/history?days=30 */
   @Get('prompts/:promptId/history')
   promptHistory(

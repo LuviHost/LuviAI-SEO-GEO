@@ -8,7 +8,7 @@ import type {
 } from './local-visibility';
 import type { ArticleVideo, VideoBrandPreview, VideoQuota, VideoRequestBody } from './article-video';
 import type { MusteriRaporu, PaylasilanRapor, PaylasimOzeti } from './musteri-raporu';
-import type { CitedSourcesResponse } from './cited-sources';
+import type { CitedSourcesResponse, SourceType } from './cited-sources';
 import type { AiTrafficResponse } from './ai-traffic';
 import { readApiErrorCode, trialErrorAction, TRIAL_ERROR_EVENT } from './trial-errors';
 
@@ -174,6 +174,27 @@ export interface RunAllJobState {
   error: string | null;
   /** start: ayni sitede zaten calisan is dondu (yeni hak harcanmadi) */
   alreadyRunning?: boolean;
+}
+
+/** GEO Lab soru satırı "son ölçüm" — api prompt-latest-run.ts ile aynı biçim */
+export interface PromptLatestRunProvider {
+  provider: string;
+  label: string;
+  cited: boolean;
+  mentioned: boolean;
+  brandInQuery: boolean;
+  position: number | null;
+  sentiment: string | null;
+  excerpt: string | null;
+  competitors: string[];
+  sourcesStatus: 'listed' | 'no_search' | 'not_recorded';
+  sources: Array<{ url: string; domain: string; title?: string; originOnly?: true; type: SourceType }>;
+  moreSources: number;
+}
+
+export interface PromptLatestRun {
+  date: string | null;
+  providers: PromptLatestRunProvider[];
 }
 
 export interface AuditComparison {
@@ -828,6 +849,10 @@ export const api = {
       byKind: Array<{ kind: string; cited: number; mentioned: number; total: number; score: number }>;
       gap: number | null;
     }>(`/sites/${siteId}/audit/prompts/coverage?days=${days}`),
+
+  /** Sorunun son ölçümü, asistan bazında — AI çağrısı yok, hak harcamaz */
+  promptLatestRun: (siteId: string, promptId: string) =>
+    request<PromptLatestRun>(`/sites/${siteId}/audit/prompts/${promptId}/latest`),
 
   promptHistory: (siteId: string, promptId: string, days = 30) =>
     request<Array<{ date: string; cited: number; mentioned: number; total: number; score: number }>>(
