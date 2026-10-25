@@ -318,6 +318,39 @@ export class AiCitationService {
     return userId ? `ai-cost:${provider}:${day}:u:${userId}` : `ai-cost:${provider}:${day}`;
   }
 
+  /**
+   * ANONIM landing/rehber testinin gunluk harcama defteri — havuz tavanlarindan
+   * AYRI (sahip karari 25.10.2026: gunde 10 USD, PUBLIC_CITATION_DAILY_BUDGET_USD).
+   * runPublicProbes uyelerin yollarinda da (ASO Prompt Lab, tam rapor kilidi)
+   * kullanildigi icin defteri runPublicProbes degil, anonim cagiran
+   * (public-citation.service.ts check, source 'manual') yazar.
+   */
+  publicAnonCostKey(day = new Date().toISOString().slice(0, 10)): string {
+    return `ai-cost:public-anon:${day}`;
+  }
+
+  /** Bugun anonim testlere yazilan toplam (USD) */
+  async readPublicAnonSpent(): Promise<number> {
+    return this.readSpent(this.publicAnonCostKey());
+  }
+
+  /** Anonim test harcamasini deftere ekler (hata olcumu bozmaz, loglanir) */
+  async addPublicAnonSpend(cost: number): Promise<void> {
+    if (!(cost > 0)) return;
+    await this.bumpCostKey(this.publicAnonCostKey(), cost);
+  }
+
+  /** Bir anonim testin TAVAN maliyeti: yapilandirilmis saglayicilar x soru sayisi */
+  plannedPublicCost(queryCount: number): number {
+    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+    let usd = 0;
+    for (const p of providers) {
+      if (!process.env[POOL_ENV_KEY[p]] || isUnconfiguredProvider(p)) continue;
+      usd += (this.COST_PER_PROBE_USD[p] ?? 0) * queryCount;
+    }
+    return usd;
+  }
+
   private async readSpent(key: string): Promise<number> {
     const row = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
     const n = parseFloat(((row as any)?.value as string) ?? '0');
@@ -370,23 +403,26 @@ export class AiCitationService {
     const keys = [this.costKey(provider, today)];
     if (userId) keys.push(this.costKey(provider, today, userId));
 
-    for (const key of keys) {
-      try {
-        // MySQL ON DUPLICATE KEY UPDATE — tek ifadede oku+topla+yaz. Zamanlar
-        // UTC_TIMESTAMP ile: Prisma DateTime'i UTC saklar ve sweep UTC "simdi"
-        // ile karsilastirir; NOW() oturum saat dilimine baglidir.
-        await this.prisma.$executeRawUnsafe(
-          'INSERT INTO `kv_store` (`key`, `value`, `expiresAt`, `updatedAt`) ' +
-          `VALUES (?, ?, UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY, UTC_TIMESTAMP(3)) ` +
-          'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS DECIMAL(18,8)) + ? AS CHAR), ' +
-          `\`expiresAt\` = UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY, \`updatedAt\` = UTC_TIMESTAMP(3)`,
-          key, String(cost), cost,
-        );
-      } catch (err: any) {
-        this.log.warn(`addCost(${provider}) fail: ${err.message}`);
-      }
-    }
+    for (const key of keys) await this.bumpCostKey(key, cost, provider);
     return cost;
+  }
+
+  /** kv_store sayacina atomik ekleme (addCost ve anonim defter ortak) */
+  private async bumpCostKey(key: string, cost: number, label = 'public-anon'): Promise<void> {
+    try {
+      // MySQL ON DUPLICATE KEY UPDATE — tek ifadede oku+topla+yaz. Zamanlar
+      // UTC_TIMESTAMP ile: Prisma DateTime'i UTC saklar ve sweep UTC "simdi"
+      // ile karsilastirir; NOW() oturum saat dilimine baglidir.
+      await this.prisma.$executeRawUnsafe(
+        'INSERT INTO `kv_store` (`key`, `value`, `expiresAt`, `updatedAt`) ' +
+        `VALUES (?, ?, UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY, UTC_TIMESTAMP(3)) ` +
+        'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS DECIMAL(18,8)) + ? AS CHAR), ' +
+        `\`expiresAt\` = UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY, \`updatedAt\` = UTC_TIMESTAMP(3)`,
+        key, String(cost), cost,
+      );
+    } catch (err: any) {
+      this.log.warn(`addCost(${label}) fail: ${err.message}`);
+    }
   }
 
   async getTodayCosts(): Promise<Record<string, { spent: number; cap: number }>> {

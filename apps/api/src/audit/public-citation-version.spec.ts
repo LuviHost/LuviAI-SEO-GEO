@@ -57,6 +57,9 @@ function servis(history: any[] = []) {
     },
   };
   const ai = {
+    plannedPublicCost: vi.fn(() => 0.8),
+    readPublicAnonSpent: vi.fn(async () => 0),
+    addPublicAnonSpend: vi.fn(async () => undefined),
     runPublicProbes: vi.fn(async ({ queries }: { queries: string[] }) => [{
       provider: 'openai', label: 'OpenAI ChatGPT', available: true, cost: 0,
       probes: queries.map((query) => ({ query, cited: false, brandMentioned: true, brandInQuery: false, excerpt: 'Kobipratik one cikiyor.' })),

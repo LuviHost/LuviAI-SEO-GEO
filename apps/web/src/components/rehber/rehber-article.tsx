@@ -8,6 +8,7 @@ import {
   SIGNUP_HREF, formatAccessDate, parseInline, plainInline, publishedText, rehberJsonLd, rehberPath,
 } from '@/lib/rehber';
 import { findRehber } from '@/content/rehber';
+import { AiVisibilityChecker } from '@/components/landing/ai-visibility-checker';
 import type { RehberArticle, RehberBlock, RehberSource } from '@/content/rehber/types';
 
 /**
@@ -135,6 +136,14 @@ function Block({ b, sources }: { b: RehberBlock; sources: RehberSource[] }) {
           </aside>
           <SourceLine ids={b.kaynak} sources={sources} />
         </>
+      );
+    case 'tool':
+      return (
+        <aside className="not-prose my-8 rounded-2xl border bg-card p-5 shadow-sm sm:p-6" aria-labelledby="rehber-test-baslik">
+          <p id="rehber-test-baslik" className="mb-1 text-base font-bold">{b.title}</p>
+          <p id="rehber-checker-hint" className="mb-4 text-sm leading-relaxed text-foreground/80"><Inline text={b.text} /></p>
+          <AiVisibilityChecker mode="rehber" hintId="rehber-checker-hint" />
+        </aside>
       );
   }
 }

@@ -151,6 +151,9 @@ describe('check() — sabit soru seti (retest)', () => {
       },
     };
     const ai = {
+      plannedPublicCost: vi.fn(() => 0.8),
+      readPublicAnonSpent: vi.fn(async () => 0),
+      addPublicAnonSpend: vi.fn(async () => undefined),
       runPublicProbes: vi.fn(async ({ queries }: { queries: string[] }) => SAGLAYICILAR.map((provider) => ({
         provider, label: provider, available: true, cost: 0,
         probes: queries.map((query) => ({ query, cited: false, brandMentioned: true, brandInQuery: false, excerpt: 'Kobipratik öne çıkıyor.' })),

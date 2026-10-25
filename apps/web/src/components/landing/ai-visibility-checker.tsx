@@ -43,7 +43,12 @@ declare global {
   }
 }
 
-export function AiVisibilityChecker() {
+export function AiVisibilityChecker({ mode = 'hero', hintId = 'checker-hint' }: {
+  /** Olcum etiketi (landing-track): landing hero'su ya da /rehber icindeki test */
+  mode?: 'hero' | 'rehber';
+  /** Formu tarif eden metnin id'si (aria-describedby) */
+  hintId?: string;
+} = {}) {
   const { locale } = useT();
   const c = CHECKER_COPY[locale];
   const [domain, setDomain] = useState('');
@@ -136,7 +141,7 @@ export function AiVisibilityChecker() {
     setPhase('loading');
     setError(null);
     // NEDEN olcum: sitenin ANA CTA'si bu (01.09.2026 tespiti)
-    trackCta('checker_submit', { mode: 'hero' });
+    trackCta('checker_submit', { mode });
     // api.ts (tum uygulama istemcisi, ~1900 satir) ilk yuklemeye girmesin diye istekte yuklenir
     const { api: client, ApiError } = await import('@/lib/api');
     try {
@@ -144,7 +149,7 @@ export function AiVisibilityChecker() {
       const res = await client.publicCitationCheck(cleaned, token);
       setResult(res);
       setPhase('result');
-      trackCta('checker_result', { mode: 'hero', sorular: res?.queries?.length ?? 0 });
+      trackCta('checker_result', { mode, sorular: res?.queries?.length ?? 0 });
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : (err as Error)?.message || 'Hata';
       setError(msg);
@@ -182,7 +187,7 @@ export function AiVisibilityChecker() {
               placeholder={c.placeholder}
               autoComplete="off"
               spellCheck={false}
-              aria-describedby="checker-hint"
+              aria-describedby={hintId}
               disabled={phase === 'loading'}
               className="min-w-0 flex-1 bg-transparent py-3 text-lg font-medium outline-none placeholder:text-muted-foreground/60"
             />

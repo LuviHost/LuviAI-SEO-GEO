@@ -19,7 +19,9 @@ export type RehberBlock =
   | { t: 'h3'; text: string }
   | { t: 'table'; caption: string; head: string[]; rows: string[][]; kaynak?: string[]; not?: string }
   | { t: 'code'; label: string; code: string }
-  | { t: 'callout'; title: string; text: string; kaynak?: string[] };
+  | { t: 'callout'; title: string; text: string; kaynak?: string[] }
+  /** Sayfaya gomulu ucretsiz AI gorunurluk testi (landing ile ayni form, ayni haftalik hak) */
+  | { t: 'tool'; title: string; text: string };
 
 export interface RehberSection {
   /** Baglanti capasi (kucuk harf, tire) */

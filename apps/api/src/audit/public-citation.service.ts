@@ -174,6 +174,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Ucretsiz test hakkinin penceresi (sahip karari 25.10.2026: ziyaretci haftada 1 test) */
 export const PUBLIC_CHECK_WINDOW_MS = 7 * DAY_MS;
 
+/**
+ * Anonim testin GUNLUK harcama tavani (USD) — havuz tavanlarindan ayri; ucretli
+ * musterilerin olcum butcesini yemez. Sahip karari 25.10.2026: 10 USD.
+ * Gecersiz env (NaN, 0, negatif) varsayilana duser.
+ */
+export function publicDailyBudgetUsd(): number {
+  const n = parseFloat(process.env.PUBLIC_CITATION_DAILY_BUDGET_USD ?? '10');
+  return Number.isFinite(n) && n > 0 ? n : 10;
+}
+
+export const PUBLIC_BUDGET_MESSAGE =
+  'Bugünkü ücretsiz test kotası doldu. Yarın tekrar deneyebilir ya da 14 gün ücretsiz deneme hesabı açıp siteni hemen 6 asistanda ölçebilirsin.';
+
 /** "1 Kasım" — hak yenilenme tarihi, Istanbul saatiyle */
 function trDay(d: Date): string {
   return new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' }).format(d);
@@ -775,6 +788,15 @@ export class PublicCitationService {
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }
+      // 2b) Gunluk anonim harcama tavani: bu test TAVAN maliyetiyle tavani
+      // asacaksa probe calismaz. Eszamanli isteklerde en fazla birkac test
+      // kadar asma olabilir (oku-sonra-yaz); defter test BITINCE yazilir.
+      const planned = this.ai.plannedPublicCost(FREE_UNLOCKED_QUERIES);
+      const spent = await this.ai.readPublicAnonSpent();
+      if (spent + planned > publicDailyBudgetUsd()) {
+        this.log.warn(`Anonim test gunluk tavani doldu: harcanan ${spent.toFixed(2)} + planlanan ${planned.toFixed(2)} > ${publicDailyBudgetUsd()} USD`);
+        throw new HttpException(PUBLIC_BUDGET_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
+      }
     }
 
     // 3) Alan adi SIMDI herkese acik bir adrese mi cozuluyor? Ilk ag
@@ -836,6 +858,11 @@ export class PublicCitationService {
       queries: measured.map((q) => q.query),
       competitors: [],
     });
+
+    if (source === 'manual') {
+      const spentNow = providerResults.reduce((sum, r) => sum + (r.cost || 0), 0);
+      await this.ai.addPublicAnonSpend(spentNow).catch(() => undefined);
+    }
 
     // 8) Per-query aggregate + share-of-voice
     //
