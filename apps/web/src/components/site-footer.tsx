@@ -6,8 +6,9 @@ import { BrandWordmark } from '@/components/brand-logo';
 import { useT } from '@/lib/i18n';
 import { openCookiePreferences } from '@/lib/consent';
 
-const X_HANDLE = 'luvihost';
-const LINKEDIN_HANDLE = 'luvihost';
+// RanksUp'in kendi profilleri (LuviHost'unkiler degil) — layout.tsx sameAs ile ayni
+const INSTAGRAM_HANDLE = 'ranksupai';
+const LINKEDIN_HANDLE = 'ranksup';
 const SUPPORT_EMAIL = 'destek@luvihost.com';
 
 /**
@@ -37,12 +38,12 @@ export function SiteFooter() {
             </p>
             <div className="flex items-center gap-2 mt-7">
               <a
-                href={`https://x.com/${X_HANDLE}`}
+                href={`https://www.instagram.com/${INSTAGRAM_HANDLE}/`}
                 target="_blank" rel="noopener"
-                aria-label="X (Twitter)"
+                aria-label="Instagram"
                 className="h-9 w-9 rounded-full border border-border/60 hover:border-foreground/40 hover:bg-background transition-all duration-300 ease-apple inline-flex items-center justify-center"
               >
-                <img src="/brands/twitter.svg" alt="X" width="13" height="13" className="dark:invert opacity-70" />
+                <img src="/brands/instagram.svg" alt="Instagram" width="15" height="15" className="opacity-70" />
               </a>
               <a
                 href={`https://www.linkedin.com/company/${LINKEDIN_HANDLE}`}

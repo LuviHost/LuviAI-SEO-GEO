@@ -159,6 +159,7 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
     `- [llms.txt](${SITE_URL}/llms.txt) · [llms-full.txt](${SITE_URL}/llms-full.txt)`,
     `- [Ajan kurulum rehberi (MCP)](${SITE_URL}/agent-setup.txt)`,
     '- Destek: destek@luvihost.com',
+    '- Profiller: [LinkedIn](https://www.linkedin.com/company/ranksup/) · [Instagram](https://www.instagram.com/ranksupai/)',
     '',
   );
   return out.join('\n');

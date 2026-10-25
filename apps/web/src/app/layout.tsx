@@ -97,8 +97,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    site: '@luvihost',
-    creator: '@luvihost',
+    // site/creator yok: RanksUp'in X hesabi yok; @luvihost baska markanin hesabi
     title: OG_TITLE,
     description: OG_DESCRIPTION,
     images: [{
@@ -161,9 +160,11 @@ const orgJsonLd = {
         width: 1200,
         height: 630,
       },
+      // RanksUp'in KENDI profilleri. Eskiden LuviHost'un X/LinkedIn hesaplari
+      // yaziyordu; asistanlar markayi "RanksUp = LuviHost hesabi" diye okuyordu.
       sameAs: [
-        'https://x.com/luvihost',
-        'https://www.linkedin.com/company/luvihost',
+        'https://www.linkedin.com/company/ranksup/',
+        'https://www.instagram.com/ranksupai/',
       ],
       description: DESCRIPTION,
       foundingDate: '2026',
