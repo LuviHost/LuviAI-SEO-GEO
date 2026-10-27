@@ -51,7 +51,10 @@ import {
 
 // ─── Tipler ─────────────────────────────────────────────────────────────────
 
-type Sektor3 = Sektor | 'diger';
+/** 'ajans': RanksUp'i musterilerine kullandiracak is ortagi adayi (27.10.2026) — SEKTORLER'e girmez (karne sorulari yok) */
+type Sektor3 = Sektor | 'ajans' | 'diger';
+const HEDEF_SEKTOR: readonly string[] = [...SEKTORLER, 'ajans'];
+const sektorOku = (s: string): Sektor3 => (HEDEF_SEKTOR.includes(s) ? (s as Sektor3) : 'diger');
 
 /** Sektor etiketinin kaynagi; sira = guven (yuksek olan dusugu ezer, esitte ilk gelen kalir) */
 type SektorKaynak = 'seed' | 'kap-detay' | 'kaynak' | 'etiket' | 'unvan' | '';
@@ -514,6 +517,44 @@ async function tesid(ctx: Ctx): Promise<Ham[]> {
   return out;
 }
 
+/**
+ * Reklamcilar Dernegi tuzel uyeleri (yaratici / medya / dijital ajans). Tablo satiri: firma | yetkili | adres |
+ * telefon | faks | e-posta | web | uyelik | tur. KVKK: YALNIZ firma adi + web + tur okunur; "yetkili" sutunu ve
+ * mailto (cogu kisinin kendi adresi) OKUNMAZ — kurumsal adres 07'de firmanin kendi sitesinden bulunur.
+ */
+const URL_RD = 'https://rd.org.tr/uyeler';
+async function rd(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_RD));
+  const out: Ham[] = [];
+  $('tr').each((_, tr) => {
+    const td = $(tr).find('td');
+    if (td.length < 8) return;
+    const firma = temiz(td.eq(0).text());
+    const web = $(tr).find('a.web-icon').attr('href')?.trim() ?? '';
+    const tur = temiz(td.last().text());
+    if (!firma || !normalizeDomain(web)) return;
+    const altsektor = /medya/i.test(tur) ? 'medya-ajansi' : /dijital/i.test(tur) ? 'dijital-ajans' : 'reklam-ajansi';
+    out.push({ firma, web, altsektor, not: tur });
+  });
+  ctx.log(`${out.length} ajans`);
+  return out;
+}
+
+/** IDA (Iletisim Danismanligi Sirketleri Dernegi) uyeleri: PR ajanslari. Yalniz ad + web; "Yonetici Ortak" OKUNMAZ. */
+const URL_IDA = 'https://www.ida.org.tr/ornek-sayfa/uyelerimiz/';
+async function ida(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_IDA));
+  const out: Ham[] = [];
+  $('table').each((_, t) => {
+    const firma = temiz($(t).find('td[colspan] strong').first().text());
+    const webTd = $(t).find('tr').filter((__, r) => /^web:?$/i.test(temiz($(r).find('td').first().text()))).find('td').eq(1);
+    const web = webTd.find('a').attr('href')?.trim() || temiz(webTd.text());
+    if (firma && normalizeDomain(web)) out.push({ firma, web });
+  });
+  ctx.log(`${out.length} PR ajansi`);
+  return out;
+}
+
 const URL_RVD = 'https://www.rvd.org.tr/uyeler';
 /** Logo dosya adindan firma adi: "firma_Ak-Gida_vo" → "Ak Gida", "aktifbank-26042024" → "aktifbank" */
 function rvdAd(raw: string): string {
@@ -898,7 +939,7 @@ async function seed(ctx: Ctx): Promise<Ham[]> {
   const out: Ham[] = [];
   for (const r of rows) {
     if (!r.firma) continue;
-    const sektor = (SEKTORLER as readonly string[]).includes(r.sektor) ? (r.sektor as Sektor) : 'diger';
+    const sektor = sektorOku(r.sektor);
     if (sektor === 'diger') ctx.log(`UYARI bilinmeyen sektor "${r.sektor}" (${r.firma}) → diger`);
     out.push({ firma: r.firma, sektor, altsektor: r.altsektor, web: r.web, sektorKaynak: 'seed', not: r.not });
   }
@@ -927,6 +968,8 @@ const KAYNAKLAR: Kaynak[] = [
   { ad: 'fortune', sektor: 'diger', altsektor: '', url: 'https://www.fortuneturkey.com/fortune-500', run: fortune },
   // NEDEN 'diger': RVD her sektorden reklamveren; varsayilan e-tic olunca Shell/Coca-Cola/Bayer e-ticaret sanilir
   { ad: 'rvd', sektor: 'diger', altsektor: 'reklamveren', url: URL_RVD, run: rvd },
+  { ad: 'rd', sektor: 'ajans', altsektor: 'reklam-ajansi', url: URL_RD, run: rd },
+  { ad: 'ida', sektor: 'ajans', altsektor: 'pr-ajansi', url: URL_IDA, run: ida },
   { ad: 'wiki-havayolu', sektor: S_TUR, altsektor: 'havayolu', url: wikiUrl(WIKI_HAVAYOLU), run: wikiKaynak(WIKI_HAVAYOLU, 'havayolu', false) },
   { ad: 'wiki-mvno', sektor: S_TUR, altsektor: 'telekom-mvno', url: wikiUrl(WIKI_MVNO), run: wikiKaynak(WIKI_MVNO, 'MVNO', true) },
   { ad: 'btk', sektor: S_TUR, altsektor: 'telekom', url: URL_BTK, run: btk, via: 'openclaw' },
@@ -987,7 +1030,7 @@ class Havuz {
     for (const r of rows) {
       const firma = temiz(r.firma);
       if (!firma) continue;
-      const sektor: Sektor3 = (SEKTORLER as readonly string[]).includes(r.sektor) ? (r.sektor as Sektor) : 'diger';
+      const sektor: Sektor3 = sektorOku(r.sektor);
       const skRaw = temiz(r.sektorKaynak) as SektorKaynak;
       // NEDEN: eski dosyada sutun yoksa 'kaynak' varsayilir (tahmin degil); 'diger' her zaman bos
       const sektorKaynak: SektorKaynak = sektor === 'diger' ? '' : SK_LISTE.includes(skRaw) && skRaw ? skRaw : 'kaynak';
@@ -1027,7 +1070,7 @@ class Havuz {
 
   satirlar(): Firma[] {
     const all = [...this.byDomain.values(), ...this.byName.values()];
-    const sira: Record<string, number> = { finans: 0, 'eticaret-perakende-teknoloji': 1, 'turizm-havayolu-telekom-otomotiv': 2, diger: 3 };
+    const sira: Record<string, number> = { finans: 0, 'eticaret-perakende-teknoloji': 1, 'turizm-havayolu-telekom-otomotiv': 2, ajans: 3, diger: 4 };
     return all.sort((a, b) => (sira[a.sektor] - sira[b.sektor]) || a.firma.localeCompare(b.firma, 'tr'));
   }
 }

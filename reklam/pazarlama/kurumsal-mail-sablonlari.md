@@ -16,6 +16,10 @@ kısa bir yanıt yazın" tipi talimat **yok**; konu satırı ≤ 60 karakter, b�
 Kaynaksız sayı YOK — "altı AI asistanı" kodda doğrulanmış tek sayıdır (plans.ts fiyat kartı:
 ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek; Meta AI / Llama üretimde ölçülmüyor).
 
+**Kurumsal kutular (27.10.2026, kurucu kararı):** kişiye değil firmanın kendi sitesinde yayımladığı
+rol adresine (pazarlama@ › iş birliği@ › info@ › iletişim@) yazılır — `07-kurumsal-adres.ts`. Adı
+olmayan alıcıda script "Sayın {{ad}} {{soyad}}," satırını **"Merhaba {{firma}} ekibi,"** yapar.
+
 KOBİ hunisi (`mail-sablonlari.md`) ile **karıştırma**: oradaki "bankaları çıkar" kuralı o
 huniye özeldir; bu kampanya bankaları hedefler.
 
@@ -129,6 +133,60 @@ Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perpl
 Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi soruları artık karşılaştırma sitesi gezmek yerine bir AI asistanına soruyor. Asistanın cevabında birkaç marka adı geçiyor; o listede olmayan marka, o müşterinin gündemine hiç girmiyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu markanın burada nerede durduğunu bilmediğini görüyoruz.
 
 {{firma}} için bunu somut olarak gösterebiliriz: altı AI asistanına marka adı geçmeyen gerçek müşteri soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi senaryolarda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
+
+İlgilenirseniz kısa bir görüşmede nasıl ölçtüğümüzü ve {{firma}} için neler görebileceğimizi anlatmak isterim. Uygun değilse de anlayışla karşılarım.
+
+Saygılarımla,
+{{gonderen_ad}}
+{{gonderen_unvan}}
+{{gonderen_adres}} · MERSİS {{mersis}} · ranksup.ai
+
+Bu ileti, 6563 sayılı Kanun md. 6/2 kapsamında tacir alıcıya gönderilen bir ticari elektronik iletidir; İYS üzerinden kaydedilmiştir.
+Aydınlatma metni: ranksup.ai/kvkk#kurumsal-iletisim · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
+(3 iş günü içinde durduruyoruz.)
+```
+
+## Şablon D — Ajans (iş birliği; Reklamcılar Derneği, İDA, LinkedIn'den çıkan ajanslar)
+
+Konu: A `Müşterileriniz ChatGPT'de görünüyor mu?` · B `{{firma}} için AI görünürlük iş birliği`
+`{{sektor_sorusu}}` varsayılanı: "iyi bir dijital pazarlama ajansı öner". Kaynaksız sayı yok;
+"15 site" plans.ts Ajans planından (sites: 15). Komisyon / indirim VAAT EDİLMEZ (karar verilmedi).
+
+```
+Sayın {{ad}} {{soyad}},
+
+Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perplexity gibi AI asistanlarında nasıl göründüğünü ölçüyoruz.
+
+Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi soruları artık yalnız arama motoruna değil, bir AI asistanına da soruyor. Cevapta birkaç isim geçiyor; listede olmayan, o müşterinin gündemine hiç girmiyor. Aynısı müşterileriniz için de geçerli: markaların bu yeni kanalda nerede durduğunu çoğu zaman kimse ölçmüyor.
+
+RanksUp bunu ajanslar için ölçülebilir hale getiriyor: altı AI asistanına marka adı geçmeyen gerçek sorular sorup hangi asistanın markayı önerdiğini, rakiplerin nerede öne çıktığını ve eksikleri raporluyor; eksik içeriği yazıp siteye yayınlayabiliyor. Ajans planında 15 müşteri sitesini tek panelden yönetebiliyorsunuz.
+
+{{firma}} ile müşterileriniz için birlikte çalışmayı konuşmak isterim. İsterseniz önce ajansınızın kendi görünürlüğünü ücretsiz ölçüp sonucu yalnız sizinle paylaşırım.
+
+İlgilenirseniz kısa bir görüşmede nasıl çalıştığımızı anlatmak isterim. Uygun değilse de anlayışla karşılarım.
+
+Saygılarımla,
+{{gonderen_ad}}
+{{gonderen_unvan}}
+{{gonderen_adres}} · MERSİS {{mersis}} · ranksup.ai
+
+Bu ileti, 6563 sayılı Kanun md. 6/2 kapsamında tacir alıcıya gönderilen bir ticari elektronik iletidir; İYS üzerinden kaydedilmiştir.
+Aydınlatma metni: ranksup.ai/kvkk#kurumsal-iletisim · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
+(3 iş günü içinde durduruyoruz.)
+```
+
+## Şablon E — Genel (üç gruba girmeyen firmalar: sanayi, enerji, gıda, inşaat…)
+
+Konu: §1'deki A/B. Sektöre özgü soru alıntısı YOK (genel soru cümlesi zorlama durur).
+
+```
+Sayın {{ad}} {{soyad}},
+
+Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perplexity gibi AI asistanlarında nasıl göründüğünü ölçüyoruz.
+
+Bir gözlemi paylaşmak istedim: müşteriler bir ürün ya da hizmet ararken soruyu artık yalnız arama motoruna değil, bir AI asistanına da soruyor. Asistanın cevabında birkaç marka adı geçiyor; o listede olmayan marka, o müşterinin gündemine hiç girmiyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu markanın burada nerede durduğunu bilmediğini görüyoruz.
+
+{{firma}} için bunu somut olarak gösterebiliriz: altı AI asistanına marka adı geçmeyen gerçek müşteri soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi sorularda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
 
 İlgilenirseniz kısa bir görüşmede nasıl ölçtüğümüzü ve {{firma}} için neler görebileceğimizi anlatmak isterim. Uygun değilse de anlayışla karşılarım.
 
