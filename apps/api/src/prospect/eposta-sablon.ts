@@ -418,6 +418,10 @@ export function mesajDenetimi(m: { TextPart: string; HTMLPart: string }, k: Epos
     ['kimlik/MERSİS', (k.kimlik || k.mersis).trim()],
   ];
   const eksik: string[] = [];
+  // Imza satiri butun olarak: "<adres> · <kimlik>" (gonderen adi giris cumlesinde de gectigi icin tek basina yetmez)
+  const imza = `${k.gonderenAdres.trim()} · ${k.kimlik.trim() || `MERSİS ${k.mersis.trim()}`}`;
+  if (!m.TextPart.includes(imza)) eksik.push('düz metinde imza/kimlik satırı yok');
+  if (!m.HTMLPart.includes(imza)) eksik.push("HTML'de imza/kimlik satırı yok");
   for (const [ad, deger] of gerekli) {
     if (!deger) { eksik.push(`${ad} tanımsız`); continue; }
     if (!m.TextPart.includes(deger)) eksik.push(`düz metinde ${ad} yok`);

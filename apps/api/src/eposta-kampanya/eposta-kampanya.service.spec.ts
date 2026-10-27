@@ -179,6 +179,20 @@ describe('kilit ve sahiplenme', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('sahiplenme isareti sonOlay sutununa sigar (VarChar 64)', async () => {
+    const p = sahtePrisma([hedef(1)]);
+    let gorulen = '';
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      gorulen = p.hedefler[0].sonOlay;
+      return { status: 200, text: async () => '{"Messages":[{"Status":"success","To":[{"MessageID":1}]}]}' };
+    }));
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    await svc.tick();
+    expect(gorulen).toMatch(/^gonderiliyor:/);
+    expect(gorulen.length).toBeLessThanOrEqual(64);
+  });
+
   it('64-bit MessageID hassasiyetini kaybetmez', async () => {
     const p = sahtePrisma([hedef(1)]);
     vi.stubGlobal('fetch', vi.fn(async () => ({ status: 200, text: async () => '{"Messages":[{"Status":"success","To":[{"MessageID":1152921510123456789}]}]}' })));

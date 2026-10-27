@@ -26,7 +26,7 @@ CREATE TABLE `eposta_hedefleri` (
     `gonderildiAt` DATETIME(3) NULL,
     `acildiAt` DATETIME(3) NULL,
     `tiklandiAt` DATETIME(3) NULL,
-    `sonOlay` VARCHAR(24) NULL,
+    `sonOlay` VARCHAR(64) NULL,
     `sonOlayAt` DATETIME(3) NULL,
     `hata` TEXT NULL,
     `not` TEXT NULL,

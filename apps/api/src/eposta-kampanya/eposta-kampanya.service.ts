@@ -18,6 +18,8 @@ const KV_KILIT = 'eposta-kampanya:kilit';
  * Kalirsa "belirsiz" (gitmis olabilir) — bir daha gonderilmez.
  */
 const GONDERILIYOR = 'gonderiliyor';
+/** sonOlay sutun genisligi (schema.prisma VarChar(64)) — isaret buna sigmali, yoksa MySQL strict modda guncelleme duser */
+export const SON_OLAY_MAX = 64;
 const MAILJET = 'https://api.mailjet.com';
 /** Saatlik/yarim saatlik tur basina en fazla — gunluk kota gune yayilsin, tek seferde 200 gitmesin */
 const TUR_BASI = 40;
@@ -325,6 +327,7 @@ export class EpostaKampanyaService {
 
       // SAHIPLEN: yalniz hala SIRADA ve isaretsiz olanlar (arada HARIC/RET yapilan ya da baska turun aldigi dusurulur)
       const isaret = `${GONDERILIYOR}:${belirtec}`;
+      if (isaret.length > SON_OLAY_MAX) throw new Error(`isaret ${isaret.length} karakter > ${SON_OLAY_MAX}`);
       const kampanya = `kurumsal-${trGun(simdi).slice(0, 7)}`;
       await this.prisma.epostaHedef.updateMany({
         where: { id: { in: adaylar.map((a) => a.id) }, ...uygun },

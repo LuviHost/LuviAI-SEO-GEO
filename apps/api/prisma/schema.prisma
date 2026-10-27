@@ -3273,7 +3273,7 @@ model EpostaHedef {
   acildiAt     DateTime?
   tiklandiAt   DateTime?
   /// Mailjet olay akisindaki son olay (sent/open/click/bounce/spam/unsub/blocked) ve zamani
-  sonOlay      String?   @db.VarChar(24)
+  sonOlay      String?   @db.VarChar(64)
   sonOlayAt    DateTime?
   hata         String?   @db.Text
   /// Insan notu (cevap geldi, gorusme ayarlandi...) — sistem dokunmaz
