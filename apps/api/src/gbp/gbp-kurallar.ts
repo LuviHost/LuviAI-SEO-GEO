@@ -8,8 +8,10 @@
 
 const TELEFON = /(\+?90[\s.-]?)?\(?0?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/;
 const EPOSTA = /[\w.+-]+@[\w-]+\.[\w.-]+/;
-const URL_RE = /\b(https?:\/\/|www\.)\S+|\b[\w-]+\.(com|net|org|com\.tr|net\.tr|org\.tr|io|ai|app)(\/\S*)?\b/i;
-const SOSYAL = /\b(instagram|facebook|tiktok|twitter|x\.com|youtube|whatsapp|wa\.me|t\.me|telegram)\b/i;
+// Alan adi bicimi yalniz bosluk/satir basindan sonra: "ürün.Ai destekli" (bosluk unutulmus cumle) URL sayilmaz
+const URL_RE = /(https?:\/\/|www\.)\S+|(?:^|\s)[\w-]+\.(com|net|org|com\.tr|net\.tr|org\.tr|io|app)(\/\S*)?(?=\s|$|[.,!?])/i;
+// Yalniz HESAP ya da BAGLANTI: "Instagram reklam yönetimi" gibi hizmet adi serbest
+const SOSYAL = /(instagram\.com|facebook\.com|fb\.com|tiktok\.com|twitter\.com|x\.com\/|youtube\.com|youtu\.be|wa\.me|t\.me\/|whatsapp\.com)|(?:^|\s)@[a-z0-9_.]{2,30}\b/i;
 
 /** Ihlal varsa kullaniciya gosterilecek Turkce aciklama, yoksa null */
 export function gonderiKuralIhlali(metin: string): string | null {

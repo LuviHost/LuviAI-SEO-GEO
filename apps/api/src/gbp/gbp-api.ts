@@ -79,6 +79,11 @@ export async function yorumlar(token: string, v4: string, sayfaToken?: string): 
   return { yorumlar: r.reviews ?? [], sonraki: r.nextPageToken, ortalama: r.averageRating, toplam: r.totalReviewCount };
 }
 
+export async function yorumGetir(token: string, v4: string, reviewId: string): Promise<GbpYorum> {
+  if (!/^[\w-]{4,200}$/.test(reviewId)) throw new Error('Geçersiz yorum');
+  return googleJson<GbpYorum>({ method: 'GET', url: `https://mybusiness.googleapis.com/v4/${v4}/reviews/${reviewId}`, headers: auth(token) });
+}
+
 export async function yorumYanitla(token: string, v4: string, reviewId: string, metin: string): Promise<void> {
   if (!/^[\w-]{4,200}$/.test(reviewId)) throw new Error('Geçersiz yorum');
   await googleJson({ method: 'PUT', url: `https://mybusiness.googleapis.com/v4/${v4}/reviews/${reviewId}/reply`, headers: auth(token), body: { comment: metin } });

@@ -56,15 +56,27 @@ export class GbpService {
     return this.kvSayi(key);
   }
 
-  /** Harcama oncesi kapi: tavan asilacaksa 503 (istek Google'a gitmez) */
+  /**
+   * Harcama oncesi kapi — ONCE ekle, sonra karsilastir (atomik artis): esZamanli istekler ayni bos kapidan gecemez.
+   * Tavan asildiysa eklenen geri alinir ve 503 (istek Google'a gitmez).
+   */
   private async butceAyir(tutar: number, publicMi: boolean): Promise<void> {
     const g = this.gun();
-    const [toplam, pub] = await Promise.all([this.kvSayi(`places-cost:${g}`), publicMi ? this.kvSayi(`places-cost-public:${g}`) : Promise.resolve(0)]);
-    if (toplam + tutar > this.toplamTavan || (publicMi && pub + tutar > this.publicTavan)) {
+    const toplam = await this.kvEkle(`places-cost:${g}`, tutar);
+    const pub = publicMi ? await this.kvEkle(`places-cost-public:${g}`, tutar) : 0;
+    if (toplam > this.toplamTavan || (publicMi && pub > this.publicTavan)) {
+      await this.kvEkle(`places-cost:${g}`, -tutar);
+      if (publicMi) await this.kvEkle(`places-cost-public:${g}`, -tutar);
       throw new ServiceUnavailableException('Google İşletme denetimi bugünlük kapasiteye ulaştı; yarın tekrar deneyin.');
     }
-    await this.kvEkle(`places-cost:${g}`, tutar);
-    if (publicMi) await this.kvEkle(`places-cost-public:${g}`, tutar);
+  }
+
+  /** Atomik gunluk sayac kapisi: once artir, siniri astiysa geri al ve reddet */
+  private async sayacKapisi(key: string, sinir: number, mesaj: string): Promise<void> {
+    if ((await this.kvEkle(key, 1)) > sinir) {
+      await this.kvEkle(key, -1);
+      throw new HttpException(mesaj, HttpStatus.TOO_MANY_REQUESTS);
+    }
   }
 
   private anahtar(): string {
@@ -77,7 +89,9 @@ export class GbpService {
     if (err instanceof HttpException) throw err;
     const status = err instanceof GoogleIstekHatasi ? err.status : 0;
     this.log.warn(`Places hatasi (${status}): ${String((err as any)?.message ?? err).slice(0, 200)}`);
-    if (status === 404 || status === 400) throw new NotFoundException('İşletme Google Haritalar’da bulunamadı.');
+    if (status === 404) throw new NotFoundException('İşletme Google Haritalar’da bulunamadı.');
+    // 400 = gecersiz anahtar/alan maskesi gibi BIZIM hatamiz — "bulunamadi" diye maskelenmesin
+    if (status === 400 || status === 403) this.log.error(`Places istegi reddedildi (${status}) — anahtar/kisit/alan maskesi kontrol edilmeli`);
     throw new ServiceUnavailableException('Google’dan işletme bilgisi alınamadı; biraz sonra tekrar deneyin.');
   }
 
@@ -93,10 +107,14 @@ export class GbpService {
     };
   }
 
-  async ara(sorgu: string, publicMi = false): Promise<PlaceAday[]> {
+  static readonly KULLANICI_GUNLUK_ARAMA = 15;
+
+  async ara(sorgu: string, publicMi = false, userId?: string): Promise<PlaceAday[]> {
     const q = String(sorgu ?? '').trim();
     if (q.length < 3) throw new BadRequestException('İşletme adını ve şehri yazın (en az 3 karakter).');
     const k = this.anahtar();
+    // Panel: tek hesap ortak gunluk butceyi tuketemesin
+    if (!publicMi && userId) await this.sayacKapisi(`gbp-ara:${userId}:${this.gun()}`, GbpService.KULLANICI_GUNLUK_ARAMA, 'Bugünkü işletme arama hakkınız doldu; yarın tekrar deneyin.');
     await this.butceAyir(PLACES_MALIYET.arama, publicMi);
     try { return await placeAra(q, k); } catch (e) { this.placesHata(e); }
   }
@@ -118,13 +136,9 @@ export class GbpService {
       this.prisma.site.findUnique({ where: { id: siteId }, select: { url: true } }),
     ]);
     if (!kayit?.placeId) throw new BadRequestException('Önce Google İşletme Profili’nizi seçin.');
-    const sayac = `gbp-denetim:${siteId}:${this.gun()}`;
-    if ((await this.kvSayi(sayac)) >= GbpService.SITE_GUNLUK_DENETIM) {
-      throw new HttpException('Bu site için bugünkü denetim hakkı doldu; yarın tekrar deneyin.', HttpStatus.TOO_MANY_REQUESTS);
-    }
     const k = this.anahtar();
+    await this.sayacKapisi(`gbp-denetim:${siteId}:${this.gun()}`, GbpService.SITE_GUNLUK_DENETIM, 'Bu site için bugünkü denetim hakkı doldu; yarın tekrar deneyin.');
     await this.butceAyir(PLACES_MALIYET.detay, false);
-    await this.kvEkle(sayac, 1);
     let detay;
     try { detay = await placeDetay(kayit.placeId, k); } catch (e) { this.placesHata(e); }
     const nap = await readSiteNap(this.prisma, siteId).catch(() => null);
@@ -142,11 +156,12 @@ export class GbpService {
   /** IP basina gunluk sinir — ARAMA ve KARNE ayri sayilmaz: ikisi de ayni hakkan duser (aramasiz karne yok) */
   async publicHakKontrol(ip: string, tuket: boolean): Promise<void> {
     const key = `gbp-public-ip:${this.ipAnahtar(ip)}:${this.gun()}`;
-    const n = await this.kvSayi(key);
-    if (n >= GbpService.PUBLIC_IP_GUNLUK * 2) {
-      throw new HttpException('Bugünkü ücretsiz Google İşletme karnesi hakkınız doldu; yarın tekrar deneyin.', HttpStatus.TOO_MANY_REQUESTS);
+    const mesaj = 'Bugünkü ücretsiz Google İşletme karnesi hakkınız doldu; yarın tekrar deneyin.';
+    if (!tuket) {
+      if ((await this.kvSayi(key)) >= GbpService.PUBLIC_IP_GUNLUK * 2) throw new HttpException(mesaj, HttpStatus.TOO_MANY_REQUESTS);
+      return;
     }
-    if (tuket) await this.kvEkle(key, 1);
+    await this.sayacKapisi(key, GbpService.PUBLIC_IP_GUNLUK * 2, mesaj);
   }
 
   async publicKarne(placeId: string): Promise<DenetimSonucu> {
@@ -184,10 +199,11 @@ export class GbpService {
     const eski = await this.prisma.siteGbp.findUnique({ where: { siteId } });
     const refresh = r.refresh_token ?? (eski?.refreshToken ? decrypt(eski.refreshToken) : null);
     if (!refresh) throw new OAuthFlowError('no_refresh_token');
+    // Yeni baglanti baska bir Google hesabi olabilir: eski hesap/konum secimi gecersiz (403 alirdi) — yeniden secilir
     await this.prisma.siteGbp.upsert({
       where: { siteId },
       create: { siteId, refreshToken: encrypt(refresh), oauthAt: new Date() },
-      update: { refreshToken: encrypt(refresh), oauthAt: new Date() },
+      update: { refreshToken: encrypt(refresh), oauthAt: new Date(), hesap: null, konum: null, konumAdi: null },
     });
   }
 
@@ -277,9 +293,10 @@ export class GbpService {
    * gibi hassas iddialara girilmez, tesvik/indirim teklif edilmez (yorum politikasi).
    */
   async yanitTaslagi(siteId: string, reviewId: string) {
-    const liste = await this.yorumListesi(siteId);
-    const y = liste.yorumlar.find((x) => x.reviewId === reviewId);
-    if (!y) throw new NotFoundException('Yorum bulunamadı (sayfa yenilenmiş olabilir).');
+    const { token, v4 } = await this.hazirKonum(siteId);
+    let ham: gbp.GbpYorum;
+    try { ham = await gbp.yorumGetir(token, v4, reviewId); } catch (e) { this.gbpHata(e); }
+    const y = { metin: ham.comment ?? '', yildiz: gbp.YILDIZ[ham.starRating ?? ''] ?? null };
     const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { name: true, userId: true } });
     const res = await this.llm.chat({
       context: 'gbp-yorum-yaniti',
@@ -301,7 +318,8 @@ export class GbpService {
   async yanitGonder(siteId: string, reviewId: string, metin: string) {
     const temiz = yanitTemizle(metin);
     if (temiz.length < 2) throw new BadRequestException('Yanıt boş olamaz.');
-    if (temiz.length > 4000) throw new BadRequestException('Yanıt en fazla 4.000 karakter olabilir.');
+    // Google siniri 4.096 BAYT: Turkce harfler 2 bayt — karakter sayisi yaniltir
+    if (Buffer.byteLength(temiz, 'utf8') > 4096) throw new BadRequestException('Yanıt çok uzun (Google sınırı 4.096 bayt, yaklaşık 2.000-4.000 karakter).');
     const { token, v4 } = await this.hazirKonum(siteId);
     try { await gbp.yorumYanitla(token, v4, reviewId, temiz); } catch (e) { this.gbpHata(e); }
     return { ok: true };

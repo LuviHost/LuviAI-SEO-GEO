@@ -70,7 +70,9 @@ const AD_IHLAL_IPUCU: Array<[RegExp, string]> = [
   [/(\+?90|0)\s?\d{3}\s?\d{3}\s?\d{2}\s?\d{2}|www\.|\.com/iu, 'telefon ya da web adresi'],
 ];
 
-const TR_ILLER = /\b(istanbul|ankara|izmir|bursa|antalya|adana|konya|gaziantep|kayseri|mersin|eskişehir|eskisehir|samsun|kocaeli|trabzon|denizli|diyarbakır|diyarbakir|şanlıurfa|sanliurfa|malatya|sakarya|tekirdağ|tekirdag|muğla|mugla|aydın|aydin|manisa|balıkesir|balikesir|hatay|kadıköy|kadikoy|beşiktaş|besiktas|şişli|sisli|osmangazi|nilüfer|nilufer|çankaya|cankaya|karşıyaka|karsiyaka|bornova)\b/iu;
+// NEDEN lookaround: JS \b yalniz ASCII harfi sinir sayar ("Şişli", "Diyarbakır" kacardi); /i de İ→i katlamaz,
+// bu yuzden ad once tr kucultulur ve Unicode harf disi sinir aranir.
+const TR_YER = /(?<![\p{L}\d])(istanbul|ankara|izmir|bursa|antalya|adana|konya|gaziantep|kayseri|mersin|eskişehir|samsun|kocaeli|trabzon|denizli|diyarbakır|şanlıurfa|malatya|sakarya|tekirdağ|muğla|aydın|manisa|balıkesir|hatay|kadıköy|beşiktaş|şişli|osmangazi|nilüfer|çankaya|karşıyaka|bornova)(?![\p{L}\d])/u;
 
 function alanAdi(u: string | undefined | null): string | null {
   if (!u) return null;
@@ -204,7 +206,7 @@ export function profilDenetle(p: PlaceDetay, ctx: { siteHost?: string | null; si
 
   // 10) Ad politikasi
   const ihlaller = AD_IHLAL_IPUCU.filter(([re]) => re.test(ad)).map(([, n]) => n);
-  if (TR_ILLER.test(ad) && ad.split(/\s+/).length > 2) ihlaller.push('şehir/semt adı');
+  if (TR_YER.test(ad.toLocaleLowerCase('tr-TR')) && ad.split(/\s+/).length > 2) ihlaller.push('şehir/semt adı');
   m.push(madde({
     kod: 'ad', baslik: 'İşletme adı kuralı', agirlik: 7,
     durum: ihlaller.length ? 'uyari' : 'iyi',

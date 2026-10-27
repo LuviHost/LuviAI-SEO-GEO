@@ -14,6 +14,7 @@ import { AscController } from '../aso/asc/asc.controller.js';
 import { AuthController } from './auth.controller.js';
 import { OAuthController } from '../oauth/oauth.controller.js';
 import { ChatController } from '../chat/chat.controller.js';
+import { GbpController, GbpPublicController } from '../gbp/gbp.controller.js';
 
 /**
  * API anahtarinin etki alani: scope haritasinda OLMAYAN kaynaklar.
@@ -268,5 +269,23 @@ describe('AuthGuard scope denetimi — buyuk/kucuk harf varyantlari', () => {
     // Ileride eklenecek .../mcp rotasi scope denetimini sessizce atlamasin
     const { ctx: other } = ctx('POST', '/api/sites/s1/audit/mcp');
     await expect(guard(readOnly).canActivate(other)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('GbpController — sinif duzeyinde @SessionOnly (canli Google profiline yazar)', () => {
+  it('panel uclarinin TUMU yalniz oturumla; herkese acik karne ayri sinifta ve isaretsiz', () => {
+    expect(Reflect.getMetadata(SESSION_ONLY_KEY, GbpController)).toBe(true);
+    const handlers = Object.getOwnPropertyNames(GbpController.prototype).filter((n) => n !== 'constructor' && typeof (GbpController.prototype as any)[n] === 'function');
+    for (const h of ['ara', 'denetle', 'yanit', 'gonderiOlustur', 'konumSec', 'oauthBaslat']) expect(handlers, h).toContain(h);
+    for (const h of handlers) expect(sessionOnly(GbpController, h), h).toBe(true);
+    expect(Reflect.getMetadata(SESSION_ONLY_KEY, GbpPublicController)).toBeUndefined();
+  });
+
+  it('yalniz social:write anahtari yorum yanitina 403 alir', async () => {
+    const r: Route = { cls: GbpController, handler: 'yanit', method: 'POST', path: '/api/sites/s1/gbp/yorumlar/r1/yanit' };
+    const { ctx, req } = ctxFor(r, 'Bearer luvi_test');
+    const err = await guard(['social:write']).canActivate(ctx).catch((e) => e);
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(req.user).toBeUndefined();
   });
 });

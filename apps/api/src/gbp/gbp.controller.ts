@@ -11,13 +11,19 @@ import {
   OAuthFlowError, issueOAuthState, oauthErrorCode, oauthHttpError, resolveOAuthCallback, resolveParkedFinish, type OAuthStateRecord,
 } from '../auth/oauth-state.js';
 import { GbpService } from './gbp.service.js';
+import { placeIdGecerli } from './places-istemci.js';
 
 /**
  * Google Isletme Profili uclari.
  *  - /sites/:siteId/gbp/*  : panel (SiteAccessGuard :siteId sahipligini dogrular)
  *  - /gbp/oauth/*          : Google OAuth (business.manage) — GSC akisiyla ayni guvenlik (oauth-state.ts)
- *  - /public/gbp/*         : ucretsiz "Google Isletme karnesi" (Turnstile + IP gunluk siniri + harcama tavani)
+ *  - /public/gbp/*         : GbpPublicController (asagida)
+ *
+ * NEDEN sinif duzeyinde @SessionOnly: /sites/:id/gbp API anahtari kaynak haritasinda yok; isaret olmadan herhangi bir
+ * ':write' anahtari musterinin CANLI Google profiline yorum yaniti/gonderi yazabilir, Places butcesini harcayabilirdi.
+ * Canli dis yazma insan karari — yalniz panel oturumu (bkz. auth/session-only-sensitive-routes.spec.ts).
  */
+@SessionOnly()
 @Controller()
 export class GbpController {
   private readonly log = new Logger(GbpController.name);
@@ -33,8 +39,8 @@ export class GbpController {
 
   @Post('sites/:siteId/gbp/ara')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  ara(@Body() body: { sorgu?: string }) {
-    return this.svc.ara(String(body?.sorgu ?? ''));
+  ara(@Body() body: { sorgu?: string }, @Req() req: Request) {
+    return this.svc.ara(String(body?.sorgu ?? ''), false, (req as any).user?.id);
   }
 
   @Post('sites/:siteId/gbp/place')
@@ -163,29 +169,42 @@ export class GbpController {
     if (owner?.deletionRequestedAt) throw new OAuthFlowError('site_access_denied');
     try { await assertSiteAccess(this.prisma, owner, record.siteId); } catch { throw new OAuthFlowError('site_access_denied'); }
   }
+}
 
-  // ─── Herkese acik karne ───────────────────────────────────────
+/**
+ * Herkese acik "Google Isletme karnesi" (lead magnet): Turnstile + IP gunluk siniri + ayri harcama tavani.
+ * Ayri sinif: @SessionOnly isareti yalniz panel uclarinda kalsin.
+ */
+@Controller('public/gbp')
+export class GbpPublicController {
+  private readonly log = new Logger(GbpPublicController.name);
+
+  constructor(private readonly svc: GbpService) {}
 
   /** POST /api/public/gbp/ara { sorgu, turnstileToken } → en fazla 5 aday */
   @Public()
   @Throttle({ default: { limit: 6, ttl: 60_000 } })
-  @Post('public/gbp/ara')
+  @Post('ara')
   async publicAra(@Body() body: { sorgu?: string; turnstileToken?: string }, @Req() req: Request) {
     const ip = clientIp(req);
+    const sorgu = String(body?.sorgu ?? '').trim();
+    if (sorgu.length < 3) throw new BadRequestException('İşletme adını ve şehri yazın (en az 3 karakter).');
     await this.turnstile(body?.turnstileToken, ip);
     await this.svc.publicHakKontrol(ip, true);
-    return this.hataSar(() => this.svc.ara(String(body?.sorgu ?? ''), true));
+    return this.hataSar(() => this.svc.ara(sorgu, true));
   }
 
   /** POST /api/public/gbp/karne { placeId, turnstileToken } → denetim sonucu (saklanmaz) */
   @Public()
   @Throttle({ default: { limit: 6, ttl: 60_000 } })
-  @Post('public/gbp/karne')
+  @Post('karne')
   async publicKarne(@Body() body: { placeId?: string; turnstileToken?: string }, @Req() req: Request) {
     const ip = clientIp(req);
+    const placeId = String(body?.placeId ?? '');
+    if (!placeIdGecerli(placeId)) throw new BadRequestException('Geçersiz işletme kimliği');
     await this.turnstile(body?.turnstileToken, ip);
     await this.svc.publicHakKontrol(ip, true);
-    return this.hataSar(() => this.svc.publicKarne(String(body?.placeId ?? '')));
+    return this.hataSar(() => this.svc.publicKarne(placeId));
   }
 
   /** Turnstile (TURNSTILE_SECRET tanimliysa zorunlu) — ucretsiz AI testiyle ayni kural */

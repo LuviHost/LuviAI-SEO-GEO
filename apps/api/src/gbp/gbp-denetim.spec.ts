@@ -59,6 +59,12 @@ describe('profilDenetle', () => {
     expect(r.maddeler.find((m) => m.kod === 'yorum-sayisi')?.oneri).toMatch(/HER müşteriye/);
   });
 
+  it('Turkce harfli il/ilce adlari ad kuralinda yakalanir', () => {
+    for (const ad of ['Kahve Durağı İstanbul Şube', 'Usta Berber Şişli Merkez', 'Lezzet Sofrası Diyarbakır Mutfağı']) {
+      expect(profilDenetle({ ...TAM, displayName: { text: ad } }).maddeler.find((m) => m.kod === 'ad')?.durum, ad).toBe('uyari');
+    }
+  });
+
   it('kapali isletme eksik sayilir', () => {
     expect(profilDenetle({ ...TAM, businessStatus: 'CLOSED_PERMANENTLY' }).maddeler.find((m) => m.kod === 'durum')?.durum).toBe('eksik');
   });
