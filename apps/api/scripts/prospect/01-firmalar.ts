@@ -51,7 +51,10 @@ import {
 
 // ─── Tipler ─────────────────────────────────────────────────────────────────
 
-type Sektor3 = Sektor | 'diger';
+/** 'ajans': RanksUp'i musterilerine kullandiracak is ortagi adayi (27.10.2026) — SEKTORLER'e girmez (karne sorulari yok) */
+type Sektor3 = Sektor | 'ajans' | 'diger';
+const HEDEF_SEKTOR: readonly string[] = [...SEKTORLER, 'ajans'];
+const sektorOku = (s: string): Sektor3 => (HEDEF_SEKTOR.includes(s) ? (s as Sektor3) : 'diger');
 
 /** Sektor etiketinin kaynagi; sira = guven (yuksek olan dusugu ezer, esitte ilk gelen kalir) */
 type SektorKaynak = 'seed' | 'kap-detay' | 'kaynak' | 'etiket' | 'unvan' | '';
@@ -514,6 +517,44 @@ async function tesid(ctx: Ctx): Promise<Ham[]> {
   return out;
 }
 
+/**
+ * Reklamcilar Dernegi tuzel uyeleri (yaratici / medya / dijital ajans). Tablo satiri: firma | yetkili | adres |
+ * telefon | faks | e-posta | web | uyelik | tur. KVKK: YALNIZ firma adi + web + tur okunur; "yetkili" sutunu ve
+ * mailto (cogu kisinin kendi adresi) OKUNMAZ — kurumsal adres 07'de firmanin kendi sitesinden bulunur.
+ */
+const URL_RD = 'https://rd.org.tr/uyeler';
+async function rd(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_RD));
+  const out: Ham[] = [];
+  $('tr').each((_, tr) => {
+    const td = $(tr).find('td');
+    if (td.length < 8) return;
+    const firma = temiz(td.eq(0).text());
+    const web = $(tr).find('a.web-icon').attr('href')?.trim() ?? '';
+    const tur = temiz(td.last().text());
+    if (!firma || !normalizeDomain(web)) return;
+    const altsektor = /medya/i.test(tur) ? 'medya-ajansi' : /dijital/i.test(tur) ? 'dijital-ajans' : 'reklam-ajansi';
+    out.push({ firma, web, altsektor, not: tur });
+  });
+  ctx.log(`${out.length} ajans`);
+  return out;
+}
+
+/** IDA (Iletisim Danismanligi Sirketleri Dernegi) uyeleri: PR ajanslari. Yalniz ad + web; "Yonetici Ortak" OKUNMAZ. */
+const URL_IDA = 'https://www.ida.org.tr/ornek-sayfa/uyelerimiz/';
+async function ida(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_IDA));
+  const out: Ham[] = [];
+  $('table').each((_, t) => {
+    const firma = temiz($(t).find('td[colspan] strong').first().text());
+    const webTd = $(t).find('tr').filter((__, r) => /^web:?$/i.test(temiz($(r).find('td').first().text()))).find('td').eq(1);
+    const web = webTd.find('a').attr('href')?.trim() || temiz(webTd.text());
+    if (firma && normalizeDomain(web)) out.push({ firma, web });
+  });
+  ctx.log(`${out.length} PR ajansi`);
+  return out;
+}
+
 const URL_RVD = 'https://www.rvd.org.tr/uyeler';
 /** Logo dosya adindan firma adi: "firma_Ak-Gida_vo" → "Ak Gida", "aktifbank-26042024" → "aktifbank" */
 function rvdAd(raw: string): string {
@@ -828,6 +869,322 @@ async function oyder(ctx: Ctx): Promise<Ham[]> {
   return out;
 }
 
+// ─── Dernek uye listeleri (27.10.2026 dalgasi) ──────────────────────────────
+// KVKK: hepsinde YALNIZ firma/marka adi + firmanin kendi web adresi (+ kategori metni) okunur.
+// Kisi adi, kisisel e-posta, telefon OKUNMAZ (TGSD "Adi Soyadi" ve IAB "name" alanlari dahil).
+
+/** Sosyal ag / genel platform alan adlari — "firma sitesi" sayilmaz */
+const SOSYAL_GENEL_RE = /facebook\.|twitter\.|(^|\.)x\.com|linkedin\.|instagram\.|youtube\.|youtu\.be|tiktok\.|pinterest\.|flickr\.|whatsapp\.|wa\.me|t\.me|google\.|goo\.gl|bit\.ly|apple\.com|play\.google/i;
+
+/**
+ * Ayni kaynakta ayni alan adi bir kez (carousel/tekrarli liste); web'siz kayit ada gore tekillesir.
+ * NEDEN sosyal temizligi: TURYID'de 12 uyenin "sitesi" instagram.com — alan adi birlestirme anahtari
+ * oldugu icin hepsi tek satira inerdi; bu kayitlar web'siz yazilir (03-desen alan adini arar).
+ */
+function tekil(list: Ham[]): Ham[] {
+  const seen = new Set<string>();
+  return list.map((h) => (SOSYAL_GENEL_RE.test(normalizeDomain(h.web) ?? '') ? { ...h, web: undefined } : h)).filter((h) => {
+    const key = normalizeDomain(h.web) ?? `ad:${adAnahtar(h.firma)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Tamami kucuk harf olan adi kelime basi buyuk yap ("7 mehmet restaurant" → "7 Mehmet Restaurant") */
+function kelimeBasi(s: string): string {
+  if (s !== s.toLocaleLowerCase('tr-TR')) return s;
+  return s.replace(/(^|\s)(\p{L})/gu, (_, a: string, b: string) => a + b.toLocaleUpperCase('tr-TR'));
+}
+
+/** Logo dosya adi / alt metni artiklarini temizle: uzanti, "-150x150", "logo", "-1" soneki, tire/alt cizgi */
+function logoAd(raw: string): string {
+  let s = temiz(raw);
+  try { s = decodeURIComponent(s); } catch { /* bozuk kodlama: oldugu gibi */ }
+  s = s.replace(/\.(png|jpe?g|gif|webp|svg)$/i, '').replace(/-\d{2,4}x\d{2,4}$/i, '');
+  s = s.replace(/[_-]+/g, ' ').replace(/\blogo(su|lar|lari)?\b/gi, ' ').replace(/\s+\d{1,2}$/, '');
+  return temiz(s);
+}
+
+const URL_GYODER = 'https://www.gyoder.org.tr/uyelerimiz';
+/** GYODER (Gayrimenkul ve Gayrimenkul Yatirim Ortakligi Dernegi): kart = site linki, ad span.companyName */
+async function gyoder(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_GYODER));
+  const out: Ham[] = [];
+  $('a.about-us-annual-report-card').each((_, a) => {
+    const web = $(a).attr('href')?.trim() ?? '';
+    const firma = temiz($(a).find('span.companyName').text()) || temiz($(a).find('img').attr('alt'));
+    if (firma && normalizeDomain(web) && !/gyoder\.org\.tr/i.test(web)) out.push({ firma, web });
+  });
+  const t = tekil(out);
+  ctx.log(`${t.length} gayrimenkul uyesi`);
+  return t;
+}
+
+const URL_MOSDER = 'https://www.mosder.org.tr/uyelerimiz';
+/** MOSDER (Mobilya Dernegi): her uye div.filter-item; site linki + logo alt metni = marka adi */
+async function mosder(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_MOSDER));
+  const out: Ham[] = [];
+  $('div.filter-item').each((_, el) => {
+    const a = $(el).find('a[target="_blank"]').first();
+    const web = a.attr('href')?.trim() ?? '';
+    const firma = temiz($(el).find('img').attr('alt')) || temiz($(el).find('h3').text());
+    if (firma && normalizeDomain(web)) out.push({ firma, web });
+  });
+  const t = tekil(out);
+  ctx.log(`${t.length} mobilya markasi`);
+  return t;
+}
+
+const URL_IMOS = 'https://www.imos.org.tr/uyelerimiz/';
+/** IMOS (Inegol Mobilya Sanayicileri Dernegi): title niteligi = marka adi, ic link = site */
+async function imos(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_IMOS));
+  const out: Ham[] = [];
+  $('div.wpwax-lsu-item-inner[title]').each((_, el) => {
+    const firma = temiz($(el).attr('title'));
+    const web = $(el).find('a[href]').first().attr('href')?.trim() ?? '';
+    if (firma && normalizeDomain(web) && !/imos\.org\.tr/i.test(web)) out.push({ firma, web });
+  });
+  const t = tekil(out);
+  ctx.log(`${t.length} mobilya uyesi`);
+  return t;
+}
+
+const URL_TGSD = 'https://tgsd.org.tr/uyelerimiz/';
+/**
+ * TGSD (Turkiye Giyim Sanayicileri Dernegi): tablo = logo | Adi Soyadi | Firma | Web Sitesi.
+ * KVKK: 2. sutun KISI ADIDIR — OKUNMAZ; yalniz firma + web sutunu.
+ */
+async function tgsd(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_TGSD));
+  const out: Ham[] = [];
+  $('table tr').each((_, tr) => {
+    const td = $(tr).find('td');
+    if (td.length < 4) return; // baslik (th) ya da eksik satir
+    const firma = temiz(td.eq(2).text());
+    const web = td.eq(3).find('a').attr('href')?.trim() || temiz(td.eq(3).text());
+    if (firma && normalizeDomain(web)) out.push({ firma, web });
+  });
+  const t = tekil(out);
+  ctx.log(`${t.length} hazir giyim firmasi`);
+  return t;
+}
+
+const URL_TURYID = 'https://turyid.org/uye-listesi/';
+/** TURYID (Turkiye Restoran ve Eglence Yatirimcilari Dernegi): a.member-card; ad data-member-name ya da logo alt */
+async function turyid(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_TURYID));
+  const out: Ham[] = [];
+  $('a.member-card').each((_, a) => {
+    const href = $(a).attr('href')?.trim() ?? '';
+    const dom = normalizeDomain(href);
+    if (dom && /turyid\.org/i.test(dom)) return;
+    // NEDEN: ad cogu zaman logo dosya adindan uretilmis ("baba kebap logo", "life-group-entertainment-1")
+    let firma = logoAd($(a).attr('data-member-name') || $(a).find('img').attr('alt') || '');
+    if ((!firma || /^\d+$/.test(firma)) && dom) firma = alanEtiket(dom);
+    if (!firma) return;
+    // 31 uyede href="#" (site yok) — ad yine alinir, web bos kalir
+    out.push({ firma: kelimeBasi(firma), web: dom ? href : undefined });
+  });
+  const t = tekil(out);
+  ctx.log(`${t.length} restoran/zincir (web'siz ${t.filter((h) => !h.web).length})`);
+  return t;
+}
+
+/** AYD (Alisveris Merkezleri ve Perakendeciler Dernegi): li.membersPage > a; ad title niteligi, bossa alan adi etiketi */
+function aydKaynak(url: string, etiket: string) {
+  return async (ctx: Ctx): Promise<Ham[]> => {
+    const $ = cheerio.load(await get(url));
+    const out: Ham[] = [];
+    $('li.membersPage > a[href]').each((_, a) => {
+      const web = $(a).attr('href')?.trim() ?? '';
+      const dom = normalizeDomain(web);
+      if (!dom || /ayd\.org\.tr/i.test(dom)) return;
+      out.push({ firma: temiz($(a).attr('title')) || alanEtiket(dom), web });
+    });
+    const t = tekil(out);
+    ctx.log(`${t.length} ${etiket}`);
+    return t;
+  };
+}
+const URL_AYD_KURUMSAL = 'https://www.ayd.org.tr/kurumsal-uyeler';
+const URL_AYD_FAALIYET = 'https://www.ayd.org.tr/faaliyet-uyeleri';
+
+const URL_ZINCIR = 'https://www.zincirmagazalar.org/?page_id=131';
+/**
+ * Zincir Magazalar Dernegi uyeleri: Elementor gorsel widget'lari (logo + site linki). Ad metin olarak yok;
+ * logo dosya adi cogu zaman unvandir ("Boyner-Buyuk-Magazacilik-A.S..jpg"). Dosya adi "logo" iceriyor ya da
+ * kucuk harfle basliyorsa (atasun.jpg, flo_logo-01) alan adi etiketi kullanilir. Ust banner slider'i
+ * (sponsor reklamlari, metaslider) secilmez.
+ */
+async function zincir(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_ZINCIR));
+  const out: Ham[] = [];
+  $('.elementor-widget-image').each((_, w) => {
+    const web = $(w).find('a[href]').first().attr('href')?.trim() ?? '';
+    const dom = normalizeDomain(web);
+    if (!dom || /zincirmagazalar\.org/i.test(dom)) return;
+    let dosya = ($(w).find('img').attr('src') ?? '').split('/').pop() ?? '';
+    try { dosya = decodeURIComponent(dosya); } catch { /* oldugu gibi */ }
+    dosya = dosya.replace(/\.(png|jpe?g|gif|webp|svg)$/i, '').replace(/-\d{2,4}x\d{2,4}$/i, '');
+    const ad = temiz(dosya.replace(/-/g, ' '));
+    const iyi = ad.length >= 2 && !/logo/i.test(ad) && /^\p{Lu}/u.test(ad);
+    out.push({ firma: iyi ? ad : alanEtiket(dom), web });
+  });
+  const t = tekil(out);
+  ctx.log(`${t.length} zincir magaza/uye`);
+  return t;
+}
+
+const URL_MEYED = 'https://meyed.org.tr/uyelerimiz/';
+/** MEYED (Meyve Suyu Endustrisi Dernegi): <p><strong>UNVAN</strong><br><a>site</a></p> */
+async function meyed(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_MEYED));
+  const out: Ham[] = [];
+  $('p').each((_, p) => {
+    const firma = temiz($(p).children('strong').first().text());
+    const web = $(p).find('a[href]').first().attr('href')?.trim() ?? '';
+    if (firma && normalizeDomain(web) && !/meyed\.org\.tr/i.test(web)) out.push({ firma, web });
+  });
+  const t = tekil(out);
+  ctx.log(`${t.length} icecek/meyve suyu firmasi`);
+  return t;
+}
+
+const URL_YOK_VAKIF = 'https://www.yok.gov.tr/university?type=2';
+/** YOK vakif universiteleri: her kart div.university-card-uni (h3 = ad, data-city = sehir, "Web Sitesi" satiri = site) */
+async function yokVakif(ctx: Ctx): Promise<Ham[]> {
+  const $ = cheerio.load(await get(URL_YOK_VAKIF));
+  const out: Ham[] = [];
+  $('div.university-card-uni').each((_, card) => {
+    const firma = temiz($(card).find('h3').first().text()) || temiz($(card).attr('data-name'));
+    const satir = $(card).find('.detail-item-uni').filter((__, d) => /web sitesi/i.test($(d).find('.detail-label-uni').text()));
+    const web = satir.find('a[href]').first().attr('href')?.trim() || temiz(satir.find('.detail-value-uni').text());
+    if (!firma) return;
+    out.push({ firma, web: normalizeDomain(web) ? web : undefined, sehir: sehirBicim($(card).attr('data-city') ?? '') });
+  });
+  const t = tekil(out);
+  ctx.log(`${t.length} vakif universitesi (web'li ${t.filter((h) => h.web).length})`);
+  return t;
+}
+
+/**
+ * IAB Turkiye uyeleri: sayfa ilk 18'i satir ici JS'te verir ama kategori bos; admin-ajax "load_more_member"
+ * ucu kategori dahil 18'erli sayfalar dondurur. NEDEN offset 18'den: canli denemede offset=0 ve 18 ayni ilk
+ * 18'i, 36 sonraki 18'i dondurdu (offset = sayfanin BITIS indeksi). KVKK: "name" (yetkili) ve "phone" OKUNMAZ;
+ * "explain" yalniz hukuki unvan gibi gorunuyorsa not'a yazilir.
+ */
+const URL_IAB = 'https://iabtr.org/iab-uyeleri/';
+const URL_IAB_AJAX = 'https://iabtr.org/wp-admin/admin-ajax.php';
+const IAB_ADIM = 18;
+const IAB_MAX_ISTEK = 30;
+const UNVAN_RE = /\b(a\.?\s?ş|ltd|şti|sti|anonim|limited|inc|llc|gmbh|b\.v|s\.a|corp|holding|şirketi|sirketi)\b/i;
+interface IabUye { title?: string; url?: string; category?: string; explain?: string }
+async function iab(ctx: Ctx): Promise<Ham[]> {
+  const out: Ham[] = [];
+  let toplam = 0;
+  for (let i = 0, offset = IAB_ADIM; i < IAB_MAX_ISTEK; i++, offset += IAB_ADIM) {
+    if (ctx.limit !== null && out.length >= ctx.limit) break;
+    const body = new URLSearchParams({ action: 'load_more_member', offset: String(offset), search: '', category: 'Tümü', letter: 'Sıralama' }).toString();
+    const text = await get(URL_IAB_AJAX, {
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', referer: URL_IAB },
+    });
+    const j = JSON.parse(text) as { data?: IabUye[]; count?: number };
+    const data = j.data ?? [];
+    if (j.count) toplam = j.count;
+    if (data.length === 0) break;
+    for (const u of data) {
+      const firma = temiz(u.title);
+      const web = temiz(u.url);
+      if (!firma) continue;
+      const kat = temiz(u.category);
+      const unvan = UNVAN_RE.test(temiz(u.explain)) ? temiz(u.explain) : '';
+      const not = [kat && `IAB: ${kat}`, unvan].filter(Boolean).join('; ') || undefined;
+      if (/^ajans$/i.test(kat)) { out.push({ firma, web, sektor: 'ajans', altsektor: 'dijital-ajans', sektorKaynak: 'kaynak', not }); continue; }
+      // NEDEN: reklamveren her sektorden (Akbank, A101...) — RVD gibi guclu unvan ipucu varsa TAHMIN, yoksa diger
+      const g = gucluUnvanEsle(unvan || firma);
+      const altsektor = !kat || /^reklamveren$/i.test(kat) ? 'reklamveren' : /^di[gğ]er$/i.test(kat) ? 'iab-diger' : translit(kat).replace(/\s+/g, '-');
+      if (g.sektor !== 'diger') out.push({ firma, web, sektor: g.sektor, altsektor: g.altsektor, sektorKaynak: 'unvan', not });
+      else out.push({ firma, web, altsektor, not });
+    }
+    if (toplam && offset >= toplam) break;
+  }
+  const t = tekil(out);
+  ctx.log(`${t.length}/${toplam || '?'} uye (ajans ${t.filter((h) => h.sektor === 'ajans').length})`);
+  return t;
+}
+
+/**
+ * UFRAD (Ulusal Franchising Dernegi): liste sayfalarinda yalniz marka adi + detay linki; site detay sayfasindaki
+ * "Internet Sitesi" kutusunda. Kutu yoksa icerikteki ilk dis link (sosyal/kurum degil, adla celismeyen) alinir.
+ * Destekci uyeler (hukuk/danismanlik) ayri altsektorle isaretlenir.
+ */
+const UFRAD_LISTELER: Array<{ url: string; maxSayfa: number; altsektor: string }> = [
+  { url: 'https://ufrad.org/asil-uyeler/', maxSayfa: 8, altsektor: 'franchise' },
+  { url: 'https://ufrad.org/destekci-uyeler/', maxSayfa: 3, altsektor: 'franchise-destekci' },
+  { url: 'https://ufrad.org/aday-uyeler/', maxSayfa: 2, altsektor: 'franchise' },
+];
+const UFRAD_MAX_DETAY = 200;
+const UFRAD_DISLA_RE = /ufrad\.org|armiya\.com|ito\.org\.tr|iso\.org\.tr|deik\.org\.tr|worldfranchisecouncil|franchise-apfc|eff-franchise/i;
+async function ufrad(ctx: Ctx): Promise<Ham[]> {
+  const markalar: Array<{ firma: string; detay: string; altsektor: string }> = [];
+  const gorulen = new Set<string>();
+  for (const l of UFRAD_LISTELER) {
+    for (let s = 1; s <= l.maxSayfa; s++) {
+      const url = s === 1 ? l.url : `${l.url}page/${s}/`;
+      let html: string;
+      try {
+        html = await get(url);
+      } catch (e) {
+        // NEDEN: son sayfadan sonrasi 404 doner — sayfalamanin dogal sonu
+        if (s === 1) ctx.log(`UYARI ${url} atlandi: ${(e as Error).message}`);
+        break;
+      }
+      const $ = cheerio.load(html);
+      let yeni = 0;
+      $('a.gyan-portfolio-title-link').each((_, a) => {
+        const detay = $(a).attr('href')?.trim() ?? '';
+        const firma = temiz($(a).text());
+        if (!firma || !detay || gorulen.has(detay)) return;
+        gorulen.add(detay);
+        markalar.push({ firma, detay, altsektor: l.altsektor });
+        yeni++;
+      });
+      if (yeni === 0) break;
+    }
+  }
+  ctx.log(`${markalar.length} marka listelendi`);
+  const tavan = Math.min(UFRAD_MAX_DETAY, ctx.limit ?? UFRAD_MAX_DETAY);
+  const out: Ham[] = [];
+  let webYok = 0;
+  for (const m of markalar.slice(0, tavan)) {
+    let web: string | undefined;
+    try {
+      const $ = cheerio.load(await get(m.detay));
+      const kutu = $('.gyan-info-box').filter((_, b) => /internet sitesi|web sitesi/i.test(translit($(b).find('.gyan-infobox-title').text())));
+      web = kutu.find('a[href^="http"]').first().attr('href')?.trim();
+      if (!normalizeDomain(web)) {
+        const aday = $('#content a[href^="http"]')
+          .filter((_, a) => $(a).closest('footer, nav, .menu-item, header').length === 0)
+          .map((_, a) => $(a).attr('href') ?? '').get()
+          .find((h) => { const d = normalizeDomain(h); return !!d && !UFRAD_DISLA_RE.test(d) && !SOSYAL_GENEL_RE.test(d) && webAdUyumlu(m.firma, d) !== false; });
+        web = aday;
+      }
+    } catch (e) {
+      ctx.log(`UYARI ${m.firma} detay atlandi: ${(e as Error).message}`);
+    }
+    if (!normalizeDomain(web)) { webYok++; web = undefined; }
+    out.push({ firma: m.firma, web, altsektor: m.altsektor, url: m.detay });
+  }
+  const t = tekil(out);
+  ctx.log(`${t.length} marka (web'siz ${webYok})`);
+  return t;
+}
+
 // ─── JS-only kaynaklar (--via openclaw) ─────────────────────────────────────
 // NEDEN: ETID uye sayfasi WordPress + JS ("Yukleniyor" yer tutucusu, statik HTML'de 0 uye);
 // BTK yeni sitesi Next.js SPA. Statik fetch ise yaramaz; OpenClaw tarayicida salt-okunur evaluate.
@@ -898,7 +1255,7 @@ async function seed(ctx: Ctx): Promise<Ham[]> {
   const out: Ham[] = [];
   for (const r of rows) {
     if (!r.firma) continue;
-    const sektor = (SEKTORLER as readonly string[]).includes(r.sektor) ? (r.sektor as Sektor) : 'diger';
+    const sektor = sektorOku(r.sektor);
     if (sektor === 'diger') ctx.log(`UYARI bilinmeyen sektor "${r.sektor}" (${r.firma}) → diger`);
     out.push({ firma: r.firma, sektor, altsektor: r.altsektor, web: r.web, sektorKaynak: 'seed', not: r.not });
   }
@@ -923,10 +1280,25 @@ const KAYNAKLAR: Kaynak[] = [
   { ad: 'bmd', sektor: S_ETIC, altsektor: 'marka-perakende', url: URL_BMD, run: bmd },
   { ad: 'tubisad', sektor: S_ETIC, altsektor: 'bilisim', url: URL_TUBISAD, run: tubisad },
   { ad: 'tesid', sektor: S_ETIC, altsektor: 'elektronik', url: URL_TESID, run: tesid },
+  { ad: 'mosder', sektor: S_ETIC, altsektor: 'mobilya', url: URL_MOSDER, run: mosder },
+  { ad: 'imos', sektor: S_ETIC, altsektor: 'mobilya', url: URL_IMOS, run: imos },
+  { ad: 'tgsd', sektor: S_ETIC, altsektor: 'hazir-giyim', url: URL_TGSD, run: tgsd },
+  { ad: 'zincir', sektor: S_ETIC, altsektor: 'zincir-perakende', url: URL_ZINCIR, run: zincir },
   { ad: 'etid', sektor: S_ETIC, altsektor: 'eticaret', url: URL_ETID, run: etid, via: 'openclaw' },
   { ad: 'fortune', sektor: 'diger', altsektor: '', url: 'https://www.fortuneturkey.com/fortune-500', run: fortune },
   // NEDEN 'diger': RVD her sektorden reklamveren; varsayilan e-tic olunca Shell/Coca-Cola/Bayer e-ticaret sanilir
   { ad: 'rvd', sektor: 'diger', altsektor: 'reklamveren', url: URL_RVD, run: rvd },
+  { ad: 'rd', sektor: 'ajans', altsektor: 'reklam-ajansi', url: URL_RD, run: rd },
+  { ad: 'ida', sektor: 'ajans', altsektor: 'pr-ajansi', url: URL_IDA, run: ida },
+  // NEDEN 'diger': IAB uyeleri ajans + reklamveren + yayinci karisik; ajans satiri kendi sektorunu tasir
+  { ad: 'iab', sektor: 'diger', altsektor: 'reklamveren', url: URL_IAB, run: iab },
+  { ad: 'gyoder', sektor: 'diger', altsektor: 'gayrimenkul', url: URL_GYODER, run: gyoder },
+  { ad: 'turyid', sektor: 'diger', altsektor: 'restoran-zinciri', url: URL_TURYID, run: turyid },
+  { ad: 'ayd-kurumsal', sektor: 'diger', altsektor: 'avm', url: URL_AYD_KURUMSAL, run: aydKaynak(URL_AYD_KURUMSAL, 'kurumsal uye (AVM)') },
+  { ad: 'ayd-faaliyet', sektor: 'diger', altsektor: 'avm', url: URL_AYD_FAALIYET, run: aydKaynak(URL_AYD_FAALIYET, 'faaliyet uyesi') },
+  { ad: 'meyed', sektor: 'diger', altsektor: 'icecek', url: URL_MEYED, run: meyed },
+  { ad: 'yok-vakif', sektor: 'diger', altsektor: 'vakif-universitesi', url: URL_YOK_VAKIF, run: yokVakif },
+  { ad: 'ufrad', sektor: 'diger', altsektor: 'franchise', url: UFRAD_LISTELER[0].url, run: ufrad },
   { ad: 'wiki-havayolu', sektor: S_TUR, altsektor: 'havayolu', url: wikiUrl(WIKI_HAVAYOLU), run: wikiKaynak(WIKI_HAVAYOLU, 'havayolu', false) },
   { ad: 'wiki-mvno', sektor: S_TUR, altsektor: 'telekom-mvno', url: wikiUrl(WIKI_MVNO), run: wikiKaynak(WIKI_MVNO, 'MVNO', true) },
   { ad: 'btk', sektor: S_TUR, altsektor: 'telekom', url: URL_BTK, run: btk, via: 'openclaw' },
@@ -987,7 +1359,7 @@ class Havuz {
     for (const r of rows) {
       const firma = temiz(r.firma);
       if (!firma) continue;
-      const sektor: Sektor3 = (SEKTORLER as readonly string[]).includes(r.sektor) ? (r.sektor as Sektor) : 'diger';
+      const sektor: Sektor3 = sektorOku(r.sektor);
       const skRaw = temiz(r.sektorKaynak) as SektorKaynak;
       // NEDEN: eski dosyada sutun yoksa 'kaynak' varsayilir (tahmin degil); 'diger' her zaman bos
       const sektorKaynak: SektorKaynak = sektor === 'diger' ? '' : SK_LISTE.includes(skRaw) && skRaw ? skRaw : 'kaynak';
@@ -1027,7 +1399,7 @@ class Havuz {
 
   satirlar(): Firma[] {
     const all = [...this.byDomain.values(), ...this.byName.values()];
-    const sira: Record<string, number> = { finans: 0, 'eticaret-perakende-teknoloji': 1, 'turizm-havayolu-telekom-otomotiv': 2, diger: 3 };
+    const sira: Record<string, number> = { finans: 0, 'eticaret-perakende-teknoloji': 1, 'turizm-havayolu-telekom-otomotiv': 2, ajans: 3, diger: 4 };
     return all.sort((a, b) => (sira[a.sektor] - sira[b.sektor]) || a.firma.localeCompare(b.firma, 'tr'));
   }
 }

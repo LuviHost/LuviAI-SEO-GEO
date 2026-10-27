@@ -28,7 +28,8 @@
  *   MAILJET_API_KEY, MAILJET_SECRET, MAILJET_FROM_EMAIL (orn. info@ranksup.ai),
  *   MAILJET_FROM_NAME (orn. "Emir Burgazlı · RanksUp"), MAILJET_REPLY_TO (istege bagli)
  *   MAILJET_GONDEREN_AD (vars. "Emir Burgazlı"), MAILJET_GONDEREN_UNVAN (vars. "Kurucu, RanksUp · Luvi Host"),
- *   MAILJET_GONDEREN_ADRES (zorunlu — md. 5/1), MAILJET_MERSIS (zorunlu — md. 5/1)
+ *   MAILJET_GONDEREN_ADRES (zorunlu), MAILJET_MERSIS (ticaret siciline kayitli ise) YA DA
+ *   MAILJET_KIMLIK (sicile kayitli olmayan sahis isletmesi: "Ad Soyad · VKN … · … V.D." — biri zorunlu)
  *
  * Kullanim:
  *   npx tsx scripts/prospect/06-mailjet.ts --dns                       # gonderici alan adi icin SPF/DKIM kayitlari + durum
@@ -42,6 +43,7 @@
  *                6 baska bir dalga suruyor (kilit) / hiz siniri (429, Mailjet islemedi, kayit yazilmadi — birkac dk sonra tekrar kos)
  *
  * Girdi : DATA_DIR/jetmail-import.csv (04) — email,ad,soyad,firma,unvan,sektor,segment,guven,konu_varyanti[,sektor_sorusu]
+ *         ya da --input kurumsal-import.csv (07 — kurumsal rol adresleri; ad/soyad BOS → hitap "Merhaba {firma} ekibi,")
  * Durum : DATA_DIR/mailjet-gonderim.csv — email,tarih,messageId,kampanya,durum (tmp + rename ile atomik yazilir)
  *         durum: gonderildi | belirsiz (POST oncesi on-kayit; yanit alinamadi/okunamadi, gitmis olabilir) | hata:...
  *         — dosyada olan HER adres sonraki kosumda atlanir
@@ -52,7 +54,13 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { DATA_DIR, REPO_ROOT, SEKTORLER, parseArgs, readCsv, sleep, jitter, toCsv } from '../../src/prospect/prospect-utils.js';
+import { DATA_DIR, parseArgs, readCsv, sleep, jitter, toCsv } from '../../src/prospect/prospect-utils.js';
+import {
+  GONDERIM_SEKTORLERI, KONU_MAX, firmaKisa, isimsizHitap, kimlikEnv, kimlikSorunlari, konuSatiri, mailjetMesaj, sektorSorusu, type Alici,
+} from '../../src/prospect/eposta-sablon.js';
+
+// Spec ve geriye uyumluluk icin yeniden disari ver (06-mailjet.spec.ts bu yoldan import eder)
+export { GONDERIM_SEKTORLERI, firmaKisa, isimsizHitap, konuSatiri, sektorSorusu };
 
 const args = parseArgs(process.argv.slice(2));
 const DRY = args['dry-run'] === true;
@@ -62,6 +70,10 @@ const LIMIT = args.limit ? Number(args.limit) : 100;
 const SEGMENT = typeof args.segment === 'string' ? String(args.segment) : null;
 const IYS_ONAYLI = args['iys-onayli'] === true;
 const TEST_TO = typeof args.test === 'string' ? String(args.test) : null;
+/** Girdi dosyasi: DATA_DIR icindeki ad ya da yol (varsayilan 04'un ciktisi) */
+const INPUT_FILE = typeof args.input === 'string'
+  ? (path.isAbsolute(String(args.input)) || String(args.input).includes('/') ? path.resolve(String(args.input)) : path.join(DATA_DIR, String(args.input)))
+  : path.join(DATA_DIR, 'jetmail-import.csv');
 const KAMPANYA = typeof args.kampanya === 'string' ? String(args.kampanya) : `kurumsal-${new Date().toISOString().slice(0, 10)}`;
 const ONCEKI = typeof args.onceki === 'string' ? String(args.onceki) : null;
 /** Otomatik/onceki dalga frenini bilincli atla (yalniz ilk dalga ya da Mailjet'te kampanya gercekten yokken) */
@@ -73,222 +85,16 @@ const GUNLUK_KOTA = 200;
 const BOUNCE_ESIK = 0.03;
 /** Bir Send cagrisinda gonderilen adres sayisi (Mailjet v3.1 ust siniri 50) */
 const PARCA = 50;
-/** Konu satiri ust siniri (kurumsal-mail-sablonlari.md §1) — asarsa mobil onizlemede kesilir, DRY'da uyarilir */
-const KONU_MAX = 60;
 
 const API = 'https://api.mailjet.com';
 const KEY = process.env.MAILJET_API_KEY ?? '';
 const SECRET = process.env.MAILJET_SECRET ?? '';
 const FROM_EMAIL = process.env.MAILJET_FROM_EMAIL ?? '';
-const FROM_NAME = process.env.MAILJET_FROM_NAME ?? 'RanksUp';
-const REPLY_TO = process.env.MAILJET_REPLY_TO ?? FROM_EMAIL;
-/**
- * Gonderici kimligi (Yonetmelik md. 5/1) — ad/unvan varsayilanli, adres/MERSIS zorunlu.
- * NEDEN ||: .env'de "MAILJET_GONDEREN_AD=" (bos) birakilirsa ?? bos dizeyi kabul eder ve imza adsiz
- * cikardi; || bos dizeyi de varsayilana dusurur. kimlikKapisi ayrica bos adi yakalar.
- */
-const GONDEREN_AD = process.env.MAILJET_GONDEREN_AD || 'Emir Burgazlı';
-const GONDEREN_UNVAN = process.env.MAILJET_GONDEREN_UNVAN || 'Kurucu, RanksUp · Luvi Host';
-const GONDEREN_ADRES = process.env.MAILJET_GONDEREN_ADRES ?? '';
-const MERSIS = process.env.MAILJET_MERSIS ?? '';
 
 const DURUM_FILE = path.join(DATA_DIR, 'mailjet-gonderim.csv');
 const DURUM_SUTUN = ['email', 'tarih', 'messageId', 'kampanya', 'durum'];
 /** Es zamanli ikinci dalgayi engelleyen kilit (yalniz gercek gonderimde alinir) */
 const KILIT_FILE = path.join(DATA_DIR, 'mailjet-gonderim.lock');
-const HTML_DIR = path.join(REPO_ROOT, 'reklam', 'pazarlama', 'kurumsal-mail-html');
-const MD_FILE = path.join(REPO_ROOT, 'reklam', 'pazarlama', 'kurumsal-mail-sablonlari.md');
-
-/** Sektor → sablon anahtari, md basligi, sektor-geneli varsayilan soru ve okunur ad */
-const SEKTOR_META: Record<string, { html: string; mdBaslik: string; soru: string; ad: string }> = {
-  finans: { html: 'kurumsal-finans.html', mdBaslik: 'Şablon A', soru: 'bu alanda hangi şirketi önerirsin', ad: 'finans' },
-  'eticaret-perakende-teknoloji': { html: 'kurumsal-eticaret.html', mdBaslik: 'Şablon B', soru: 'telefon almak için hangi site güvenilir', ad: 'e-ticaret ve perakende' },
-  'turizm-havayolu-telekom-otomotiv': { html: 'kurumsal-turizm.html', mdBaslik: 'Şablon C', soru: 'İstanbul-Londra için hangi havayolu', ad: 'seyahat, telekom ve otomotiv' },
-};
-
-/**
- * Finans alt-sektoru → gercek musteri sorusu. NEDEN: sabit "bana bir dijital banka öner"
- * sigortaciya veya faktoring sirketine gidince mesaj inandiriciligini yitirir; alici kendi
- * isini ilgilendiren soruyu gormeli. Sira onemli:
- *  1) emeklilik EN BASTA: "Garanti Emeklilik", "Ziraat Hayat ve Emeklilik", "Vakıf Emeklilik" gibi adlar
- *     banka markasi tasir; banka deseni once gelseydi emeklilik sirketi "dijital banka" sorusu alirdi.
- *  2) sonra banka/katilim: "Aktif Yatırım Bankası" banka olarak eslesmeli (yatirim degil).
- *  3) "hayat" bankadan SONRA ("Halk Hayat"?) ama "sigorta"dan ONCE: "Anadolu Hayat" kasko sorusu almasin.
- * NEDEN \b(ing|teb)\b: "faktoring", "leasing" de "ing" ile bitiyor; sinirsiz "ing" onlari bankaya cevirirdi.
- * NEDEN [ıi]: ad katla() ile kucultulur (I ve İ → i; bkz. asagida), kucuk yazilmis "Yatırım" ise ı tasir; ikisi de eslesmeli.
- */
-const FINANS_SORU: Array<[RegExp, string]> = [
-  [/emeklilik/, 'bireysel emeklilik için hangi şirket'],
-  [/bank|kat[ıi]l[ıi]m|bbva|\b(teb|ing)\b|garanti|ziraat|yap[ıi] kredi|qnb|denizbank|halkbank|vak[ıi]fbank/, 'bana bir dijital banka öner'],
-  [/hayat/, 'bireysel emeklilik için hangi şirket'],
-  [/sigorta|reasürans|reasurans/, 'en uygun kasko hangi şirkette'],
-  [/faktoring|factoring|finansman|leasing|kiralama/, 'KOBİ için hangi faktoring/finansman kuruluşu'],
-  [/yat[ıi]r[ıi]m|portföy|portfoy|menkul|arac[ıi] kurum/, 'hangi aracı kurum'],
-  [/ödeme|odeme|e-para|elektronik para|\bpay|pos\b/, 'yurt dışından ödeme almak için hangi kuruluş'],
-];
-
-/** CSV'de sektor_sorusu sutunu VARSA o kazanir; yoksa firma adi/sektorden turetilir */
-export function sektorSorusu(firma: string, sektor: string, csvSoru?: string): string {
-  if (csvSoru && csvSoru.trim()) return csvSoru.trim();
-  const meta = SEKTOR_META[sektor] ?? SEKTOR_META.finans;
-  if (sektor !== 'finans') return meta.soru;
-  // NEDEN katla: 'tr-TR' kucultmesi "FAKTORING" → "faktorıng" yapip /faktoring/ desenini kaciriyordu
-  const f = katla(firma);
-  for (const [re, soru] of FINANS_SORU) if (re.test(f)) return soru;
-  return meta.soru;
-}
-
-// ─── Kisa firma adi ─────────────────────────────────────────────────────────
-
-/**
- * Eslestirme icin "katlanmis" kopya: yalniz İ→i, ardindan toLowerCase.
- * NEDEN: ECMAScript /i bayragi U+0130 (İ) ile "i"yi ESLESTIRMEZ ("TİCARET" /ticaret/i'ye takilmaz);
- * ayrica 'İ'.toLowerCase() iki kod birimi ("i̇") uretir ve indeksler kayar. Once İ→i (1:1) yapip
- * sonra toLowerCase cagirinca uzunluk korunur → katlanmis kopyadaki eslesme indeksi orijinale birebir uygulanir.
- * I→ı YAPILMAZ: Latin "I" (NISSAN, MICROSOFT) da "i"ye katlanir; desenler zaten "i" ile yazildi.
- */
-function katla(s: string): string {
-  return s.replace(/İ/g, 'i').toLowerCase();
-}
-
-/**
- * Sondan kirpilacak hukuki ek / genel tanimlayicilar (KATLANMIS bicimde yazildi: İ/I → i).
- * NEDEN \s+ zorunlu: "Tofaş", "Yataş", "Sinpaş" gibi adlar "AŞ" ile bitiyor; onceki `\s*` deseni
- * bunlari "Tof", "Yat" diye kirpiyordu. Bosluk sarti ile yalniz AYRI KELIME olan ek dusuyor.
- * Ilk desen bulgudaki listenin katlanmis hali (A.O. / T.A.O. / "Anonim Ortaklığı" da hukuki ektir:
- * "Türkiye Petrolleri A.O.", "Türk Hava Yolları A.O." gibi); ikincisi unvanlarda kalan "servis / hizmetleri /
- * hiz. / iç ve dış / ticaret merkezi" gibi kuyruklar ve TİCARET dusunce tek basina kalan "ve".
- * "iletişim hizmetleri" / "ürünleri" / "mağazacılık" kuyruklari da marka degil faaliyet tanimidir:
- * "Turkcell İletişim Hizmetleri" → "Turkcell", "Ebebek Mağazacılık" → "Ebebek", "Aztek Teknoloji Ürünleri" → "Aztek Teknoloji".
- * Desenler katlanmis metne uygulanir: Latin I da "i" olur ("DIŞ" → "diş", "MAĞAZACILIK" → "mağazacilik"), o yuzden ı yerine [ıi] yazilir.
- */
-const EK_DESENLERI: RegExp[] = [
-  /\s+(t\.?a\.?ş\.?|a\.?ş\.?|a\.?s\.?|aş|t\.?a\.?o\.?|a\.?o\.?|anonim ortakl[ıi]ğ[ıi]|anonim şirketi|anonim sirketi|ltd\.?\s*şti\.?|limited şirketi|san(ayi|ayı)?\.? ve tic(aret)?\.?|sanayi|ticaret)\s*$/,
-  /\s+(ve|servis|iletişim hizmetleri|hizmetleri|hiz\.?|tic\.|san\.|iç ve d[ıi]ş|ticaret merkezi|ürünleri|mağazac[ıi]l[ıi]k)\s*$/,
-  /(?<=kat[ıi]l[ıi]m)\s+bankas[ıi]\s*$/, // "Dünya Katılım Bankası" → "Dünya Katılım" (marka boyle anilir); "Yatırım Bankası" kalir
-  /\s*\(\d+\)\s*$/, // "Accor otelleri (2)" gibi liste sayaci
-];
-
-/**
- * Kural disi marka kisaltmalari (anahtar: katlanmis ad — TAM unvan YA DA ekleri kirpilmis hali; firmaKisa
- * ikisine de bakar). NEDEN: "Kuveyt Türk Katılım Bankası" → marka "Kuveyt Türk" ama "Dünya Katılım Bankası"
- * → "Dünya Katılım"; kuralla ayirt edilemez. Kirpilmis-hal anahtarlari ("JANTSA JANT", "BİLKOM BİLİŞİM")
- * CSV'de "... SANAYİ VE TİCARET A.Ş." / "... HİZMETLERİ A.Ş." gibi ek tasisa da eslessin diye.
- */
-const MARKA_KISA: Record<string, string> = Object.fromEntries(
-  Object.entries({
-    'KUVEYT TÜRK KATILIM BANKASI A.Ş.': 'Kuveyt Türk',
-    'CARREFOURSA CARREFOUR SABANCI TİCARET MERKEZİ A.Ş.': 'CarrefourSA',
-    'MICROSOFT BİLGİSAYAR YAZILIM HİZ. LTD. ŞTİ.': 'Microsoft',
-    'TÜRKİYE GARANTİ BANKASI A.Ş.': 'Garanti BBVA',
-    // Ekleri kirpilmis haller (marka, ticari unvanin ilk bir-iki kelimesi):
-    'TÜRK TELEKOMÜNİKASYON': 'Türk Telekom',
-    'AKSigorta': 'Aksigorta',
-    'FAKİR HAUSGERATE': 'Fakir',
-    'JANTSA JANT': 'Jantsa',
-    'PENTA TEKNOLOJİ ÜRÜNLERİ DAĞITIM': 'Penta Teknoloji',
-    'VOLVO CAR TURKEY OTOMOBİL': 'Volvo Car Turkey',
-    'YÜCE AUTO MOTORLU ARAÇLAR': 'Yüce Auto',
-    'TERA YATIRIM MENKUL DEĞERLER': 'Tera Yatırım',
-    'Octet Express Ödeme Kuruluşu': 'Octet Express',
-    'BİLKOM BİLİŞİM': 'Bilkom',
-    'Accor otelleri': 'Accor',
-    'TURKNET İLETİŞİM HİZMETLERİ A.Ş.': 'TurkNet', // NEDEN: CSV'de ayrica "TurkNet" var; iki satir ayni markayi ayni yazsin
-  }).map(([k, v]) => [katla(k), v]), // NEDEN katla: arama da katlanmis adla yapilir (I/İ → i)
-);
-
-/**
- * Turkce kelime ama Turkce'ye OZGU harf icermiyor (I var, ı/İ yok) → 'en' kucultmesi "Katilim"
- * uretirdi. Kucuk istisna sozlugu: anahtar buyuk harf (CSV'deki gibi), deger dogru baslik hali.
- */
-const KELIME_ISTISNA: Record<string, string> = {
-  KATILIM: 'Katılım', BANKASI: 'Bankası', YATIRIM: 'Yatırım', SIGORTA: 'Sigorta', FAKTORING: 'Faktoring',
-  FINANSMAN: 'Finansman', KIRALAMA: 'Kiralama', HAYAT: 'Hayat', EMEKLILIK: 'Emeklilik', ISUZU: 'Isuzu',
-  AKIN: 'Akın', AYAKKABI: 'Ayakkabı', GIDA: 'Gıda', VAKIF: 'Vakıf', YAZILIM: 'Yazılım', SABANCI: 'Sabancı',
-  YAPI: 'Yapı', KALKINMA: 'Kalkınma', SANAYI: 'Sanayi', HALKBANK: 'Halkbank', ILETISIM: 'İletişim',
-  // NEDEN ek: bunlar da Turkce'ye ozgu harf tasimadan yazilan Turkce kelimeler; 'en' kucultmesi
-  // "Vakiflar", "Istanbul", "Yollari", "Kazanci", "Sanayii" uretirdi.
-  VAKIFLAR: 'Vakıflar', VAKIFBANK: 'Vakıfbank', ISTANBUL: 'İstanbul', YOLLARI: 'Yolları', KAZANCI: 'Kazancı', SANAYII: 'Sanayii',
-};
-
-/** Kelimede Turkce'ye ozgu harf var mi (Ş Ğ Ü Ö Ç İ ı ve kucukleri) → 'tr' locale ile kucult */
-const TR_HARF = /[ŞĞÜÖÇİışğüöç]/;
-
-/**
- * Oldugu gibi kalacak kisaltma/markalar. NEDEN acik liste + ilk-kelime kurali: "2-3 harf buyukse kisaltma"
- * tek basina "ARZUM ELEKTRİKLİ EV ALETLERİ" → "EV", "JIMMY KEY" → "KEY", "SNEAKS UP" → "UP" uretiyordu.
- * Listedekiler her yerde; listede olmayan 2-3 harfli kelime yalniz adin ILK kelimesiyse ve Turkce'ye ozgu
- * harf icermiyorsa kisaltma sayilir (TAB Gıda, TAV, FLO, D&R; "İŞ BANKASI" → "İş Bankası").
- */
-const KISALTMA = new Set(['BİM', 'TEB', 'ING', 'QNB', 'TAV', 'TAB', 'FLO', 'THY', 'TSKB', 'HSBC', 'ICBC', 'LCW', 'KFC', 'A101', 'ŞOK', 'MNG', 'PTT', 'TAÇ', 'BBVA', 'D&R', 'UPS', 'DHL']);
-
-/**
- * Baslik-harfe cevirme — YALNIZ ad tamamen buyuk harfse (karisik yazilmis "LC Waikiki", "PayTR" dokunulmaz).
- * Kelime bazinda: istisna sozlugu > 've'/'ile' kucuk > 2-3 harfli tamami buyuk kisaltma (BİM, TEB, ING,
- * QNB, TAV) oldugu gibi > Turkce'ye ozgu harf varsa 'tr-TR' (DOĞUŞ→Doğuş, İPEKYOL→İpekyol) yoksa 'en'
- * (NISSAN→Nissan, MICROSOFT→Microsoft, QUICK→Quick; 'tr' olsaydi "Nıssan" cikardi).
- * NEDEN tire bazinda: "MERCEDES-BENZ" tek kelime sayilinca "Mercedes-benz" cikiyordu; tireyle ayrilan her
- * parca kendi basina baslik harfi alir (Mercedes-Benz, D-Market). Ilk-kelime kisaltma kurali yalniz adin
- * ilk parcasina uygulanir ("D-MARKET" → "D" kalir, "MARKET" → "Market").
- * NEDEN /^[A-Z&]+$/: "D&R" gibi & iceren kisaltmalar da ilk-kelime kuralina girsin.
- */
-function baslikHarf(s: string): string {
-  const tamBuyuk = s === s.toLocaleUpperCase('tr-TR') && /[A-ZÇĞİÖŞÜ]/.test(s);
-  if (!tamBuyuk) return s;
-  const kelime = (w: string, ilk: boolean): string => {
-    if (!w) return w;
-    if (KELIME_ISTISNA[w]) return KELIME_ISTISNA[w];
-    if (w === 'VE') return 've';
-    if (w === 'İLE') return 'ile';
-    if (KISALTMA.has(w)) return w;
-    if (ilk && w.length <= 3 && /^[A-Z&]+$/.test(w)) return w;
-    const locale = TR_HARF.test(w) ? 'tr-TR' : 'en-US';
-    return w.charAt(0) + w.slice(1).toLocaleLowerCase(locale);
-  };
-  return s
-    .split(' ')
-    .map((w, i) => w.split('-').map((p, j) => kelime(p, i === 0 && j === 0)).join('-'))
-    .join(' ');
-}
-
-/**
- * Konu/govde icin kisa firma adi. NEDEN: "ANADOLU ISUZU OTOMOTİV SANAYİ VE TİCARET A.Ş." gibi
- * ticaret sicili unvani konu satirinda hem uzun hem robotik durur; hukuki ek ("A.Ş.", "T.A.Ş.",
- * "ANONİM ŞİRKETİ", "LTD. ŞTİ.") ve sondaki genel tanimlayici ("SANAYİ VE TİCARET") kirpilir,
- * TUMU BUYUK HARF ise kelime bazinda Turkce/Ingilizce duyarli baslik harfine cevrilir.
- * Kirpma katlanmis kopyada eslestirilir, uzunluk orijinale yansitilir (bkz. katla()).
- */
-export function firmaKisa(firma: string): string {
-  let f = firma.trim().replace(/\s+/g, ' ');
-  const marka = MARKA_KISA[katla(f)];
-  if (marka) return marka;
-  // NEDEN dongu: "... SANAYİ VE TİCARET A.Ş." → once A.Ş. sonra SANAYİ VE TİCARET dusmeli
-  let onceki = '';
-  while (onceki !== f) {
-    onceki = f;
-    for (const re of EK_DESENLERI) {
-      const m = re.exec(katla(f));
-      if (m && m.index > 0) f = f.slice(0, m.index).trim(); // index 0 = adin tamami ek → kirpma (olmamali)
-    }
-  }
-  if (!f) f = firma.trim(); // her sey kirpildiysa (olmamali) ozgun ad
-  // NEDEN ikinci bakis: MARKA_KISA anahtarlarinin bir kismi ekleri kirpilmis hal ("JANTSA JANT"); CSV'de
-  // "JANTSA JANT SANAYİ VE TİCARET A.Ş." yazdigi icin tam-ad aramasi bulamaz, kirpilmis ad bulur.
-  const markaKirpik = MARKA_KISA[katla(f)];
-  if (markaKirpik) return markaKirpik;
-  return baslikHarf(f);
-}
-
-/**
- * Konu satirlari — A/B, kurumsal-mail-sablonlari.md §1 ile BIREBIR. NEDEN sektor sorusu konuda yok:
- * "ChatGPT 'bana bir dijital banka öner' dendiğinde ..." kalibi 60 karakteri asiyordu (md §1 notu).
- * NEDEN "karne"/"evet" yok: kurucunun onayladigi yeni metin — konu da govde gibi gozlem dilinde, satis dilinde degil.
- */
-const KONU: Record<string, (firma: string) => string> = {
-  A: (firma) => `${firma} — AI asistanlarında görünürlük`,
-  B: (firma) => `ChatGPT ${firma} hakkında ne söylüyor?`,
-};
-
 function auth(): string {
   if (!KEY || !SECRET) { console.error('MAILJET_API_KEY / MAILJET_SECRET yok (apps/api/.env)'); process.exit(2); }
   return 'Basic ' + Buffer.from(`${KEY}:${SECRET}`).toString('base64');
@@ -347,142 +153,46 @@ async function mj<T = any>(method: 'GET' | 'POST', yol: string, body?: unknown):
   }
 }
 
-// ─── Gonderici kimligi (Yonetmelik md. 5/1) ────────────────────────────────
-
 /**
- * Hem {{gonderen_*}}/{{mersis}} yer tutucularini hem de eski "[Ad Soyad]" / "[adres]" /
- * "MERSİS [no]" / "[MERSİS]" literal'lerini env degerleriyle doldurur. NEDEN iki bicim:
- * sablon dosyalari ayri ajan tarafindan guncelleniyor; hangi surumle karsilasirsak
- * karsilasalim kimlik alanlari dolmali, dolmayan kaldiysa kimlikKalinti() yakalar.
+ * Elle duzeltilmis marka adlari ve haric tutulan alan adlari — DATA_DIR/marka-duzeltme.csv (web,marka,haric).
+ * NEDEN: ajans unvanlari ("CONCEPT / CONCEPT YARATIM REKLAM VE İLETİŞİM HİZ. TİC.") kuralla temiz marka adina
+ * inmiyor; hitap ve konu satirinda "Merhaba Concept ekibi," gorunmeli. 07 import dosyasini yeniden yazdiginda
+ * duzeltme kaybolmasin diye ayri dosyada, alan adiyla eslenir. haric=1 → bu adrese gonderilmez (ör. yurt disi genel kutu).
  */
-function kimlikDoldur(s: string): string {
-  return s
-    .replace(/\{\{gonderen_ad\}\}/g, GONDEREN_AD)
-    .replace(/\{\{gonderen_unvan\}\}/g, GONDEREN_UNVAN)
-    .replace(/\{\{gonderen_adres\}\}/g, GONDEREN_ADRES)
-    .replace(/\{\{mersis\}\}/g, MERSIS)
-    .replace(/\[Ad Soyad\]/g, GONDEREN_AD)
-    .replace(/\[adres\]/g, GONDEREN_ADRES)
-    .replace(/MERSİS \[no\]/g, `MERSİS ${MERSIS}`)
-    .replace(/\[MERSİS\]/g, `MERSİS ${MERSIS}`);
+const MARKA_DUZELTME: Map<string, { marka: string; haric: boolean }> = new Map(
+  readCsv(path.join(DATA_DIR, 'marka-duzeltme.csv')).map((r) => [String(r.web ?? '').trim().toLowerCase(), { marka: String(r.marka ?? '').trim(), haric: String(r.haric ?? '').trim() === '1' }]),
+);
+function duzeltme(r: Record<string, string>): { marka: string; haric: boolean } | undefined {
+  const web = String(r.web ?? '').trim().toLowerCase();
+  const dom = String(r.email ?? '').split('@')[1]?.toLowerCase() ?? '';
+  return MARKA_DUZELTME.get(web) ?? MARKA_DUZELTME.get(dom);
 }
-
-/** Render sonrasi govdede kalan kimlik yer tutuculari (bos dizi = temiz) */
-function kimlikKalinti(s: string): string[] {
-  const desenler = ['[Ad Soyad]', '[adres]', '[no]', '[MERSİS]', '{{gonderen', '{{mersis'];
-  return desenler.filter((d) => s.includes(d));
-}
-
-/**
- * GUVENLIK KAPISI — gercek gonderim ve --test oncesi. Env bos veya render edilmis govdede
- * kalinti varsa exit 4; --dry-run'da yalnizca UYARI (prova akisi durmasin).
- */
-function kimlikKapisi(sektorler: string[], mod: 'gercek' | 'dry'): void {
-  const sorunlar: string[] = [];
-  if (!GONDEREN_AD.trim()) sorunlar.push('MAILJET_GONDEREN_AD bos');
-  if (!GONDEREN_UNVAN.trim()) sorunlar.push('MAILJET_GONDEREN_UNVAN bos');
-  if (!GONDEREN_ADRES) sorunlar.push('MAILJET_GONDEREN_ADRES bos');
-  if (!MERSIS) sorunlar.push('MAILJET_MERSIS bos');
-  for (const s of new Set(sektorler)) {
-    const h = kimlikKalinti(htmlSablon(s));
-    const m = kimlikKalinti(metinSablon(s));
-    if (h.length) sorunlar.push(`${s} HTML'de kalinti: ${h.join(' ')}`);
-    if (m.length) sorunlar.push(`${s} duz metinde kalinti: ${m.join(' ')}`);
-  }
-  if (sorunlar.length === 0) return;
-  const mesaj = `Gonderici kimligi eksik (Yonetmelik md. 5/1): ${sorunlar.join(' · ')}`;
-  if (mod === 'dry') { console.warn(`UYARI: ${mesaj}`); return; }
-  console.error(`DURDU: ${mesaj}`);
-  process.exit(4);
-}
-
-// ─── Sablonlar ──────────────────────────────────────────────────────────────
-
-/** Regex icinde guvenli kullanim icin ozel karakterleri kacir */
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/**
- * Ortak Mailjet sozdizimi cevirisi. NEDEN [[UNSUB_LINK_EN]]: Mailjet'in ret etiketi 20 dilde var,
- * Turkce YOK — [[UNSUB_LINK_TR]] yazilirsa etiket islenmez ve mail ret linksiz cikar (md. 6/6 ihlali).
- */
-function mailjetSozdizimi(s: string): string {
-  return kimlikDoldur(s)
-    .replace(/\{\{unsubscribe\}\}/g, '[[UNSUB_LINK_EN]]')
-    .replace(/\[\[UNSUB_LINK_TR\]\]/g, '[[UNSUB_LINK_EN]]') // sablona dogrudan TR yazilmissa da islenmeyen etiket kalmasin
-    .replace(/\{\{gonderen_eposta\}\}/g, REPLY_TO)
-    // NEDEN: sablonda sabit "kurumsal-finans-A" yazildiysa varyant B'ye veya finans HTML'i ile giden
-    // e-ticaret alicisina yanlis etiket olur → sektor ve varyant ikisi de degiskenden gelir
-    .replace(/utm_campaign=kurumsal-[a-z-]+?-(?:A|B|\{\{var:varyant\}\})(?![A-Za-z0-9])/g, 'utm_campaign=kurumsal-{{var:sektor}}-{{var:varyant}}')
-    .replace(/\{\{(ad|soyad|firma|firma_tam|sektor|sektor_sorusu|unvan|varyant|firma_url)\}\}/g, '{{var:$1}}');
-}
-
-/** HTML sablonu Mailjet sozdizimine cevir (mailto konu satirinda URL-kodlu firma kullanilir) */
-function htmlSablon(sektor: string): string {
-  const meta = SEKTOR_META[sektor] ?? SEKTOR_META.finans;
-  let f = path.join(HTML_DIR, meta.html);
-  if (!fs.existsSync(f)) f = path.join(HTML_DIR, 'kurumsal-finans.html'); // sektor HTML'i henuz yoksa finans govdesi
-  let html = fs.readFileSync(f, 'utf8');
-  // NEDEN: mailto:?subject=... icinde ham "{{firma}}" bosluk/ozel karakterle linki bozar → encodeURIComponent'li degisken
-  html = html.replace(/href="mailto:[^"]*"/g, (m) => m.replace(/\{\{(var:)?firma(_kisa)?\}\}/g, '{{var:firma_url}}'));
-  return mailjetSozdizimi(html);
-}
-
-/**
- * Duz metin sablon: markdown'daki ilgili ``` blogu. Baslik "## 2. Şablon A — ..." gibi
- * numarali oldugu icin numaraya dayanikli regex ile aranir; BULUNAMAZSA sessiz kisa metne
- * dusulmez, hata verilip cikilir (kimliksiz/eksik metin gitmesin).
- */
-function metinSablon(sektor: string): string {
-  const meta = SEKTOR_META[sektor] ?? SEKTOR_META.finans;
-  if (!fs.existsSync(MD_FILE)) { console.error(`Duz metin sablon dosyasi yok: ${MD_FILE}`); process.exit(1); }
-  const md = fs.readFileSync(MD_FILE, 'utf8');
-  const bas = md.search(new RegExp('^## (\\d+\\. )?' + escapeRe(meta.mdBaslik), 'm'));
-  const blok = bas >= 0 ? md.slice(bas).match(/```\n([\s\S]*?)\n```/)?.[1] : null;
-  if (!blok) { console.error(`"${meta.mdBaslik}" duz metin blogu ${path.relative(REPO_ROOT, MD_FILE)} icinde bulunamadi — sablon basligini ve kod blogunu kontrol et.`); process.exit(1); }
-  return mailjetSozdizimi(blok);
-}
-
-type Alici = { email: string; ad: string; soyad: string; firma: string; unvan?: string; sektor: string; varyant: string; sektor_sorusu?: string };
 
 /** CSV satirini Alici'ye cevir (konu_varyanti bos → A) */
-const aliciYap = (r: Record<string, string>): Alici => ({ email: r.email, ad: r.ad, soyad: r.soyad, firma: r.firma, unvan: r.unvan, sektor: r.sektor, varyant: r.konu_varyanti || 'A', sektor_sorusu: r.sektor_sorusu });
+const aliciYap = (r: Record<string, string>): Alici => ({ email: r.email, ad: r.ad, soyad: r.soyad, firma: r.firma, unvan: r.unvan, sektor: r.sektor, varyant: r.konu_varyanti || 'A', sektor_sorusu: r.sektor_sorusu, marka: r.marka || duzeltme(r)?.marka || undefined });
 
+/** Script sarmalayicilari: modul hata firlatir, CLI acik mesajla cikar */
+const KIMLIK_CFG = kimlikEnv(process.env);
 function mesaj(to: Alici, testMi = false) {
-  const varyant = KONU[to.varyant] ? to.varyant : 'A';
-  const firma = firmaKisa(to.firma);
-  const soru = sektorSorusu(to.firma, to.sektor, to.sektor_sorusu);
-  const konu = KONU[varyant](firma);
-  return {
-    From: { Email: FROM_EMAIL, Name: FROM_NAME },
-    ReplyTo: { Email: REPLY_TO, Name: FROM_NAME },
-    To: [{ Email: to.email, Name: `${to.ad} ${to.soyad}`.trim() }],
-    Subject: testMi ? `[TEST] ${konu}` : konu,
-    TextPart: metinSablon(to.sektor),
-    HTMLPart: htmlSablon(to.sektor),
-    TemplateLanguage: true,
-    Variables: {
-      ad: to.ad, soyad: to.soyad, firma, firma_tam: to.firma, firma_url: encodeURIComponent(firma),
-      unvan: to.unvan ?? '', sektor: to.sektor, sektor_sorusu: soru, varyant,
-    },
-    CustomCampaign: KAMPANYA,
-    // NEDEN mesaj seviyesinde: DeduplicateCampaign v3.1'de Messages[] elemaninin ozelligidir (govde ust
-    // seviyesinde 400 "unknown property"). Ayni CustomCampaign icinde ayni adrese ikinci gonderimi Mailjet
-    // tarafinda da engeller (durum dosyasina ek emniyet); CustomCampaign olmadan verilirse 400 doner.
-    DeduplicateCampaign: true,
-    CustomID: `${KAMPANYA}:${to.email}`,
-    TrackOpens: 'enabled',
-    TrackClicks: 'enabled',
-    // NEDEN mailto: Gmail/Outlook "abonelikten cik" dugmesi icin List-Unsubscribe sart (RFC 2369).
-    // List-Unsubscribe-Post (RFC 8058 tek-tik) BILEREK YOK: RFC 8058 https URI'li List-Unsubscribe ister,
-    // bizde yalniz mailto var; Post basligi tek basina gecersiz olur ve Gmail bunu spam sinyali sayabilir.
-    // Govdede [[UNSUB_LINK_EN]] oldugundan Mailjet kendi https ret URL'sini (ve muhtemelen kendi
-    // List-Unsubscribe'ini) ekler; mailto burada yedek kanal (ret e-postasi Reply-To'ya "ret" konusuyla duser).
-    // KONTROL (ilk --test'te): ham basliklarda Mailjet'in kendi https List-Unsubscribe'i ile birlikte iki
-    // List-Unsubscribe basligi olusuyor mu bak; olusuyorsa bu satiri kaldir, tek baslik kalsin.
-    Headers: {
-      'List-Unsubscribe': `<mailto:${REPLY_TO}?subject=ret>`,
-    },
-  };
+  try {
+    return mailjetMesaj(to, { kimlik: KIMLIK_CFG, kampanya: KAMPANYA, testMi });
+  } catch (e: any) {
+    console.error(`DURDU: ${e?.message ?? e}`);
+    process.exit(1);
+  }
+}
+
+/**
+ * GUVENLIK KAPISI — gercek gonderim ve --test oncesi. Env bos veya render edilmis govdede kalinti varsa
+ * exit 4; --dry-run'da yalnizca UYARI (prova akisi durmasin).
+ */
+function kimlikKapisi(sektorler: string[], mod: 'gercek' | 'dry'): void {
+  const sorunlar = kimlikSorunlari(KIMLIK_CFG, sektorler);
+  if (sorunlar.length === 0) return;
+  const m = `Gonderici kimligi eksik (Yonetmelik md. 5/1): ${sorunlar.join(' · ')}`;
+  if (mod === 'dry') { console.warn(`UYARI: ${m}`); return; }
+  console.error(`DURDU: ${m}`);
+  process.exit(4);
 }
 
 // ─── Komutlar ───────────────────────────────────────────────────────────────
@@ -503,14 +213,14 @@ async function dns(): Promise<void> {
  * satirina giden adin kirpma/harf hatasi ("Tof", "Nıssan") ancak gozle yakalanir; API'ye dokunulmaz.
  */
 function firmalar(): void {
-  const liste = readCsv(path.join(DATA_DIR, 'jetmail-import.csv'));
-  if (liste.length === 0) { console.error('jetmail-import.csv bos/yok — once 04-dogrula'); process.exit(1); }
+  const liste = readCsv(INPUT_FILE);
+  if (liste.length === 0) { console.error(`${path.basename(INPUT_FILE)} bos/yok — once 04-dogrula (isimli) ya da 07-kurumsal-adres (kurumsal)`); process.exit(1); }
   const tekil = new Map<string, Record<string, string>>();
   for (const r of liste) if (!tekil.has(r.firma)) tekil.set(r.firma, r);
   console.log(`${liste.length} satir · ${tekil.size} tekil firma — firma → firma_kisa · sektor sorusu · konu A uzunlugu`);
   for (const [firma, r] of [...tekil.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'))) {
-    const kisa = firmaKisa(firma);
-    const konuA = KONU.A(kisa);
+    const kisa = r.marka || duzeltme(r)?.marka || firmaKisa(firma);
+    const konuA = konuSatiri(r.sektor, "A", kisa);
     const uyari = konuA.length > KONU_MAX ? ` ⚠ konu ${konuA.length} kr > ${KONU_MAX}` : '';
     console.log(`  ${firma}  →  "${kisa}"  ·  "${sektorSorusu(firma, r.sektor, r.sektor_sorusu)}"${uyari}`);
   }
@@ -526,9 +236,12 @@ async function test(to: string): Promise<void> {
   if (IYS_ONAYLI || SEGMENT) { console.error('--test ile --iys-onayli / --segment ayni komutta kullanilamaz (test yalniz tek adrese gider).'); process.exit(2); }
   if (!/^[^\s,;@]+@[^\s,;@]+\.[^\s,;@]+$/.test(to)) { console.error(`--test tek bir e-posta adresi ister, verilen: "${to}"`); process.exit(2); }
   if (!FROM_EMAIL) { console.error('MAILJET_FROM_EMAIL yok'); process.exit(2); }
-  kimlikKapisi(['finans', 'eticaret-perakende-teknoloji'], 'gercek');
+  kimlikKapisi(['finans', 'eticaret-perakende-teknoloji', 'ajans', 'diger'], 'gercek');
   const ornek: Alici = { email: to, ad: 'Ayşe', soyad: 'Yılmaz', firma: 'ÖRNEK BANK A.Ş.', unvan: 'Dijital Pazarlama Direktörü', sektor: 'finans', varyant: 'A' };
-  const r = await mj<any>('POST', '/v3.1/send', { Messages: [mesaj(ornek, true), mesaj({ ...ornek, sektor: 'eticaret-perakende-teknoloji', firma: 'Örnek Market', varyant: 'B' }, true)] });
+  const r = await mj<any>('POST', '/v3.1/send', { Messages: [mesaj(ornek, true), mesaj({ ...ornek, sektor: 'eticaret-perakende-teknoloji', firma: 'Örnek Market', varyant: 'B' }, true),
+    // isimsiz kurumsal kutular (07): ajans is birligi + genel metin, "Merhaba {firma} ekibi," hitabi
+    mesaj({ ...ornek, ad: '', soyad: '', unvan: '', sektor: 'ajans', firma: 'Örnek Ajans', varyant: 'A' }, true),
+    mesaj({ ...ornek, ad: '', soyad: '', unvan: '', sektor: 'diger', firma: 'Örnek Sanayi', varyant: 'B' }, true)] });
   for (const m of r.Messages ?? []) console.log(`test → ${m.Status}${m.Errors ? ' ' + JSON.stringify(m.Errors).slice(0, 200) : ''}`);
   console.log('Gelen kutusunda: HTML gorunumu, duz metin surumu, ret linki, List-Unsubscribe basligi (Mailjet\'in kendi https basligiyla CIFT olusuyor mu?) ve imza (ad/unvan/adres/MERSIS) — mail-tester.com adresine de gonderip puanina bak (>=9/10).');
 }
@@ -717,8 +430,8 @@ function htmlOzet(html: string): string {
 }
 
 async function dalga(): Promise<void> {
-  const liste = readCsv(path.join(DATA_DIR, 'jetmail-import.csv'));
-  if (liste.length === 0) { console.error('jetmail-import.csv bos/yok — once 04-dogrula'); process.exit(1); }
+  const liste = readCsv(INPUT_FILE);
+  if (liste.length === 0) { console.error(`${path.basename(INPUT_FILE)} bos/yok — once 04-dogrula (isimli) ya da 07-kurumsal-adres (kurumsal)`); process.exit(1); }
   const kayit: Array<Record<string, string>> = readCsv(DURUM_FILE);
   // NEDEN dosyadaki HER adres atlanir (gonderildi/belirsiz/hata farki gozetmeden): "belirsiz" olan
   // gitmis olabilir, ikinci mail = spam sikayeti riski. Yeniden denemek istersen satiri elle sil.
@@ -727,7 +440,8 @@ async function dalga(): Promise<void> {
     // NEDEN tam eslesme: "finans-k1" verildiginde "finans-k1-p1" gibi alt segmentler dahil OLMAMALI;
     // her segment ayri dalga/gun olarak planlanir, startsWith ile kota sessizce asilirdi.
     .filter((r) => !SEGMENT || r.segment === SEGMENT)
-    .filter((r) => (SEKTORLER as readonly string[]).includes(r.sektor))
+    .filter((r) => GONDERIM_SEKTORLERI.includes(r.sektor))
+    .filter((r) => !duzeltme(r)?.haric)
     .filter((r) => !gonderilen.has(r.email.toLowerCase()));
   const bugun = bugunGonderilen(kayit);
   const kalanKota = Math.max(0, GUNLUK_KOTA - bugun);
@@ -745,10 +459,10 @@ async function dalga(): Promise<void> {
   if (DRY) {
     kimlikKapisi(sektorler, 'dry');
     console.log('DRY: gonderim yok; ilk 3 hedef (segment/varyant · firma_kisa · sektor sorusu):');
-    for (const h of hedef.slice(0, 3)) console.log(`  ${h.segment}/${h.konu_varyanti || 'A'} · "${firmaKisa(h.firma)}" (${h.firma}) · "${sektorSorusu(h.firma, h.sektor, h.sektor_sorusu)}"`);
+    for (const h of hedef.slice(0, 3)) console.log(`  ${h.segment}/${h.konu_varyanti || 'A'} · "${aliciYap(h).marka || firmaKisa(h.firma)}" (${h.firma}) · "${sektorSorusu(h.firma, h.sektor, h.sektor_sorusu)}"`);
     const ornek = mesaj(aliciYap(hedef[0]));
     console.log(`DRY: ornek konu → "${ornek.Subject}" (${ornek.Subject.length} kr) · HTML ${ornek.HTMLPart.length} b · metin ${ornek.TextPart.length} b · ret etiketi ${ornek.HTMLPart.includes('[[UNSUB_LINK_EN]]') && ornek.TextPart.includes('[[UNSUB_LINK_EN]]') ? 'OK' : 'EKSIK'}`);
-    const uzun = hedef.map((h) => KONU[KONU[h.konu_varyanti] ? h.konu_varyanti : 'A'](firmaKisa(h.firma))).filter((k) => k.length > KONU_MAX);
+    const uzun = hedef.map((h) => konuSatiri(h.sektor, h.konu_varyanti, aliciYap(h).marka || firmaKisa(h.firma))).filter((k) => k.length > KONU_MAX);
     if (uzun.length) console.warn(`DRY UYARI: ${uzun.length} konu ${KONU_MAX} karakteri asiyor, ornek: "${uzun[0]}" (${uzun[0].length} kr)`);
     if (FRENSIZ) console.log('DRY: --frensiz → onceki dalga bounce freni ATLANACAK.');
     else if (fren) console.log(`DRY: fren kaynagi ${fren}${ONCEKI ? ' (--onceki)' : ' (durum dosyasindaki son farkli kampanya)'} — bounce kontrolu gercek kosumda yapilacak; Mailjet'te bulunamazsa gonderim durur (API'ye dokunulmadi).`);

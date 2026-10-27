@@ -3232,3 +3232,58 @@ model ProspectKarne {
   @@index([prospectId])
   @@map("prospect_karneler")
 }
+
+/// Kurumsal e-posta kampanyasi hedefi durumu (27.10.2026). Sira: YENI → IYS_DOSYADA → SIRADA → GONDERILDI.
+/// NEDEN IYS adimi durumda: Yonetmelik md. 6/6 — tacir adresi gonderimden ONCE IYS'ye yuklenir; sistem
+/// yalniz kullanicinin "IYS'ye yukledim" dedigi partideki adreslere (SIRADA) gonderir.
+enum EpostaHedefDurum {
+  YENI        // firmanin sitesinden bulundu, IYS dosyasina girmedi
+  IYS_DOSYADA // IYS yukleme dosyasina kondu, kullanicinin yukleme onayi bekleniyor
+  SIRADA      // IYS'ye yuklendi (kullanici beyani) — gunluk kota icinde gonderilir
+  GONDERILDI  // Mailjet kabul etti (acilma/tiklama ayri alanlarda)
+  HATA        // Mailjet reddetti (hata alaninda neden)
+  BOUNCE      // geri dondu — bir daha gonderilmez
+  RET         // ret linki / "istemiyorum" — bir daha gonderilmez, 3 is gunu icinde IYS'ye ret bildirilir
+  SPAM        // spam sikayeti — bir daha gonderilmez
+  HARIC       // elle haric tutuldu
+}
+
+/// Kurumsal ROL kutusu (info@, pazarlama@) — kisi verisi DEGIL; 07-kurumsal-adres firmanin kendi sitesinden bulur.
+model EpostaHedef {
+  id          String  @id @default(cuid())
+  email       String  @unique @db.VarChar(191)
+  firma       String  @db.VarChar(255)
+  /// Hitap ve konu satirinda gorunen kisa ad (bos → firmaKisa kurali)
+  marka       String? @db.VarChar(120)
+  /// finans | eticaret-perakende-teknoloji | turizm-havayolu-telekom-otomotiv | ajans | diger
+  sektor      String  @db.VarChar(64)
+  web         String? @db.VarChar(191)
+  kaynakSayfa String? @db.VarChar(500)
+  /// 07 | linkedin | elle
+  kaynak      String? @db.VarChar(32)
+  varyant     String  @default("A") @db.VarChar(1)
+
+  durum         EpostaHedefDurum @default(YENI)
+  iysParti      String?          @db.VarChar(40)
+  iysYuklendiAt DateTime?
+
+  kampanya     String?   @db.VarChar(80)
+  messageId    String?   @db.VarChar(40)
+  gonderildiAt DateTime?
+  acildiAt     DateTime?
+  tiklandiAt   DateTime?
+  /// Mailjet olay akisindaki son olay (sent/open/click/bounce/spam/unsub/blocked) ve zamani
+  sonOlay      String?   @db.VarChar(64)
+  sonOlayAt    DateTime?
+  hata         String?   @db.Text
+  /// Insan notu (cevap geldi, gorusme ayarlandi...) — sistem dokunmaz
+  not          String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([durum])
+  @@index([gonderildiAt])
+  @@index([iysParti])
+  @@map("eposta_hedefleri")
+}

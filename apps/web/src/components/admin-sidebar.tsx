@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Receipt, Globe, BarChart3, MessageSquare,
   ListChecks, DollarSign, AlertTriangle, Settings, Sparkles,
-  Menu, X, Radar, UserPlus,
+  Menu, X, Radar, UserPlus, Mail,
 } from 'lucide-react';
 import { BrandWordmark } from '@/components/brand-logo';
 
@@ -38,6 +38,7 @@ const SECTIONS = [
     items: [
       { href: '/admin/intel', label: 'Sektör İstihbaratı', icon: Radar },
       { href: '/admin/linkedin', label: 'LinkedIn Outreach', icon: UserPlus },
+      { href: '/admin/eposta', label: 'E-posta Kampanyası', icon: Mail },
     ],
   },
   {
