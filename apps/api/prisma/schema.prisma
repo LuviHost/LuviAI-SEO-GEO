@@ -333,6 +333,8 @@ model Site {
   crawlerHitEvents       CrawlerHitEvent[]
   // Gorsel alt metni envanteri (2026-10)
   siteImages             SiteImage[]
+  /// Google Isletme Profili baglantisi (place_id + istege bagli OAuth)
+  gbp                    SiteGbp?
 
   @@unique([userId, url])
   @@index([userId])
@@ -3286,4 +3288,31 @@ model EpostaHedef {
   @@index([gonderildiAt])
   @@index([iysParti])
   @@map("eposta_hedefleri")
+}
+
+/// Google Isletme Profili — site basina tek kayit (27.10.2026).
+/// VERI KURALI: Places icerigi (puan, yorum, saat) SAKLANMAZ — Maps Platform kosullari yalniz place_id'ye izin verir;
+/// denetim her istekte canli calisir. OAuth tarafi (GBP API onayi sonrasi) profil SAHIBININ kendi verisidir.
+model SiteGbp {
+  id         String    @id @default(cuid())
+  siteId     String    @unique
+  site       Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  /// Places API kimligi (kalici saklanabilir tek alan)
+  placeId    String?   @db.VarChar(300)
+  placeAt    DateTime?
+
+  /// OAuth (scope business.manage) — @luviai/shared encrypt() ile sifreli
+  refreshToken String?   @db.Text
+  /// "accounts/123"
+  hesap        String?   @db.VarChar(100)
+  /// "locations/456"
+  konum        String?   @db.VarChar(100)
+  /// Sahibin kendi profil adi (GBP API'den)
+  konumAdi     String?   @db.VarChar(255)
+  oauthAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_gbp")
 }

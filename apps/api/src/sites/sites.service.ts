@@ -480,6 +480,8 @@ export function siteRemovalSteps(x: SiteRemovalIds): SiteRemovalStep[] {
     { model: 'SiteReport', kind: 'delete', run: (db) => db.siteReport.deleteMany({ where: bySite }) },
     { model: 'AppliedFix', kind: 'delete', run: (db) => db.appliedFix.deleteMany({ where: bySite }) },
     { model: 'SiteImage', kind: 'delete', run: (db) => db.siteImage.deleteMany({ where: bySite }) },
+    // Google Isletme Profili: place_id + sifreli OAuth refresh token (site gidince Google erisimi de gitmeli)
+    { model: 'SiteGbp', kind: 'delete', run: (db) => db.siteGbp.deleteMany({ where: bySite }) },
     { model: 'StudioAsset', kind: 'delete', run: (db) => db.studioAsset.deleteMany({ where: bySite }) },
     { model: 'Video', kind: 'delete', run: (db) => db.video.deleteMany({ where: bySite }) },
     { model: 'AdsAudit', kind: 'delete', run: (db) => db.adsAudit.deleteMany({ where: bySite }) },
