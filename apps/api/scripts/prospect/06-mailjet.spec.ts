@@ -32,6 +32,10 @@ describe('06-mailjet kurumsal kutu destegi', () => {
     expect(firmaKisa('Crowne Plaza İstanbul Oryapark')).toBe('Crowne Plaza İstanbul Oryapark');
     expect(firmaKisa('Ankara Anonim Türk Sigorta Şirketi')).toBe('Ankara Anonim Türk Sigorta Şirketi');
     expect(firmaKisa('AFN Teknoloji')).toBe('AFN Teknoloji'); // kisa ad dokunulmaz
+    expect(firmaKisa('Bolero Tekstil San. ve Dış Tic. A.Ş.')).toBe('Bolero Tekstil');
+    expect(firmaKisa('Ak Danışmanlık ve Dış Tic. Ltd. Şti. / Onur Kurulu Üyesi')).toBe('Ak Danışmanlık');
+    expect(firmaKisa('Antalya Bilim Üniversitesi')).toBe('Antalya Bilim Üniversitesi');
+    expect(firmaKisa('Geçmiş Dönem TGSD Başkanı / Moditeks')).toBe('Moditeks');
   });
 
   it('ajans unvan kuyruklari kirpilir, Turkce harf korunur', () => {

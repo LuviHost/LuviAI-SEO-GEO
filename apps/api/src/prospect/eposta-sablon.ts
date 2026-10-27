@@ -84,7 +84,7 @@ function katla(s: string): string {
  */
 const EK_DESENLERI: RegExp[] = [
   /\s+(t\.?a\.?ş\.?|a\.?ş\.?|a\.?s\.?|aş|t\.?a\.?o\.?|a\.?o\.?|anonim ortakl[ıi]ğ[ıi]|anonim şirketi|anonim sirketi|ltd\.?\s*şti\.?|limited şirketi|san(ayi|ayı)?\.? ve tic(aret)?\.?|sanayi|ticaret)\s*$/,
-  /\s+(ve|servis|iletişim hizmetleri|hizmetleri|hiz\.?|tic\.|san\.|iç ve d[ıi]ş|ticaret merkezi|ürünleri|mağazac[ıi]l[ıi]k)\s*$/,
+  /\s+(ve|servis|iletişim hizmetleri|hizmetleri|hiz\.?|tic\.|san\.|iç ve d[ıi]ş|ve d[ıi]ş|d[ıi]ş tic\.?|ticaret merkezi|ürünleri|mağazac[ıi]l[ıi]k)\s*$/,
   // Ajans unvan kuyruklari (Reklamcilar Dernegi / IDA): "PUNCH BBDO REKLAMCILIK VE İLETİŞİM HİZMETLERİ" → "Punch BBDO"
   /\s+(reklamc[ıi]l[ıi]k|reklam|dan[ıi]şmanl[ıi]k|iletişim|organizasyon|prodüksiyon|yap[ıi]mc[ıi]l[ıi]k)\s*$/,
   /(?<=kat[ıi]l[ıi]m)\s+bankas[ıi]\s*$/, // "Dünya Katılım Bankası" → "Dünya Katılım" (marka boyle anilir); "Yatırım Bankası" kalir
@@ -182,7 +182,10 @@ function baslikHarf(s: string): string {
  * Kirpma katlanmis kopyada eslestirilir, uzunluk orijinale yansitilir (bkz. katla()).
  */
 export function firmaKisa(firma: string): string {
-  let f = firma.trim().replace(/\s+/g, ' ');
+  // Dernek listelerinde unvana yapisan rol notu: "Ak Danışmanlık … / Onur Kurulu Üyesi" → yalniz firma
+  let f = firma.trim().replace(/\s+/g, ' ')
+    .replace(/\s*\/\s*[^/]*(üyesi|kurulu|başkan)[^/]*$/iu, '')
+    .replace(/^[^/]*(üyesi|kurulu|başkanı)\s*\/\s*/iu, ''); // "Geçmiş Dönem TGSD Başkanı / Moditeks" → "Moditeks"
   const marka = MARKA_KISA[katla(f)];
   if (marka) return marka;
   // NEDEN dongu: "... SANAYİ VE TİCARET A.Ş." → once A.Ş. sonra SANAYİ VE TİCARET dusmeli
@@ -191,7 +194,10 @@ export function firmaKisa(firma: string): string {
     onceki = f;
     for (const re of EK_DESENLERI) {
       const m = re.exec(katla(f));
-      if (m && m.index > 0) f = f.slice(0, m.index).trim(); // index 0 = adin tamami ek → kirpma (olmamali)
+      if (!m || m.index <= 0) continue; // index 0 = adin tamami ek → kirpma (olmamali)
+      const aday = f.slice(0, m.index).trim();
+      // NEDEN 3 harf: "Ak Danışmanlık" → "Ak", "As Ödeme" → "As" gibi anlamsiz kisa ada inilmesin
+      if (aday.replace(/[^\p{L}\p{N}]/gu, '').length >= 3) f = aday;
     }
   }
   if (!f) f = firma.trim(); // her sey kirpildiysa (olmamali) ozgun ad
@@ -208,7 +214,7 @@ export function firmaKisa(firma: string): string {
  * Yalniz 22 karakteri asan adlarda ve kalan marka en az 4 harfse kesilir; finans/otel kelimeleri listede YOK
  * ("Ankara Anonim Türk Sigorta" → "Ankara Anonim Türk" gibi anlamsiz kesim olmasin).
  */
-const FAALIYET_KELIME = /\s(elektronik|elektrik|elektro|yazılım|yazilim|donanım|teknoloji\S*|tekonoloji\S*|bilişim|bilisim|bilgi|otomasyon|mühendislik|imalat|endüstri\S*|enerji|tasarım|üretim|destek|cihazlar|sistem\S*|sist\.|veri|entegrasyon|danışmanlık|eğitim|bağlantı|inşaat|petrol|test|mekanik|savunma|medikal|telekomünikasyon|bilgisayar)(\s|,|$)/iu;
+const FAALIYET_KELIME = /\s(elektronik|elektrik|elektro|yazılım|yazilim|donanım|teknoloji\S*|tekonoloji\S*|bilişim|bilisim|bilgi|otomasyon|mühendislik|imalat|endüstri\S*|enerji|tasarım|üretim|destek|cihazlar|sistem\S*|sist\.|veri|entegrasyon|danışmanlık|eğitim|bağlantı|inşaat|petrol|test|mekanik|savunma|medikal|telekomünikasyon|bilgisayar|geliştirme|değerleme|portföy|tekstil|giyim|gübre|meyve|gıda|proje|tic\.|san\.)(\s|,|$)/iu;
 function uzunAdKirp(ad: string): string {
   if (ad.length <= 22) return ad;
   const m = FAALIYET_KELIME.exec(ad);
