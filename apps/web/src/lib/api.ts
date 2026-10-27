@@ -1776,7 +1776,8 @@ export const api = {
   epostaHedefGuncelle: (id: string, d: { durum?: 'HARIC' | 'RET'; not?: string | null }) =>
     request<{ ok: true }>(`/eposta/hedef/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(d) }),
   epostaLinkedinFirmalar: () => request<{ adet: number; csv: string }>('/eposta/linkedin-firmalar'),
-  epostaWebhookKur: () => request<{ kurulan: string[]; hatalar: string[] }>('/eposta/webhook-kur', { method: 'POST' }),
+  epostaWebhookKur: (zorla = false) =>
+    request<{ kurulan: string[]; hatalar: string[]; cakisan: Array<{ tur: string; url: string }> }>('/eposta/webhook-kur', { method: 'POST', body: JSON.stringify({ zorla }) }),
   epostaTick: () => request<{ gonderildi: number; hata: number; neden: string }>('/eposta/tick', { method: 'POST' }),
   getLinkedinOverview: () => request<LinkedinOverview>('/intel/linkedin/overview'),
   /**

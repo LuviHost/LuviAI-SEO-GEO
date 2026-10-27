@@ -72,9 +72,9 @@ export class EpostaKampanyaController {
   }
 
   @Post('webhook-kur')
-  webhookKur(@Req() req: Request) {
+  webhookKur(@Req() req: Request, @Body() body: { zorla?: boolean }) {
     assertAdmin(req);
-    return this.svc.webhookKur();
+    return this.svc.webhookKur(body?.zorla === true);
   }
 
   /** Elle tur: pencere disinda da (zorla) ama anahtar/IYS/kota/fren kapilari aynen gecerli */
@@ -91,7 +91,8 @@ export class EpostaKampanyaController {
   }
 
   /**
-   * Mailjet Event API callback (open/click/bounce/blocked/spam/unsub). Kimlik: ?t=<belirtec> (webhookKur kurar).
+   * Mailjet Event API callback (open/click/bounce/blocked/spam/unsub; Version 1 = istek basina tek olay, dizi de kabul).
+   * Kimlik: ?t=<belirtec> (webhookKur kurar).
    * Mailjet 200 almazsa yeniden dener; gecersiz belirtecte 200 + islenmedi doner ki yanlis istek tekrar tekrar gelmesin.
    */
   @SkipThrottle()

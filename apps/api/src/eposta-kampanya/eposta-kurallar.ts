@@ -103,6 +103,20 @@ export function olayZamani(e: Record<string, unknown>, simdi = new Date()): Date
 /** Kalici durumlar: bir daha gonderilmez ve olaylar bunlari geri almaz */
 export const KAPALI_DURUMLAR = ['BOUNCE', 'RET', 'SPAM', 'HARIC'] as const;
 
+/** CLI/ice aktarmadaki gecmis gonderim yalniz bu durumlarin uzerine yazilabilir (kapali durum korunur) */
+export const ACIK_DURUMLAR = ['YENI', 'IYS_DOSYADA', 'SIRADA', 'HATA'] as const;
+
+/** Bizim kampanya mesajimiz mi? Mailjet CustomID'yi olaya geri koyar: "kurumsal-...:<email>" */
+export function bizimMesaj(e: Record<string, unknown>, email: string): boolean {
+  const c = String(e.CustomID ?? '');
+  return c.startsWith('kurumsal-') && c.toLowerCase().endsWith(`:${email}`);
+}
+
+/** Mailjet yanit metnindeki 64-bit MessageID'leri JSON.parse'tan once dizeye cevir (2^53 ustu hassasiyet kaybi) */
+export function mailjetJsonOku(text: string): any {
+  return JSON.parse(text.replace(/"MessageID"\s*:\s*(\d+)/g, '"MessageID":"$1"'));
+}
+
 export interface IceAktarSatir {
   email: string;
   firma: string;
@@ -113,7 +127,7 @@ export interface IceAktarSatir {
   kaynak: string;
   varyant: 'A' | 'B';
   /** Gecmis gonderim (CLI'dan gidenler) — panelde GONDERILDI olarak gorunsun, tekrar gonderilmesin */
-  gecmis: { kampanya: string; messageId: string | null; gonderildiAt: Date } | null;
+  gecmis: { kampanya: string; messageId: string | null; gonderildiAt: Date | null } | null;
 }
 
 const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
@@ -133,7 +147,7 @@ export function iceAktarSatiri(r: Record<string, string>): { satir: IceAktarSati
   const durum = String(r.durum ?? '').trim().toLowerCase();
   const tarih = Date.parse(String(r.tarih ?? r.gonderildiAt ?? ''));
   const gecmis = durum === 'gonderildi'
-    ? { kampanya: String(r.kampanya ?? '').trim() || 'cli', messageId: String(r.messageId ?? '').trim() || null, gonderildiAt: Number.isFinite(tarih) ? new Date(tarih) : new Date() }
+    ? { kampanya: String(r.kampanya ?? '').trim() || 'cli', messageId: String(r.messageId ?? '').trim() || null, gonderildiAt: Number.isFinite(tarih) ? new Date(tarih) : null }
     : null;
   return {
     satir: {

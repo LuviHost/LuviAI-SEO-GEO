@@ -304,7 +304,7 @@ export function kimlikSorunlari(k: EpostaKimlik, sektorler: Iterable<string>): s
   if (!k.fromEmail.includes('@')) sorunlar.push('MAILJET_FROM_EMAIL bos');
   if (!k.gonderenAd.trim()) sorunlar.push('MAILJET_GONDEREN_AD bos');
   if (!k.gonderenUnvan.trim()) sorunlar.push('MAILJET_GONDEREN_UNVAN bos');
-  if (!k.gonderenAdres) sorunlar.push('MAILJET_GONDEREN_ADRES bos');
+  if (!k.gonderenAdres.trim()) sorunlar.push('MAILJET_GONDEREN_ADRES bos');
   if (!k.mersis && !k.kimlik) sorunlar.push('MAILJET_MERSIS ve MAILJET_KIMLIK ikisi de bos');
   for (const s of new Set(sektorler)) {
     try {
@@ -404,4 +404,24 @@ export function mailjetMesaj(to: Alici, opts: { kimlik: EpostaKimlik; kampanya: 
     // [[UNSUB_LINK_EN]] Mailjet'in https ret linkidir, mailto yedek kanal (ret Reply-To'ya "ret" konusuyla duser).
     Headers: { 'List-Unsubscribe': `<mailto:${k.replyTo}?subject=ret>` },
   };
+}
+
+/**
+ * Render edilmis mesajin yasal zorunluluklari tasidigini DOGRULA (sablon duzenlemesi footer'i silerse gonderim durur):
+ * her iki govdede ret etiketi, gonderen adi, adres ve kimlik/MERSIS satiri. Bos dizi = gonderilebilir.
+ */
+export function mesajDenetimi(m: { TextPart: string; HTMLPart: string }, k: EpostaKimlik): string[] {
+  const gerekli: Array<[string, string]> = [
+    ['ret linki', '[[UNSUB_LINK_EN]]'],
+    ['gönderen adı', k.gonderenAd.trim()],
+    ['adres', k.gonderenAdres.trim()],
+    ['kimlik/MERSİS', (k.kimlik || k.mersis).trim()],
+  ];
+  const eksik: string[] = [];
+  for (const [ad, deger] of gerekli) {
+    if (!deger) { eksik.push(`${ad} tanımsız`); continue; }
+    if (!m.TextPart.includes(deger)) eksik.push(`düz metinde ${ad} yok`);
+    if (!m.HTMLPart.includes(deger)) eksik.push(`HTML'de ${ad} yok`);
+  }
+  return eksik;
 }

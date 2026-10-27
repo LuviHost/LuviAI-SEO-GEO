@@ -67,17 +67,28 @@ export default function EpostaKampanyaPage() {
   const [durum, setDurum] = useState<string>('');
   const [sektor, setSektor] = useState<string>('');
   const [q, setQ] = useState('');
+  /** Aranan metin 300 ms durunca sorguya gider (her tusa istek atilmasin) */
+  const [qGecikmeli, setQGecikmeli] = useState('');
+  /** Gec gelen eski yanit yenisini ezmesin */
+  const istekNo = useRef(0);
   const [sayfa, setSayfa] = useState(1);
   const [mesgul, setMesgul] = useState<string | null>(null);
   const dosyaRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const t = setTimeout(() => setQGecikmeli(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
   const yukle = useCallback(async () => {
+    const no = ++istekNo.current;
     try {
-      setO(await api.getEpostaOverview({ durum, sektor, q, sayfa }));
+      const r = await api.getEpostaOverview({ durum, sektor, q: qGecikmeli, sayfa });
+      if (no === istekNo.current) setO(r);
     } catch (e: any) {
-      toast.error(e?.message ?? 'Kampanya durumu alınamadı');
+      if (no === istekNo.current) toast.error(e?.message ?? 'Kampanya durumu alınamadı');
     }
-  }, [durum, sektor, q, sayfa]);
+  }, [durum, sektor, qGecikmeli, sayfa]);
 
   useEffect(() => { void yukle(); }, [yukle]);
 
@@ -189,7 +200,7 @@ export default function EpostaKampanyaPage() {
                   <div key={p.parti} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
                     <div><span className="font-medium">{p.adet} adres</span> <span className="text-muted-foreground">· {p.parti}</span></div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => is('iys-tekrar', async () => { const r = await api.epostaIysDosyasi(p.parti); indir(`ranksup-iys-${r.parti}.csv`, r.csv); })}>
+                      <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('iys-tekrar', async () => { const r = await api.epostaIysDosyasi(p.parti); indir(`ranksup-iys-${r.parti}.csv`, r.csv); })}>
                         <Download className="mr-1.5 h-3.5 w-3.5" />Tekrar indir
                       </Button>
                       <Button size="sm" disabled={!!mesgul} onClick={() => is('iys-yuklendi', async () => { const r = await api.epostaIysYuklendi(p.parti); toast.success(`${r.sirada} adres gönderim sırasına girdi`); })}>
@@ -227,10 +238,19 @@ export default function EpostaKampanyaPage() {
             />
             <div className="flex flex-wrap gap-2">
               <Button size="sm" disabled={!!mesgul} onClick={() => dosyaRef.current?.click()}><Upload className="mr-1.5 h-3.5 w-3.5" />CSV yükle</Button>
-              <Button variant="outline" size="sm" onClick={() => is('li', async () => { const r = await api.epostaLinkedinFirmalar(); indir('linkedin-firmalar.csv', r.csv); toast.success(`${r.adet} firma`); })}>
+              <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('li', async () => { const r = await api.epostaLinkedinFirmalar(); indir('linkedin-firmalar.csv', r.csv); toast.success(`${r.adet} firma`); })}>
                 <Linkedin className="mr-1.5 h-3.5 w-3.5" />LinkedIn firmalarını indir
               </Button>
-              <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('wh', async () => { const r = await api.epostaWebhookKur(); if (r.hatalar.length) toast.error(r.hatalar.join(' · ')); else toast.success(`Mailjet olay akışı kuruldu: ${r.kurulan.join(', ')}`); })}>
+              <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('wh', async () => {
+                let r = await api.epostaWebhookKur();
+                if (r.cakisan.length) {
+                  const liste = r.cakisan.map((c) => `${c.tur}: ${c.url}`).join('\n');
+                  if (!window.confirm(`Mailjet hesabında bu olaylar için başka bir adres kayıtlı:\n${liste}\n\nÜzerine yazılsın mı? (O sistem bu olayları artık almaz.)`)) return;
+                  r = await api.epostaWebhookKur(true);
+                }
+                if (r.hatalar.length) toast.error(r.hatalar.join(' · '));
+                else toast.success(`Mailjet olay akışı kuruldu: ${r.kurulan.join(', ')}`);
+              })}>
                 <Webhook className="mr-1.5 h-3.5 w-3.5" />Mailjet olay akışını kur
               </Button>
             </div>
