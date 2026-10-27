@@ -26,6 +26,14 @@ describe('06-mailjet kurumsal kutu destegi', () => {
     expect(GONDERIM_SEKTORLERI).toContain('diger');
   });
 
+  it('uzun teknik unvanlarda faaliyet kuyrugu kirpilir; finans/otel adlari korunur', () => {
+    expect(firmaKisa('ARKSİGNER YAZILIM VE DONANIM A.Ş.')).toBe('Arksigner');
+    expect(firmaKisa('Belbim Elektronik Para ve Ödeme Hizmetleri A.Ş.')).toBe('Belbim');
+    expect(firmaKisa('Crowne Plaza İstanbul Oryapark')).toBe('Crowne Plaza İstanbul Oryapark');
+    expect(firmaKisa('Ankara Anonim Türk Sigorta Şirketi')).toBe('Ankara Anonim Türk Sigorta Şirketi');
+    expect(firmaKisa('AFN Teknoloji')).toBe('AFN Teknoloji'); // kisa ad dokunulmaz
+  });
+
   it('ajans unvan kuyruklari kirpilir, Turkce harf korunur', () => {
     expect(firmaKisa('PUNCH BBDO REKLAMCILIK VE İLETİŞİM HİZMETLERİ TİCARET A.Ş.')).toBe('Punch BBDO');
     expect(firmaKisa('ÖRNEK REKLAMCILIK A.Ş.')).toBe('Örnek');

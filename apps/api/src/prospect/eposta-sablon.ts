@@ -130,7 +130,7 @@ const KELIME_ISTISNA: Record<string, string> = {
   YAPI: 'Yapı', KALKINMA: 'Kalkınma', SANAYI: 'Sanayi', HALKBANK: 'Halkbank', ILETISIM: 'İletişim',
   // NEDEN ek: bunlar da Turkce'ye ozgu harf tasimadan yazilan Turkce kelimeler; 'en' kucultmesi
   // "Vakiflar", "Istanbul", "Yollari", "Kazanci", "Sanayii" uretirdi.
-  REKLAMCILIK: 'Reklamcılık', DANISMANLIK: 'Danışmanlık', AJANSI: 'Ajansı', YAPIMCILIK: 'Yapımcılık',
+  REKLAMCILIK: 'Reklamcılık', DANISMANLIK: 'Danışmanlık', AJANSI: 'Ajansı', YAPIMCILIK: 'Yapımcılık', DONANIM: 'Donanım', TASARIM: 'Tasarım', TANITIM: 'Tanıtım', YAYINCILIK: 'Yayıncılık',
   VAKIFLAR: 'Vakıflar', VAKIFBANK: 'Vakıfbank', ISTANBUL: 'İstanbul', YOLLARI: 'Yolları', KAZANCI: 'Kazancı', SANAYII: 'Sanayii',
 };
 
@@ -199,7 +199,22 @@ export function firmaKisa(firma: string): string {
   // "JANTSA JANT SANAYİ VE TİCARET A.Ş." yazdigi icin tam-ad aramasi bulamaz, kirpilmis ad bulur.
   const markaKirpik = MARKA_KISA[katla(f)];
   if (markaKirpik) return markaKirpik;
-  return baslikHarf(f);
+  return uzunAdKirp(baslikHarf(f));
+}
+
+/**
+ * Uzun unvanlarda faaliyet kuyrugu: "ARKSİGNER Yazılım ve Donanım" → "ARKSİGNER", "Belbim Elektronik Para ve Ödeme" →
+ * "Belbim". NEDEN: hitap ("Merhaba … ekibi,") ve konu satirinda 40+ karakterlik ticaret unvani robotik durur.
+ * Yalniz 22 karakteri asan adlarda ve kalan marka en az 4 harfse kesilir; finans/otel kelimeleri listede YOK
+ * ("Ankara Anonim Türk Sigorta" → "Ankara Anonim Türk" gibi anlamsiz kesim olmasin).
+ */
+const FAALIYET_KELIME = /\s(elektronik|elektrik|elektro|yazılım|yazilim|donanım|teknoloji\S*|tekonoloji\S*|bilişim|bilisim|bilgi|otomasyon|mühendislik|imalat|endüstri\S*|enerji|tasarım|üretim|destek|cihazlar|sistem\S*|sist\.|veri|entegrasyon|danışmanlık|eğitim|bağlantı|inşaat|petrol|test|mekanik|savunma|medikal|telekomünikasyon|bilgisayar)(\s|,|$)/iu;
+function uzunAdKirp(ad: string): string {
+  if (ad.length <= 22) return ad;
+  const m = FAALIYET_KELIME.exec(ad);
+  if (!m || m.index < 4) return ad;
+  const kisa = ad.slice(0, m.index).replace(/[\s,.\-–]+$/u, '').trim();
+  return kisa.replace(/[^\p{L}\p{N}]/gu, '').length >= 4 ? kisa : ad;
 }
 
 /**
