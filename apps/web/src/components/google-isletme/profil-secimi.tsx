@@ -2,13 +2,15 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle2, Loader2, MapPin, Search } from 'lucide-react';
+import { CheckCircle2, Loader2, Search } from 'lucide-react';
 import { api, type GbpAday, type GbpDurum } from '@/lib/api';
 import { gbpHataMetni } from '@/lib/google-isletme';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBanner } from '@/components/ui/status-banner';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { AdayKarti } from './aday-karti';
+import { GoogleAttribution } from './denetim-karti';
 
 /**
  * Profil secimi — isletme adi + sehirle Google Haritalar'da arar, kullanici kendi isletmesini secer.
@@ -144,22 +146,24 @@ export function ProfilSecimi({ siteId, durum, bilinenAd, onDegisti }: {
               Sonuç bulunamadı. İşletme adını Google Haritalar’da göründüğü gibi ve şehirle birlikte yazın.
             </p>
           ) : (
-            <ul className="divide-y rounded-lg border">
-              {adaylar.map((a) => (
-                <li key={a.placeId} className="flex flex-wrap items-center justify-between gap-2 p-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{a.ad}</p>
-                    <p className="flex items-start gap-1 text-label text-muted-foreground">
-                      <MapPin className="mt-0.5 h-3 w-3 shrink-0" aria-hidden /> {a.adres}
-                    </p>
-                  </div>
-                  <Button size="sm" onClick={() => sec(a)} disabled={kaydedilen !== null}>
-                    {kaydedilen === a.placeId && <Loader2 className="h-3 w-3 animate-spin" />}
-                    Bu benim işletmem
-                  </Button>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-1">
+              <ul className="divide-y rounded-lg border">
+                {adaylar.map((a) => (
+                  <li key={a.placeId}>
+                    <AdayKarti
+                      aday={a}
+                      aksiyon={
+                        <Button size="sm" onClick={() => sec(a)} disabled={kaydedilen !== null}>
+                          {kaydedilen === a.placeId && <Loader2 className="h-3 w-3 animate-spin" />}
+                          Bu benim işletmem
+                        </Button>
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+              <GoogleAttribution />
+            </div>
           ))}
         </div>
       )}

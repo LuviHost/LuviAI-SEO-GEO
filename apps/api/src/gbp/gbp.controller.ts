@@ -39,8 +39,8 @@ export class GbpController {
 
   @Post('sites/:siteId/gbp/ara')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  ara(@Body() body: { sorgu?: string }, @Req() req: Request) {
-    return this.svc.ara(String(body?.sorgu ?? ''), false, (req as any).user?.id);
+  ara(@Param('siteId') siteId: string, @Body() body: { sorgu?: string }, @Req() req: Request) {
+    return this.svc.ara(String(body?.sorgu ?? ''), false, (req as any).user?.id, siteId);
   }
 
   @Post('sites/:siteId/gbp/place')
@@ -181,7 +181,7 @@ export class GbpPublicController {
 
   constructor(private readonly svc: GbpService) {}
 
-  /** POST /api/public/gbp/ara { sorgu, turnstileToken } → en fazla 5 aday */
+  /** POST /api/public/gbp/ara { sorgu, turnstileToken } → en fazla 5 aday (foto + puan + web ile) */
   @Public()
   @Throttle({ default: { limit: 6, ttl: 60_000 } })
   @Post('ara')

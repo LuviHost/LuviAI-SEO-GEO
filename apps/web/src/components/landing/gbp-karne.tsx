@@ -6,7 +6,8 @@ import { AlertCircle, ArrowRight, Loader2, MapPin, Search } from 'lucide-react';
 import type { GbpAday, GbpDenetim } from '@/lib/api';
 import { gbpHataMetni } from '@/lib/google-isletme';
 import { SIGNUP_HREF } from '@/lib/rehber';
-import { DenetimKarti } from '@/components/google-isletme/denetim-karti';
+import { DenetimKarti, GoogleAttribution } from '@/components/google-isletme/denetim-karti';
+import { AdayKarti } from '@/components/google-isletme/aday-karti';
 
 /**
  * Ucretsiz Google Isletme karnesi (/google-isletme-karnesi) — isletme ara → sec → canli karne.
@@ -24,6 +25,7 @@ export function GbpKarne() {
   const [sorgu, setSorgu] = useState('');
   const [faz, setFaz] = useState<Faz>('bos');
   const [adaylar, setAdaylar] = useState<GbpAday[]>([]);
+  const [secilen, setSecilen] = useState<string | null>(null);
   const [sonuc, setSonuc] = useState<GbpDenetim | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +112,7 @@ export function GbpKarne() {
   }
 
   async function karne(a: GbpAday) {
+    setSecilen(a.placeId);
     setFaz('denetleniyor');
     setHata(null);
     const { api } = await import('@/lib/api');
@@ -175,23 +178,26 @@ export function GbpKarne() {
             <ul className="divide-y rounded-xl border bg-card">
               {adaylar.map((a) => (
                 <li key={a.placeId}>
-                  <button
-                    type="button"
-                    onClick={() => karne(a)}
-                    disabled={mesgul}
-                    className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-muted/40 disabled:cursor-wait disabled:opacity-60"
-                  >
-                    <span className="min-w-0">
-                      <span className="block font-medium">{a.ad}</span>
-                      <span className="block text-sm text-muted-foreground">{a.adres}</span>
-                    </span>
-                    {faz === 'denetleniyor'
-                      ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
-                      : <ArrowRight className="h-4 w-4 shrink-0 text-brand" aria-hidden />}
-                  </button>
+                  <AdayKarti
+                    aday={a}
+                    aksiyon={
+                      <button
+                        type="button"
+                        onClick={() => karne(a)}
+                        disabled={mesgul}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:from-brand-600 hover:to-brand-700 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        Karnemi çıkar
+                        {faz === 'denetleniyor' && secilen === a.placeId
+                          ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          : <ArrowRight className="h-4 w-4" aria-hidden />}
+                      </button>
+                    }
+                  />
                 </li>
               ))}
             </ul>
+            <GoogleAttribution />
           </div>
         )
       )}
