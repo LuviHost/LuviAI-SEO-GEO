@@ -38,6 +38,7 @@ import { StuckPagePerformanceCheckService } from '../../api/dist/audit/stuck-pag
 import { StuckPageExternalRecoveryService } from '../../api/dist/audit/stuck-page-external-recovery.service.js';
 import { JobQueueService } from '../../api/dist/jobs/job-queue.service.js';
 import { LinkedinOutreachService } from '../../api/dist/intel/linkedin-outreach.service.js';
+import { EpostaKampanyaService } from '../../api/dist/eposta-kampanya/eposta-kampanya.service.js';
 import { ImageAltSuggestService } from '../../api/dist/audit/image-alt/image-alt-suggest.service.js';
 import { ImageAltApplyService } from '../../api/dist/audit/image-alt/image-alt-apply.service.js';
 import { decideGeneratedArticlePublish, PUBLISH_SKIP_TEXT, scheduledGenerationPaused } from '../../api/dist/articles/publish-approval.js';
@@ -147,6 +148,7 @@ async function bootstrap() {
     stuckExternal: app.get(StuckPageExternalRecoveryService),
     jobs: app.get(JobQueueService),
     linkedin: app.get(LinkedinOutreachService),
+    eposta: app.get(EpostaKampanyaService),
     imageAltSuggest: app.get(ImageAltSuggestService),
     imageAltApply: app.get(ImageAltApplyService),
     videoRender: app.get(VideoRenderService),
@@ -713,6 +715,14 @@ async function bootstrap() {
     },
 
     /**
+     * EPOSTA_KAMPANYA_TICK — 30 dk'da bir: kurumsal e-posta turu (tur basina en fazla 40, gunluk 200 / aylik 6.000).
+     * Panel anahtari kapaliyken, hafta ici 10-17 TR disinda, IYS onayli (SIRADA) adres yokken "yapilacak yok" doner.
+     */
+    EPOSTA_KAMPANYA_TICK: async () => {
+      return services.eposta.tick();
+    },
+
+    /**
      * ADS_AUTOPILOT — 6 saat'te bir aktif kampanyalari ROAS'a gore optimize.
      */
     ADS_AUTOPILOT: async () => {
@@ -1046,6 +1056,19 @@ async function bootstrap() {
       );
     }
 
+    // 9b) EPOSTA_KAMPANYA_TICK — her 30 dk. Anahtar panelden (KvStore 'eposta-kampanya:acik', varsayilan KAPALI);
+    //     kapaliyken tur Mailjet'e dokunmadan doner, bu yuzden is her zaman kayitli.
+    await queue.add(
+      'EPOSTA_KAMPANYA_TICK',
+      { trigger: 'cron' },
+      {
+        repeat: { every: 30 * 60 * 1000 },
+        jobId: 'cron:eposta-kampanya-tick',
+        removeOnComplete: { count: 50 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
     // 10) SWEEP_STUCK_GENERATING — her 30 dk: GENERATING'de takili kalan (canli
     //     isi olmayan) yazilari takvime geri koyar ya da FAILED yapar. Tur ayrica
     //     cift-calisma kilidiyle korunur (api articles/generating-sweeper.ts).
@@ -1060,7 +1083,7 @@ async function bootstrap() {
       },
     );
 
-    log.log(`⏰ Cron: PROCESS_SCHEDULED 60dk · SWEEP_STUCK_GENERATING 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · LINKEDIN_OUTREACH_TICK 30dk (gonderim anahtari panelden; env varsayilani: ${isLinkedinOutreachEnvDefault() ? 'acik' : 'kapali'})`);
+    log.log(`⏰ Cron: PROCESS_SCHEDULED 60dk · SWEEP_STUCK_GENERATING 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · EPOSTA_KAMPANYA_TICK 30dk (anahtar panelden) · LINKEDIN_OUTREACH_TICK 30dk (gonderim anahtari panelden; env varsayilani: ${isLinkedinOutreachEnvDefault() ? 'acik' : 'kapali'})`);
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

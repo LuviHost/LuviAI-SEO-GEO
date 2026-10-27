@@ -1,0 +1,426 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import type { EpostaHedefDurum, Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { parseCsv, toCsv } from '../prospect/prospect-utils.js';
+import { kimlikEnv, kimlikSorunlari, mailjetMesaj, type Alici } from '../prospect/eposta-sablon.js';
+import {
+  KAPALI_DURUMLAR, firmaAnahtari, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani,
+  trAyBasi, trGun, trGunBasi, turKotasi,
+} from './eposta-kurallar.js';
+
+const KV_ACIK = 'eposta-kampanya:acik';
+const KV_DURAKLAT = 'eposta-kampanya:duraklatildi';
+const KV_KILIT = 'eposta-kampanya:kilit';
+/** Yazma-oncesi isaret: POST'tan ONCE yazilir, yanitla guncellenir. Kalirsa "belirsiz" (gitmis olabilir) */
+const GONDERILIYOR = 'gonderiliyor';
+const MAILJET = 'https://api.mailjet.com';
+/** Saatlik/yarim saatlik tur basina en fazla — gunluk kota gune yayilsin, tek seferde 200 gitmesin */
+const TUR_BASI = 40;
+const KILIT_SURE_MS = 10 * 60 * 1000;
+const POST_ZAMAN_ASIMI_MS = 45_000;
+
+export type TickSonuc = { gonderildi: number; hata: number; neden: string };
+
+/**
+ * Kurumsal e-posta kampanyasi — sunucu tarafi (27.10.2026). Hedefler `eposta_hedefleri` tablosunda; worker
+ * EPOSTA_KAMPANYA_TICK 30 dk'da bir tick() cagirir. Metin/kimlik/ret linki eposta-sablon.ts'den (CLI ile ayni).
+ *
+ * KAPILAR (sirayla, biri tutmazsa gonderim yok):
+ *  1) Panel anahtari acik (varsayilan KAPALI) ve duraklatilmamis
+ *  2) Hafta ici 10-17 TR
+ *  3) Mailjet anahtari + gonderici kimligi (md. 5/1) tam, sablonda kalinti yok
+ *  4) Son 7 gun bounce <= %3, spam <= %0,2 (asilirsa DURAKLAT + neden)
+ *  5) Gunluk (200) / aylik (6.000) kota, tur basina 40
+ *  6) Yalniz SIRADA satirlar — kullanicinin "IYS'ye yukledim" dedigi partiler (Yonetmelik md. 6/6)
+ */
+@Injectable()
+export class EpostaKampanyaService {
+  private readonly log = new Logger(EpostaKampanyaService.name);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  private get gunlukKota(): number { return Number(process.env.EPOSTA_GUNLUK_KOTA) || 200; }
+  private get aylikKota(): number { return Number(process.env.EPOSTA_AYLIK_KOTA) || 6000; }
+  private get mailjetHazir(): boolean { return !!process.env.MAILJET_API_KEY && !!process.env.MAILJET_SECRET; }
+
+  // ─── Anahtar / duraklatma ─────────────────────────────────────────────
+
+  private async kv(key: string): Promise<string | null> {
+    const r = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
+    if (!r) return null;
+    if (r.expiresAt && r.expiresAt.getTime() < Date.now()) return null;
+    return r.value;
+  }
+
+  private async kvYaz(key: string, value: string, expiresAt: Date | null = null): Promise<void> {
+    await this.prisma.kvStore.upsert({ where: { key }, create: { key, value, expiresAt }, update: { value, expiresAt } });
+  }
+
+  async isAcik(): Promise<boolean> { return (await this.kv(KV_ACIK)) === '1'; }
+
+  async setAcik(acik: boolean): Promise<{ acik: boolean }> {
+    await this.kvYaz(KV_ACIK, acik ? '1' : '0');
+    return { acik };
+  }
+
+  async duraklat(neden: string): Promise<void> {
+    await this.kvYaz(KV_DURAKLAT, neden.slice(0, 500));
+    this.log.warn(`E-posta kampanyasi duraklatildi: ${neden}`);
+  }
+
+  async devam(): Promise<{ ok: true }> {
+    await this.prisma.kvStore.deleteMany({ where: { key: KV_DURAKLAT } });
+    return { ok: true };
+  }
+
+  // ─── Panel ozeti ──────────────────────────────────────────────────────
+
+  async overview(f: { durum?: string; sektor?: string; q?: string; sayfa?: number } = {}) {
+    const simdi = new Date();
+    const yedi = new Date(simdi.getTime() - 7 * 86_400_000);
+    const [acik, duraklatma, gruplar, bugun, ay, acilan, tiklanan, partiler, son7] = await Promise.all([
+      this.isAcik(),
+      this.kv(KV_DURAKLAT),
+      this.prisma.epostaHedef.groupBy({ by: ['durum'], _count: { _all: true } }),
+      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: trGunBasi(simdi) } } }),
+      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: trAyBasi(simdi) } } }),
+      this.prisma.epostaHedef.count({ where: { acildiAt: { not: null } } }),
+      this.prisma.epostaHedef.count({ where: { tiklandiAt: { not: null } } }),
+      this.prisma.epostaHedef.groupBy({ by: ['iysParti'], where: { durum: 'IYS_DOSYADA' }, _count: { _all: true }, _min: { updatedAt: true } }),
+      this.son7Gun(yedi),
+    ]);
+    const sayilar = Object.fromEntries(gruplar.map((g) => [g.durum, g._count._all])) as Partial<Record<EpostaHedefDurum, number>>;
+    const gonderilenToplam = (['GONDERILDI', 'BOUNCE', 'RET', 'SPAM'] as const).reduce((a, d) => a + (sayilar[d] ?? 0), 0)
+      + (await this.prisma.epostaHedef.count({ where: { durum: 'HATA', gonderildiAt: { not: null } } }));
+
+    const where: Prisma.EpostaHedefWhereInput = {};
+    if (f.durum) where.durum = f.durum as EpostaHedefDurum;
+    if (f.sektor) where.sektor = f.sektor;
+    if (f.q?.trim()) where.OR = [{ firma: { contains: f.q.trim() } }, { email: { contains: f.q.trim().toLowerCase() } }];
+    const sayfa = Math.max(1, Number(f.sayfa) || 1);
+    const [toplamListe, liste] = await Promise.all([
+      this.prisma.epostaHedef.count({ where }),
+      this.prisma.epostaHedef.findMany({
+        where,
+        orderBy: [{ sonOlayAt: { sort: 'desc', nulls: 'last' } }, { updatedAt: 'desc' }],
+        skip: (sayfa - 1) * 50,
+        take: 50,
+      }),
+    ]);
+
+    // LinkedIn kanali: ayni firma (adin ilk iki anlamli kelimesi) icin bot kuyrugundaki en ileri durum
+    const linkedin = await this.linkedinDurumlari(liste.map((h) => h.marka || h.firma));
+
+    const sorunlar = this.mailjetHazir ? kimlikSorunlari(kimlikEnv(), ['ajans', 'diger', 'finans']) : ['MAILJET_API_KEY / MAILJET_SECRET sunucu .env dosyasında yok'];
+    return {
+      acik,
+      duraklatma,
+      pencerede: gonderimPenceresinde(simdi),
+      hazir: sorunlar.length === 0,
+      sorunlar,
+      kota: { bugun, gunluk: this.gunlukKota, ay, aylik: this.aylikKota },
+      sayilar,
+      metrik: { gonderilen: gonderilenToplam, acilan, tiklanan, son7 },
+      iysPartileri: partiler.filter((p) => p.iysParti).map((p) => ({ parti: p.iysParti as string, adet: p._count._all, olusturuldu: p._min.updatedAt })),
+      liste: liste.map((h) => ({ ...h, linkedin: linkedin.get(firmaAnahtari(h.marka || h.firma)) ?? null })),
+      toplamListe,
+      sayfa,
+    };
+  }
+
+  private async son7Gun(yedi: Date) {
+    const [gonderilen, bounce, spam] = await Promise.all([
+      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: yedi } } }),
+      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: yedi }, durum: 'BOUNCE' } }),
+      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: yedi }, durum: 'SPAM' } }),
+    ]);
+    return { gonderilen, bounce, spam };
+  }
+
+  /** firma anahtari → LinkedIn'deki en ileri durum (+ kisi sayisi). Kisi adi DONMEZ. */
+  private async linkedinDurumlari(firmalar: string[]): Promise<Map<string, { durum: string; kisi: number }>> {
+    const out = new Map<string, { durum: string; kisi: number }>();
+    const anahtarlar = new Set(firmalar.map(firmaAnahtari).filter(Boolean));
+    if (anahtarlar.size === 0) return out;
+    const sira = ['QUEUED', 'FAILED', 'SKIPPED', 'REQUESTED', 'ACCEPTED', 'MESSAGED', 'REPLIED'];
+    const kayitlar = await this.prisma.linkedinProspect.findMany({ select: { firma: true, status: true } }).catch(() => []);
+    for (const k of kayitlar) {
+      const a = firmaAnahtari(k.firma);
+      if (!anahtarlar.has(a)) continue;
+      const prev = out.get(a);
+      if (!prev) out.set(a, { durum: k.status, kisi: 1 });
+      else out.set(a, { durum: sira.indexOf(k.status) > sira.indexOf(prev.durum) ? k.status : prev.durum, kisi: prev.kisi + 1 });
+    }
+    return out;
+  }
+
+  // ─── Ice aktarma / IYS partisi ─────────────────────────────────────────
+
+  /**
+   * 07-kurumsal-adres ciktisi (kurumsal-import.csv) → tablo. Var olan satirin durumu GERI ALINMAZ; yalniz bos
+   * marka/kaynakSayfa doldurulur. CLI'dan gonderilmis satir (durum=gonderildi) GONDERILDI olarak gelir.
+   */
+  async iceAktar(csv: string): Promise<{ eklendi: number; guncellendi: number; atlandi: number; hatalar: string[] }> {
+    const satirlar = parseCsv(String(csv ?? '').replace(/^﻿/, ''));
+    let eklendi = 0, guncellendi = 0, atlandi = 0;
+    const hatalar: string[] = [];
+    for (const r of satirlar.slice(0, 20_000)) {
+      const p = iceAktarSatiri(r);
+      if ('hata' in p) { atlandi++; if (hatalar.length < 30) hatalar.push(p.hata); continue; }
+      const s = p.satir;
+      const mevcut = await this.prisma.epostaHedef.findUnique({ where: { email: s.email } });
+      if (!mevcut) {
+        await this.prisma.epostaHedef.create({
+          data: {
+            email: s.email, firma: s.firma, marka: s.marka, sektor: s.sektor, web: s.web, kaynakSayfa: s.kaynakSayfa,
+            kaynak: s.kaynak, varyant: s.varyant,
+            ...(s.gecmis ? { durum: 'GONDERILDI', kampanya: s.gecmis.kampanya, messageId: s.gecmis.messageId, gonderildiAt: s.gecmis.gonderildiAt, sonOlay: 'sent', sonOlayAt: s.gecmis.gonderildiAt } : {}),
+          },
+        });
+        eklendi++;
+        continue;
+      }
+      const data: Prisma.EpostaHedefUpdateInput = {};
+      if (!mevcut.marka && s.marka) data.marka = s.marka;
+      if (!mevcut.kaynakSayfa && s.kaynakSayfa) data.kaynakSayfa = s.kaynakSayfa;
+      if (s.gecmis && !mevcut.gonderildiAt) {
+        Object.assign(data, { durum: 'GONDERILDI', kampanya: s.gecmis.kampanya, messageId: s.gecmis.messageId, gonderildiAt: s.gecmis.gonderildiAt });
+      }
+      if (Object.keys(data).length) { await this.prisma.epostaHedef.update({ where: { id: mevcut.id }, data }); guncellendi++; }
+      else atlandi++;
+    }
+    return { eklendi, guncellendi, atlandi, hatalar };
+  }
+
+  /** YENI satirlari tek bir IYS partisine koyar ve yukleme dosyasini dondurur. Parti verilirse ayni dosyayi yeniden uretir. */
+  async iysDosyasi(parti?: string): Promise<{ parti: string; adet: number; csv: string }> {
+    let p = parti?.trim();
+    if (!p) {
+      p = `iys-${trGun(new Date())}-${randomBytes(3).toString('hex')}`;
+      await this.prisma.epostaHedef.updateMany({ where: { durum: 'YENI' }, data: { durum: 'IYS_DOSYADA', iysParti: p } });
+    }
+    const rows = await this.prisma.epostaHedef.findMany({ where: { iysParti: p }, orderBy: { createdAt: 'asc' }, select: { email: true, firma: true } });
+    const tarih = new Date().toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' });
+    // NEDEN bu sutunlar: IYS toplu yuklemede alici, izin turu (EPOSTA), alici tipi (TACIR), durum ve tarih istenir;
+    // panelin indirilen sablonu farkli basliklar kullaniyorsa yuklerken eslenir.
+    const csv = '﻿' + toCsv(rows.map((r) => ({ 'Alıcı': r.email, 'İzin Türü': 'EPOSTA', 'Alıcı Tipi': 'TACIR', Durum: 'ONAY', 'İzin Tarihi': tarih, Firma: r.firma })), ['Alıcı', 'İzin Türü', 'Alıcı Tipi', 'Durum', 'İzin Tarihi', 'Firma']);
+    return { parti: p, adet: rows.length, csv };
+  }
+
+  /** Kullanici beyani: bu partideki adresler IYS'ye yuklendi → gonderim sirasina girer */
+  async iysYuklendi(parti: string): Promise<{ sirada: number }> {
+    const r = await this.prisma.epostaHedef.updateMany({ where: { iysParti: parti, durum: 'IYS_DOSYADA' }, data: { durum: 'SIRADA', iysYuklendiAt: new Date() } });
+    return { sirada: r.count };
+  }
+
+  async hedefGuncelle(id: string, d: { durum?: string; not?: string | null }): Promise<{ ok: true }> {
+    const data: Prisma.EpostaHedefUpdateInput = {};
+    // Elle yalniz kapatici durumlar: haric tut / ret istedi (IYS'ye ret bildirimi kullanicida)
+    if (d.durum === 'HARIC' || d.durum === 'RET') data.durum = d.durum;
+    if (d.not !== undefined) data.not = d.not ? String(d.not).slice(0, 2000) : null;
+    await this.prisma.epostaHedef.update({ where: { id }, data });
+    return { ok: true };
+  }
+
+  /** LinkedIn kuyrugundaki firmalar (yalniz firma adi) → 07 --ek girdisi. Kisi verisi cikmaz. */
+  async linkedinFirmalarCsv(): Promise<{ adet: number; csv: string }> {
+    const rows = await this.prisma.linkedinProspect.findMany({ select: { firma: true, sektor: true, kampanya: true } });
+    const tekil = new Map<string, { firma: string; web: string; sektor: string }>();
+    for (const r of rows) {
+      if (r.kampanya === 'YATIRIMCI' || !r.firma.trim()) continue;
+      const k = firmaAnahtari(r.firma);
+      if (!tekil.has(k)) tekil.set(k, { firma: r.firma.trim(), web: '', sektor: r.kampanya === 'ISBIRLIGI' ? 'ajans' : r.sektor || 'diger' });
+    }
+    return { adet: tekil.size, csv: toCsv([...tekil.values()], ['firma', 'web', 'sektor']) };
+  }
+
+  // ─── Gonderim turu ─────────────────────────────────────────────────────
+
+  private async kilitAl(): Promise<boolean> {
+    const simdi = new Date();
+    const mevcut = await this.prisma.kvStore.findUnique({ where: { key: KV_KILIT } }).catch(() => null);
+    if (mevcut && mevcut.expiresAt && mevcut.expiresAt > simdi) return false;
+    await this.kvYaz(KV_KILIT, String(process.pid), new Date(simdi.getTime() + KILIT_SURE_MS));
+    return true;
+  }
+
+  private async kilitBirak(): Promise<void> {
+    await this.prisma.kvStore.deleteMany({ where: { key: KV_KILIT } }).catch(() => undefined);
+  }
+
+  async tick(opts: { zorla?: boolean } = {}): Promise<TickSonuc> {
+    const bos = (neden: string): TickSonuc => ({ gonderildi: 0, hata: 0, neden });
+    if (!(await this.isAcik())) return bos('Kapalı');
+    const durak = await this.kv(KV_DURAKLAT);
+    if (durak) return bos(`Duraklatıldı: ${durak}`);
+    const simdi = new Date();
+    if (!opts.zorla && !gonderimPenceresinde(simdi)) return bos('Gönderim penceresi dışında (hafta içi 10-17)');
+    if (!this.mailjetHazir) { await this.duraklat('Mailjet anahtarı yok'); return bos('Mailjet anahtarı yok'); }
+
+    // Kalan "gonderiliyor" isareti = onceki tur POST sirasinda oldu → gitmis olabilir, TEKRAR GONDERILMEZ
+    const asili = await this.prisma.epostaHedef.updateMany({
+      where: { durum: 'SIRADA', sonOlay: GONDERILIYOR, sonOlayAt: { lt: new Date(simdi.getTime() - KILIT_SURE_MS) } },
+      data: { durum: 'HATA', hata: 'Belirsiz: gönderim sırasında süreç kesildi; Mailjet > Messages ekranından kontrol edin' },
+    });
+    if (asili.count) this.log.warn(`${asili.count} hedef belirsiz durumda HATA'ya alindi`);
+
+    const fren = frenNedeni(await this.son7Gun(new Date(simdi.getTime() - 7 * 86_400_000)));
+    if (fren) { await this.duraklat(fren); return bos(fren); }
+
+    const [bugun, ay] = await Promise.all([
+      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: trGunBasi(simdi) } } }),
+      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: trAyBasi(simdi) } } }),
+    ]);
+    const adet = turKotasi({ bugunGonderilen: bugun, ayGonderilen: ay, gunluk: this.gunlukKota, aylik: this.aylikKota, turBasi: TUR_BASI });
+    if (adet === 0) return bos(`Kota doldu (bugün ${bugun}/${this.gunlukKota}, ay ${ay}/${this.aylikKota})`);
+
+    if (!(await this.kilitAl())) return bos('Başka bir tur çalışıyor');
+    try {
+      const hedefler = await this.prisma.epostaHedef.findMany({
+        where: { durum: 'SIRADA', OR: [{ sonOlay: null }, { sonOlay: { not: GONDERILIYOR } }] },
+        orderBy: { iysYuklendiAt: 'asc' },
+        take: adet,
+      });
+      if (hedefler.length === 0) return bos('Sırada adres yok (İYS partisi onayı bekleniyor olabilir)');
+
+      const kimlik = kimlikEnv();
+      const sorunlar = kimlikSorunlari(kimlik, hedefler.map((h) => h.sektor));
+      if (sorunlar.length) { const n = `Gönderici kimliği/şablon: ${sorunlar.join(' · ')}`; await this.duraklat(n); return bos(n); }
+
+      const kampanya = `kurumsal-${trGun(simdi).slice(0, 7)}`;
+      const mesajlar = hedefler.map((h) => {
+        const alici: Alici = { email: h.email, ad: '', soyad: '', firma: h.firma, sektor: h.sektor, varyant: h.varyant, marka: h.marka ?? undefined };
+        return mailjetMesaj(alici, { kimlik, kampanya });
+      });
+
+      // Yazma-oncesi isaret (POST sirasinda surec olurse ikinci mail gitmesin)
+      await this.prisma.epostaHedef.updateMany({ where: { id: { in: hedefler.map((h) => h.id) } }, data: { sonOlay: GONDERILIYOR, sonOlayAt: new Date(), kampanya } });
+
+      let yanit: { status: number; govde: any };
+      try {
+        yanit = await this.mailjetPost({ Messages: mesajlar });
+      } catch (e: any) {
+        // Ag/zaman asimi: Mailjet isledi mi bilinmez → isaret kalir (sonraki tur HATA/belirsiz yapar), duraklat
+        const n = `Mailjet'e ulaşılamadı (${e?.message ?? e}); ${hedefler.length} adres belirsiz — Mailjet panelinden kontrol edip "Devam" deyin`;
+        await this.duraklat(n);
+        return { gonderildi: 0, hata: 0, neden: n };
+      }
+      if (yanit.status === 429 || yanit.status === 401 || yanit.status === 403) {
+        // Kesin "islenmedi": isareti geri al, sonraki turda tekrar denensin (yetki hatasinda duraklat)
+        await this.prisma.epostaHedef.updateMany({ where: { id: { in: hedefler.map((h) => h.id) } }, data: { sonOlay: null, sonOlayAt: null } });
+        const n = yanit.status === 429 ? 'Mailjet hız sınırı (429) — sonraki turda tekrar' : `Mailjet yetki hatası (HTTP ${yanit.status})`;
+        if (yanit.status !== 429) await this.duraklat(n);
+        return bos(n);
+      }
+      const sonuc = Array.isArray(yanit.govde?.Messages) ? yanit.govde.Messages : null;
+      if (!sonuc || sonuc.length !== hedefler.length) {
+        const n = `Mailjet yanıtı beklenmedik (HTTP ${yanit.status}); ${hedefler.length} adres belirsiz — panelden kontrol`;
+        await this.duraklat(n);
+        return bos(n);
+      }
+      let ok = 0, hata = 0;
+      const zaman = new Date();
+      for (let i = 0; i < hedefler.length; i++) {
+        const m = sonuc[i];
+        if (m?.Status === 'success') {
+          ok++;
+          await this.prisma.epostaHedef.update({
+            where: { id: hedefler[i].id },
+            data: { durum: 'GONDERILDI', gonderildiAt: zaman, messageId: String(m?.To?.[0]?.MessageID ?? '') || null, sonOlay: 'sent', sonOlayAt: zaman, hata: null },
+          });
+        } else {
+          hata++;
+          await this.prisma.epostaHedef.update({
+            where: { id: hedefler[i].id },
+            data: { durum: 'HATA', sonOlay: 'error', sonOlayAt: zaman, hata: JSON.stringify(m?.Errors ?? m?.Status ?? '').slice(0, 1000) },
+          });
+        }
+      }
+      this.log.log(`E-posta turu: ${ok} gonderildi, ${hata} hata (kampanya ${kampanya})`);
+      return { gonderildi: ok, hata, neden: `${ok} gönderildi${hata ? `, ${hata} hata` : ''}` };
+    } finally {
+      await this.kilitBirak();
+    }
+  }
+
+  private async mailjetPost(body: unknown): Promise<{ status: number; govde: any }> {
+    const auth = 'Basic ' + Buffer.from(`${process.env.MAILJET_API_KEY}:${process.env.MAILJET_SECRET}`).toString('base64');
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), POST_ZAMAN_ASIMI_MS);
+    try {
+      const res = await fetch(`${MAILJET}/v3.1/send`, { method: 'POST', headers: { authorization: auth, 'content-type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal });
+      const text = await res.text();
+      let govde: any = null;
+      try { govde = text ? JSON.parse(text) : null; } catch { govde = null; }
+      return { status: res.status, govde };
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  // ─── Mailjet olay akisi ───────────────────────────────────────────────
+
+  /**
+   * Webhook belirteci: ayri env gerektirmesin diye MAILJET_SECRET'ten turetilir (MAILJET_WEBHOOK_TOKEN verilirse o).
+   * Mailjet callback URL'sine ?t=<belirtec> olarak eklenir; olmayan/yanlis istek reddedilir.
+   */
+  webhookBelirteci(): string | null {
+    const acik = process.env.MAILJET_WEBHOOK_TOKEN?.trim();
+    if (acik) return acik;
+    const secret = process.env.MAILJET_SECRET;
+    return secret ? createHash('sha256').update(`ranksup-eposta-webhook:${secret}`).digest('hex').slice(0, 40) : null;
+  }
+
+  belirtecGecerli(t: unknown): boolean {
+    const beklenen = this.webhookBelirteci();
+    if (!beklenen || typeof t !== 'string' || t.length !== beklenen.length) return false;
+    return timingSafeEqual(Buffer.from(t), Buffer.from(beklenen));
+  }
+
+  async olaylariIsle(govde: unknown): Promise<{ islendi: number }> {
+    const olaylar = (Array.isArray(govde) ? govde : [govde]).filter((e): e is Record<string, unknown> => !!e && typeof e === 'object');
+    let islendi = 0;
+    for (const e of olaylar.slice(0, 500)) {
+      const g = olayEsle(e);
+      if (!g) continue;
+      const email = String(e.email ?? '').trim().toLowerCase();
+      if (!email) continue;
+      const h = await this.prisma.epostaHedef.findUnique({ where: { email } });
+      if (!h) continue;
+      const zaman = olayZamani(e);
+      const data: Prisma.EpostaHedefUpdateInput = { sonOlay: g.sonOlay, sonOlayAt: zaman };
+      if (g.acildi && !h.acildiAt) data.acildiAt = zaman;
+      if (g.tiklandi && !h.tiklandiAt) data.tiklandiAt = zaman;
+      if (g.durum && !(KAPALI_DURUMLAR as readonly string[]).includes(h.durum)) data.durum = g.durum;
+      if (g.hata) data.hata = g.hata;
+      await this.prisma.epostaHedef.update({ where: { id: h.id }, data });
+      islendi++;
+    }
+    return { islendi };
+  }
+
+  /**
+   * Mailjet'e olay callback adresini tanit (acilma, tiklama, geri donme, engel, spam, ret). Admin panelinden bir kez.
+   * Var olan ayni tur kaydi guncellenir (Mailjet tur basina tek URL tutar).
+   */
+  async webhookKur(): Promise<{ kurulan: string[]; hatalar: string[] }> {
+    if (!this.mailjetHazir) return { kurulan: [], hatalar: ['Mailjet anahtarı yok'] };
+    const t = this.webhookBelirteci();
+    const base = (process.env.API_PUBLIC_URL || 'https://api.ranksup.ai').replace(/\/+$/, '');
+    const url = `${base}/api/eposta/webhooks/mailjet?t=${t}`;
+    const auth = 'Basic ' + Buffer.from(`${process.env.MAILJET_API_KEY}:${process.env.MAILJET_SECRET}`).toString('base64');
+    const kurulan: string[] = [], hatalar: string[] = [];
+    const mevcut = await fetch(`${MAILJET}/v3/REST/eventcallbackurl?Limit=50`, { headers: { authorization: auth } }).then((r) => r.json()).catch(() => ({ Data: [] }));
+    for (const tur of ['open', 'click', 'bounce', 'blocked', 'spam', 'unsub']) {
+      const eski = (mevcut?.Data ?? []).find((d: any) => d.EventType === tur);
+      const res = await fetch(`${MAILJET}/v3/REST/eventcallbackurl${eski ? `/${eski.ID}` : ''}`, {
+        method: eski ? 'PUT' : 'POST',
+        headers: { authorization: auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ EventType: tur, Url: url, Version: 2, Status: 'alive', IsBackup: false }),
+      }).catch((e) => ({ ok: false, status: 0, text: async () => String(e) }) as any);
+      if (res.ok) kurulan.push(tur); else hatalar.push(`${tur}: HTTP ${res.status}`);
+    }
+    return { kurulan, hatalar };
+  }
+}

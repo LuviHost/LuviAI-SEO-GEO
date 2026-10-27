@@ -651,6 +651,49 @@ export interface LinkedinTickResult {
   reason?: string;
 }
 
+
+// ─── Kurumsal e-posta kampanyasi (admin) ─────────────────────────────────────
+
+export type EpostaHedefDurum = 'YENI' | 'IYS_DOSYADA' | 'SIRADA' | 'GONDERILDI' | 'HATA' | 'BOUNCE' | 'RET' | 'SPAM' | 'HARIC';
+
+export interface EpostaHedef {
+  id: string;
+  email: string;
+  firma: string;
+  marka: string | null;
+  sektor: string;
+  web: string | null;
+  kaynakSayfa: string | null;
+  kaynak: string | null;
+  durum: EpostaHedefDurum;
+  iysParti: string | null;
+  kampanya: string | null;
+  gonderildiAt: string | null;
+  acildiAt: string | null;
+  tiklandiAt: string | null;
+  sonOlay: string | null;
+  sonOlayAt: string | null;
+  hata: string | null;
+  not: string | null;
+  /** Ayni firmanin LinkedIn kanalindaki en ileri durumu (kisi adi donmez) */
+  linkedin: { durum: string; kisi: number } | null;
+}
+
+export interface EpostaOverview {
+  acik: boolean;
+  duraklatma: string | null;
+  pencerede: boolean;
+  hazir: boolean;
+  sorunlar: string[];
+  kota: { bugun: number; gunluk: number; ay: number; aylik: number };
+  sayilar: Partial<Record<EpostaHedefDurum, number>>;
+  metrik: { gonderilen: number; acilan: number; tiklanan: number; son7: { gonderilen: number; bounce: number; spam: number } };
+  iysPartileri: Array<{ parti: string; adet: number; olusturuldu: string | null }>;
+  liste: EpostaHedef[];
+  toplamListe: number;
+  sayfa: number;
+}
+
 export const api = {
   // Generic raw request (custom endpoints icin)
   request: <T = any>(path: string, options?: RequestInit) => request<T>(path, options),
@@ -1717,6 +1760,24 @@ export const api = {
 
   // Intel -> LinkedIn outreach (admin). Uclar apps/api/src/intel altinda;
   // tick'i normalde worker atar, buradaki tick elle tetikleme icindir.
+  // Kurumsal e-posta kampanyasi (admin)
+  getEpostaOverview: (q: { durum?: string; sektor?: string; q?: string; sayfa?: number } = {}) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== '') p.set(k, String(v));
+    return request<EpostaOverview>(`/eposta/overview${p.toString() ? `?${p}` : ''}`);
+  },
+  setEpostaAcik: (acik: boolean) => request<{ acik: boolean }>('/eposta/acik', { method: 'POST', body: JSON.stringify({ acik }) }),
+  epostaDevam: () => request<{ ok: true }>('/eposta/devam', { method: 'POST' }),
+  epostaIceAktar: (csv: string) =>
+    request<{ eklendi: number; guncellendi: number; atlandi: number; hatalar: string[] }>('/eposta/ice-aktar', { method: 'POST', body: JSON.stringify({ csv }) }),
+  epostaIysDosyasi: (parti?: string) =>
+    request<{ parti: string; adet: number; csv: string }>('/eposta/iys-dosyasi', { method: 'POST', body: JSON.stringify({ parti }) }),
+  epostaIysYuklendi: (parti: string) => request<{ sirada: number }>('/eposta/iys-yuklendi', { method: 'POST', body: JSON.stringify({ parti }) }),
+  epostaHedefGuncelle: (id: string, d: { durum?: 'HARIC' | 'RET'; not?: string | null }) =>
+    request<{ ok: true }>(`/eposta/hedef/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(d) }),
+  epostaLinkedinFirmalar: () => request<{ adet: number; csv: string }>('/eposta/linkedin-firmalar'),
+  epostaWebhookKur: () => request<{ kurulan: string[]; hatalar: string[] }>('/eposta/webhook-kur', { method: 'POST' }),
+  epostaTick: () => request<{ gonderildi: number; hata: number; neden: string }>('/eposta/tick', { method: 'POST' }),
   getLinkedinOverview: () => request<LinkedinOverview>('/intel/linkedin/overview'),
   /**
    * Tek istekte en fazla ~400 satir gonderin (lib/linkedin-import.ts runImportBatches):

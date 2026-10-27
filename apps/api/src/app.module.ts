@@ -42,6 +42,7 @@ import { IntelModule } from './intel/intel.module.js';
 import { ProspectModule } from './prospect/prospect.module.js';
 import { ClientReportModule } from './client-report/client-report.module.js';
 import { VideosModule } from './videos/videos.module.js';
+import { EpostaKampanyaModule } from './eposta-kampanya/eposta-kampanya.module.js';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { VideosModule } from './videos/videos.module.js';
     ProspectModule,
     ClientReportModule,
     VideosModule,
+    EpostaKampanyaModule,
   ],
   // Guard SIRASI onemli — kayit sirasinda calisirlar.
   //
