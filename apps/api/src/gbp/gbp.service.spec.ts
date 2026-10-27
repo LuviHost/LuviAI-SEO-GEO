@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./places-istemci.js', async (orig) => {
   const gercek = await orig<typeof import('./places-istemci.js')>();
-  return { ...gercek, placeAra: vi.fn(), placeDetay: vi.fn() };
+  return { ...gercek, placeAra: vi.fn(), placeDetay: vi.fn(), placeFotoUrl: vi.fn() };
 });
 vi.mock('../audit/site-nap.js', () => ({ readSiteNap: vi.fn(async () => ({ phones: ['+902165551122'], addresses: [], sources: ['tel-link'], businessTypes: [] })) }));
 
-import { placeAra, placeDetay } from './places-istemci.js';
+import { adayYap, placeAra, placeDetay, placeFotoUrl, type PlaceAdayHam } from './places-istemci.js';
 import { GbpService } from './gbp.service.js';
 
 function sahtePrisma() {
@@ -27,7 +27,7 @@ function sahtePrisma() {
 
 const ENV = { GOOGLE_PLACES_API_KEY: 'k', PLACES_DAILY_BUDGET_USD: '0.1', PLACES_PUBLIC_DAILY_BUDGET_USD: '0.05' };
 const eski: Record<string, string | undefined> = {};
-beforeEach(() => { for (const [k, v] of Object.entries(ENV)) { eski[k] = process.env[k]; process.env[k] = v; } vi.mocked(placeAra).mockReset(); vi.mocked(placeDetay).mockReset(); });
+beforeEach(() => { for (const [k, v] of Object.entries(ENV)) { eski[k] = process.env[k]; process.env[k] = v; } vi.mocked(placeAra).mockReset(); vi.mocked(placeDetay).mockReset(); vi.mocked(placeFotoUrl).mockReset(); });
 afterEach(() => { for (const k of Object.keys(ENV)) { if (eski[k] === undefined) delete process.env[k]; else process.env[k] = eski[k]; } });
 
 describe('GbpService', () => {
@@ -50,11 +50,41 @@ describe('GbpService', () => {
     const p = sahtePrisma();
     const svc = new GbpService(p as any, {} as any);
     vi.mocked(placeAra).mockResolvedValue([]);
-    await svc.ara('kahve kadıköy'); // 0.032
-    await svc.ara('kahve kadıköy'); // 0.064
-    await svc.ara('kahve kadıköy'); // 0.096
-    await expect(svc.ara('kahve kadıköy')).rejects.toThrow(/kapasite/);
-    expect(placeAra).toHaveBeenCalledTimes(3);
+    await svc.ara('kahve kadıköy'); // 0.035
+    await svc.ara('kahve kadıköy'); // 0.070
+    await expect(svc.ara('kahve kadıköy')).rejects.toThrow(/kapasite/); // 0.105 > 0.1
+    expect(placeAra).toHaveBeenCalledTimes(2);
+  });
+
+  it('aday kartlari: foto alinir, site eslesmesi en uste; foto tavana takilirsa kart fotosuz doner', async () => {
+    const p = sahtePrisma();
+    const svc = new GbpService(p as any, {} as any);
+    const ham = (id: string, web?: string): PlaceAdayHam => adayYap({
+      id, displayName: { text: id }, websiteUri: web,
+      photos: [{ name: `places/${id}/photos/AbCdEfGhIjKl`, authorAttributions: [{ displayName: 'Ayşe', uri: 'https://maps.google.com/maps/contrib/1' }] }],
+    });
+    vi.mocked(placeAra).mockResolvedValue([ham('ChIJbaskasi01', 'https://baska.com'), ham('ChIJbizimki01', 'https://www.kahveduragi.com/iletisim')]);
+    vi.mocked(placeFotoUrl).mockResolvedValue('https://lh3.googleusercontent.com/x');
+    const r = await svc.ara('kahve kadıköy', false, 'u1', 's1');
+    expect(r.map((a) => [a.placeId, a.siteEslesme])).toEqual([['ChIJbizimki01', true], ['ChIJbaskasi01', false]]);
+    expect(r[0].foto).toEqual({ url: 'https://lh3.googleusercontent.com/x', yazar: { ad: 'Ayşe', uri: 'https://maps.google.com/maps/contrib/1' } });
+    expect(r[0]).not.toHaveProperty('fotoAdi');
+    // Ilk arama 0.035 + 2×0.007 = 0.049. Ikinci: 0.084 + iki foto payi 0.098 (tavan 0.1 icinde);
+    // biri hata verir → payi geri alinir → 0.091
+    vi.mocked(placeFotoUrl).mockRejectedValueOnce(new Error('zaman asimi'));
+    const r2 = await svc.ara('kahve kadıköy', false, 'u1', 's1');
+    expect(r2.filter((a) => a.foto === null)).toHaveLength(1); // hata veren foto iade edildi, kart fotosuz
+    expect(Number(p.kv.get([...p.kv.keys()].find((k) => k.startsWith('places-cost:'))!))).toBeCloseTo(0.091, 5);
+  });
+
+  it('foto butcesi yetmezse arama yine doner (fotosuz)', async () => {
+    process.env.PLACES_DAILY_BUDGET_USD = '0.04';
+    const svc = new GbpService(sahtePrisma() as any, {} as any);
+    vi.mocked(placeAra).mockResolvedValue([adayYap({ id: 'ChIJbaskasi01', photos: [{ name: 'places/ChIJbaskasi01/photos/AbCdEfGhIjKl' }] })]);
+    vi.mocked(placeFotoUrl).mockResolvedValue('https://lh3.googleusercontent.com/x');
+    const r = await svc.ara('kahve kadıköy');
+    expect(r[0].foto).toBeNull();
+    expect(placeFotoUrl).not.toHaveBeenCalled();
   });
 
   it('herkese acik tavan ayri ve daha dusuk', async () => {

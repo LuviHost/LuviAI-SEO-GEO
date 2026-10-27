@@ -8,7 +8,7 @@ import { readSiteNap } from '../audit/site-nap.js';
 import { OAuthFlowError } from '../auth/oauth-state.js';
 import { profilDenetle, type DenetimSonucu } from './gbp-denetim.js';
 import { yerelSoruOnerisi, type YerelSoruOnerisi } from './gbp-yerel.js';
-import { PLACES_MALIYET, placeAra, placeDetay, placeIdGecerli, placesAnahtari, type PlaceAday } from './places-istemci.js';
+import { PLACES_MALIYET, alanAdi, placeAra, placeDetay, placeFotoUrl, placeIdGecerli, placesAnahtari, type PlaceAday, type PlaceAdayHam } from './places-istemci.js';
 import * as gbp from './gbp-api.js';
 import { googleJson, GoogleIstekHatasi } from './google-istek.js';
 import { gonderiKuralIhlali, yanitTemizle } from './gbp-kurallar.js';
@@ -71,6 +71,13 @@ export class GbpService {
     }
   }
 
+  /** Google'a hic gitmeyen / basarisiz olan istegin ayrilan payini geri ver */
+  private async butceIade(tutar: number, publicMi: boolean): Promise<void> {
+    const g = this.gun();
+    await this.kvEkle(`places-cost:${g}`, -tutar);
+    if (publicMi) await this.kvEkle(`places-cost-public:${g}`, -tutar);
+  }
+
   /** Atomik gunluk sayac kapisi: once artir, siniri astiysa geri al ve reddet */
   private async sayacKapisi(key: string, sinir: number, mesaj: string): Promise<void> {
     if ((await this.kvEkle(key, 1)) > sinir) {
@@ -109,14 +116,49 @@ export class GbpService {
 
   static readonly KULLANICI_GUNLUK_ARAMA = 15;
 
-  async ara(sorgu: string, publicMi = false, userId?: string): Promise<PlaceAday[]> {
+  /**
+   * Aday kartlari: ad/adres + kategori, puan, web sitesi, kucuk foto. Panelde (siteId) profilin web sitesi
+   * sitenin alan adiyla ayniysa "siteEslesme" isaretlenir ve en uste alinir.
+   */
+  async ara(sorgu: string, publicMi = false, userId?: string, siteId?: string): Promise<PlaceAday[]> {
     const q = String(sorgu ?? '').trim();
     if (q.length < 3) throw new BadRequestException('İşletme adını ve şehri yazın (en az 3 karakter).');
     const k = this.anahtar();
     // Panel: tek hesap ortak gunluk butceyi tuketemesin
     if (!publicMi && userId) await this.sayacKapisi(`gbp-ara:${userId}:${this.gun()}`, GbpService.KULLANICI_GUNLUK_ARAMA, 'Bugünkü işletme arama hakkınız doldu; yarın tekrar deneyin.');
     await this.butceAyir(PLACES_MALIYET.arama, publicMi);
-    try { return await placeAra(q, k); } catch (e) { this.placesHata(e); }
+    let ham: PlaceAdayHam[];
+    try { ham = await placeAra(q, k); } catch (e) { this.placesHata(e); }
+
+    let siteHost: string | null = null;
+    if (siteId) {
+      const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { url: true } }).catch(() => null);
+      siteHost = alanAdi(site?.url);
+    }
+    const adaylar = await Promise.all(ham.map(async ({ fotoAdi, fotoYazar, ...a }): Promise<PlaceAday> => {
+      const aday: PlaceAday = { ...a, ...(siteHost ? { siteEslesme: !!a.web && a.web === siteHost } : {}) };
+      if (fotoAdi) {
+        const url = await this.fotoAl(fotoAdi, k, publicMi);
+        if (url) aday.foto = { url, yazar: fotoYazar };
+      }
+      return aday;
+    }));
+    // Sira Google'inki; yalniz site eslesmesi one alinir (sort kararli)
+    return adaylar.sort((x, y) => Number(!!y.siteEslesme) - Number(!!x.siteEslesme));
+  }
+
+  /** Foto opsiyonel: tavan doluysa ya da Google hata verirse kart fotosuz gosterilir, arama bozulmaz */
+  private async fotoAl(fotoAdi: string, k: string, publicMi: boolean): Promise<string | null> {
+    try { await this.butceAyir(PLACES_MALIYET.foto, publicMi); } catch { return null; }
+    try {
+      const url = await placeFotoUrl(fotoAdi, k);
+      if (!url) await this.butceIade(PLACES_MALIYET.foto, publicMi);
+      return url;
+    } catch (e) {
+      await this.butceIade(PLACES_MALIYET.foto, publicMi);
+      this.log.warn(`Places foto alinamadi: ${String((e as any)?.message ?? e).slice(0, 160)}`);
+      return null;
+    }
   }
 
   async placeBagla(siteId: string, placeId: string) {

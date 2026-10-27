@@ -710,6 +710,17 @@ export interface GbpAday {
   placeId: string;
   ad: string;
   adres: string;
+  kategori: string | null;
+  puan: number | null;
+  yorumSayisi: number;
+  /** Web sitesinin alan adi (www'suz) */
+  web: string | null;
+  mapsUri: string | null;
+  kapali: boolean;
+  /** Google fotografi; yazar varsa yaninda gosterilir (Google kosulu) */
+  foto: { url: string; yazar: { ad: string; uri: string | null } | null } | null;
+  /** Yalniz panelde: profilin web sitesi bu sitenin alan adiyla ayni */
+  siteEslesme?: boolean;
 }
 
 export type GbpMaddeDurum = 'iyi' | 'uyari' | 'eksik' | 'bilgi';
