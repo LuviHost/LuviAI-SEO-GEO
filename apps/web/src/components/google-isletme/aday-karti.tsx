@@ -50,12 +50,12 @@ export function AdayKarti({ aday: a, aksiyon }: { aday: GbpAday; aksiyon: React.
         </div>
 
         <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
-          {a.puan !== null ? (
+          {a.puan != null ? (
             <>
               <span className="font-medium text-foreground">{a.puan.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
               <Yildizlar puan={a.puan} />
-              <span>({a.yorumSayisi.toLocaleString('tr-TR')})</span>
-              <span className="sr-only">{`5 üzerinden ${a.puan}, ${a.yorumSayisi} yorum`}</span>
+              <span>({(a.yorumSayisi ?? 0).toLocaleString('tr-TR')})</span>
+              <span className="sr-only">{`5 üzerinden ${a.puan}, ${a.yorumSayisi ?? 0} yorum`}</span>
             </>
           ) : (
             <span>Henüz yorum yok</span>
