@@ -71,7 +71,7 @@ npx tsx scripts/prospect/01-firmalar.ts --via openclaw --only etid,btk   # JS-on
 | --- | --- |
 | `--limit N` | kaynak başına en fazla N kayıt |
 | `--dry-run` | dosya yazma |
-| `--only a,b` | geçerli adlar: `seed tbb seddk todeb fkb kap-yk kap-pys kap-bdk kap-igs bmd tubisad tesid etid fortune rvd wiki-havayolu wiki-mvno btk turob osd odmd oyder` |
+| `--only a,b` | geçerli adlar: `seed tbb seddk todeb fkb kap-yk kap-pys kap-bdk kap-igs bmd tubisad tesid mosder imos tgsd zincir etid fortune rvd rd ida iab gyoder turyid ayd-kurumsal ayd-faaliyet meyed yok-vakif ufrad wiki-havayolu wiki-mvno btk turob osd odmd oyder` |
 | `--no-merge` | önceki `firmalar.csv`'yi yükleme (varsayılan: `--only` koşumu dosyayı KÜÇÜLTMEZ) |
 | `--kap-detail` | KAP şirket genel sayfalarını da çek (web + sektör satırı) |
 | `--via openclaw` | `etid`, `btk` için OpenClaw tarayıcı (`OPENCLAW_BIN`, isteğe bağlı `OPENCLAW_GATEWAY_URL`/`OPENCLAW_TOKEN`) |
@@ -359,7 +359,18 @@ Eşik aşımından sonra yeniden başlarken tavan tekrar 100'den başlar.
 | E-tic/per/tek | `tubisad` | TÜBİSAD üye listesi | SSR (UA şart) | 255 | çalışıyor; çoğu ad = alan adı (logo-only) |
 | E-tic/per/tek | `tesid` | TESİD üyeler | SSR | 93 | çalışıyor |
 | E-tic/per/tek | `rvd` | RVD üyeler | SSR (logo alt) | 102 | web yok; sektör `diger` (her sektörden reklamveren); 03 alan adını tahmin eder |
+| E-tic/per/tek | `mosder` | MOSDER (mobilya) üyeler | SSR | 97 | çalışıyor; ad = logo alt |
+| E-tic/per/tek | `imos` | İMOS (İnegöl mobilya) üyeler | SSR | 183 | çalışıyor |
+| E-tic/per/tek | `tgsd` | TGSD (hazır giyim) üyeler | SSR (tablo) | 346 | çalışıyor; "Adı Soyadı" sütunu OKUNMAZ (KVKK) |
+| E-tic/per/tek | `zincir` | Zincir Mağazalar Derneği (`?page_id=131`) | SSR (logo) | 78 | çalışıyor; ad logo dosya adından, yoksa alan adı etiketi; banner slider'ı alınmaz |
 | Tümü | `fortune` | Fortune 500 TR (admin-ajax) | JSON/HTML | 500 | çalışıyor; kendi sektör etiketi `altsektor`'de; web çoğu boş |
+| Ajans / diğer | `iab` | IAB Türkiye üyeleri (admin-ajax `load_more_member`, 18'erli) | JSON | 233 (ajans 99) | `Ajans` → `ajans`/`dijital-ajans`; diğerleri `diger` (reklamveren/yayıncı/satış evi; güçlü unvan ipucu varsa `unvan` tahmini); yetkili adı/telefon OKUNMAZ |
+| Diğer | `gyoder` | GYODER (gayrimenkul) üyeler | SSR | 263 | `diger`/`gayrimenkul` |
+| Diğer | `turyid` | TURYİD (restoran/eğlence) üye listesi | SSR | 215 (web'siz 42) | `diger`/`restoran-zinciri`; `href="#"` ve instagram "siteleri" web'siz yazılır |
+| Diğer | `ayd-kurumsal` `ayd-faaliyet` | AYD (AVM) kurumsal / faaliyet üyeleri | SSR | 57 / 41 | `diger`/`avm` |
+| Diğer | `meyed` | MEYED (meyve suyu) üyeler | SSR | 52 | `diger`/`icecek` |
+| Diğer | `yok-vakif` | YÖK vakıf üniversiteleri (`/university?type=2`) | SSR | 74 | `diger`/`vakif-universitesi`; şehir de gelir |
+| Diğer | `ufrad` | UFRAD franchise markaları (asıl/destekçi/aday + detay sayfası) | SSR | 151 marka → 144 (web'siz 22) | `diger`/`franchise` (destekçi üyeler `franchise-destekci`); web detay sayfasındaki "İnternet Sitesi" kutusundan; ~160 istek, birkaç dakika |
 | Tur/hav/tel/oto | `wiki-havayolu` | Wikipedia havayolu listesi | JSON | 13 | web yok |
 | Tur/hav/tel/oto | `wiki-mvno` | Wikipedia MVNO listesi | JSON | son koşumda 0 satır | web yok; operatörler seed'de; `--only wiki-mvno` ile tek başına deneyip özeti okuyun |
 | Tur/hav/tel/oto | `turob` | TÜROB 5 yıldızlı oteller (`?start=12,24,…`) | SSR (UA şart) | 119 | çalışıyor; zincirler tek satır |
