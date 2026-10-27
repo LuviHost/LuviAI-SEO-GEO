@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { StatusBanner } from '@/components/ui/status-banner';
 import { MetricCard } from '@/components/ui/metric';
 import { cn } from '@/lib/utils';
+import { csvParcala } from '@/lib/csv-parcala';
 import {
   Mail, RefreshCw, Send, Upload, Download, CheckCircle2, MousePointerClick, Eye, Ban, ShieldCheck, Webhook, Linkedin, Play,
 } from 'lucide-react';
@@ -230,9 +231,18 @@ export default function EpostaKampanyaPage() {
                 e.target.value = '';
                 if (!f) return;
                 void is('ice', async () => {
-                  const r = await api.epostaIceAktar(await f.text());
-                  toast.success(`${r.eklendi} yeni · ${r.guncellendi} güncellendi · ${r.atlandi} atlandı`);
-                  if (r.hatalar.length) toast.warning(r.hatalar.slice(0, 3).join(' · '));
+                  // NEDEN parca: API JSON govdesi 100 KB ile sinirli; 1.000+ satirlik dosya tek istekte 413 aliyordu
+                  const parcalar = csvParcala(await f.text(), 70_000);
+                  let eklendi = 0, guncellendi = 0, atlandi = 0;
+                  const hatalar: string[] = [];
+                  for (const [i, parca] of parcalar.entries()) {
+                    if (parcalar.length > 1) toast.info(`Yükleniyor ${i + 1}/${parcalar.length}…`);
+                    const r = await api.epostaIceAktar(parca);
+                    eklendi += r.eklendi; guncellendi += r.guncellendi; atlandi += r.atlandi;
+                    hatalar.push(...r.hatalar);
+                  }
+                  toast.success(`${eklendi} yeni · ${guncellendi} güncellendi · ${atlandi} atlandı`);
+                  if (hatalar.length) toast.warning(hatalar.slice(0, 3).join(' · '));
                 });
               }}
             />
