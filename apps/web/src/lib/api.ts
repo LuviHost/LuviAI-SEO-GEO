@@ -694,6 +694,97 @@ export interface EpostaOverview {
   sayfa: number;
 }
 
+// ─── Google Isletme Profili (apps/api/src/gbp) ───────────────────────────────
+// Places icerigi sunucuda SAKLANMAZ (yalniz placeId); denetim/karne her seferinde canli.
+
+export interface GbpDurum {
+  placeId: string | null;
+  /** Places API anahtari tanimli mi (denetim acik mi) */
+  placesHazir: boolean;
+  /** GBP API (yorum/gonderi/performans) Google onayindan sonra acik mi */
+  apiAcik: boolean;
+  oauth: { bagli: boolean; konum: string | null; konumAdi: string | null; hesap: string | null };
+}
+
+export interface GbpAday {
+  placeId: string;
+  ad: string;
+  adres: string;
+}
+
+export type GbpMaddeDurum = 'iyi' | 'uyari' | 'eksik' | 'bilgi';
+
+export interface GbpMadde {
+  kod: string;
+  baslik: string;
+  durum: GbpMaddeDurum;
+  bulgu: string;
+  /** durum 'iyi' ise bos */
+  oneri: string;
+  agirlik: number;
+  /** 0..1 */
+  skor: number;
+}
+
+export interface GbpDenetim {
+  /** 0-100 */
+  puan: number;
+  maddeler: GbpMadde[];
+  ozet: { ad: string; adres: string; mapsUri: string; puanOrt: number | null; yorumSayisi: number; kategori: string };
+}
+
+export interface GbpYerelOneri {
+  il: string | null;
+  ilceler: string[];
+  hizmetler: string[];
+}
+
+export type GbpPanelDenetim = GbpDenetim & { yerelOneri: GbpYerelOneri };
+
+export interface GbpKonum {
+  hesap: string;
+  hesapAdi: string;
+  konum: string;
+  ad: string;
+  adres: string;
+  placeId: string | null;
+}
+
+export interface GbpYorum {
+  reviewId: string;
+  yazar: string;
+  yildiz: 1 | 2 | 3 | 4 | 5 | null;
+  metin: string;
+  tarih: string | null;
+  yanit: string | null;
+  yanitTarih: string | null;
+}
+
+export interface GbpYorumListesi {
+  ortalama: number | null;
+  toplam: number | null;
+  /** Sonraki sayfa belirteci (yoksa null) */
+  sonraki: string | null;
+  yanitsiz: number;
+  yorumlar: GbpYorum[];
+}
+
+export interface GbpGonderi {
+  metin: string;
+  durum: string;
+  tarih: string | null;
+  url: string | null;
+}
+
+export interface GbpPerformans {
+  gun: number;
+  aramaGorunum: number;
+  haritaGorunum: number;
+  arama: number;
+  webTiklama: number;
+  yolTarifi: number;
+}
+
 export const api = {
   // Generic raw request (custom endpoints icin)
   request: <T = any>(path: string, options?: RequestInit) => request<T>(path, options),
@@ -882,6 +973,52 @@ export const api = {
   /** Sitenin ana sayfasini yeniden okur (10 dakikada bir) */
   refreshLocalSiteNap: (siteId: string) =>
     request<SiteNapView>(`/sites/${siteId}/audit/prompts/local/site-nap/refresh`, { method: 'POST' }),
+
+  // ── Google Isletme Profili — denetim (Places) + yonetim (GBP API, onay sonrasi) ──
+  getGbpDurum: (siteId: string) => request<GbpDurum>(`/sites/${siteId}/gbp`),
+
+  araGbp: (siteId: string, sorgu: string) =>
+    request<GbpAday[]>(`/sites/${siteId}/gbp/ara`, { method: 'POST', body: JSON.stringify({ sorgu }) }),
+
+  setGbpPlace: (siteId: string, placeId: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/gbp/place`, { method: 'POST', body: JSON.stringify({ placeId }) }),
+
+  removeGbpPlace: (siteId: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/gbp/place`, { method: 'DELETE' }),
+
+  /** Canli denetim — sonuc saklanmaz; site basina gunluk sinir (429) */
+  denetleGbp: (siteId: string) =>
+    request<GbpPanelDenetim>(`/sites/${siteId}/gbp/denetim`, { method: 'POST' }),
+
+  getGbpAuthUrl: (siteId: string) =>
+    request<{ url: string }>(`/gbp/oauth/start?siteId=${encodeURIComponent(siteId)}`),
+
+  disconnectGbp: (siteId: string) =>
+    request<{ ok: boolean }>('/gbp/oauth/disconnect', { method: 'POST', body: JSON.stringify({ siteId }) }),
+
+  getGbpKonumlar: (siteId: string) => request<GbpKonum[]>(`/sites/${siteId}/gbp/konumlar`),
+
+  setGbpKonum: (siteId: string, hesap: string, konum: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/gbp/konum`, { method: 'POST', body: JSON.stringify({ hesap, konum }) }),
+
+  getGbpYorumlar: (siteId: string, sayfa?: string) =>
+    request<GbpYorumListesi>(`/sites/${siteId}/gbp/yorumlar${sayfa ? `?sayfa=${encodeURIComponent(sayfa)}` : ''}`),
+
+  /** Yanit taslagi — GONDERILMEZ; sahip duzenleyip onaylar */
+  gbpYanitTaslagi: (siteId: string, reviewId: string) =>
+    request<{ taslak: string }>(`/sites/${siteId}/gbp/yorumlar/${encodeURIComponent(reviewId)}/taslak`, { method: 'POST' }),
+
+  gbpYanitGonder: (siteId: string, reviewId: string, metin: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/gbp/yorumlar/${encodeURIComponent(reviewId)}/yanit`, {
+      method: 'POST', body: JSON.stringify({ metin }),
+    }),
+
+  getGbpGonderiler: (siteId: string) => request<GbpGonderi[]>(`/sites/${siteId}/gbp/gonderiler`),
+
+  gbpGonderiOlustur: (siteId: string, body: { metin: string; url?: string | null }) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/gbp/gonderiler`, { method: 'POST', body: JSON.stringify(body) }),
+
+  getGbpPerformans: (siteId: string) => request<GbpPerformans>(`/sites/${siteId}/gbp/performans`),
 
   promptCoverage: (siteId: string, days = 30) =>
     request<{
@@ -2371,6 +2508,14 @@ export const api = {
   // ──────────────────────────────────────────────────────────
   //  PUBLIC — anonim landing checker (auth yok)
   // ──────────────────────────────────────────────────────────
+  /** Ucretsiz Google Isletme karnesi — isletme arama (Turnstile; IP basina gunluk sinir) */
+  publicGbpAra: (sorgu: string, turnstileToken?: string) =>
+    request<GbpAday[]>('/public/gbp/ara', { method: 'POST', body: JSON.stringify({ sorgu, turnstileToken }) }),
+
+  /** Ucretsiz Google Isletme karnesi — canli denetim, saklanmaz */
+  publicGbpKarne: (placeId: string, turnstileToken?: string) =>
+    request<GbpDenetim>('/public/gbp/karne', { method: 'POST', body: JSON.stringify({ placeId, turnstileToken }) }),
+
   publicCitationCheck: (domain: string, turnstileToken?: string) =>
     request<{
       domain: string;

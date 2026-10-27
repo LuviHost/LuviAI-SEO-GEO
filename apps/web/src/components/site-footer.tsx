@@ -73,6 +73,7 @@ export function SiteFooter() {
                 <li><Link href="/compare" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.compare')}</Link></li>
                 <li><Link href="/faq" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.faq')}</Link></li>
                 <li><Link href="/rehber" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.guides')}</Link></li>
+                <li><Link href="/google-isletme-karnesi" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Google İşletme Karnesi</Link></li>
                 <li><Link href="/help" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Yardım</Link></li>
               </ul>
             </div>

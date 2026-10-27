@@ -12,13 +12,14 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-export type OAuthProviderId = 'gsc' | 'ga' | 'google-ads' | 'meta-ads';
+export type OAuthProviderId = 'gsc' | 'ga' | 'google-ads' | 'meta-ads' | 'gbp';
 
 const FINISH_PATH: Record<OAuthProviderId, string> = {
   gsc: '/auth/gsc/finish',
   ga: '/auth/ga/finish',
   'google-ads': '/oauth/google-ads/finish',
   'meta-ads': '/oauth/meta-ads/finish',
+  gbp: '/gbp/oauth/finish',
 };
 
 /** Ayni anahtar iki kez gonderilmesin (StrictMode cift efekt, yeniden render) — sunucu da tek kullanimlik */
@@ -47,9 +48,10 @@ export async function finishOAuthConnect<T = unknown>(provider: OAuthProviderId,
   return body as T;
 }
 
-const SCOPE_TEXT: Record<'gsc' | 'ga', string> = {
+const SCOPE_TEXT: Record<'gsc' | 'ga' | 'gbp', string> = {
   gsc: 'Google izin ekranında Search Console erişim kutusunu işaretlemeniz gerekiyor. Bağlantıyı yeniden başlatıp Search Console erişimine izin verin.',
   ga: 'Google izin ekranında Google Analytics erişim kutusunu işaretlemeniz gerekiyor. Bağlantıyı yeniden başlatıp Analytics erişimine izin verin.',
+  gbp: 'Google izin ekranında İşletme Profili yönetim kutusunu işaretlemeniz gerekiyor. Bağlantıyı yeniden başlatıp bu erişime izin verin.',
 };
 
 const ERROR_TEXT: Record<string, string> = {
@@ -63,11 +65,15 @@ const ERROR_TEXT: Record<string, string> = {
   token_exchange_failed: 'Google’dan erişim anahtarı alınamadı. Bağlantıyı yeniden başlatın.',
 };
 
-/** `?gsc=error&gscerror=<kod>` → kullaniciya gosterilecek metin. Bilinmeyen kod ve eski serbest metin genel mesaja duser. */
-export function oauthCallbackErrorText(provider: 'gsc' | 'ga', code: string | null | undefined): string {
+/** `?gsc=error&gscerror=<kod>` (gbp: `?gbp=error&gbperror=<kod>`) → kullaniciya gosterilecek metin. Bilinmeyen kod ve eski serbest metin genel mesaja duser. */
+const FALLBACK_TEXT: Record<'gsc' | 'ga' | 'gbp', string> = {
+  gsc: 'Search Console bağlantısı tamamlanamadı, tekrar deneyin.',
+  ga: 'Google Analytics bağlantısı tamamlanamadı, tekrar deneyin.',
+  gbp: 'Google İşletme Profili bağlantısı tamamlanamadı, tekrar deneyin.',
+};
+
+export function oauthCallbackErrorText(provider: 'gsc' | 'ga' | 'gbp', code: string | null | undefined): string {
   if (code === 'scope_not_granted') return SCOPE_TEXT[provider];
   if (code && Object.prototype.hasOwnProperty.call(ERROR_TEXT, code)) return ERROR_TEXT[code];
-  return provider === 'gsc'
-    ? 'Search Console bağlantısı tamamlanamadı, tekrar deneyin.'
-    : 'Google Analytics bağlantısı tamamlanamadı, tekrar deneyin.';
+  return FALLBACK_TEXT[provider];
 }

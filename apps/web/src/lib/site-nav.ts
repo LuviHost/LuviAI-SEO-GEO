@@ -24,6 +24,7 @@ import {
   Image as ImageIcon,
   Lightbulb,
   LineChart,
+  MapPin,
   MessageSquare,
   MessagesSquare,
   Network,
@@ -106,6 +107,7 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   // ── Buyume ──
   { route: 'analytics', label: 'Analitik', icon: BarChart3, group: 'growth', hint: 'Search Console + GA4', keywords: ['analytics', 'analitik', 'gsc', 'ga4', 'trafik'] },
   { route: 'ads', label: 'Reklam', icon: TrendingUp, group: 'growth', hint: 'Google + Meta reklam yönetimi', keywords: ['ads', 'reklam', 'google', 'meta', 'roas'] },
+  { route: 'googleIsletme', label: 'Google İşletme', icon: MapPin, group: 'growth', hint: 'Haritalar profili denetimi, yorumlar ve gönderiler', keywords: ['google maps', 'harita', 'haritalar', 'yorum', 'işletme profili', 'gbp', 'google business', 'yerel', 'local'] },
   { route: 'adsHealth', label: 'Kampanya Skoru', icon: Target, group: 'growth', hint: 'Reklam hesabı sağlık kontrolü', keywords: ['ads', 'health', 'kampanya', 'skor', 'reklam'] },
   { route: 'report', label: 'Rapor', icon: FileBarChart, group: 'growth', hint: 'Performans özeti ve müşteri raporu', keywords: ['report', 'rapor', 'pdf', 'müşteri raporu', 'site raporu', 'paylaş'] },
 

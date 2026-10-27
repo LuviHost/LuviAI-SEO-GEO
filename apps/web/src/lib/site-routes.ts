@@ -30,6 +30,7 @@ export const SITE_ROUTES = {
   analytics: '/analytics',
   ads: '/ads',
   adsHealth: '/ads-health',
+  googleIsletme: '/google-isletme',
   report: '/report',
   // Musteri raporu Rapor'un alt sayfasi: kenar cubugunda "Rapor" etkin kalir
   clientReport: '/report/musteri',
