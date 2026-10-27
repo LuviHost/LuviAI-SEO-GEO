@@ -27,9 +27,9 @@ import type { PrismaService } from '../prisma/prisma.service.js';
  * akis panelde, oturumlu bir istekle tamamlanir (bkz. auth.controller.ts).
  */
 
-export type OAuthProvider = 'gsc' | 'ga' | 'google-ads' | 'meta-ads';
+export type OAuthProvider = 'gsc' | 'ga' | 'google-ads' | 'meta-ads' | 'gbp';
 
-const PROVIDERS: readonly OAuthProvider[] = ['gsc', 'ga', 'google-ads', 'meta-ads'];
+const PROVIDERS: readonly OAuthProvider[] = ['gsc', 'ga', 'google-ads', 'meta-ads', 'gbp'];
 
 /** RFC 6749 §4.1.2 yetkilendirme kodu icin en fazla 10 dk onerir; state de ayni pencerede yasar. */
 export const OAUTH_STATE_TTL_MS = 10 * 60_000;
@@ -273,6 +273,7 @@ const SCOPE_TEXT: Record<OAuthProvider, string> = {
   ga: 'Google izin ekranında Google Analytics erişim kutusunu işaretlemeniz gerekiyor. Bağlantıyı yeniden başlatıp Analytics erişimine izin verin.',
   'google-ads': 'Google izin ekranında Google Ads erişim kutusunu işaretlemeniz gerekiyor. Bağlantıyı yeniden başlatıp Google Ads erişimine izin verin.',
   'meta-ads': 'Meta izin ekranında istenen izinler verilmedi. Bağlantıyı yeniden başlatıp izinleri onaylayın.',
+  gbp: 'Google izin ekranında İşletme Profili yönetim iznini işaretlemeniz gerekiyor. Bağlantıyı yeniden başlatıp izin verin.',
 };
 
 const ERROR_TEXT: Record<Exclude<OAuthErrorCode, 'scope_not_granted'>, string> = {
