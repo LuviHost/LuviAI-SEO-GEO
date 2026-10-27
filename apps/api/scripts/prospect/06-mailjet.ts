@@ -28,7 +28,8 @@
  *   MAILJET_API_KEY, MAILJET_SECRET, MAILJET_FROM_EMAIL (orn. info@ranksup.ai),
  *   MAILJET_FROM_NAME (orn. "Emir Burgazlı · RanksUp"), MAILJET_REPLY_TO (istege bagli)
  *   MAILJET_GONDEREN_AD (vars. "Emir Burgazlı"), MAILJET_GONDEREN_UNVAN (vars. "Kurucu, RanksUp · Luvi Host"),
- *   MAILJET_GONDEREN_ADRES (zorunlu — md. 5/1), MAILJET_MERSIS (zorunlu — md. 5/1)
+ *   MAILJET_GONDEREN_ADRES (zorunlu), MAILJET_MERSIS (ticaret siciline kayitli ise) YA DA
+ *   MAILJET_KIMLIK (sicile kayitli olmayan sahis isletmesi: "Ad Soyad · VKN … · … V.D." — biri zorunlu)
  *
  * Kullanim:
  *   npx tsx scripts/prospect/06-mailjet.ts --dns                       # gonderici alan adi icin SPF/DKIM kayitlari + durum
@@ -96,6 +97,13 @@ const GONDEREN_AD = process.env.MAILJET_GONDEREN_AD || 'Emir Burgazlı';
 const GONDEREN_UNVAN = process.env.MAILJET_GONDEREN_UNVAN || 'Kurucu, RanksUp · Luvi Host';
 const GONDEREN_ADRES = process.env.MAILJET_GONDEREN_ADRES ?? '';
 const MERSIS = process.env.MAILJET_MERSIS ?? '';
+/**
+ * Kimlik satiri. NEDEN ayri: ticaret siciline kayitli olmayan (MERSIS'i olmayan) sahis isletmesinde zorunlu bilgi
+ * ad soyad + T.C. ya da vergi kimlik numarasidir; sablonlardaki "MERSİS {{mersis}}" bu satirla degisir.
+ * (27.10.2026: RanksUp sahibi sicile kayitli degil; VKN tercih edildi — TCKN binlerce kutuya gitmesin.)
+ */
+const KIMLIK = process.env.MAILJET_KIMLIK?.trim() || '';
+const KIMLIK_SATIRI = KIMLIK || `MERSİS ${MERSIS}`;
 
 const DURUM_FILE = path.join(DATA_DIR, 'mailjet-gonderim.csv');
 const DURUM_SUTUN = ['email', 'tarih', 'messageId', 'kampanya', 'durum'];
@@ -402,7 +410,8 @@ function kimlikDoldur(s: string): string {
     .replace(/\{\{gonderen_ad\}\}/g, GONDEREN_AD)
     .replace(/\{\{gonderen_unvan\}\}/g, GONDEREN_UNVAN)
     .replace(/\{\{gonderen_adres\}\}/g, GONDEREN_ADRES)
-    .replace(/\{\{mersis\}\}/g, MERSIS)
+    .replace(/MERSİS \{\{mersis\}\}/g, KIMLIK_SATIRI)
+    .replace(/\{\{mersis\}\}/g, KIMLIK || MERSIS)
     .replace(/\[Ad Soyad\]/g, GONDEREN_AD)
     .replace(/\[adres\]/g, GONDEREN_ADRES)
     .replace(/MERSİS \[no\]/g, `MERSİS ${MERSIS}`)
@@ -424,7 +433,7 @@ function kimlikKapisi(sektorler: string[], mod: 'gercek' | 'dry'): void {
   if (!GONDEREN_AD.trim()) sorunlar.push('MAILJET_GONDEREN_AD bos');
   if (!GONDEREN_UNVAN.trim()) sorunlar.push('MAILJET_GONDEREN_UNVAN bos');
   if (!GONDEREN_ADRES) sorunlar.push('MAILJET_GONDEREN_ADRES bos');
-  if (!MERSIS) sorunlar.push('MAILJET_MERSIS bos');
+  if (!MERSIS && !KIMLIK) sorunlar.push('MAILJET_MERSIS ve MAILJET_KIMLIK ikisi de bos');
   for (const s of new Set(sektorler)) {
     const h = kimlikKalinti(htmlSablon(s));
     const m = kimlikKalinti(metinSablon(s));
@@ -484,14 +493,29 @@ function metinSablon(sektor: string): string {
   return mailjetSozdizimi(blok);
 }
 
-type Alici = { email: string; ad: string; soyad: string; firma: string; unvan?: string; sektor: string; varyant: string; sektor_sorusu?: string };
+type Alici = { email: string; ad: string; soyad: string; firma: string; unvan?: string; sektor: string; varyant: string; sektor_sorusu?: string; marka?: string };
+
+/**
+ * Elle duzeltilmis marka adlari ve haric tutulan alan adlari — DATA_DIR/marka-duzeltme.csv (web,marka,haric).
+ * NEDEN: ajans unvanlari ("CONCEPT / CONCEPT YARATIM REKLAM VE İLETİŞİM HİZ. TİC.") kuralla temiz marka adina
+ * inmiyor; hitap ve konu satirinda "Merhaba Concept ekibi," gorunmeli. 07 import dosyasini yeniden yazdiginda
+ * duzeltme kaybolmasin diye ayri dosyada, alan adiyla eslenir. haric=1 → bu adrese gonderilmez (ör. yurt disi genel kutu).
+ */
+const MARKA_DUZELTME: Map<string, { marka: string; haric: boolean }> = new Map(
+  readCsv(path.join(DATA_DIR, 'marka-duzeltme.csv')).map((r) => [String(r.web ?? '').trim().toLowerCase(), { marka: String(r.marka ?? '').trim(), haric: String(r.haric ?? '').trim() === '1' }]),
+);
+function duzeltme(r: Record<string, string>): { marka: string; haric: boolean } | undefined {
+  const web = String(r.web ?? '').trim().toLowerCase();
+  const dom = String(r.email ?? '').split('@')[1]?.toLowerCase() ?? '';
+  return MARKA_DUZELTME.get(web) ?? MARKA_DUZELTME.get(dom);
+}
 
 /** CSV satirini Alici'ye cevir (konu_varyanti bos → A) */
-const aliciYap = (r: Record<string, string>): Alici => ({ email: r.email, ad: r.ad, soyad: r.soyad, firma: r.firma, unvan: r.unvan, sektor: r.sektor, varyant: r.konu_varyanti || 'A', sektor_sorusu: r.sektor_sorusu });
+const aliciYap = (r: Record<string, string>): Alici => ({ email: r.email, ad: r.ad, soyad: r.soyad, firma: r.firma, unvan: r.unvan, sektor: r.sektor, varyant: r.konu_varyanti || 'A', sektor_sorusu: r.sektor_sorusu, marka: r.marka || duzeltme(r)?.marka || undefined });
 
 function mesaj(to: Alici, testMi = false) {
   const varyant = to.varyant === 'B' ? 'B' : 'A';
-  const firma = firmaKisa(to.firma);
+  const firma = to.marka?.trim() || firmaKisa(to.firma);
   const soru = sektorSorusu(to.firma, to.sektor, to.sektor_sorusu);
   const konu = konuSatiri(to.sektor, varyant, firma);
   const isimsiz = !to.ad?.trim();
@@ -559,7 +583,7 @@ function firmalar(): void {
   for (const r of liste) if (!tekil.has(r.firma)) tekil.set(r.firma, r);
   console.log(`${liste.length} satir · ${tekil.size} tekil firma — firma → firma_kisa · sektor sorusu · konu A uzunlugu`);
   for (const [firma, r] of [...tekil.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'))) {
-    const kisa = firmaKisa(firma);
+    const kisa = r.marka || duzeltme(r)?.marka || firmaKisa(firma);
     const konuA = konuSatiri(r.sektor, "A", kisa);
     const uyari = konuA.length > KONU_MAX ? ` ⚠ konu ${konuA.length} kr > ${KONU_MAX}` : '';
     console.log(`  ${firma}  →  "${kisa}"  ·  "${sektorSorusu(firma, r.sektor, r.sektor_sorusu)}"${uyari}`);
@@ -781,6 +805,7 @@ async function dalga(): Promise<void> {
     // her segment ayri dalga/gun olarak planlanir, startsWith ile kota sessizce asilirdi.
     .filter((r) => !SEGMENT || r.segment === SEGMENT)
     .filter((r) => GONDERIM_SEKTORLERI.includes(r.sektor))
+    .filter((r) => !duzeltme(r)?.haric)
     .filter((r) => !gonderilen.has(r.email.toLowerCase()));
   const bugun = bugunGonderilen(kayit);
   const kalanKota = Math.max(0, GUNLUK_KOTA - bugun);
@@ -798,10 +823,10 @@ async function dalga(): Promise<void> {
   if (DRY) {
     kimlikKapisi(sektorler, 'dry');
     console.log('DRY: gonderim yok; ilk 3 hedef (segment/varyant · firma_kisa · sektor sorusu):');
-    for (const h of hedef.slice(0, 3)) console.log(`  ${h.segment}/${h.konu_varyanti || 'A'} · "${firmaKisa(h.firma)}" (${h.firma}) · "${sektorSorusu(h.firma, h.sektor, h.sektor_sorusu)}"`);
+    for (const h of hedef.slice(0, 3)) console.log(`  ${h.segment}/${h.konu_varyanti || 'A'} · "${aliciYap(h).marka || firmaKisa(h.firma)}" (${h.firma}) · "${sektorSorusu(h.firma, h.sektor, h.sektor_sorusu)}"`);
     const ornek = mesaj(aliciYap(hedef[0]));
     console.log(`DRY: ornek konu → "${ornek.Subject}" (${ornek.Subject.length} kr) · HTML ${ornek.HTMLPart.length} b · metin ${ornek.TextPart.length} b · ret etiketi ${ornek.HTMLPart.includes('[[UNSUB_LINK_EN]]') && ornek.TextPart.includes('[[UNSUB_LINK_EN]]') ? 'OK' : 'EKSIK'}`);
-    const uzun = hedef.map((h) => konuSatiri(h.sektor, h.konu_varyanti, firmaKisa(h.firma))).filter((k) => k.length > KONU_MAX);
+    const uzun = hedef.map((h) => konuSatiri(h.sektor, h.konu_varyanti, aliciYap(h).marka || firmaKisa(h.firma))).filter((k) => k.length > KONU_MAX);
     if (uzun.length) console.warn(`DRY UYARI: ${uzun.length} konu ${KONU_MAX} karakteri asiyor, ornek: "${uzun[0]}" (${uzun[0].length} kr)`);
     if (FRENSIZ) console.log('DRY: --frensiz → onceki dalga bounce freni ATLANACAK.');
     else if (fren) console.log(`DRY: fren kaynagi ${fren}${ONCEKI ? ' (--onceki)' : ' (durum dosyasindaki son farkli kampanya)'} — bounce kontrolu gercek kosumda yapilacak; Mailjet'te bulunamazsa gonderim durur (API'ye dokunulmadi).`);
