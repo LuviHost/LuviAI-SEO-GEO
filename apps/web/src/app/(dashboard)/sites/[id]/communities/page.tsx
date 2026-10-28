@@ -16,7 +16,7 @@ import {
 import { SectionHeader } from '@/components/ui/section-header';
 
 /**
- * Topluluk Ajanı — Reddit/Quora'da markanla ilgili cevaplanabilir sorular +
+ * Topluluk Ajanı — Reddit'te (Quora taramasi yok) markanla ilgili cevaplanabilir sorular +
  * AI taslak cevaplar. Otomatik POST YOK: insan onayı esas (spam değil, değer).
  */
 
@@ -93,7 +93,7 @@ export default function CommunitiesPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
-        <SectionHeader icon={MessagesSquare} title="Topluluk Ajanı" description="Reddit ve Quora'da sektörünle ilgili sorular ve markanın sesiyle hazırlanmış taslak cevaplar. Hiçbir şey senin onayın olmadan paylaşılmaz." />
+        <SectionHeader icon={MessagesSquare} title="Topluluk Ajanı" description="Reddit'te sektörünle ilgili sorular ve markanın sesiyle hazırlanmış taslak cevaplar. Hiçbir şey senin onayın olmadan paylaşılmaz." />
         <Button onClick={scan} disabled={scanning}>
           {scanning ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
           {scanning ? 'Taranıyor…' : 'Fırsat Tara'}

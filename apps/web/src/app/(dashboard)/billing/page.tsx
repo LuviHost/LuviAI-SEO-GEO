@@ -197,7 +197,12 @@ export default function BillingPage() {
             Ödenen dönemin {periodEndFuture ? <><strong>{periodEndAnyText}</strong> tarihinde bitiyor</> : 'sona erdi'} ve kayıtlı kartın yok.
             Yenilemezsen hesabın 7 gün içinde deneme düzeyine geçer.{' '}
             <Link href="/pricing" className="font-medium underline underline-offset-2">Aboneliği yenile</Link>
-            {' '}— kartını kaydedersen sonraki dönemler otomatik yenilenir.
+            {/* Otomatik yenileme vaadi yalniz ozellik acikken (API /current recurringEnabled,
+                PAYTR_RECURRING_ENABLED). Kapaliyken kart kaydedilemez; yenileme elle yapilir
+                ve renewal-policy donem sonundan 3 gun once hatirlatma e-postasi gonderir. */}
+            {current.recurringEnabled === true
+              ? <>{' '}— kartını kaydedersen sonraki dönemler otomatik yenilenir.</>
+              : <>{' '}— otomatik yenileme şu an kapalı; her dönem sonunda abonelik sayfasından yenilersin; dönem bitmeden hatırlatma e-postası gelir.</>}
           </p>
         )}
 

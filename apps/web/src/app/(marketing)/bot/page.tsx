@@ -154,10 +154,6 @@ export default function BotPage() {
               başlattığı araçlar herkese açık kurum ve sektör listelerini ve şirket sitelerinin herkese açık iletişim
               sayfalarını, istekler arasında bekleyerek okur.
             </li>
-            <li>
-              <strong className="font-medium text-foreground">Webhook bildirimleri.</strong> Kullanıcının RanksUp’ta tanımladığı
-              webhook adresine olay bildirimlerini (POST) aynı kimlikle gönderir.
-            </li>
           </ul>
         </Bolum>
 
@@ -252,8 +248,7 @@ export default function BotPage() {
               apple-app-site-association, one random non-existent path for soft-404 detection) of sites that their users added
               to RanksUp; external links in articles generated in RanksUp; RSS feeds and blog pages of competitors in a
               user&apos;s brand profile; the home page of a domain when a visitor requests a free AI visibility check; public
-              industry feeds; and public directories and public contact pages during manually started market research. It
-              also sends webhook notifications (POST) to addresses users configure.
+              industry feeds; and public directories and public contact pages during manually started market research.
             </p>
             <p>
               Site crawls and the local business info read follow an explicit{' '}

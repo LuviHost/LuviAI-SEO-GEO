@@ -12,7 +12,7 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 
 - **Resmi ad**: RanksUp
 - **Adres**: https://ranksup.ai
-- **Arayüz dilleri**: Türkçe, İngilizce
+- **Arayüz dili**: panel Türkçe; tanıtım sayfaları Türkçe ve İngilizce. Makale dili: Türkçe ya da İngilizce
 - **Ödeme**: PayTR. Fiyatlar USD; TL tutarı ödeme anında günün TCMB kuruyla hesaplanır.
 - **Destek**: destek@luvihost.com
 - **KVKK başvuruları**: kvkk@luvihost.com
@@ -23,7 +23,7 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 
 - İzlediğin soruları yapay zekâ asistanlarına sorar; markan anılıyor mu, siten kaynak gösteriliyor mu, rakiplerin kimler, ölçer (Prompt Lab).
 - Asistanlar: ChatGPT, Claude ve Gemini web aramasıyla; Perplexity kendi arama altyapısıyla; Grok ve DeepSeek web araması olmadan, modelin kendi bilgisiyle ölçülür. Meta Llama yalnızca sağlayıcıda kullanılabilir bir model tanımlıyken ölçülür.
-- Puanlama: cevapta site adresin kaynak gösterilirse 100, yalnızca marka adın geçerse 50, hiç geçmezse 0. Marka adının sorunun içinde geçtiği sorular manşet skora girmez (orada anılmak beklenen bir sonuçtur). Manşet 7 günlük ortalamadır; cevaplar günden güne belirgin değişiyorsa "oynak" rozeti gösterilir.
+- Puanlama: cevapta site adresin kaynak gösterilirse 100, yalnızca marka adın geçerse 50, hiç geçmezse 0. Marka adının sorunun içinde geçtiği sorular manşet skora girmez (orada anılmak beklenen bir sonuçtur). Manşet son 7 gündeki ölçümlerden hesaplanır (haftada bir ölçümde bu, son testtir); en az 4 ölçüm biriktikten sonra cevaplar ölçümden ölçüme belirgin değişiyorsa "oynak" rozeti gösterilir.
 - Ölçümü kullanıcı başlatır. Hesap başına 7 günde bir AI ölçümü yapılabilir ve tüm siteler bu hakkı paylaşır; AI testi, yol haritası, Prompt Lab, panelden başlatılan site taramasındaki AI testi, Ürün Radarı, GEO ısı haritası ve diğer ölçümler aynı haftalık hakka sayılır. Sonuç vermeyen ölçüm hakkı yakmaz. Site kurulumundaki ilk tarama, otomatik akışın başlangıç ölçümü ve Ürün Radarı'nın haftalık otomatik taraması bu hakka sayılmaz.
 - Ölçümlerde plana göre aylık bir görünürlük çalıştırması tavanı vardır (bkz. Fiyatlandırma): AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1 çalıştırma sayılır; GEO ısı haritası çalıştırma saymaz. Paneldeki Prompt Lab "Tümünü çalıştır" tek ölçümde en fazla 25 soruyu çalıştırır.
 - GEO skor kartı altı başlıkta değerlendirir: AI tarayıcı erişimi, yapısal veri, AI atıfları, otorite, tazelik, çoklu ortam. Sonuç A+ ile F arasında bir harf notudur.

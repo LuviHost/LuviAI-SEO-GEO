@@ -168,7 +168,7 @@ export const article: RehberArticle = {
     },
     {
       q: 'ASO’nun GEO ile ilgisi ne?',
-      a: 'Asistanlar uygulama önerirken mağaza sayfalarını sık kaynak gösteriyor. AppTweak’in analizine göre ChatGPT’nin uygulama önerilerindeki alıntıların yaklaşık %47’si mağaza sayfalarına ait. Ayrıntı mobil uygulamalar için GEO rehberinde.',
+      a: 'Asistanlar uygulama önerirken mağaza sayfalarını sık kaynak gösteriyor. AppTweak’in analizine göre (tek kaynak, Eylül 2026) ChatGPT’nin uygulama önerilerindeki alıntıların yaklaşık %47’si mağaza sayfalarına ait. Ayrıntı mobil uygulamalar için GEO rehberinde.',
     },
   ],
   sources: [SRC.geoPaper, SRC.googleAiGuide, SRC.googleAiFeatures, SRC.googleFaq2023, SRC.googleFaq2026, SRC.openaiBots, SRC.apptweak, SRC.kpGsc],

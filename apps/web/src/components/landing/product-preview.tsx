@@ -23,7 +23,7 @@ export default function ProductPreview() {
           ranksup.ai/sites/kobipratik.com
         </div>
         <div className="hidden sm:flex items-center gap-1 text-label text-muted-foreground">
-          <span className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse" />
+          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
           {t('land.preview.live')}
         </div>
       </div>
@@ -46,7 +46,7 @@ export default function ProductPreview() {
 
         <div className="border-t lg:border-t-0 lg:border-l bg-muted/20 p-4">
           <div className="flex items-center gap-2 mb-3">
-            <span className="h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
             <div className="text-xs font-semibold">{t('land.preview.activity')}</div>
           </div>
           <ul className="space-y-3 text-xs">

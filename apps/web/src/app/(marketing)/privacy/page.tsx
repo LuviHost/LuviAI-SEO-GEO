@@ -34,6 +34,29 @@ import {
  * 7.3: riza geri alinabilir olmali.
  * Yeni bir arac ya da GTM etiketi eklenirse bu liste ve bant metni ayni committe
  * guncellenmeli.
+ *
+ * Bolum 3 (aktarim listesi), bolum 1 baglanan hesaplar ve bolum 8 (ucretsiz araclar)
+ * 28.10.2026'da koddan dogrulanarak eklendi:
+ *  - AI olcum saglayicilari: audit/ai-citation.service.ts (anthropic, gemini, openai,
+ *    perplexity, xai, deepseek). Meta/Llama (Groq) GROQ_LLAMA_MODEL tanimsizken HIC
+ *    cagrilmaz (citation-providers.ts llamaModelConfigured) — listede YOK; model
+ *    tanimlanirsa Groq bu listeye eklenmeli.
+ *  - Gorsel: articles/image-generator.service.ts (IMAGE_PROVIDER: gemini-flash varsayilan,
+ *    gpt-image-1, flux-pro = BFL, ideogram-v3); istem makale basligini icerir (publisher.service).
+ *  - Sentry: api main.ts + web sentry.server/edge.config.ts; sendDefaultPii YOK (varsayilan
+ *    false) → @sentry/core requestDataIntegration IP'yi ve IP basliklarini cikarir ama
+ *    basliklar, cerezler, url ve govde varsayilan olarak dahildi → beforeSend sentryOlayTemizle (28.10)
+ *    cerez/govde/kimlik basliklari/sorgu dizesini siler; tracesSampleRate 0.1.
+ *    sentry.client.config.ts (replay) yuklenmiyor: withSentryConfig / instrumentation-client yok.
+ *  - Turnstile: landing ai-visibility-checker.tsx, gbp-karne.tsx; siteverify'a remoteip gider.
+ *  - IndexNow: audit/ai-indexing-pinger.service.ts (yalniz anahtar dosyasi sitede varsa);
+ *    Bing anonim ping'i ve Google Indexing API kullanilmaz. PageSpeed: audit/pagespeed.service.ts.
+ *  - PayTR: billing/paytr.service.ts (email, user_name, user_ip, varsa adres/telefon).
+ *  - Ucretsiz test: PublicCitationCheck.ip = hash (public-citation.service hashIp);
+ *    abonelik cift onayli, 15/30/60/90 gun, iptal = UNSUBSCRIBED (satir silinmez),
+ *    otomatik silme yok; ayni e-postayla acilan hesap silinince account-purge.plan siler.
+ *    GBP karne: Places icerigi saklanmaz, IP hash'li sayac kv_store'da 3 gun.
+ * Bu davranislardan biri degisirse ilgili madde (TR + EN) ve KVKK sayfasi ayni committe.
  */
 
 const CONTENT = {
@@ -50,15 +73,22 @@ const CONTENT = {
     // onceki metnin tersini soyledigi bir iddianin degistigini gormeli. luvi_ref maddesine eklenen
     // ortaklik paneli cumlesi de notta: ortaga hangi verinin gittigi yeni bir bilgi.
     // 21 Ekim 2026: RanksUp Video (bolum 1 maddesi + bolum 6 cumlesi) eklendi, notun sonunda.
-    // Tarih bu icerigin yayin gunu (21 Ekim 2026); KVKK sayfasindaki tarih de ayni gun.
-    updated: 'Son güncelleme: 21 Ekim 2026',
-    changeNote: 'Değişiklik: çerezler bölümü yeniden yazıldı (kullanılan araçlar, amaçları, süreleri ve onayın nasıl geri alınacağı); hesap silme yolları (mobil uygulama ve web paneli) ile silme sonrası fatura ve ödeme kayıtlarının saklanması eklendi; kaldırılan sosyal medya bağlantıları bölümü güncellendi ve artık kullanılmayan yapay zekâ sağlayıcıları (HeyGen, Runway, ElevenLabs) listeden çıkarıldı; veri kullanımı bölümü (2), pazarlama amaçlı veri paylaşımının yalnız onayınızla yüklenen Google reklam etiketleriyle (dönüşüm ölçümü ve yeniden pazarlama) yapıldığını belirtecek şekilde düzeltildi; çerezler bölümündeki ortaklık bağlantısı (luvi_ref) maddesine, sizi davet eden iş ortağının ortaklık panelinde hakkınızda neleri gördüğü eklendi; RanksUp Video için sitenizden okunan marka bilgileri ve üretilen video dosyaları (1. bölüm) ile video metni için yapay zekâ kullanımı (6. bölüm) eklendi; aynı gün site ve ürün tanıtım videoları için okunan sayfa metni ve ürün görseli de bu iki bölüme eklendi.',
+    // 28 Ekim 2026: aktarim listesi (bolum 3), baglanan hesaplar (bolum 1), ucretsiz araclar
+    // (yeni bolum 8; iletisim 9 oldu) ve tasinabilirlik maddesi (bolum 7); notun sonunda.
+    // Tarih bu icerigin yayin gunu (28 Ekim 2026); KVKK sayfasindaki tarih de ayni gun.
+    updated: 'Son güncelleme: 28 Ekim 2026',
+    changeNote: 'Değişiklik: çerezler bölümü yeniden yazıldı (kullanılan araçlar, amaçları, süreleri ve onayın nasıl geri alınacağı); hesap silme yolları (mobil uygulama ve web paneli) ile silme sonrası fatura ve ödeme kayıtlarının saklanması eklendi; kaldırılan sosyal medya bağlantıları bölümü güncellendi ve artık kullanılmayan yapay zekâ sağlayıcıları (HeyGen, Runway, ElevenLabs) listeden çıkarıldı; veri kullanımı bölümü (2), pazarlama amaçlı veri paylaşımının yalnız onayınızla yüklenen Google reklam etiketleriyle (dönüşüm ölçümü ve yeniden pazarlama) yapıldığını belirtecek şekilde düzeltildi; çerezler bölümündeki ortaklık bağlantısı (luvi_ref) maddesine, sizi davet eden iş ortağının ortaklık panelinde hakkınızda neleri gördüğü eklendi; RanksUp Video için sitenizden okunan marka bilgileri ve üretilen video dosyaları (1. bölüm) ile video metni için yapay zekâ kullanımı (6. bölüm) eklendi; aynı gün site ve ürün tanıtım videoları için okunan sayfa metni ve ürün görseli de bu iki bölüme eklendi. 28 Ekim 2026: verilerin aktarıldığı hizmet sağlayıcılar (3. bölüm) eksiksiz yazıldı (AI görünürlük ölçümünde kullanılan OpenAI, Perplexity, xAI ve DeepSeek, görsel üreticileri, ödeme, e-posta, hata izleme, bot koruması, arama motoru bildirimi ve sayfa hızı ölçümü); bağladığınız hesaplar ve Apple ile giriş 1. bölüme eklendi; hesabı olmayan ziyaretçilerin kullandığı ücretsiz araçlar için yeni 8. bölüm eklendi, iletişim bölümü 9. bölüm oldu; 7. bölümdeki “veri taşınabilirliği (JSON export)” maddesi, verilerinizin bir kopyasının talep üzerine e-postayla iletileceği şeklinde düzeltildi (panelde otomatik dışa aktarma yok).',
     s1: '1. Toplanan Veriler',
     s1items: [
       'Hesap bilgileri: email, ad, varsa profil fotoğrafı',
+      'Apple ile giriş (mobil uygulama): Apple’ın ilettiği e-posta adresi (Apple’ın gizli aktarım adresi olabilir), ilk girişte paylaştığınız ad ve Apple kullanıcı kimliği; hesabınızı sildiğinizde Apple oturumunu iptal edebilmek için Apple’dan alınan yenileme anahtarı (AES-256-GCM şifreli)',
       'Site bilgileri: URL, marka adı, niş',
-      'GSC OAuth tokens (AES-256-GCM şifreli)',
-      'Publish hedefi credentials (FTP/SFTP/WP, AES-256-GCM şifreli)',
+      // Baglanan hesaplar: yalniz kullanici baglarsa. Anahtarlar @luviai/shared encrypt (aes-256-gcm):
+      // gscRefreshToken, gaRefreshToken, googleAdsRefreshToken, metaAdsAccessToken, SiteGbp.refreshToken,
+      // ASC/ASA encryptedKey, SiteAiProviderKey. GBP: SiteGbp yalniz placeId + OAuth kimlikleri tutar.
+      'Bağladığınız hizmetler (yalnız siz bağlarsanız): Google Search Console ve Google Analytics 4 bağlantı anahtarları ile bu hesaplardan okunan arama performansı ve trafik verileri; Google Ads ve Meta (Facebook) reklam hesabı bağlantı anahtarları, seçtiğiniz reklam hesabı ve Facebook Sayfası kimliği ile reklam kampanyası verileri; App Store Connect ve Apple Search Ads için girdiğiniz API anahtarları ile uygulama, yorum ve reklam kampanyası verileri; kendi yapay zekâ sağlayıcı anahtarlarınız. Tüm bağlantı anahtarları AES-256-GCM ile şifreli saklanır',
+      'Google İşletme Profili: işletmenizin Google Haritalar kimliği (place_id). Google’dan okunan puan, yorum, çalışma saati gibi bilgiler saklanmaz, her denetimde yeniden okunur. Profil yönetimini bağlarsanız erişim anahtarı (şifreli), Google hesap ve konum kimliği ile profil adınız saklanır; yorum yanıtı taslağı istediğinizde yorumun metni ve puanı taslağı hazırlamak için yapay zekâ sağlayıcısına gönderilir, taslak siz onaylamadan yayımlanmaz',
+      'Yayın hedefi giriş bilgileri (WordPress, FTP/SFTP, cPanel, GitHub, Webflow, Ghost ve diğer hedefler; AES-256-GCM şifreli)',
       "Ödeme bilgileri PayTR'de saklanır, biz kart numarası tutmayız",
       // RanksUp Video (api videos/): marka sitenin herkese acik sayfasindan okunur, dosyalar
       // apps/api/public/videos/<siteId>/ altinda (nginx /videos/); video silinince, site silinince
@@ -75,7 +105,17 @@ const CONTENT = {
     // Pixel, LinkedIn vb.) eklenirse bu paragraf, bolum 4 ve bant ayni committe guncellenmeli.
     s2p: 'Hesap, site, bağlantı ve ödeme bilgileriniz (1. bölüm) hizmeti sunmak için kullanılır: AI içerik üretimi, SEO denetimi, GSC analizi ve yayın otomasyonu. Verileriniz üçüncü taraflara satılmaz. Pazarlama ve yeniden pazarlama için veri paylaşımı yalnız çerez bandında “Kabul et” derseniz yüklenen Google etiketleriyle olur: Google Ads dönüşüm ölçümü ve yeniden pazarlama, reklamlarımızın kayıt ve satın almaya dönüşüp dönüşmediğini ölçer ve sitemizi ziyaret edenlere Google’da reklamlarımızın gösterilmesini sağlar. Analitik araçlar (Google Analytics 4, Microsoft Clarity) da yalnız bu onayla yüklenir; kabul etmezseniz hiçbiri yüklenmez. Araçların listesi, çerezleri ve onayınızı nasıl geri alacağınız 4. bölümdedir.',
     s3: '3. Veri İşleme Konumu',
-    s3p: "Sunucularımız LuviHost İstanbul veri merkezinde bulunur. Yedeklemeler S3-compatible storage'da Frankfurt bölgesinde tutulur. AI çağrıları Anthropic (US) ve Google (multi-region) servislerine gider.",
+    s3p: "Sunucularımız LuviHost İstanbul veri merkezinde bulunur. Yedeklemeler S3-compatible storage'da Frankfurt bölgesinde tutulur. Hizmeti sunabilmek için aşağıdaki hizmet sağlayıcılara yalnız belirtilen amaçla veri aktarılır. Bu sağlayıcıların çoğu yurt dışında yerleşiktir; bu durumda verileriniz yurt dışına aktarılmış olur.",
+    s3items: [
+      'AI görünürlük ölçümü: markanızın adı, alan adınız, sektörünüz, varsa rakiplerinizin adları ve ölçümde sorulan sorular, markanızın yapay zekâ asistanlarının cevaplarında geçip geçmediğini ölçmek için Anthropic (Claude, ABD), Google (Gemini, ABD), OpenAI (ChatGPT, ABD), Perplexity (ABD), xAI (Grok, ABD) ve DeepSeek (Çin) servislerine gönderilir. Aynı aktarım, hesabı olmayan ziyaretçilerin ücretsiz AI görünürlük testinde (8. bölüm) de yapılır. Claude, Gemini, ChatGPT ve Perplexity cevap üretirken web araması yapabilir.',
+      'İçerik ve görsel üretimi: site ve marka bilgileriniz, anahtar kelimeler ve içerik taslakları Anthropic, Google ve OpenAI’ye (ABD) gönderilir (6. bölüm). Makale görseli için makalenin başlığını içeren görsel tarifi, seçili görsel üreticisine gönderilir: Google, OpenAI, Black Forest Labs (Flux) ya da Ideogram (yurt dışı).',
+      'Ödeme: PayTR (Türkiye). Ödeme sırasında e-posta adresiniz, adınız, IP adresiniz, sipariş bilgisi ve girdiyseniz adres ve telefonunuz iletilir.',
+      'E-posta: hesap, rapor ve bildirim e-postaları ile ücretsiz test e-postaları (8. bölüm) Resend (yurt dışı) üzerinden gönderilir; e-posta adresiniz ve e-postanın içeriği bu sağlayıcıya iletilir.',
+      'Hata izleme: sunucularımızda beklenmeyen bir hata oluştuğunda hata kaydı Sentry’ye (yurt dışı) gönderilir. Kayıt, hatanın teknik ayrıntılarıyla birlikte hataya yol açan isteğin adresini (sorgu parametreleri olmadan), yöntemini ve tarayıcı bilgisi gibi genel istek başlıklarını içerebilir. Çerezler, oturum ve kimlik bilgileri, istekle gönderilen veri ve IP adresiniz kayda eklenmez; varsa hesap kimliğiniz dışındaki kullanıcı bilgileri silinir. Performansı izlemek için isteklerin yaklaşık onda birinin adresi ve süresi de Sentry’ye gönderilir.',
+      'Altyapı ve bot koruması: Cloudflare (yurt dışı) sitenin içerik dağıtımını ve saldırılara karşı korumasını sağlar. Ücretsiz AI görünürlük testi ve Google İşletme karnesi formlarında bot koruması için Cloudflare Turnstile kullanılır: tarayıcınızda Cloudflare’ın doğrulama betiği çalışır ve doğrulama için IP adresiniz Cloudflare’a iletilir.',
+      'Arama motoru bildirimi ve sayfa hızı: sitenizde IndexNow anahtar dosyası varsa yayınlanan yazılarınızın adresi IndexNow servisine (Bing, Yandex gibi arama motorlarının ortak bildirim servisi) bildirilir. Site denetiminde sayfalarınızın adresi hız ölçümü için Google PageSpeed Insights’a gönderilir.',
+      'Bağladığınız hizmetler: Google (Search Console, Analytics, Ads, İşletme Profili), Meta (Facebook) ve Apple (App Store Connect, Apple Search Ads, Apple ile giriş) ile veri alışverişi yalnız bu hesapları bağladığınızda ya da Apple ile giriş yaptığınızda, verdiğiniz yetki kapsamında yapılır. Ücretsiz Google İşletme karnesinde aradığınız işletme adı Google Places API’ye gönderilir.',
+    ],
     s4: '4. Çerezler ve Benzeri Teknolojiler',
     s4intro: 'Bu sitede kullanılan çerezler ve tarayıcı depolama kayıtları amaçları, süreleri ve kimin yerleştirdiğiyle birlikte aşağıdadır. Analitik ve pazarlama araçları (Google ve Microsoft) yalnız çerez bandında “Kabul et” derseniz yüklenir. “Reddet” derseniz ya da seçim yapmazsanız hiç yüklenmez ve bu araçların ranksup.ai üzerinde daha önce bıraktığı çerezler silinir.',
     s4groups: [
@@ -136,37 +176,59 @@ const CONTENT = {
     ],
     s5p2: 'Bu kayıtlar ilgili siteyi sildiğinizde hemen silinir. Hesabınızı sildiğinizde erişim bilgileri, hesap adı ve profil görseli hemen silinir; kalan kayıtlar 30 gün sonra kalıcı olarak silinir. Daha erken silinmesini isterseniz kvkk@luvihost.com adresine yazabilirsiniz. Bağlantıyı ilgili platformun hesap ayarlarındaki bağlı uygulamalar bölümünden de kaldırabilirsiniz. Reklam yönetimi için bağlanan Google Ads ve Meta (Facebook) reklam hesabı bağlantıları ayrı bir özelliktir; bu bölüm onları kapsamaz.',
     s6: '6. Yapay Zeka Üretim Sistemleri',
-    s6p: 'İçerik üretimi için Anthropic Claude, Google Gemini ve OpenAI ile iletişim kurulur. Kullanıcı içeriği yalnızca o üretim için gönderilir, model eğitiminde kullanılmaz (her sağlayıcının "no-train" politikalarına uygun çağrı yapılır). RanksUp Video’da yalnızca makalenizin metni, video metnini çıkarmak için Anthropic Claude’a gönderilir; site ve ürün tanıtım videolarında bunun yerine sitenizin kendi sayfasının metni (ve site tanıtımında RanksUp’taki marka profilinizin özeti) gönderilir. Logonuz, ürün görselleriniz ve marka renginiz yapay zekâ sağlayıcısına gönderilmez, videonun kendisi sunucularımızda üretilir.',
+    s6p: 'İçerik üretimi için Anthropic Claude, Google Gemini ve OpenAI ile iletişim kurulur. Kullanıcı içeriği yalnızca o üretim için gönderilir, model eğitiminde kullanılmaz (her sağlayıcının "no-train" politikalarına uygun çağrı yapılır). Kendi yapay zekâ sağlayıcı anahtarınızı girdiyseniz ilgili çağrılar sizin anahtarınızla yapılır. Makale görselleri seçili görsel üreticisinde (Google, OpenAI, Black Forest Labs Flux ya da Ideogram) üretilir; bu üreticiye yalnızca makalenin başlığını içeren görsel tarifi gönderilir. AI görünürlük ölçümünde kullanılan sağlayıcılar 3. bölümde yazar. RanksUp Video’da yalnızca makalenizin metni, video metnini çıkarmak için Anthropic Claude’a gönderilir; site ve ürün tanıtım videolarında bunun yerine sitenizin kendi sayfasının metni (ve site tanıtımında RanksUp’taki marka profilinizin özeti) gönderilir. Logonuz, ürün görselleriniz ve marka renginiz yapay zekâ sağlayıcısına gönderilmez, videonun kendisi sunucularımızda üretilir.',
     s7: '7. Haklarınız (KVKK)',
     s7items: [
       'Verilerinize erişim talep etme',
       'Düzeltme talep etme',
       'Silme talep etme: hesabınızı mobil uygulamada “Hesabı sil”, web panelinde “Hesabım & Abonelik” sayfasından silebilirsiniz. Erişim hemen kapanır, aboneliğiniz iptal edilir; verileriniz 30 gün sonra geri dönüşsüz silinir. Fatura ve ödeme kayıtları, vergi ve ticaret mevzuatı gereği saklanması zorunlu olduğundan kişisel bağlantısı kaldırılarak saklanır.',
-      'Veri taşınabilirliği (JSON export)',
+      // Panelde/API'de dis aktarma ucu yok (28.10.2026): kopya elle hazirlanir
+      'Verilerinizin bir kopyasını isteme: kvkk@luvihost.com adresine yazdığınızda verilerinizin bir kopyası elle hazırlanarak size e-postayla iletilir',
     ],
-    s8: '8. İletişim',
-    s8label: 'Veri sorumlu: LuviHost. Email: ',
+    s8: '8. Ücretsiz Araçlar (Hesabı Olmayan Ziyaretçiler)',
+    s8intro: 'Ücretsiz AI görünürlük testini ya da ücretsiz Google İşletme karnesini hesap açmadan kullanırsanız aşağıdaki veriler işlenir.',
+    s8items: [
+      'Ücretsiz AI görünürlük testi: girdiğiniz alan adı, sitenizin ana sayfasından tespit edilen marka adı ve sektör, ölçüm sonuçları ve IP adresinizin geri döndürülemez biçimde özetlenmiş (hash) hâli kaydedilir. IP özeti yalnız kötüye kullanımı önlemek ve test hakkını sınırlamak içindir; ham IP adresiniz bu kayıtta tutulmaz. Marka adı, alan adı, sektör ve test soruları ölçüm için 3. bölümde sayılan yapay zekâ sağlayıcılarına gönderilir.',
+      'Tekrar ölçüm e-postaları: test sonucunda e-posta adresinizi bırakıp onay kutusunu işaretlerseniz e-posta adresiniz, test ettiğiniz alan adı, marka adı ve sektör, dil tercihiniz, onay zamanınız ve size gönderilen e-postaların kaydı saklanır. Önce bir onay e-postası gönderilir; içindeki bağlantıyla aboneliği onaylamazsanız başka e-posta gönderilmez. Onaylarsanız sitenizin AI görünürlüğü 15, 30, 60 ve 90. günlerde yeniden ölçülür ve sonuç size e-postayla gönderilir; dört ölçümden sonra e-postalar kendiliğinden durur. Aynı e-posta adresiyle RanksUp’a kaydolursanız da durur.',
+      'Abonelikten çıkma: her e-postadaki “Aboneliği iptal et” bağlantısıyla istediğiniz an çıkabilirsiniz; çıktığınızda size bu kapsamda bir daha e-posta gönderilmez.',
+      'Saklama: ücretsiz test kayıtları ile e-posta aboneliği kaydı (e-posta adresi ve alan adı) belirli bir süre sonunda ya da abonelikten çıktığınızda kendiliğinden silinmez. Silinmesini kvkk@luvihost.com adresine yazarak isteyebilirsiniz. Aynı e-posta adresiyle RanksUp hesabı açıp hesabınızı silerseniz abonelik kaydınız ve gönderilen e-postaların kaydı hesabınızla birlikte silinir.',
+      'Ücretsiz Google İşletme karnesi: aradığınız işletme adı Google Places API’ye gönderilir; Google’dan gelen puan, yorum ve çalışma saati gibi bilgiler saklanmaz. Günlük kullanım hakkını izlemek için IP adresinizin özetlenmiş (hash) hâli 3 gün tutulur.',
+    ],
+    s9: '9. İletişim',
+    s9label: 'Veri sorumlu: LuviHost. Email: ',
   },
   en: {
     backHome: '← Back to home',
     titleA: 'Privacy',
     titleB: 'Policy',
     effective: 'Effective: April 27, 2026',
-    updated: 'Last updated: October 21, 2026',
-    changeNote: 'Change: rewrote the cookie section (the tools we use, their purposes and durations, and how to withdraw consent); added the account deletion paths (mobile app and web dashboard) and how invoices and payment records are kept after deletion; updated the section on the removed social media connections and removed AI providers we no longer use (HeyGen, Runway, ElevenLabs) from the list; corrected the data use section (2) to state that data is shared for marketing only through the Google ad tags that load with your consent (conversion measurement and remarketing); added to the partner link (luvi_ref) item in the cookie section what the partner who invited you sees about you in their partner dashboard; added the brand details read from your site and the video files produced for RanksUp Video (section 1) and the use of AI for the video text (section 6); on the same day the page text and product image read for site and product promo videos were added to these two sections.',
+    updated: 'Last updated: October 28, 2026',
+    changeNote: 'Change: rewrote the cookie section (the tools we use, their purposes and durations, and how to withdraw consent); added the account deletion paths (mobile app and web dashboard) and how invoices and payment records are kept after deletion; updated the section on the removed social media connections and removed AI providers we no longer use (HeyGen, Runway, ElevenLabs) from the list; corrected the data use section (2) to state that data is shared for marketing only through the Google ad tags that load with your consent (conversion measurement and remarketing); added to the partner link (luvi_ref) item in the cookie section what the partner who invited you sees about you in their partner dashboard; added the brand details read from your site and the video files produced for RanksUp Video (section 1) and the use of AI for the video text (section 6); on the same day the page text and product image read for site and product promo videos were added to these two sections. October 28, 2026: section 3 now lists every service provider data is transferred to (OpenAI, Perplexity, xAI and DeepSeek used for AI visibility measurement, image generators, payments, e-mail, error monitoring, bot protection, search engine notification and page speed measurement); connected accounts and Sign in with Apple were added to section 1; a new section 8 covers the free tools used by visitors without an account, and the contact section is now section 9; the “data portability (JSON export)” item in section 7 was corrected: a copy of your data is sent by e-mail on request (there is no automatic export in the dashboard).',
     s1: '1. Data Collected',
     s1items: [
       'Account info: email, name, profile photo if any',
+      'Sign in with Apple (mobile app): the e-mail address Apple shares (it may be an Apple private relay address), the name you share on first sign-in and your Apple user ID; plus an Apple refresh token (AES-256-GCM encrypted) so that the Apple session can be revoked when you delete your account',
       'Site info: URL, brand name, niche',
-      'GSC OAuth tokens (AES-256-GCM encrypted)',
-      'Publish target credentials (FTP/SFTP/WP, AES-256-GCM encrypted)',
+      'Services you connect (only if you connect them): Google Search Console and Google Analytics 4 connection tokens and the search performance and traffic data read from those accounts; Google Ads and Meta (Facebook) ad account connection tokens, the ad account and Facebook Page ID you select and ad campaign data; the API keys you enter for App Store Connect and Apple Search Ads and app, review and ad campaign data; your own AI provider keys. All connection credentials are stored encrypted with AES-256-GCM',
+      'Google Business Profile: your business’s Google Maps ID (place_id). Ratings, reviews, opening hours and similar details read from Google are not stored; they are read again on every audit. If you connect profile management, the access token (encrypted), the Google account and location IDs and your profile name are stored; when you ask for a review reply draft, the review text and rating are sent to an AI provider to prepare the draft, and the draft is not published until you approve it',
+      'Publish target credentials (WordPress, FTP/SFTP, cPanel, GitHub, Webflow, Ghost and other targets; AES-256-GCM encrypted)',
       'Payment data is stored at PayTR; we do not hold card numbers',
       'RanksUp Video: when you request a video, the name, logo and theme colour read from the public pages of your site; for a site or product promo video also the text of your home page or of the product/service page you name and the product image; plus the produced video file and cover image. Video files are stored on our servers under a hard-to-guess link that anyone with the link can open; they are deleted when you delete the video or the site, and when your account is permanently deleted',
     ],
     s2: '2. Data Use',
     s2p: 'Your account, site, connection and payment details (section 1) are used to provide the service: AI content generation, SEO audits, GSC analysis and publish automation. Your data is not sold to third parties. Data is shared for marketing and remarketing only through the Google tags that load if you click “Accept” in the cookie banner: Google Ads conversion measurement and remarketing measure whether our ads lead to sign-ups and purchases and let Google show our ads to people who visited our site. The analytics tools (Google Analytics 4, Microsoft Clarity) also load only with this consent; if you do not accept, none of them load. Section 4 lists these tools, their cookies and how to withdraw your consent.',
     s3: '3. Data Processing Location',
-    s3p: 'Our servers are in the LuviHost Istanbul data center. Backups are kept on S3-compatible storage in the Frankfurt region. AI calls go to Anthropic (US) and Google (multi-region) services.',
+    s3p: 'Our servers are in the LuviHost Istanbul data center. Backups are kept on S3-compatible storage in the Frankfurt region. To provide the service, data is transferred to the service providers below, only for the stated purpose. Most of these providers are based outside Turkey; in that case your data is transferred abroad.',
+    s3items: [
+      'AI visibility measurement: your brand name, domain, sector, your competitors’ names if any and the questions asked in the measurement are sent to Anthropic (Claude, US), Google (Gemini, US), OpenAI (ChatGPT, US), Perplexity (US), xAI (Grok, US) and DeepSeek (China) to measure whether your brand appears in AI assistants’ answers. The same transfer happens in the free AI visibility test used by visitors without an account (section 8). Claude, Gemini, ChatGPT and Perplexity may search the web while answering.',
+      'Content and image generation: your site and brand details, keywords and content drafts are sent to Anthropic, Google and OpenAI (US) (section 6). For an article image, an image prompt containing the article title is sent to the selected image generator: Google, OpenAI, Black Forest Labs (Flux) or Ideogram (outside Turkey).',
+      'Payments: PayTR (Turkey). At checkout your e-mail address, name, IP address, order details and, if you entered them, your address and phone number are passed on.',
+      'E-mail: account, report and notification e-mails and the free test e-mails (section 8) are sent through Resend (outside Turkey); your e-mail address and the e-mail content are passed to this provider.',
+      'Error monitoring: when an unexpected error occurs on our servers, an error report is sent to Sentry (outside Turkey). Besides the technical details of the error, the report may contain the address (without query parameters), method and general headers (e.g. browser details) of the request that caused it. Cookies, session and authentication data, submitted request data and your IP address are not added to the report; user details other than your account ID are removed. To monitor performance, the address and duration of about one in ten requests are also sent to Sentry.',
+      'Infrastructure and bot protection: Cloudflare (outside Turkey) delivers the site and protects it against attacks. The free AI visibility test and Google Business scorecard forms use Cloudflare Turnstile for bot protection: Cloudflare’s verification script runs in your browser and your IP address is passed to Cloudflare for the check.',
+      'Search engine notification and page speed: if your site hosts an IndexNow key file, the address of your published articles is reported to the IndexNow service (a shared notification service of search engines such as Bing and Yandex). During site audits your page addresses are sent to Google PageSpeed Insights for speed measurement.',
+      'Services you connect: data is exchanged with Google (Search Console, Analytics, Ads, Business Profile), Meta (Facebook) and Apple (App Store Connect, Apple Search Ads, Sign in with Apple) only when you connect these accounts or sign in with Apple, within the permissions you grant. In the free Google Business scorecard, the business name you search for is sent to the Google Places API.',
+    ],
     s4: '4. Cookies and Similar Technologies',
     s4intro: 'Below are the cookies and browser storage entries this site uses, with their purpose, duration and who sets them. Analytics and marketing tools (Google and Microsoft) are loaded only if you click “Accept” in the cookie banner. If you click “Decline” or make no choice, they are never loaded, and the cookies they previously left on ranksup.ai are deleted.',
     s4groups: [
@@ -215,16 +277,25 @@ const CONTENT = {
     ],
     s5p2: 'These records are deleted immediately when you delete the related site. When you delete your account, the access credentials, account name and profile image are deleted immediately, and the remaining records are permanently deleted 30 days later. To have them deleted sooner, write to kvkk@luvihost.com. You can also remove the connection in the connected apps section of the platform’s account settings. Google Ads and Meta (Facebook) ad account connections made for ad management are a separate feature and are not covered by this section.',
     s6: '6. AI Generation Systems',
-    s6p: 'Content generation uses Anthropic Claude, Google Gemini and OpenAI. User content is sent only for that generation request and is not used for model training (each provider is called following its "no-train" policy). For RanksUp Video only your article text is sent to Anthropic Claude to extract the video text; for site and product promo videos the text of your own site’s page (and, for a site promo, the summary of your brand profile in RanksUp) is sent instead. Your logo, product images and brand colour are not sent to any AI provider, and the video itself is produced on our servers.',
+    s6p: 'Content generation uses Anthropic Claude, Google Gemini and OpenAI. User content is sent only for that generation request and is not used for model training (each provider is called following its "no-train" policy). If you entered your own AI provider key, the related calls are made with your key. Article images are generated by the selected image generator (Google, OpenAI, Black Forest Labs Flux or Ideogram); only an image prompt containing the article title is sent to it. The providers used for AI visibility measurement are listed in section 3. For RanksUp Video only your article text is sent to Anthropic Claude to extract the video text; for site and product promo videos the text of your own site’s page (and, for a site promo, the summary of your brand profile in RanksUp) is sent instead. Your logo, product images and brand colour are not sent to any AI provider, and the video itself is produced on our servers.',
     s7: '7. Your Rights (GDPR/KVKK)',
     s7items: [
       'Request access to your data',
       'Request correction',
       'Request deletion: delete your account in the mobile app (“Delete account”) or on the dashboard’s account & subscription page. Access ends immediately and your subscription is canceled; your data is permanently removed 30 days later. Invoices and payment records are retained with the personal link removed, as tax and commercial law require.',
-      'Data portability (JSON export)',
+      'Request a copy of your data: write to kvkk@luvihost.com and a copy of your data is prepared manually and sent to you by e-mail',
     ],
-    s8: '8. Contact',
-    s8label: 'Data controller: LuviHost. Email: ',
+    s8: '8. Free Tools (Visitors Without an Account)',
+    s8intro: 'If you use the free AI visibility test or the free Google Business scorecard without an account, the data below is processed.',
+    s8items: [
+      'Free AI visibility test: the domain you enter, the brand name and sector detected from your home page, the measurement results and an irreversibly summarised (hashed) form of your IP address are stored. The IP hash is used only to prevent abuse and to limit the number of tests; your raw IP address is not kept in this record. The brand name, domain, sector and test questions are sent to the AI providers listed in section 3 for the measurement.',
+      'Re-test e-mails: if you leave your e-mail address after the test and tick the consent box, your e-mail address, the tested domain, brand name and sector, your language, the time of your consent and a record of the e-mails sent to you are stored. A confirmation e-mail is sent first; unless you confirm the subscription with its link, no further e-mails are sent. If you confirm, your site’s AI visibility is measured again on days 15, 30, 60 and 90 and the result is e-mailed to you; the e-mails stop on their own after the four measurements. They also stop if you sign up to RanksUp with the same e-mail address.',
+      'Unsubscribing: you can unsubscribe at any time with the “Aboneliği iptal et” (Unsubscribe) link in every e-mail; after that you receive no more e-mails of this kind.',
+      'Retention: free test records and the e-mail subscription record (e-mail address and domain) are not deleted automatically after a set period or when you unsubscribe. You can ask for them to be deleted by writing to kvkk@luvihost.com. If you open a RanksUp account with the same e-mail address and later delete it, your subscription record and the record of e-mails sent are deleted together with your account.',
+      'Free Google Business scorecard: the business name you search for is sent to the Google Places API; ratings, reviews, opening hours and similar details returned by Google are not stored. A hashed form of your IP address is kept for 3 days to track the daily allowance.',
+    ],
+    s9: '9. Contact',
+    s9label: 'Data controller: LuviHost. Email: ',
   },
 } as const;
 
@@ -273,6 +344,9 @@ export default function PrivacyPage() {
 
         <h2 className="text-xl font-bold mt-8 mb-3">{d.s3}</h2>
         <p className="text-sm text-muted-foreground">{d.s3p}</p>
+        <ul className="space-y-1 text-sm mt-2">
+          {d.s3items.map((it) => <li key={it}>• {it}</li>)}
+        </ul>
 
         {/* id="cerezler": cerez bandindaki baglanti buraya iner (cookie-consent.tsx) */}
         <h2 id="cerezler" className="text-xl font-bold mt-8 mb-3 scroll-mt-24">{d.s4}</h2>
@@ -325,9 +399,16 @@ export default function PrivacyPage() {
           {d.s7items.map((it) => <li key={it}>• {it}</li>)}
         </ul>
 
-        <h2 className="text-xl font-bold mt-8 mb-3">{d.s8}</h2>
+        {/* id="ucretsiz-araclar": ucretsiz test / karne ziyaretcileri icin dogrudan baglanti verilebilsin */}
+        <h2 id="ucretsiz-araclar" className="text-xl font-bold mt-8 mb-3 scroll-mt-24">{d.s8}</h2>
+        <p className="text-sm text-muted-foreground">{d.s8intro}</p>
+        <ul className="space-y-1 text-sm mt-2">
+          {d.s8items.map((it) => <li key={it}>• {it}</li>)}
+        </ul>
+
+        <h2 className="text-xl font-bold mt-8 mb-3">{d.s9}</h2>
         <p className="text-sm text-muted-foreground">
-          {d.s8label}<a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a>
+          {d.s9label}<a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a>
         </p>
       </div>
     </main>

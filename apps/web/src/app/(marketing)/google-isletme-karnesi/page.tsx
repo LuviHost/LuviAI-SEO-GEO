@@ -34,7 +34,7 @@ const KONTROLLER = [
   ['Web sitesi ve telefon', 'Profilde var mı; müşteriyi doğru yere götürüyor mu.'],
   ['Adres', 'Profildeki il ve ilçe bilgisi.'],
   ['Yorum sayısı ve puan', 'Yeni müşterinin güvenini etkileyen iki sinyal.'],
-  ['Fotoğraflar', 'Dış cephe, iç mekân, ekip ve ürün fotoğrafları.'],
+  ['Fotoğraflar', 'Profilde yeterli sayıda fotoğraf var mı (öneri: dış cephe, iç mekân, ekip ve ürün).'],
   ['İşletme adı kuralı', 'Ada eklenmiş şehir, slogan ya da iletişim bilgisi (askıya alma riski).'],
 ] as const;
 

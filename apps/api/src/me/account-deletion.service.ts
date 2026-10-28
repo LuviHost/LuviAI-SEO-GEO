@@ -66,6 +66,13 @@ export async function freezeAccountData(db: Prisma.TransactionClient, userId: st
   // Yayin hedefi kaydi = musteri sitesinin sifreli giris bilgisi; baska tablo ona bagli degil
   const publishTargets = await db.publishTarget.deleteMany({ where: ofUser });
   const aiKeys = await db.siteAiProviderKey.deleteMany({ where: ofUser });
+  // Google Isletme Profili OAuth anahtari (business.manage): Kosullar baglanti bilgilerinin
+  // silme talebinde hemen kaldirilacagini soyluyor. gbp.service baglantiKes ile ayni alanlar;
+  // placeId (Places kimligi, giris bilgisi degil) kalici silmeye kadar kalir.
+  await db.siteGbp.updateMany({
+    where: ofUser,
+    data: { refreshToken: null, hesap: null, konum: null, konumAdi: null, oauthAt: null },
+  });
   const channels = await db.socialChannel.updateMany({
     where: ofUser,
     data: { isActive: false, credentials: '', externalName: null, externalAvatar: null },

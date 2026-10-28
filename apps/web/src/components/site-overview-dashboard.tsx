@@ -323,12 +323,12 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
       tone: onboarded ? 'warning' : 'brand',
       icon: ScanSearch,
       title: 'Site taramasını başlat',
-      desc: 'SEO ve GEO sorunları henüz tespit edilmedi. Tarama yaklaşık 30 saniye sürer.',
+      desc: 'SEO ve GEO sorunları henüz tespit edilmedi. Tarama genelde 1-2 dakika sürer.',
       cta: 'Taramayı başlat',
       run: async () => {
         try {
           await api.runAuditNow(site.id);
-          toast.success('Tarama başladı, yaklaşık 30 saniye içinde sonuç gelir');
+          toast.success('Tarama başladı, sonuç genelde 1-2 dakika içinde gelir');
           setTimeout(onRefresh, 5000);
         } catch (err: any) { toast.error(err.message); }
       },

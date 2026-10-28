@@ -19,6 +19,18 @@ export { crawlAccessNewerThanAudit };
  */
 const OLCULEN_ASISTANLAR = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
 
+/**
+ * AI Citation sutununun saydigi olcumlerin tazelik penceresi (gun).
+ *
+ * NEDEN 9, 7 DEGIL: olcum hakki son olcumden tam 7x24 saat sonra acilir
+ * (billing/measurement-allowance.ts MEASUREMENT_WINDOW_MS), ama snapshot tarihi
+ * UTC gece yarisina yuvarlanir (ai-citation-tracker.service.ts). 7 gunluk pencere
+ * yuvarlanmis tarihi olcum saatinden once eskitiyordu: haftada bir olcen kullanici
+ * yeniden olcum yapamadan saatlerce sutunu 0 goruyordu. 7 gun hak + 1 gun tarih
+ * yuvarlamasi + 1 gun pay. SSS metni ("son 9 gunde") bu sayiyla ayni kalmali.
+ */
+export const AI_CITATION_FRESH_DAYS = 9;
+
 const isoDay = (d: Date | string): string => {
   const t = new Date(d);
   return Number.isFinite(t.getTime()) ? t.toISOString().slice(0, 10) : String(d);
@@ -130,7 +142,7 @@ export interface GeoPillar {
  *
  *  1. Crawler Erisimi (robots.txt + llms.txt + llms-full.txt + sitemap.xml)
  *  2. Yapısal Veri (schema markup tipleri ve kapsami)
- *  3. AI Citation (olculen tum AI asistanlarinin son 7 gun skorlari)
+ *  3. AI Citation (olculen tum AI asistanlarinin son 9 gun skorlari, AI_CITATION_FRESH_DAYS)
  *  4. Otorite (ana sayfa Organization sameAs — Agent Readiness taramasindan —, rakip listesi, GSC baglantisi)
  *  5. Tazelik (yayin sikligi, son guncellenme, content pivot durumu)
  *  6. Multi-Modal (hero gorsel kapsami)
@@ -324,9 +336,9 @@ export class GeoScoreCardService {
   //  Pillar 3: AI Citation
   // ────────────────────────────────────────────────────────────
   private async checkAiCitation(siteId: string): Promise<GeoPillar> {
-    const last7 = new Date(Date.now() - 7 * 86400000);
+    const since = new Date(Date.now() - AI_CITATION_FRESH_DAYS * 86400000);
     const recent = await this.prisma.aiCitationSnapshot.findMany({
-      where: { siteId, date: { gte: last7 } },
+      where: { siteId, date: { gte: since } },
       // probes JSON'u (excerpt + alintilanan kaynaklar) burada kullanilmiyor
       select: { provider: true, available: true, score: true },
     });
@@ -338,7 +350,7 @@ export class GeoScoreCardService {
 
     for (const p of providers) {
       const pSnapshots = recent.filter((r) => r.provider === p && r.available);
-      // Bu asistandan son 7 gunde olcum ALINAMADIYSA (anahtar/kota/servis
+      // Bu asistandan pencerede (AI_CITATION_FRESH_DAYS) olcum ALINAMADIYSA (anahtar/kota/servis
       // hatasi, Llama'nin yapilandirilmamasi) sitenin gorunurlugu hakkinda bir
       // sey soylemez: satir ve payda disinda kalir. "Saglayici aktif degil"
       // demek de yanlis olurdu — olcum sadece bu pencerede yok.
@@ -359,7 +371,7 @@ export class GeoScoreCardService {
       checks.push({
         id: `cite-${p}`, name: this.providerLabel(p),
         ok: avg >= 30,
-        detail: `Son 7 gün ortalaması: ${avg.toFixed(0)}/100`,
+        detail: `Son ${AI_CITATION_FRESH_DAYS} gün ortalaması: ${avg.toFixed(0)}/100`,
       });
     }
 
@@ -368,7 +380,7 @@ export class GeoScoreCardService {
       checks.push({
         id: 'cite-none', name: 'AI ölçümü',
         ok: false,
-        detail: 'Son 7 günde hiçbir AI asistanından ölçüm alınmadı.',
+        detail: `Son ${AI_CITATION_FRESH_DAYS} günde hiçbir AI asistanından ölçüm alınmadı.`,
       });
     }
 
