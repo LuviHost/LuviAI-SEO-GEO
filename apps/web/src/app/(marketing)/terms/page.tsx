@@ -12,11 +12,12 @@ const CONTENT = {
     // Icerik degisti (8. madde eklendi; 7. ve 9. madde kaldirilan sosyal paylasima gore
     // duzeltildi); yururluk tarihi korunur, okuyan degisikligi gorsun diye son guncelleme ve
     // not ayrica yazilir (gizlilik sayfasindaki duzen)
-    updated: 'Son güncelleme: 22 Ekim 2026 — 2. madde: ücretsiz deneme artık 14 gün sürer; süre bitince bir plan seçilene kadar hesap salt okunur olur, veriler saklanır; denemede makaleler kullanıcının başlatmasıyla ve yayın hedefi bağlandıktan sonra üretilir. 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı. 7. madde, kaldırılan sosyal medya paylaşım özelliğini hâlâ varmış gibi anlatıyordu; yeniden yazıldı. 9. maddeye hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgilerinin hemen silindiği eklendi. 8. maddeye site ve ürün tanıtım videoları eklendi: sayfa içeriği, ürün görselleri ve fiyat yalnız sizin sitenizden alınır.',
+    updated: 'Son güncelleme: 28 Ekim 2026 — 1. madde: entegre çalışılan hizmet sağlayıcılar eksiksiz yazıldı ve Gizlilik Politikası’na bağlandı; 3. madde: iptal sonrası erişimin ödemesi yapılmış dönemin (aylık ya da yıllık) sonuna kadar sürdüğü netleştirildi; 9. madde: hemen silinen bağlantı bilgilerine Google İşletme Profili eklendi; 10. madde: yetkili mahkeme Bursa olarak düzeltildi, tüketici işlemleri için 6502 sayılı Kanun saklı tutuldu. 22 Ekim 2026 — 2. madde: ücretsiz deneme artık 14 gün sürer; süre bitince bir plan seçilene kadar hesap salt okunur olur, veriler saklanır; denemede makaleler kullanıcının başlatmasıyla ve yayın hedefi bağlandıktan sonra üretilir. 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı. 7. madde, kaldırılan sosyal medya paylaşım özelliğini hâlâ varmış gibi anlatıyordu; yeniden yazıldı. 9. maddeye hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgilerinin hemen silindiği eklendi. 8. maddeye site ve ürün tanıtım videoları eklendi: sayfa içeriği, ürün görselleri ve fiyat yalnız sizin sitenizden alınır.',
     sections: [
       {
         h: '1. Hizmet Tanımı',
-        p: 'RanksUp, kullanıcı sitelerinin SEO + GEO + AEO performansını AI ile otomatikleştiren bir SaaS hizmetidir. Hizmet, Resend.com (email), Anthropic (Claude AI), Google AI (Gemini), PayTR (ödeme) ile entegre çalışır.',
+        // Saglayici listesi koddan dogrulandi (28.10.2026; ayrinti privacy/page.tsx baslik yorumu)
+        p: 'RanksUp, kullanıcı sitelerinin SEO + GEO + AEO performansını AI ile otomatikleştiren bir SaaS hizmetidir. Hizmet; e-posta için Resend.com, yapay zekâ ile içerik üretimi ve AI görünürlük ölçümü için Anthropic (Claude), Google AI (Gemini), OpenAI (ChatGPT), Perplexity, xAI (Grok) ve DeepSeek, makale görselleri için seçili görsel üreticisi (Google, OpenAI, Black Forest Labs Flux ya da Ideogram), ödeme için PayTR, hata izleme için Sentry, altyapı ve bot koruması için Cloudflare ile entegre çalışır. Bağladığınız Google, Meta ve Apple hesaplarına yalnız sizin verdiğiniz yetkiyle erişilir. Hangi verinin hangi sağlayıcıya, hangi amaçla aktarıldığı Gizlilik Politikası’nın 3. bölümünde yazar.',
       },
       {
         h: '2. Üyelik & Trial',
@@ -25,7 +26,7 @@ const CONTENT = {
       },
       {
         h: '3. Ücretler',
-        p: 'Aylık veya yıllık ödeme. KDV dahil. Yıllık planda 12 ay yerine 10 ay ücreti alınır (yaklaşık %17 indirim). PayTR ile güvenli ödeme. İptal sonrası kalan ay sonuna kadar erişim devam eder.',
+        p: 'Aylık veya yıllık ödeme. KDV dahil. Yıllık planda 12 ay yerine 10 ay ücreti alınır (yaklaşık %17 indirim). PayTR ile güvenli ödeme. İptal sonrası erişim, ödemesi yapılmış dönemin sonuna kadar devam eder: aylık planda son ödemeden itibaren 30 gün, yıllık planda 365 gün.',
       },
       {
         h: '4. İptal & İade',
@@ -63,12 +64,16 @@ const CONTENT = {
       },
       {
         h: '9. Hesap Sonlandırma',
-        // Dayanak: me/account-deletion.service.ts freezeAccountData (silme talebi aninda calisir)
-        p: 'Yasak kullanım tespit edilirse hesap askıya alınabilir. Veriler 30 gün saklanır, sonra silinir. Hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgileri (yayın hedefi girişleri, Google Search Console, Google Analytics, Google Ads ve Meta reklam bağlantıları, kendi AI sağlayıcı anahtarlarınız, App Store Connect ve Apple Search Ads anahtarları, kaldırılan sosyal medya özelliğinden kalan erişim bilgileri) 30 günü beklemeden hemen silinir.',
+        // Dayanak: me/account-deletion.service.ts freezeAccountData (silme talebi aninda calisir).
+        // Google Isletme Profili (SiteGbp.refreshToken) 28.10.2026'da eklendi; kod tarafi ayri PR'da
+        // (freezeAccountData GBP anahtarini da bosaltmali) — o PR bu metinle birlikte canliya cikmali.
+        p: 'Yasak kullanım tespit edilirse hesap askıya alınabilir. Veriler 30 gün saklanır, sonra silinir. Hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgileri (yayın hedefi girişleri, Google Search Console, Google Analytics, Google Ads, Google İşletme Profili ve Meta reklam bağlantıları, kendi AI sağlayıcı anahtarlarınız, App Store Connect ve Apple Search Ads anahtarları, kaldırılan sosyal medya özelliğinden kalan erişim bilgileri) 30 günü beklemeden hemen silinir.',
       },
       {
         h: '10. Yetkili Mahkeme',
-        p: 'Türkiye Cumhuriyeti hukuku geçerlidir. İstanbul Mahkemeleri yetkilidir.',
+        // Isletme Bursa'da (sahis firmasi). Tuketici istisnasi 6502 s. Kanun m.68 ve m.73 (hakem heyeti /
+        // tuketici mahkemesi; tuketicinin yerlesim yeri) — ifade hukukcu incelemesine acik.
+        p: 'Türkiye Cumhuriyeti hukuku geçerlidir. Uyuşmazlıklarda Bursa Mahkemeleri ve İcra Daireleri yetkilidir. Tüketici sıfatıyla yapılan işlemlerde 6502 sayılı Tüketicinin Korunması Hakkında Kanun hükümleri saklıdır; bu işlemlerden doğan uyuşmazlıklarda, kanunda belirlenen parasal sınırlar içinde Tüketici Hakem Heyetleri, bu sınırları aşan durumlarda Tüketici Mahkemeleri yetkilidir.',
       },
     ],
   },
@@ -77,11 +82,11 @@ const CONTENT = {
     titleA: 'Terms of',
     titleB: 'Service',
     effective: 'Effective: April 27, 2026',
-    updated: 'Last updated: October 22, 2026 — section 2: the free trial now lasts 14 days; when it ends the account becomes read-only until a plan is chosen and data is kept; on the trial articles are generated only when the user starts them, after connecting a publish target. October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered. Section 7 still described the removed social media posting feature as if it were available; it has been rewritten. Section 9 now states that the access credentials of connected services are deleted immediately when you delete your account. Section 8 now covers site and product intro videos: page content, product images and prices are taken only from your own site.',
+    updated: 'Last updated: October 28, 2026 — section 1: the service providers RanksUp works with are now listed in full and linked to the Privacy Policy; section 3: clarified that after cancellation access continues until the end of the paid billing period (monthly or annual); section 9: Google Business Profile added to the connection credentials deleted immediately; section 10: competent courts corrected to Bursa, with consumer law (Law No. 6502) reserved for consumer transactions. October 22, 2026 — section 2: the free trial now lasts 14 days; when it ends the account becomes read-only until a plan is chosen and data is kept; on the trial articles are generated only when the user starts them, after connecting a publish target. October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered. Section 7 still described the removed social media posting feature as if it were available; it has been rewritten. Section 9 now states that the access credentials of connected services are deleted immediately when you delete your account. Section 8 now covers site and product intro videos: page content, product images and prices are taken only from your own site.',
     sections: [
       {
         h: '1. Service Definition',
-        p: 'RanksUp is a SaaS that automates SEO + GEO + AEO performance of user websites with AI. The service integrates with Resend.com (email), Anthropic (Claude AI), Google AI (Gemini), and PayTR (payments).',
+        p: 'RanksUp is a SaaS that automates SEO + GEO + AEO performance of user websites with AI. The service integrates with Resend.com for e-mail; Anthropic (Claude), Google AI (Gemini), OpenAI (ChatGPT), Perplexity, xAI (Grok) and DeepSeek for AI content generation and AI visibility measurement; the selected image generator (Google, OpenAI, Black Forest Labs Flux or Ideogram) for article images; PayTR for payments; Sentry for error monitoring; and Cloudflare for infrastructure and bot protection. The Google, Meta and Apple accounts you connect are accessed only with the permissions you grant. Section 3 of the Privacy Policy explains which data is transferred to which provider and for what purpose.',
       },
       {
         h: '2. Membership & Trial',
@@ -90,7 +95,7 @@ const CONTENT = {
       },
       {
         h: '3. Pricing',
-        p: 'Monthly or yearly billing. VAT included. Yearly plans are billed for 10 months instead of 12 (about 17% off). Secure payment via PayTR. After cancellation, access continues until the end of the paid period.',
+        p: 'Monthly or yearly billing. VAT included. Yearly plans are billed for 10 months instead of 12 (about 17% off). Secure payment via PayTR. After cancellation, access continues until the end of the paid billing period: 30 days from the last payment on a monthly plan, 365 days on an annual plan.',
       },
       {
         h: '4. Cancellation & Refund',
@@ -119,11 +124,11 @@ const CONTENT = {
       },
       {
         h: '9. Account Termination',
-        p: 'Accounts may be suspended if prohibited use is detected. Data is retained for 30 days then deleted. When you delete your account, the access credentials of connected services (publish target logins, Google Search Console, Google Analytics, Google Ads and Meta ad connections, your own AI provider keys, App Store Connect and Apple Search Ads keys, and credentials left over from the removed social media feature) are deleted immediately, without waiting 30 days.',
+        p: 'Accounts may be suspended if prohibited use is detected. Data is retained for 30 days then deleted. When you delete your account, the access credentials of connected services (publish target logins, Google Search Console, Google Analytics, Google Ads, Google Business Profile and Meta ad connections, your own AI provider keys, App Store Connect and Apple Search Ads keys, and credentials left over from the removed social media feature) are deleted immediately, without waiting 30 days.',
       },
       {
         h: '10. Jurisdiction',
-        p: 'Turkish Republic law applies. Istanbul Courts have jurisdiction.',
+        p: 'Turkish Republic law applies. The Courts and Enforcement Offices of Bursa have jurisdiction over disputes. For transactions made as a consumer, the provisions of Consumer Protection Law No. 6502 are reserved; disputes arising from such transactions fall under the Consumer Arbitration Committees within the monetary limits set by law, and under the Consumer Courts above those limits.',
       },
     ],
   },
