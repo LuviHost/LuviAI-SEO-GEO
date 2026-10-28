@@ -18,6 +18,7 @@ vi.mock('@google/genai', () => ({
 }));
 
 const { AiCitationService } = await import('./ai-citation.service.js');
+const { isErrorProbe } = await import('./citation-score.js');
 
 const PROVIDER_KEYS = [
   'ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'OPENAI_API_KEY', 'PERPLEXITY_API_KEY',
@@ -170,5 +171,51 @@ describe('probe.sources — saglayici basina', () => {
     expect(err.excerpt).toMatch(/^HATA:/);
     expect(err).not.toHaveProperty('sourcesVersion');
     expect(err).not.toHaveProperty('sources');
+  });
+});
+
+describe('saglayici hatalari — 28.10.2026 Lidio olcumu', () => {
+  const aramaHatasi = { stop_reason: 'end_turn', content: [
+    { type: 'web_search_tool_result', tool_use_id: 't1', content: { type: 'web_search_tool_result_error', error_code: 'unavailable' } },
+    { type: 'text', text: 'Web aramasını denedim ama arama aracı hata verdi. Kendi bilgime göre...' },
+  ] };
+  const basarili = { stop_reason: 'end_turn', content: [
+    { type: 'web_search_tool_result', tool_use_id: 't1', content: [{ type: 'web_search_result', url: 'https://x.com/', title: 'x' }] },
+    { type: 'text', text: LONG_ANSWER },
+  ] };
+
+  it('Claude web aramasi hata verince soru yeniden sorulur; ikinci deneme basariliysa olcum gecerli', async () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    anthropicCreate.mockResolvedValueOnce(aramaHatasi).mockResolvedValueOnce(basarili);
+    const svc = service();
+    (svc as any).ARAMA_BEKLEME_MS = 0;
+    const out = await svc.runPublicProbes({ brand: 'Muhasebe Uzmani', host: HOST, queries: ['kobi muhasebe'] });
+    const r = out.find((x) => x.provider === 'anthropic')!;
+    expect(anthropicCreate).toHaveBeenCalledTimes(2);
+    expect(r.probes[0].excerpt).not.toMatch(/^HATA/);
+  });
+
+  it('Claude web aramasi her denemede hata verirse soru "olculemedi" olur (0 puan degil)', async () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    anthropicCreate.mockResolvedValue(aramaHatasi);
+    const svc = service();
+    (svc as any).ARAMA_BEKLEME_MS = 0;
+    const out = await svc.runPublicProbes({ brand: 'Muhasebe Uzmani', host: HOST, queries: ['kobi muhasebe'] });
+    const r = out.find((x) => x.provider === 'anthropic')!;
+    expect(anthropicCreate).toHaveBeenCalledTimes(3);
+    // HATA satiri: skor/sayaclar bunu saymaz (citation-score.ts isErrorProbe); panel kosumunda tum satirlar
+    // HATA ise saglayici "olculemedi" olur (providerOutcome)
+    expect(r.probes[0].excerpt).toBe('HATA: arama hatasi (error_code=unavailable)');
+    expect(isErrorProbe(r.probes[0])).toBe(true);
+  });
+
+  it('Gemini kredisi bitince tek denemede biter ve "billing" gorunur (rate_limited degil)', async () => {
+    process.env.GOOGLE_AI_API_KEY = 'AIza-test-anahtar';
+    geminiGenerate.mockRejectedValue(new Error('{"error":{"code":402,"message":"Your prepayment credits are depleted.","status":"RESOURCE_EXHAUSTED"}}'));
+    const out = await service().runPublicProbes({ brand: 'Muhasebe Uzmani', host: HOST, queries: ['kobi muhasebe', 'kobi vergi'] });
+    const r = out.find((x) => x.provider === 'gemini')!;
+    expect(geminiGenerate).toHaveBeenCalledTimes(1);
+    expect(r.available).toBe(false);
+    expect(r.reason).toBe('HATA: billing');
   });
 });

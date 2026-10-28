@@ -14,13 +14,13 @@ import { citationScore, isErrorProbe, measuredOnly, providerOutcome } from './ci
 import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider, llamaModelConfigured } from './citation-providers.js';
 import {
   withProbeRetry, ProviderConfigError, isFatalProviderError,
-  probeErrorExcerpt, safeErrorText, safeReasonToken,
+  probeErrorCode, probeErrorExcerpt, safeErrorText, safeReasonToken,
 } from './probe-retry.js';
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
 import { answerNapSignal, type AnswerNapSignal } from './local-nap.js';
 import {
-  SOURCES_VERSION, normalizeSources, anthropicSources, geminiSources, openaiSources, perplexitySources,
+  SOURCES_VERSION, normalizeSources, anthropicSources, anthropicSearchFailure, geminiSources, openaiSources, perplexitySources,
   type CitationSource, type RawSource,
 } from './citation-sources.js';
 
@@ -949,7 +949,9 @@ export class AiCitationService {
           break;
       }
     } catch (err: any) {
-      this.log.warn(`${provider} probe failed (whole batch): ${safeErrorText(err)}`);
+      // Kredi bitti: yukleme yapilana kadar bu saglayici HIC olculmez — gozden kacmasin diye ERROR
+      if (probeErrorCode(err) === 'billing') this.log.error(`${provider} KREDISI BITTI — saglayici panelinden bakiye yuklenmeli: ${safeErrorText(err)}`);
+      else this.log.warn(`${provider} probe failed (whole batch): ${safeErrorText(err)}`);
       return {
         provider, label, available: false, score: null, probes: [],
         // Kalici hata mesaji 401 govdesini (maskeli anahtar, org kimligi) tasiyabilir — yalniz kod
@@ -1024,15 +1026,29 @@ export class AiCitationService {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
-        const resp = await client.messages.create({
-          model: this.MODELS.anthropic,
-          max_tokens: 3000,
-          system: `${systemPrompt} Cevaplamadan once mutlaka web aramasi yap ve guncel kaynaklara dayan.`,
-          messages: [{ role: 'user', content: q }],
-          // SDK 0.71 tiplerinde yok; API'de GA
-          output_config: { effort: 'low' },
-          tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 2 }],
-        } as any) as Anthropic.Message;
+        // Web aramasi hata verdiyse (200 icinde web_search_tool_result_error) cevap kaynaksiz/egitim
+        // bilgisinden — olcum degil. Soru en fazla 3 kez sorulur; yine olmazsa HATA satiri (skora girmez).
+        let resp!: Anthropic.Message;
+        let aramaHatasi: string | null = null;
+        for (let deneme = 1; deneme <= this.ARAMA_DENEME; deneme++) {
+          resp = await client.messages.create({
+            model: this.MODELS.anthropic,
+            max_tokens: 3000,
+            system: `${systemPrompt} Cevaplamadan once mutlaka web aramasi yap ve guncel kaynaklara dayan.`,
+            messages: [{ role: 'user', content: q }],
+            // SDK 0.71 tiplerinde yok; API'de GA
+            output_config: { effort: 'low' },
+            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 2 }],
+          } as any) as Anthropic.Message;
+          aramaHatasi = anthropicSearchFailure(resp.content);
+          if (!aramaHatasi) break;
+          this.log.warn(`Anthropic web aramasi hata verdi (${q}) deneme ${deneme}/${this.ARAMA_DENEME}: ${aramaHatasi}`);
+          if (deneme < this.ARAMA_DENEME) await new Promise((r) => setTimeout(r, this.ARAMA_BEKLEME_MS * deneme));
+        }
+        if (aramaHatasi) {
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: arama hatasi (error_code=${aramaHatasi})` });
+          continue;
+        }
         const text = resp.content
           .filter((b: any) => b.type === 'text')
           .map((b: any) => b.text)
@@ -1259,10 +1275,14 @@ export class AiCitationService {
     return probe;
   }
 
+  /** Claude web aramasi hata verince ayni soru kac kez sorulur / denemeler arasi taban bekleme */
+  ARAMA_DENEME = 3;
+  ARAMA_BEKLEME_MS = 3000;
+
   private isFatal(err: unknown): boolean {
     // Anthropic SDK hata mesajinda model adi sona gelir ("404 ... not_found_error ... model: x"); durum koduna bak
     const status = (err as any)?.status;
-    return err instanceof ProviderConfigError || status === 401 || status === 403 || status === 404 || isFatalProviderError(err);
+    return err instanceof ProviderConfigError || status === 401 || status === 402 || status === 403 || status === 404 || isFatalProviderError(err);
   }
 
   // ────────────────────────────────────────────────────────────

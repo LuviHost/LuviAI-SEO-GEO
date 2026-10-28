@@ -8,6 +8,13 @@
  * Ayni donemde Groq Llama modelinin kaldirilmasi gibi KALICI hatalar da
  * her gun her soru icin ayri ayri denenip HATA satiri uretiyordu.
  *
+ * KREDI BITTI (28.10.2026): Gemini 402 "Your prepayment credits are depleted"
+ * status RESOURCE_EXHAUSTED tasidigi icin gecici sayilip 3 kez deneniyor ve
+ * musteriye "istek sinirina takildi" (rate_limited) diye gosteriliyordu —
+ * gercekte hesap bakiyesi bitmisti, yukleme yapilana kadar hicbir deneme
+ * gecmez. Artik kalici ('billing'): saglayici kullanilamaz sayilir, logda
+ * ERROR olarak gorunur.
+ *
  *   gecici  → kisa bekleyip yeniden dene (varsayilan 3 deneme)
  *   kalici  → saglayici yapilandirma hatasi; batch'i durdur, saglayici
  *             "kullanilamaz" sayilsin (olcum yok ≠ skor 0)
@@ -24,7 +31,20 @@ const TRANSIENT = [
   /\b(UNAVAILABLE|RESOURCE_EXHAUSTED|DEADLINE_EXCEEDED|INTERNAL)\b/,
 ];
 
+/** Saglayici hesabinda bakiye/kredi bitti — yukleme yapilana kadar kalici */
+const BILLING = [
+  /\bHTTP 402\b|"code"\s*:\s*402\b|^402\b/,
+  /prepayment credits are depleted|credit balance is too low|insufficient[_ ]balance|insufficient_quota|payment required/i,
+];
+
+export function isBillingProviderError(err: unknown): boolean {
+  const msg = errorMessage(err);
+  const s = Number((err as any)?.status);
+  return s === 402 || BILLING.some((re) => re.test(msg));
+}
+
 const FATAL = [
+  ...BILLING,
   /model[^\n]{0,80}(does not exist|not found|decommissioned|deprecated)/i,
   /model_not_found|model_decommissioned/i,
   /supported API model names/i,
@@ -34,7 +54,7 @@ const FATAL = [
 
 export function isFatalProviderError(err: unknown): boolean {
   const msg = errorMessage(err);
-  return FATAL.some((re) => re.test(msg));
+  return isBillingProviderError(err) || FATAL.some((re) => re.test(msg));
 }
 
 export function isTransientProviderError(err: unknown): boolean {
@@ -98,6 +118,7 @@ function errorMessage(err: unknown): string {
 // gecici/kalici kurallarini DEGISTIRMEZ — yalnizca gosterilecek kodu secer.
 
 export type ProbeErrorCode =
+  | 'billing'
   | 'rate_limited'
   | 'upstream_unavailable'
   | 'timeout'
@@ -108,7 +129,7 @@ export type ProbeErrorCode =
   | 'unknown';
 
 export const PROBE_ERROR_CODES: readonly ProbeErrorCode[] = [
-  'rate_limited', 'upstream_unavailable', 'timeout', 'network',
+  'billing', 'rate_limited', 'upstream_unavailable', 'timeout', 'network',
   'auth_failed', 'model_unavailable', 'bad_request', 'unknown',
 ];
 
@@ -134,6 +155,8 @@ export function probeErrorCode(err: unknown): ProbeErrorCode {
     || /invalid[_ ]api[_ ]key|incorrect api key|API key not valid|PERMISSION_DENIED|UNAUTHENTICATED|authentication_error|permission_error/i.test(msg)) {
     return 'auth_failed';
   }
+  // RESOURCE_EXHAUSTED'dan ONCE: Gemini kredi bitince de RESOURCE_EXHAUSTED doner (402)
+  if (isBillingProviderError(err)) return 'billing';
   if (status === 429 || /rate.?limit|RESOURCE_EXHAUSTED|too many requests|exceeded your current quota/i.test(msg)) {
     return 'rate_limited';
   }
@@ -189,7 +212,7 @@ export function safeErrorText(err: unknown, max = 300): string {
   return redactSecrets(errorMessage(err)).replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-const SAFE_HATA_TEXT = /^HATA: (?:bos cevap \([A-Za-z_]+=[A-Za-z0-9_.:-]{1,40}\)|saglayici reddi \(refusal\))$/;
+const SAFE_HATA_TEXT = /^HATA: (?:bos cevap \([A-Za-z_]+=[A-Za-z0-9_.:-]{1,40}\)|saglayici reddi \(refusal\)|arama hatasi \(error_code=[A-Za-z0-9_.:-]{1,40}\))$/;
 
 /**
  * Kayitli (eski) bir excerpt'i guvenli bicime cevirir. Eski snapshot'larda

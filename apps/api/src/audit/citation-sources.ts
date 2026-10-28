@@ -239,6 +239,24 @@ export function anthropicSources(content: unknown): RawSource[] {
 }
 
 /**
+ * Claude web aramasi BASARISIZ mi? (28.10.2026: Lidio olcumunde Claude "Web aramasini denedim ama arama
+ * araci hata verdi" diye cevap yazdi; bu cevap kaynaksiz, egitim bilgisinden — ama "marka anilmadi"
+ * olarak sayilip skoru dusuruyordu.)
+ * Hata, HTTP 200 icinde gelir: web_search_tool_result.content = { type: 'web_search_tool_result_error', error_code }.
+ * En az bir arama BASARILIYSA (sonuc dizisi) olcum gecerlidir — 'max_uses_exceeded' gibi sonraki aramanin
+ * hatasi cevabi bozmaz. Doner: hata kodu (basarisizsa) ya da null.
+ */
+export function anthropicSearchFailure(content: unknown): string | null {
+  if (!Array.isArray(content)) return null;
+  const sonuclar = content.filter((b: any) => b?.type === 'web_search_tool_result');
+  if (sonuclar.some((b: any) => Array.isArray(b.content))) return null;
+  const hata = sonuclar.find((b: any) => b?.content?.type === 'web_search_tool_result_error');
+  if (!hata) return null;
+  const kod = String((hata as any).content?.error_code ?? '');
+  return /^[A-Za-z0-9_.:-]{1,40}$/.test(kod) ? kod : 'bilinmiyor';
+}
+
+/**
  * Gemini (googleSearch grounding): `groundingChunks[].web` { uri, title, domain? }.
  *
  * YONLENDIRME KARARI: Gemini API'de `uri` gercek sayfa degil,

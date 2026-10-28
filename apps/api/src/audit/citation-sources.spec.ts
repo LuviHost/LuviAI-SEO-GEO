@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeSourceUrl, normalizeSources, isGroundingRedirect, asHostname, sourceColumns, providersWithoutSources, titleAsHostname,
-  anthropicSources, geminiSources, openaiSources, perplexitySources,
+  anthropicSources, anthropicSearchFailure, geminiSources, openaiSources, perplexitySources,
   MAX_SOURCES_PER_PROBE, MAX_SOURCE_URL_LEN, MAX_SOURCE_TITLE_LEN,
 } from './citation-sources.js';
 
@@ -277,5 +277,21 @@ describe('providersWithoutSources (Audit.checks yazimi, MCP run_prompt)', () => 
     expect(providers[0].probes![0].sources).toHaveLength(1);
     expect(providersWithoutSources(null)).toBeNull();
     expect(providersWithoutSources(undefined)).toBeUndefined();
+  });
+});
+
+describe('anthropicSearchFailure — Claude web aramasi basarisiz mi', () => {
+  const hata = (kod: string) => ({ type: 'web_search_tool_result', tool_use_id: 't', content: { type: 'web_search_tool_result_error', error_code: kod } });
+  const basarili = { type: 'web_search_tool_result', tool_use_id: 't', content: [{ type: 'web_search_result', url: 'https://x.com/', title: 'x' }] };
+  it('tum aramalar hata verdiyse kodu doner', () => {
+    expect(anthropicSearchFailure([{ type: 'server_tool_use' }, hata('too_many_requests'), { type: 'text', text: 'arama hata verdi' }])).toBe('too_many_requests');
+  });
+  it('en az bir arama basariliysa olcum gecerli (sonraki aramanin max_uses hatasi bozmaz)', () => {
+    expect(anthropicSearchFailure([basarili, hata('max_uses_exceeded'), { type: 'text', text: 'cevap' }])).toBeNull();
+  });
+  it('arama yoksa ya da icerik bozuksa null; garip kod metne sizmaz', () => {
+    expect(anthropicSearchFailure([{ type: 'text', text: 'cevap' }])).toBeNull();
+    expect(anthropicSearchFailure(undefined)).toBeNull();
+    expect(anthropicSearchFailure([hata('kotu kod <script>')])).toBe('bilinmiyor');
   });
 });

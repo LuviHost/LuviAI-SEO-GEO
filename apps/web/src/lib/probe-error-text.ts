@@ -8,6 +8,7 @@
  */
 
 const CODE_TEXT: Record<string, string> = {
+  billing: 'Bu asistan şu an ölçülemiyor (sağlayıcı hesabında geçici sorun) — sonuç skora katılmadı.',
   rate_limited: 'Sağlayıcının istek sınırına takıldı — bu soru ölçülemedi.',
   upstream_unavailable: 'Sağlayıcı geçici olarak yanıt vermedi — bu soru ölçülemedi.',
   timeout: 'Sağlayıcı zamanında yanıt vermedi — bu soru ölçülemedi.',
@@ -28,6 +29,7 @@ export function probeErrorText(s: unknown): string | null {
   const rest = s.slice(5).trim();
   if (Object.prototype.hasOwnProperty.call(CODE_TEXT, rest)) return CODE_TEXT[rest];
   if (rest.startsWith('bos cevap')) return 'Sağlayıcı boş cevap döndürdü — bu soru ölçülemedi.';
+  if (rest.startsWith('arama hatasi')) return 'Asistanın web araması hata verdi — bu soru ölçülemedi, skora katılmadı.';
   if (rest.startsWith('saglayici reddi')) return 'Sağlayıcı soruyu yanıtlamayı reddetti — bu soru ölçülemedi.';
   return CODE_TEXT.unknown;
 }
