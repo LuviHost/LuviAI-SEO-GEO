@@ -76,9 +76,9 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/help/billing',          updated: '2026-10-21', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/video',            updated: '2026-10-23', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/glossary',         updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/privacy',               updated: '2026-10-21', changeFrequency: 'yearly',  priority: 0.3 },
-  { path: '/terms',                 updated: '2026-10-22', changeFrequency: 'yearly',  priority: 0.3 },
-  { path: '/kvkk',                  updated: '2026-10-21', changeFrequency: 'yearly',  priority: 0.3 },
+  { path: '/privacy',               updated: '2026-10-28', changeFrequency: 'yearly',  priority: 0.3 },
+  { path: '/terms',                 updated: '2026-10-28', changeFrequency: 'yearly',  priority: 0.3 },
+  { path: '/kvkk',                  updated: '2026-10-28', changeFrequency: 'yearly',  priority: 0.3 },
   { path: '/bot',                   updated: '2026-10-18', changeFrequency: 'yearly',  priority: 0.3 },
 ];
 
