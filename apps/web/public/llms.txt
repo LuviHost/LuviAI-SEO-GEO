@@ -97,7 +97,7 @@ Plana göre öne çıkanlar:
 
 ## Teknik bilgi
 
-- **Arayüz dilleri**: Türkçe, İngilizce
+- **Arayüz dili**: panel Türkçe; tanıtım sayfaları Türkçe ve İngilizce. Makale dili: Türkçe ya da İngilizce
 - **Fiyat ve ödeme**: Fiyatlar USD; TL tutarı günün TCMB kuruyla hesaplanır; ödeme PayTR ile.
 - **Veri konumu** (Gizlilik Politikası): Sunucular LuviHost İstanbul veri merkezinde, yedekler Frankfurt bölgesinde; yapay zekâ çağrıları sağlayıcıların sunucularına gider.
 - **Şifreleme**: Google bağlantı token'ları ve yayın hedefi bilgileri AES-256-GCM ile şifreli saklanır.

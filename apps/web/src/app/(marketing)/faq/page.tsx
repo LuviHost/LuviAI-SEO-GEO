@@ -88,7 +88,7 @@ const FAQS_TR = [
   },
   {
     q: 'Hangi dilleri destekliyor?',
-    a: 'Arayüz Türkçe ve İngilizce. Makalelerin dili site ayarlarından seçilir: Türkçe ya da İngilizce.',
+    a: 'Panel arayüzü Türkçedir; tanıtım sayfaları Türkçe ve İngilizce. Makalelerin dili site ayarlarından seçilir: Türkçe ya da İngilizce.',
   },
   {
     q: 'Ücretsiz olarak ne kadar kullanabilirim?',
@@ -152,11 +152,11 @@ const FAQS_TR = [
   },
   {
     q: 'AI Citation testi tam olarak ne ölçüyor?',
-    a: 'Marka beynindeki sorulardan en fazla 5\'ini 6 AI asistanına sorar: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek. Ölçümü siz başlatırsınız ("Yeniden Test"); hesap başına haftada bir AI ölçümü yapılabilir. Her test kalıcı kaydedilir, iki testi yan yana karşılaştırabilirsiniz. Marka adınızın geçtiği sorular skora girmez (o tanınırlık, görünürlük değil). Cevapta site URL\'iniz alıntılanırsa 100, sadece marka adı geçerse 50, hiç geçmezse 0 puan; manşet 7 günlük ortalama. Son 7 günün ortalaması önceki 7 güne göre %30 ya da daha fazla düşerse otomatik e-posta gelir.',
+    a: 'Marka beynindeki sorulardan en fazla 5\'ini 6 AI asistanına sorar: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek. Ölçümü siz başlatırsınız ("Yeniden Test"); hesap başına haftada bir AI ölçümü yapılabilir. Her test kalıcı kaydedilir, iki testi yan yana karşılaştırabilirsiniz. Marka adınızın geçtiği sorular skora girmez (o tanınırlık, görünürlük değil). Cevapta site URL\'iniz alıntılanırsa 100, sadece marka adı geçerse 50, hiç geçmezse 0 puan; manşet son 7 gündeki ölçümlerden hesaplanır (haftada bir ölçümde bu, son testtir). Son 7 günün ortalaması önceki 7 güne göre %30 ya da daha fazla düşerse otomatik e-posta gelir.',
   },
   {
     q: 'GEO Score nedir, nasıl hesaplanır?',
-    a: '6 başlığın ağırlıklı ortalamasıdır; her başlığın puanı geçilen kontrollerin oranıdır. (1) AI tarayıcı erişimi — robots.txt, llms.txt, sitemap.xml ve RanksUp\'ın ürettiği llms-full.txt; (2) Yapısal veri — RanksUp ile yayınlanan makalelerde şema kapsamı (en az %80), en az 5 farklı şema tipi, Speakable ve FAQPage; (3) AI atıfları — ölçülen AI asistanlarının (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) son 7 gün ortalaması: ortalaması 30 ve üstü olan asistan geçer, son 7 günde ölçüm alınamayan asistan hesaba katılmaz; (4) Otorite — sosyal profil (sameAs) bağlantıları, en az 3 tanımlı rakip ve Search Console bağlantısı; (5) Tazelik — son 30 günde en az 4, son 7 günde en az 1 yayın ve 90 günden uzun süredir güncellenmeyen makalenin 10\'dan az olması; (6) Çoklu ortam — yayınlanan makalelerin en az %70\'inde kapak görseli. İlk üç başlığın ağırlığı en yüksektir. Sonuç A+ ile F arasında bir harf notudur.',
+    a: '6 başlığın ağırlıklı ortalamasıdır; her başlığın puanı geçilen kontrollerin oranıdır. (1) AI tarayıcı erişimi — robots.txt, llms.txt, sitemap.xml ve RanksUp\'ın ürettiği llms-full.txt; (2) Yapısal veri — RanksUp ile yayınlanan makalelerde şema kapsamı (en az %80), en az 5 farklı şema tipi, Speakable ve FAQPage; (3) AI atıfları — ölçülen AI asistanlarının (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) son 9 gündeki ölçümleri: ortalaması 30 ve üstü olan asistan geçer, son 9 günde ölçüm alınamayan asistan hesaba katılmaz (haftalık ölçüm hakkıyla sütun boşa düşmesin diye pencere 9 gündür); (4) Otorite — sosyal profil (sameAs) bağlantıları, en az 3 tanımlı rakip ve Search Console bağlantısı; (5) Tazelik — son 30 günde en az 4, son 7 günde en az 1 yayın ve 90 günden uzun süredir güncellenmeyen makalenin 10\'dan az olması; (6) Çoklu ortam — yayınlanan makalelerin en az %70\'inde kapak görseli. İlk üç başlığın ağırlığı en yüksektir. Sonuç A+ ile F arasında bir harf notudur.',
   },
   {
     q: 'Otopilot tam olarak ne yapıyor?',
@@ -183,7 +183,7 @@ const FAQS_EN = [
   },
   {
     q: 'Which languages are supported?',
-    a: 'The interface is in Turkish and English. Article language is set in site settings: Turkish or English.',
+    a: 'The dashboard is in Turkish; the public pages are in Turkish and English. Article language is set in site settings: Turkish or English.',
   },
   {
     q: 'How much can I use for free?',
@@ -243,11 +243,11 @@ const FAQS_EN = [
   },
   {
     q: 'What exactly does the AI Citation test measure?',
-    a: 'It asks up to 5 questions from your brand brain to 6 AI assistants: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek. You trigger the measurement ("Yeniden Test", re-test); one AI measurement per account per week. Every measurement is stored permanently and any two measurements can be compared side by side. Questions that already contain your brand are excluded from the score (that is recognition, not visibility). URL cited = 100, brand name only = 50, absent = 0; the headline is a 7-day rolling average. If the last 7 days\' average drops 30% or more against the previous 7 days, you get an automatic email.',
+    a: 'It asks up to 5 questions from your brand brain to 6 AI assistants: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek. You trigger the measurement ("Yeniden Test", re-test); one AI measurement per account per week. Every measurement is stored permanently and any two measurements can be compared side by side. Questions that already contain your brand are excluded from the score (that is recognition, not visibility). URL cited = 100, brand name only = 50, absent = 0; the headline is computed from the measurements of the last 7 days (with one measurement a week, that is your latest test). If the last 7 days\' average drops 30% or more against the previous 7 days, you get an automatic email.',
   },
   {
     q: 'What is GEO Score, how is it calculated?',
-    a: 'A weighted average of 6 pillars; each pillar scores the share of its checks that pass. (1) AI crawler access — robots.txt, llms.txt, sitemap.xml and the llms-full.txt RanksUp generates; (2) Structured data — on articles published through RanksUp: schema coverage (at least 80%), at least 5 distinct schema types, Speakable and FAQPage; (3) AI citations — the 7-day average of each measured AI assistant (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek): an assistant passes at 30 or above, and an assistant with no measurement in the last 7 days is left out; (4) Authority — social profile (sameAs) links, at least 3 defined competitors and a Search Console connection; (5) Freshness — at least 4 articles in the last 30 days, at least 1 in the last 7 days, and fewer than 10 articles left without an update for over 90 days; (6) Multi-modal — a cover image on at least 70% of published articles. The first three pillars carry the highest weight. The result is a letter grade from A+ to F.',
+    a: 'A weighted average of 6 pillars; each pillar scores the share of its checks that pass. (1) AI crawler access — robots.txt, llms.txt, sitemap.xml and the llms-full.txt RanksUp generates; (2) Structured data — on articles published through RanksUp: schema coverage (at least 80%), at least 5 distinct schema types, Speakable and FAQPage; (3) AI citations — the measurements of the last 9 days for each measured AI assistant (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek): an assistant passes at 30 or above, and an assistant with no measurement in the last 9 days is left out (the window is 9 days so the pillar does not lapse between weekly measurements); (4) Authority — social profile (sameAs) links, at least 3 defined competitors and a Search Console connection; (5) Freshness — at least 4 articles in the last 30 days, at least 1 in the last 7 days, and fewer than 10 articles left without an update for over 90 days; (6) Multi-modal — a cover image on at least 70% of published articles. The first three pillars carry the highest weight. The result is a letter grade from A+ to F.',
   },
   {
     q: 'What exactly does Autopilot do?',

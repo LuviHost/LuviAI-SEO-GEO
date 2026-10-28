@@ -75,7 +75,7 @@ const dictionary = {
     'land.pricing.eyebrow': 'Şeffaf fiyat',
     'land.pricing.title': 'Bugün başla, kart sonra.',
     'land.pricing.subtitle': '14 gün ücretsiz, 2 makale · İstediğin zaman iptal · Gizli ücret yok',
-    'land.pricing.most_popular': 'En çok tercih edilen',
+    'land.pricing.most_popular': 'Önerilen',
     'land.pricing.per_month': '/ay',
     'land.pricing.per_year': '/yıl',
     'land.pricing.annual_billing': 'Yıllık faturalandırılır',
@@ -87,7 +87,7 @@ const dictionary = {
     'land.pricing.support_priority': 'Destek: öncelikli + Slack',
     'land.pricing.support_dedicated': 'Destek: özel hesap yöneticisi + SLA',
     // Olcum sikligi her planda ayni: hesap basina 7 gunde 1 (billing/measurement-allowance.ts)
-    'land.pricing.footer_note': 'Her planda: 14 yayın hedefi · haftada 1 AI görünürlük ölçümü, 6 AI asistanında · TR + EN arayüz · kurulum 10 dakika',
+    'land.pricing.footer_note': 'Ücretli her planda: 14 yayın hedefi · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında · Türkçe ve İngilizce makale',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Sıkça sorulanlar',
@@ -189,7 +189,7 @@ const dictionary = {
     // Ayni sayfada "5 dakikada kurulum" (land.cta.subtitle, land2.how.title) varken burada
     // "kurulum 10 dakika" yaziyordu; olculmus bir sure degil, celiski kaldirildi.
     // Kartlardaki "ayda en fazla N calistirma" bir tavan; olcum sikligi her planda haftada 1
-    'land.pric.footer_note': 'Her planda: 14 yayın hedefi · haftada 1 AI görünürlük ölçümü, 6 AI asistanında · TR + EN arayüz',
+    'land.pric.footer_note': 'Ücretli her planda: 14 yayın hedefi (denemede WordPress ve Markdown ZIP) · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında · Türkçe ve İngilizce makale',
     // Plan adlari burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Özel',
 
@@ -233,11 +233,11 @@ const dictionary = {
     'land.res.d2': '30 günlük toplam tıklama',
     'land.res.d3': '30 günlük arama gösterimi',
     'land.res.d4': 'App Store ortalama sırası',
-    'land.res.source': 'Kaynak: Google Search Console (kobipratik.com) ve App Store sıralama ölçümleri (16 Mayıs – 13 Ağustos, 1.264 ölçüm).',
+    'land.res.source': 'Kaynak: Google Search Console (kobipratik.com) ve App Store sıralama ölçümleri (16 Mayıs – 13 Ağustos, 1.264 ölçüm). KobiPratik, RanksUp’ı geliştiren LuviHost grubunun kendi sitesidir.',
     'land.uc.link': 'Senin iş modeline nasıl uyar? Kullanım senaryolarına bak',
     'land.test.from_reviews': 'yorumdan',
-    'land.preview.live': 'CANLI',
-    'land.preview.activity': 'Canlı aktivite',
+    'land.preview.live': 'ÖRNEK',
+    'land.preview.activity': 'Örnek aktivite akışı',
     'land.preview.sample': 'Örnek ekran',
 
     // Dashboard
@@ -260,7 +260,7 @@ const dictionary = {
     // ─── Landing v2 (yeniden tasarim, Ekim 2026) ─────────────────
     'land2.hero.title': 'Yapay zekâ seni tavsiye ediyor mu?',
     'land2.hero.sub': "Müşterilerin artık Google'ın yanında ChatGPT, Gemini ve Claude'a da soruyor. RanksUp bu cevaplarda adının geçip geçmediğini ölçer, eksik kaldığın sorular için içerik hazırlar; Google ve App Store sıralamanı da aynı panelden büyütür.",
-    'land2.hero.checker': 'Alan adını yaz, 6 AI asistanında 30 saniyede test edelim. Üyelik gerekmez.',
+    'land2.hero.checker': 'Alan adını yaz, 6 AI asistanında test edelim; genelde bir dakikadan kısa sürer. Üyelik gerekmez.',
     'land2.hero.signup': 'Ücretsiz hesap aç',
     'land2.hero.watch': 'Nasıl çalıştığını izle',
     'land2.sheet.label': 'Örnek cevap',
@@ -356,7 +356,7 @@ const dictionary = {
     'land.pricing.eyebrow': 'Transparent pricing',
     'land.pricing.title': 'Start today, pay later.',
     'land.pricing.subtitle': '14 days free, 2 articles · Cancel anytime · No hidden fees',
-    'land.pricing.most_popular': 'Most popular',
+    'land.pricing.most_popular': 'Recommended',
     'land.pricing.per_month': '/mo',
     'land.pricing.per_year': '/yr',
     'land.pricing.annual_billing': 'Billed annually',
@@ -367,7 +367,7 @@ const dictionary = {
     'land.pricing.support_em4': 'Support: email 4h',
     'land.pricing.support_priority': 'Support: priority + Slack',
     'land.pricing.support_dedicated': 'Support: dedicated account manager + SLA',
-    'land.pricing.footer_note': 'In every plan: 14 publishing targets · 1 AI visibility measurement per week across 6 AI assistants · TR + EN interface · 10-minute setup',
+    'land.pricing.footer_note': 'On every paid plan: 14 publishing targets · on every plan: 1 AI visibility measurement per week across 6 AI assistants · articles in Turkish and English',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Frequently asked',
@@ -445,7 +445,7 @@ const dictionary = {
     // Bullet text comes from plans.ts — do not keep a second copy here.
     'land.pric.cta_free': 'Choose plan',
     'land.pric.cta_contact': 'Contact us',
-    'land.pric.footer_note': 'In every plan: 14 publishing targets · 1 AI visibility measurement per week across 6 AI assistants · TR + EN interface',
+    'land.pric.footer_note': 'On every paid plan: 14 publishing targets (trial: WordPress and Markdown ZIP) · on every plan: 1 AI visibility measurement per week across 6 AI assistants · articles in Turkish and English',
     // Plan names are NOT kept here — single source is apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Custom',
 
@@ -489,11 +489,11 @@ const dictionary = {
     'land.res.d2': 'Total clicks (30 days)',
     'land.res.d3': 'Search impressions (30 days)',
     'land.res.d4': 'Average App Store rank',
-    'land.res.source': 'Source: Google Search Console (kobipratik.com) and App Store ranking measurements (May 16 – Aug 13, 1,264 measurements).',
+    'land.res.source': 'Source: Google Search Console (kobipratik.com) and App Store ranking measurements (May 16 – Aug 13, 1,264 measurements). KobiPratik is a site owned by the LuviHost group, which builds RanksUp.',
     'land.uc.link': 'How does it fit your business? See use cases',
     'land.test.from_reviews': 'reviews',
-    'land.preview.live': 'LIVE',
-    'land.preview.activity': 'Live activity',
+    'land.preview.live': 'SAMPLE',
+    'land.preview.activity': 'Sample activity feed',
     'land.preview.sample': 'Sample screen',
 
     // Dashboard
@@ -516,7 +516,7 @@ const dictionary = {
     // ─── Landing v2 ──────────────────────────────────────────────
     'land2.hero.title': 'Does AI recommend you?',
     'land2.hero.sub': 'Your customers now ask ChatGPT, Gemini and Claude as well as Google. RanksUp measures whether your name appears in those answers, prepares content for the questions you miss, and grows your Google and App Store rankings from the same panel.',
-    'land2.hero.checker': 'Enter your domain and we’ll test it across 6 AI assistants in 30 seconds. No sign-up needed.',
+    'land2.hero.checker': 'Enter your domain and we’ll test it across 6 AI assistants — it usually takes under a minute. No sign-up needed.',
     'land2.hero.signup': 'Create a free account',
     'land2.hero.watch': 'Watch how it works',
     'land2.sheet.label': 'Sample answer',

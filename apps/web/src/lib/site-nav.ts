@@ -101,13 +101,13 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   { route: 'opportunities', label: 'İçerik Fırsatları', icon: Lightbulb, group: 'content', feature: 'contentOpportunities', hint: 'Kaybedilen sorgu → içerik → yeniden ölçüm', keywords: ['fırsat', 'opportunity', 'kayıp', 'lost', 'içerik'] },
   { route: 'articles', label: 'İçerikler', icon: FileText, group: 'content', hint: 'Önerilen konular + üretilen yazılar', keywords: ['article', 'makale', 'yazı', 'topic', 'konu', 'takvim', 'içerik'] },
   { route: 'videos', label: 'Videolar', icon: Clapperboard, group: 'content', feature: 'articleVideo', hint: 'RanksUp Video — makale, site ve ürün tanıtım videoları', keywords: ['video', 'reels', 'shorts', 'tiktok', 'dikey', 'yatay', 'ranksup video', 'kısa video', 'tanıtım videosu', 'site tanıtımı', 'ürün tanıtımı'] },
-  { route: 'communities', label: 'Topluluk Ajanı', icon: MessagesSquare, group: 'content', hint: 'Reddit/Quora fırsatları + AI taslaklar', keywords: ['reddit', 'quora', 'topluluk', 'community', 'forum'] },
+  { route: 'communities', label: 'Topluluk Ajanı', icon: MessagesSquare, group: 'content', hint: 'Reddit fırsatları + AI taslaklar', keywords: ['reddit', 'quora', 'topluluk', 'community', 'forum'] },
   { route: 'publishTargets', label: 'Yayın Hedefleri', icon: Send, group: 'content', hint: 'WordPress, FTP, SFTP', keywords: ['wordpress', 'ftp', 'sftp', 'wp', 'publish', 'yayın', 'hedef'] },
 
   // ── Buyume ──
   { route: 'analytics', label: 'Analitik', icon: BarChart3, group: 'growth', hint: 'Search Console + GA4', keywords: ['analytics', 'analitik', 'gsc', 'ga4', 'trafik'] },
   { route: 'ads', label: 'Reklam', icon: TrendingUp, group: 'growth', hint: 'Google + Meta reklam yönetimi', keywords: ['ads', 'reklam', 'google', 'meta', 'roas'] },
-  { route: 'googleIsletme', label: 'Google İşletme', icon: MapPin, group: 'growth', hint: 'Haritalar profili denetimi, yorumlar ve gönderiler', keywords: ['google maps', 'harita', 'haritalar', 'yorum', 'işletme profili', 'gbp', 'google business', 'yerel', 'local'] },
+  { route: 'googleIsletme', label: 'Google İşletme', icon: MapPin, group: 'growth', hint: 'Haritalar profili denetimi; yorum ve gönderi yönetimi Google onayından sonra', keywords: ['google maps', 'harita', 'haritalar', 'yorum', 'işletme profili', 'gbp', 'google business', 'yerel', 'local'] },
   { route: 'adsHealth', label: 'Kampanya Skoru', icon: Target, group: 'growth', hint: 'Reklam hesabı sağlık kontrolü', keywords: ['ads', 'health', 'kampanya', 'skor', 'reklam'] },
   { route: 'report', label: 'Rapor', icon: FileBarChart, group: 'growth', hint: 'Performans özeti ve müşteri raporu', keywords: ['report', 'rapor', 'pdf', 'müşteri raporu', 'site raporu', 'paylaş'] },
 
