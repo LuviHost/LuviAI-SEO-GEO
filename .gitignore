@@ -24,7 +24,9 @@ ehthumbs.db
 logs/
 # Logs
 .next/
-node_modules/
+# Sondaki / yalniz KLASORU eslestirir; worktree'lerdeki node_modules SEMBOLIK BAGLANTISI eslesmiyordu
+# ve 28.10.2026'da apps/web/node_modules depoya girip sunucudaki gercek klasoru ezdi.
+node_modules
 npm-debug.log*
 .nyc_output/
 # OS
