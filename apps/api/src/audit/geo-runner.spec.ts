@@ -163,18 +163,18 @@ describe('GeoRunnerService — engelli sayfa skora girmez', () => {
   // F7: yontem degisti (HTML llms.txt 0 puan, anasayfa tek ornek, yonlendirme
   // sonrasi koken). Surum damgasi olmazsa karsilastirma farki siteye yazar.
   it('her donus yolu olcum yontemi surumunu tasir (basarili, engelli, okunamayan, hata)', async () => {
-    expect(GEO_METHOD_VERSION).toBe(3);
+    expect(GEO_METHOD_VERSION).toBe(4);
     const svc = new GeoRunnerService();
     const surum = async (map: Record<string, Reply | Error>) => {
       serve(map);
       return (await svc.runAudit('https://site.com')).details;
     };
-    expect(await surum({ 'https://site.com': { status: 200, text: RICH } })).toEqual({ methodVersion: 3 });
-    expect(await surum({ 'https://site.com': CF_WAF })).toEqual({ methodVersion: 3 });
-    expect(await surum({ 'https://site.com': { status: 500, text: 'hata' } })).toEqual({ methodVersion: 3 });
-    expect(await surum({ 'https://site.com': new Error('ag koptu') })).toEqual({ methodVersion: 3 });
+    expect(await surum({ 'https://site.com': { status: 200, text: RICH } })).toEqual({ methodVersion: 4 });
+    expect(await surum({ 'https://site.com': CF_WAF })).toEqual({ methodVersion: 4 });
+    expect(await surum({ 'https://site.com': { status: 500, text: 'hata' } })).toEqual({ methodVersion: 4 });
+    expect(await surum({ 'https://site.com': new Error('ag koptu') })).toEqual({ methodVersion: 4 });
     // Gecersiz adres catch yoluna duser — o da damgali
-    expect((await svc.runAudit('gecersiz adres')).details).toEqual({ methodVersion: 3 });
+    expect((await svc.runAudit('gecersiz adres')).details).toEqual({ methodVersion: 4 });
   });
 
   it('istekler durust bot kimligi ve onbellek atlatma basliklariyla gider (UA ezilmez)', async () => {
@@ -263,3 +263,40 @@ describe('GeoRunnerService — tarih sinyali', () => {
     expect(fresh('')).toBe(0);
   });
 });
+
+describe('GeoRunnerService — v4 sayfa sinyalleri', () => {
+  const sayfa = (body: string, head = '') => {
+    const svc = new GeoRunnerService() as unknown as { scorePage(html: string): Record<string, number> };
+    return svc.scorePage(`<html><head>${head}</head><body>${body}</body></html>`);
+  };
+
+  it('tanim sinyali Turkce harfleri ve <dfn> etiketini gorur (v3 "tanım"/"açıklamak" kaciriyordu)', () => {
+    expect(sayfa('<p>Bu kavramın tanımı şöyle.</p>').defScore).toBe(8);
+    expect(sayfa('<p>Bunu açıklamak gerekirse</p>').defScore).toBe(8);
+    expect(sayfa('<p><dfn>GEO</dfn> bir optimizasyondur.</p>').defScore).toBe(8);
+    expect(sayfa('<p>Ödeme nedir?</p>').defScore).toBe(8);
+  });
+
+  it('FAQPage isareti tek basina 40 alir; gorunur soru-cevap 60\'a kadar ekler', () => {
+    const faqLd = '<script type="application/ld+json">{"@type":"FAQPage"}</script>';
+    expect(sayfa('<p>x</p>', faqLd).faqScore).toBe(40);
+    expect(sayfa('<h3>Ne kadar sürer?\n</h3><p>a</p><h3>Ücret ne?\n</h3><p>b</p>').faqScore).toBe(20);
+  });
+
+  it('kanit ve derinlik yalniz ic sayfalardan: kisa vitrin anasayfa ortalamayi dusurmez', async () => {
+    const ic = `<html><body><article><h2>a</h2><h2>b</h2><h2>c</h2><p>${'kelime '.repeat(700)}</p>
+      <p>Kurulum 14 gün, ücret 3.500 TL, artış yüzde 40.</p><ol><li>a</li><li>b</li><li>c</li></ol></article></body></html>`;
+    serve({
+      'https://site.com': { status: 200, text: home(['/a']) },
+      'https://site.com/a': { status: 200, text: ic },
+    });
+    const r = await new GeoRunnerService().runAudit('https://site.com');
+    const m = Object.fromEntries(r.methods.map((x) => [x.id, x]));
+    expect(m.evidence.score).toBe(30 + 25);
+    expect(m.depth.score).toBe(Math.round(70 * 0.7 + 60 * 0.3));
+    expect(m.evidence.weight).toBe(12);
+    expect(m.depth.weight).toBe(8);
+    expect(m.faq_qa.weight).toBe(6);
+  });
+});
+

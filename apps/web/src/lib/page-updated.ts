@@ -49,7 +49,7 @@ export interface PublicPage {
 export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/',                      updated: '2026-10-22', changeFrequency: 'weekly',  priority: 1.0 },
   { path: '/pricing',               updated: '2026-10-22', changeFrequency: 'weekly',  priority: 0.9 },
-  { path: '/faq',                   updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/faq',                   updated: '2026-10-29', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/use-cases',             updated: '2026-10-18', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/compare',               updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/about',                 updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.7 },

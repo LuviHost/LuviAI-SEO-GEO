@@ -134,6 +134,8 @@ export const GEO_SINYAL_ADI: Readonly<Record<string, string>> = {
   og_canonical: 'Canonical ve sosyal paylaşım etiketleri',
   freshness: 'Tarih sinyali (yayın / güncelleme tarihi)',
   citation_format: 'Liste ve tablo biçimi',
+  evidence: 'Kanıt blokları (rakam, karşılaştırma, adım)',
+  depth: 'İçerik derinliği (kelime ve alt başlık)',
 };
 
 /**
@@ -184,6 +186,8 @@ export const AKSIYON_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
   geo_definition: { baslik: '"X nedir?" biçiminde tanım içerikleri ekleyin', efor: 'orta' },
   geo_citation_format: { baslik: 'Önemli bilgileri liste ve tablo biçiminde sunun', efor: 'orta' },
   geo_freshness: { baslik: 'Sayfalara yayın ve güncelleme tarihi ekleyin', efor: 'kolay' },
+  geo_evidence: { baslik: 'İçeriğe kaynaklı rakam, karşılaştırma tablosu ve adım listesi ekleyin', efor: 'orta' },
+  geo_depth: { baslik: 'İnce sayfaları alt başlıklarla genişletin', efor: 'orta' },
   ai_citation: { baslik: 'AI asistanlarının alıntılayacağı soru-cevap içerikleri yayınlayın', efor: 'orta' },
   pagespeed: { baslik: 'Sayfa hızını iyileştirin', efor: 'orta' },
 };

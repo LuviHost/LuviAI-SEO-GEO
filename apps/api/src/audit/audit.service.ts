@@ -958,11 +958,11 @@ export class AuditService {
     }
 
     // GEO metod skorları düşükse fixable issue olarak çıkar — snippet generator'a yol açar
-    const geoIssueMap: Record<string, { type: string; checkId: string; desc: string }> = {
+    const geoIssueMap: Record<string, { type: string; checkId: string; desc: string; fixable?: boolean }> = {
       faq_qa: {
         type: 'faq_missing',
         checkId: 'geo_faq',
-        desc: 'FAQ schema ve soru-cevap formatı eksik (GEO ağırlığı 12) — jsonld_faq snippet üretici hazır.',
+        desc: 'FAQ schema ve soru-cevap formatı eksik (GEO ağırlığı 6) — jsonld_faq snippet üretici hazır.',
       },
       definition: {
         type: 'definition_missing',
@@ -979,6 +979,19 @@ export class AuditService {
         checkId: 'geo_freshness',
         desc: 'datePublished / dateModified sinyali eksik — Article schema basıldığında otomatik çözülür.',
       },
+      // v4 sinyalleri: icerik isi, snippet ile cozulmez (fix-routes → manual)
+      evidence: {
+        type: 'evidence_missing',
+        checkId: 'geo_evidence',
+        desc: 'İçerik sayfalarında kanıt blokları zayıf: kaynaklı rakam/istatistik, karşılaştırma tablosu ya da adım listesi yok. AI asistanlarının kaynak gösterdiği sayfalarda bu bloklar belirgin biçimde daha sık.',
+        fixable: false,
+      },
+      depth: {
+        type: 'thin_content_geo',
+        checkId: 'geo_depth',
+        desc: 'İçerik sayfaları ince: az kelime ve az alt başlık. AI asistanlarının kaynak gösterdiği sayfalar çoğunlukla birkaç alt başlıkla konuyu kapsayan, ~1.000 kelime civarı sayfalar.',
+        fixable: false,
+      },
     };
     for (const m of geoResult.methods ?? []) {
       const map = geoIssueMap[m.id];
@@ -988,7 +1001,7 @@ export class AuditService {
           severity: 'warning' as const,
           type: map.type,
           description: `${map.desc} (mevcut skor ${m.score}/100)`,
-          fixable: true,
+          fixable: map.fixable ?? true,
           checkId: map.checkId,
         } as any);
       }

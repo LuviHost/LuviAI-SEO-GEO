@@ -18,7 +18,7 @@ import { pageUpdated } from '@/lib/page-updated';
  *    WRITER_MODEL / EDITOR_MODEL / ROUTING_MODEL), gorsel varsayilan
  *    gemini-2.5-flash-image (image-generator.service.ts). Musteri basina
  *    "Opus opt-in" yok.
- *  - GEO analizi uygulama ici 8 sinyal (geo-runner.service.ts); "Auriti GEO
+ *  - GEO analizi uygulama ici 10 sinyal (geo-runner.service.ts, yontem v4); "Auriti GEO
  *    Optimizer 47 metrik" ve "tek tikla duzeltir" dogru degildi.
  *  - Ortaklik: %30 (Affiliate.commissionPct), kayittan sonra 90 gun
  *    (affiliate.service commissionUntil), davet cerezi 60 gun (ref-tracker.tsx),
@@ -100,7 +100,7 @@ const FAQS_TR = [
   },
   {
     q: 'GEO (AI search) optimizasyonu nedir?',
-    a: 'ChatGPT, Perplexity, Claude gibi AI asistanlarının cevaplarında anılmak ve kaynak gösterilmek için yapılan optimizasyon. Google\'ın AI özellikleri için resmî rehber, özel bir "AI dosyası" gerekmediğini söylüyor; temel olan teknik SEO, benzersiz bakış açısı ve güvenilir içeriktir. RanksUp sitenin GEO analizini 8 sinyale göre yapar (llms.txt, JSON-LD şema, SSS / soru-cevap, tanım yoğunluğu, başlık hiyerarşisi, OG / canonical, tazelik ve alıntı biçimi; anasayfa ve en fazla 5 iç sayfa örneklenir) ve asıl sonucu 6 AI asistanında ölçer. robots.txt, sitemap.xml ve llms.txt için önizlemeli düzeltme sunar.',
+    a: 'ChatGPT, Perplexity, Claude gibi AI asistanlarının cevaplarında anılmak ve kaynak gösterilmek için yapılan optimizasyon. Google\'ın AI özellikleri için resmî rehber, özel bir "AI dosyası" gerekmediğini söylüyor; temel olan teknik SEO, benzersiz bakış açısı ve güvenilir içeriktir. RanksUp sitenin GEO analizini 10 sinyale göre yapar (llms.txt, JSON-LD şema, SSS / soru-cevap, tanım yoğunluğu, başlık hiyerarşisi, OG / canonical, tazelik, liste/tablo biçimi, kanıt blokları — kaynaklı rakam, karşılaştırma, adım — ve içerik derinliği; anasayfa ve en fazla 8 iç sayfa örneklenir) ve asıl sonucu 6 AI asistanında ölçer. robots.txt, sitemap.xml ve llms.txt için önizlemeli düzeltme sunar.',
   },
   {
     q: 'Kendi WordPress\'ime nasıl bağlarım?',
@@ -195,7 +195,7 @@ const FAQS_EN = [
   },
   {
     q: 'What is GEO (AI search) optimization?',
-    a: 'Optimization to be mentioned and cited in answers from AI assistants like ChatGPT, Perplexity and Claude. Google\'s official guide for its AI features says no special "AI file" is required; the basics are technical SEO, a unique perspective and trustworthy content. RanksUp runs a GEO analysis of your site on 8 signals (llms.txt, JSON-LD schema, FAQ / Q&A, definition density, heading hierarchy, OG / canonical, freshness and citation format; the homepage and up to 5 inner pages are sampled) and measures the actual outcome on 6 AI assistants. It offers previewed fixes for robots.txt, sitemap.xml and llms.txt.',
+    a: 'Optimization to be mentioned and cited in answers from AI assistants like ChatGPT, Perplexity and Claude. Google\'s official guide for its AI features says no special "AI file" is required; the basics are technical SEO, a unique perspective and trustworthy content. RanksUp runs a GEO analysis of your site on 10 signals (llms.txt, JSON-LD schema, FAQ / Q&A, definition density, heading hierarchy, OG / canonical, freshness, list/table format, evidence blocks — sourced numbers, comparisons, steps — and content depth; the homepage and up to 8 inner pages are sampled) and measures the actual outcome on 6 AI assistants. It offers previewed fixes for robots.txt, sitemap.xml and llms.txt.',
   },
   {
     q: 'How do I connect my own WordPress?',
