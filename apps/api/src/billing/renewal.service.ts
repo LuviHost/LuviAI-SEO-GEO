@@ -86,6 +86,9 @@ export class RenewalService {
                 planName: findPlan(u.plan.toLowerCase())?.name_tr ?? u.plan,
                 periodEndText: periodEnd!.getTime() > now.getTime() ? trDate(periodEnd!) : null,
                 deadlineText: trDate(deadline),
+                // Sablon "kartini kaydedersen otomatik yenilenir" cumlesini yalniz bu
+                // aciksa yazar (otomatik yenileme kapaliyken vaat edilmez)
+                recurringEnabled: this.paytr.recurringEnabled,
               },
             }).catch((err) => this.log.warn(`renewal_required mail: ${err.message}`));
           }

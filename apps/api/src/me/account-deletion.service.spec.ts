@@ -126,6 +126,11 @@ describe('hesap silme talebi', () => {
       data: { status: 'CANCELED' },
     }]);
     expect(find(b.calls, 'asaAccount', 'updateMany')[0].args.data).toMatchObject({ isActive: false, autoPilotEnabled: false, encryptedKey: '' });
+    // Google Isletme Profili OAuth anahtari da hemen silinir (Kosullar: baglanti bilgileri talepte kalkar)
+    expect(find(b.calls, 'siteGbp', 'updateMany').map((c) => c.args)).toEqual([{
+      where: { site: { userId: 'u1' } },
+      data: { refreshToken: null, hesap: null, konum: null, konumAdi: null, oauthAt: null },
+    }]);
 
     // Genel bekci: transaction icindeki HER yazim yalniz bu kullaniciya daraltilmis;
     // { site: { userId: undefined } } ya da {} (Prisma'da "filtre yok") yakalanir.
@@ -220,8 +225,8 @@ describe('hesap silme talebi', () => {
     const b = makeDb(ACTIVE_USER);
     await freezeAccountData(b.db, 'cmuserxxxxxxxxxxxxxxxxx02');
     const writes = b.calls.filter((c) => !/^(find|count)/.test(c.method));
-    // site, makale, yayin hedefi, AI anahtari, sosyal kanal/slot/gonderi, ASA, ASC, SDK, izlenen uygulama, is
-    expect(writes.length).toBe(12);
+    // site, makale, yayin hedefi, AI anahtari, Google Isletme, sosyal kanal/slot/gonderi, ASA, ASC, SDK, izlenen uygulama, is
+    expect(writes.length).toBe(13);
     for (const w of writes) {
       expect(whereProblem(w.args?.where, ['cmuserxxxxxxxxxxxxxxxxx02']), `${w.model}.${w.method}`).toBeNull();
       expect(JSON.stringify(w.args.where), `${w.model}.${w.method}`).not.toContain('"u1"');

@@ -162,3 +162,57 @@ describe('makale hazir e-postalari editor skorunu dogru olcekle yaziyor', () => 
     expect(html).not.toContain(`/${EDITOR_SCORE_MAX}<`);
   });
 });
+
+/**
+ * Hos geldin ve yenileme e-postalari kodun kurallariyla ayni seyi soyluyor.
+ *
+ * NEDEN VAR: welcome_day0 "ilk siteni baglayinca tarama ve ilk makale otomatik baslar",
+ * "Ilk makalen — ucretsiz, sure siniri yok" ve 4 asistan yaziyordu; welcome_day1 "ekledigin
+ * anda tarama ve ilk makale kendiliginden baslar" diyordu. Gercek (billing/trial-policy.ts):
+ * deneme 14 gun, kart yok, toplam 2 makale; denemede makale kendiliginden yazilmaz, once
+ * yayin hedefi baglanir ve kullanici baslatir. Olcum 6 asistanda (plans.ts). renewal_required
+ * otomatik yenileme KAPALIYKEN de gider (billing/renewal-policy.ts): o durumda "kartini
+ * kaydedersen otomatik yenilenir" vaadi yanlisti.
+ */
+describe('hos geldin ve yenileme e-postalari — deneme ve yenileme kurallariyla tutarli', () => {
+  const ESKI = /kendiliğinden başlar|süre sınırı yok|ilk makale otomatik/i;
+  const ALTI = 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek';
+
+  it('welcome_day0: 14 gun, kart yok, 2 makale, makale kendiliginden yazilmaz, 6 asistan', () => {
+    const { subject, html } = render('welcome_day0', { name: 'Test' });
+    expect(`${subject} ${html}`).not.toMatch(ESKI);
+    expect(html).toContain('14 günlük ücretsiz');
+    expect(html).toContain('kart bilgisi gerekmez');
+    expect(html).toContain('toplam 2 makale');
+    expect(html).toContain('makaleyi kendiliğinden yazmaz');
+    expect(html).toContain('yayın hedefi');
+    expect(html).toContain(ALTI);
+    expect(html).not.toContain('ChatGPT, Claude, Gemini ve Perplexity');
+  });
+
+  it('welcome_day1: makale kendiliginden baslamaz; once yayin hedefi, sonra kullanici baslatir', () => {
+    const { subject, html } = render('welcome_day1', { name: 'Test' });
+    expect(`${subject} ${html}`).not.toMatch(ESKI);
+    expect(html).toContain('makaleyi kendiliğinden yazmaz');
+    expect(html).toContain('yayın hedefi');
+    expect(html).toContain('Şimdi üret');
+  });
+
+  it('dayanak: deneme kurali 14 gun ve 2 makale', async () => {
+    const { TRIAL_DAYS } = await import('../billing/trial-policy.js');
+    expect(TRIAL_DAYS).toBe(14);
+    const quota = read(path.resolve(HERE, '../billing/quota.service.ts'));
+    expect(quota).toMatch(/TRIAL:\s*\{ articles: 2,/);
+  });
+
+  it('renewal_required: otomatik yenileme kapaliyken kart kaydi vaadi yok, aciksa var', () => {
+    const kapali = render('renewal_required', { name: 'Test', planName: 'Büyüme' }).html;
+    expect(kapali).not.toContain('otomatik yenilenir');
+    expect(kapali).toContain('otomatik yenilenmiyor');
+    const acik = render('renewal_required', { name: 'Test', planName: 'Büyüme', recurringEnabled: true }).html;
+    expect(acik).toContain('Yenilerken kartını kaydedersen sonraki dönemler otomatik yenilenir.');
+    // Gonderen servis bayragi veriye koyuyor
+    const svcSrc = read(path.resolve(HERE, '../billing/renewal.service.ts'));
+    expect(svcSrc).toContain('recurringEnabled: this.paytr.recurringEnabled,');
+  });
+});

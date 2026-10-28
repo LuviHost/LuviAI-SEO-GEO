@@ -237,7 +237,7 @@ export const BASE_PLANS: BasePlan[] = [
     features_tr: [
       '15 AI makale / ay — 5 ajanlı üretim hattı, yayın öncesi QA kapısı',
       'Hesap başına haftada 1 AI görünürlük ölçümü — AI testi, Prompt Lab ve diğer ölçümler bu hakkı paylaşır',
-      'AI testi ve Prompt Lab soruları 6 AI asistanına birden sorulur; ölçümlerde ayda en fazla 20 çalıştırma (AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma)',
+      'AI testi ve Prompt Lab’in ana sorusu 6 AI asistanına birden sorulur, Prompt Lab dalları 3 asistana (ChatGPT, Claude, Gemini); ölçümlerde ayda en fazla 20 çalıştırma (AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma)',
       'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
       '2 site',
       'Site SEO/GEO denetimi — 14 teknik kontrol + PageSpeed + harf notu',
@@ -250,7 +250,7 @@ export const BASE_PLANS: BasePlan[] = [
     features_en: [
       '15 AI articles/mo — 5-agent pipeline with a pre-publish QA gate',
       '1 AI visibility measurement per account per week — the AI test, Prompt Lab and other measurements share it',
-      'The AI test and Prompt Lab questions go to 6 AI assistants at once; up to 20 runs/mo across measurements (an AI test is 1 run, each Prompt Lab question or branch is 1)',
+      'The AI test and the main Prompt Lab question go to 6 AI assistants at once, Prompt Lab branches to 3 (ChatGPT, Claude, Gemini); up to 20 runs/mo across measurements (an AI test is 1 run, each Prompt Lab question or branch is 1)',
       'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
       '2 sites',
       'Site SEO/GEO audit — 14 technical checks + PageSpeed + letter grade',
