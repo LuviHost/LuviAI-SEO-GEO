@@ -57,6 +57,16 @@ describe('withProbeRetry', () => {
     expect(calls).toBe(1);
   });
 
+  it('kredi bitti kalicidir: yeniden denenmez, ProviderConfigError olur', async () => {
+    let n = 0;
+    const kredi = '{"error":{"code":402,"message":"Your prepayment credits are depleted.","status":"RESOURCE_EXHAUSTED"}}';
+    await expect(withProbeRetry(async () => { n++; throw new Error(kredi); }, noWait)).rejects.toBeInstanceOf(ProviderConfigError);
+    expect(n).toBe(1);
+    expect(isTransientProviderError(new Error(kredi))).toBe(false);
+    // Gemini dakikalik kota (429 RESOURCE_EXHAUSTED) hala gecici
+    expect(isTransientProviderError(new Error('{"error":{"code":429,"message":"Quota exceeded","status":"RESOURCE_EXHAUSTED"}}'))).toBe(true);
+  });
+
   it('kalici hatayi ProviderConfigError olarak firlatir', async () => {
     await expect(withProbeRetry(async () => { throw new Error('HTTP 404: model `x` does not exist'); }, noWait))
       .rejects.toBeInstanceOf(ProviderConfigError);
@@ -68,6 +78,11 @@ describe('probeErrorCode — musteriye giden kod', () => {
     ['429 govdeli', new Error('HTTP 429: {"error":{"message":"Rate limit reached for org-AbC123 on requests per min","type":"requests"}}'), 'rate_limited'],
     ['Gemini 503 JSON', new Error('{"error":{"code":503,"message":"This model is currently experiencing high demand.","status":"UNAVAILABLE"}}'), 'upstream_unavailable'],
     ['Gemini kota', new Error('{"error":{"code":429,"message":"Quota exceeded","status":"RESOURCE_EXHAUSTED"}}'), 'rate_limited'],
+    // 28.10.2026 prod logu: kredi bitti — eskiden rate_limited gorunuyordu
+    ['Gemini kredi bitti', new Error('{"error":{"code":402,"message":"Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.","status":"RESOURCE_EXHAUSTED"}}'), 'billing'],
+    ['Anthropic bakiye', Object.assign(new Error('400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}'), { status: 400 }), 'billing'],
+    ['OpenAI insufficient_quota', new Error('HTTP 429: {"error":{"message":"You exceeded your current quota","type":"insufficient_quota","code":"insufficient_quota"}}'), 'billing'],
+    ['DeepSeek 402', new Error('HTTP 402: {"error":{"message":"Insufficient Balance"}}'), 'billing'],
     ['OpenAI 401 maskeli anahtar', new Error('HTTP 401: {"error":{"message":"Incorrect API key provided: sk-proj-****abcd."}}'), 'auth_failed'],
     ['Anthropic SDK 404 model', Object.assign(new Error('404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-x"}}'), { status: 404 }), 'model_unavailable'],
     ['Groq kaldirilan model', new Error('HTTP 404: {"error":{"message":"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it."}}'), 'model_unavailable'],
@@ -126,6 +141,10 @@ describe('sanitizeProbeExcerpt — eski kayitlar', () => {
     expect(sanitizeProbeExcerpt('HATA: saglayici reddi (refusal)')).toBe('HATA: saglayici reddi (refusal)');
     expect(sanitizeProbeExcerpt('Kobipratik iyi bir platformdur')).toBe('Kobipratik iyi bir platformdur');
     expect(sanitizeProbeExcerpt(undefined)).toBeUndefined();
+  });
+
+  it('arama hatasi satiri guvenli bicimde korunur', () => {
+    expect(sanitizeProbeExcerpt('HATA: arama hatasi (error_code=too_many_requests)')).toBe('HATA: arama hatasi (error_code=too_many_requests)');
   });
 
   it('bos cevap satirina saglayici metni sizmaz', () => {
