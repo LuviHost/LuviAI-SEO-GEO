@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from './email.service.js';
 import { checkoutTestModeOn } from '../billing/checkout-mode.js';
+import { eskiFiyatBilgisi } from './grandfathering.js';
 
 /**
  * Email otomasyon cron'ları:
@@ -193,17 +194,12 @@ export class EmailCron {
       },
     });
 
-    // Yeni fiyatları billing.service'ten almak için sabit map (grandfathered'lar PRO/AGENCY/STARTER/ENTERPRISE)
-    const NEW_PRICES: Record<string, number> = {
-      STARTER: 1499,
-      PRO: 4999,
-      AGENCY: 14999,
-      ENTERPRISE: 34999,
-    };
-
+    // Yeni fiyat TEK KAYNAKTAN: plans.ts (USD; odeme gunu TCMB kuruyla TL'ye cevrilir).
+    // Eskiden sabit TL tablosu vardi (PRO 4999) — gercek fiyatin ~3'te biri. Bkz. grandfathering.ts
     let warnSent = 0;
     for (const u of expiringSoon) {
-      const newPrice = NEW_PRICES[u.plan] ?? 0;
+      const bilgi = eskiFiyatBilgisi(u.plan);
+      if (!bilgi) { this.log.warn(`grandfathering_expiring atlandi ${u.id}: ucretli plan degil (${u.plan})`); continue; }
       const legacyPrice = (u as any).legacyMonthlyPriceTry ?? 0;
       try {
         await this.email.send({
@@ -216,7 +212,9 @@ export class EmailCron {
               year: 'numeric', month: 'long', day: 'numeric',
             }) ?? '',
             legacyPriceTry: legacyPrice,
-            newPriceTry: newPrice,
+            newPriceUsd: bilgi.yeniFiyatUsd,
+            planName: bilgi.planAdi,
+            features: bilgi.ozellikler,
           },
         });
         warnSent++;
@@ -236,17 +234,19 @@ export class EmailCron {
 
     let expiredSent = 0;
     for (const u of justExpired) {
-      const newPrice = NEW_PRICES[u.plan] ?? 0;
+      const bilgi = eskiFiyatBilgisi(u.plan);
       const legacyPrice = (u as any).legacyMonthlyPriceTry ?? 0;
       try {
-        await this.email.send({
+        // Ucretli plan degilse (or. denemeye dusmus) "yeni fiyat aktif" e-postasi anlamsiz; yalniz kayit temizlenir
+        if (bilgi) await this.email.send({
           userId: u.id,
           to: u.email,
           template: 'grandfathering_expired',
           data: {
             name: u.name,
             legacyPriceTry: legacyPrice,
-            newPriceTry: newPrice,
+            newPriceUsd: bilgi.yeniFiyatUsd,
+            planName: bilgi.planAdi,
           },
         });
         // Grandfathering bilgisini temizle — yeni fiyat aktif
@@ -254,7 +254,7 @@ export class EmailCron {
           where: { id: u.id },
           data: { grandfatheredUntil: null, legacyMonthlyPriceTry: null } as any,
         });
-        expiredSent++;
+        if (bilgi) expiredSent++;
       } catch (err: any) {
         this.log.error(`grandfathering_expired ${u.id}: ${err.message}`);
       }

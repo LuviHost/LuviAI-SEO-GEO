@@ -572,15 +572,11 @@ export class EmailService {
             p(`Yeni fiyatlandırmaya geçişin <strong>${kacisla(String(data.expiryDateText ?? 'yakında'))}</strong> tarihinde yapılacak.`) +
             olcuSatiri([
               { etiket: 'Şu anki', deger: `₺${(data.legacyPriceTry ?? 0).toLocaleString('tr-TR')}`, alt: 'aylık' },
-              { etiket: 'Yeni', deger: `₺${(data.newPriceTry ?? 0).toLocaleString('tr-TR')}`, alt: 'aylık' },
+              { etiket: 'Yeni', deger: `$${(data.newPriceUsd ?? 0).toLocaleString('tr-TR')}`, alt: 'aylık' },
             ]) +
-            p('Bu dönemde eklenen ve planına dahil olan özellikler:') +
-            liste([
-              'Daha yüksek aylık makale kotası',
-              'AI Video Studio',
-              'Takılan sayfa kurtarma + AI görünürlük takibi',
-              'ASO, Apple Search Ads ve App Store Connect entegrasyonu',
-            ]) +
+            p('<span style="font-size:13px;">Yeni fiyat ABD doları üzerindendir; ödeme günü TCMB kuruyla Türk lirasına çevrilerek tahsil edilir.</span>') +
+            p(`${data.planName ? `<strong>${kacisla(String(data.planName))}</strong> planına` : 'Planına'} bu dönemde eklenen özellikler:`) +
+            liste((Array.isArray(data.features) ? data.features : []).map((x: unknown) => kacisla(String(x)))) +
             dugme('Yeni fiyatları gör', `${baseUrl}/pricing`) +
             p('<span style="font-size:13px;">İtirazın veya sorun varsa bu maili yanıtlayabilirsin.</span>'),
         );
@@ -593,8 +589,9 @@ export class EmailService {
             p('Geçiş tamamlandı. Bir sonraki faturan yeni fiyat üzerinden kesilecek.') +
             olcuSatiri([
               { etiket: 'Eski (sona erdi)', deger: `₺${(data.legacyPriceTry ?? 0).toLocaleString('tr-TR')}` },
-              { etiket: 'Yeni aylık', deger: `₺${(data.newPriceTry ?? 0).toLocaleString('tr-TR')}` },
+              { etiket: 'Yeni aylık', deger: `$${(data.newPriceUsd ?? 0).toLocaleString('tr-TR')}` },
             ]) +
+            p('<span style="font-size:13px;">Tutar ödeme günü TCMB kuruyla Türk lirasına çevrilerek tahsil edilir.</span>') +
             dugme('Panele git', `${baseUrl}/dashboard`) +
             p('<span style="font-size:13px;">Aboneliğini ' + baglanti('abonelik sayfasından', `${baseUrl}/billing`) + ' yönetebilirsin.</span>'),
         );
