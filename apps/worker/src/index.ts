@@ -59,8 +59,13 @@ import { VIDEO_RENDER_JOB_CONCURRENCY, VIDEO_RENDER_QUEUE } from '../../api/dist
 const log = new Logger('Worker');
 if (!pinProcessToIpv4()) log.warn('IPv4 sabitlemesi kapali (ALLOW_IPV6)');
 
-/** Gunluk otomatik AI olcumu kapali mi (musteri tetikli mod) */
-const isCitationDailyDisabled = () => process.env.AI_CITATION_DAILY_CRON === 'false';
+/**
+ * Gunluk otomatik AI olcumu kapali mi (musteri tetikli mod). ACIKCA ACILMALI:
+ * yalniz AI_CITATION_DAILY_CRON === 'true' iken kosar. Eskiden yalniz 'false'
+ * kapatiyordu; degisken unutulan bir ortamda tum siteler her gun olculur ve
+ * havuz anahtarlarindan odenirdi. Uretimde 'false' oldugu icin davranis ayni.
+ */
+const isCitationDailyDisabled = () => process.env.AI_CITATION_DAILY_CRON !== 'true';
 /** LinkedIn outreach botu (Faz 8) — varsayilan KAPALI; yalniz bayrak 1 iken tekrar isi kurulur */
 /** Env varsayilani — gercek karar serviste (panel ayari KvStore'da env'i ezer) */
 const isLinkedinOutreachEnvDefault = () => process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED === '1';
@@ -673,7 +678,7 @@ async function bootstrap() {
       // tetikler ("Yeniden Test"). Kayit asamasinda da atlaniyor; bu kontrol
       // Redis'te kalmis eski bir tekrar isinin yine de kosmasina karsi.
       if (isCitationDailyDisabled()) {
-        log.warn('AI_CITATION_DAILY atlandı (AI_CITATION_DAILY_CRON=false — musteri tetikli mod)');
+        log.warn('AI_CITATION_DAILY atlandı (AI_CITATION_DAILY_CRON true degil — musteri tetikli mod)');
         return { skipped: true, reason: 'AI_CITATION_DAILY_CRON' };
       }
       return services.citationTracker.snapshotAllActive();
@@ -956,6 +961,7 @@ async function bootstrap() {
 
     // 3) AI_CITATION_DAILY — her gun 04:00 UTC (Turkiye 07:00)
     //
+    // Yalniz AI_CITATION_DAILY_CRON=true iken kurulur (varsayilan kapali).
     // AI_CITATION_DAILY_CRON=false (27.08.2026 urun karari): platform kendi
     // basina olcum KOSMAZ; site basina 7 saglayici x 5 soru = 35 LLM cagrisi/gun
     // havuz anahtarlarindan odeniyordu. Musteri "Yeniden Test" ile kendisi
@@ -963,7 +969,7 @@ async function bootstrap() {
     // de SILINIR — yoksa eski zamanlama worker yeniden baslasa da kosardi.
     if (isCitationDailyDisabled()) {
       await queue.removeRepeatable('AI_CITATION_DAILY', { pattern: '0 4 * * *', tz: 'UTC' }, 'cron:ai-citation-daily').catch(() => undefined);
-      log.warn('AI_CITATION_DAILY kayit edilmedi ve varsa tekrar isi silindi (AI_CITATION_DAILY_CRON=false)');
+      log.warn('AI_CITATION_DAILY kayit edilmedi ve varsa tekrar isi silindi (AI_CITATION_DAILY_CRON true degil)');
     } else {
       await queue.add(
         'AI_CITATION_DAILY',

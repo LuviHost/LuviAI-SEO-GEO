@@ -233,15 +233,22 @@ export class EmailService {
 
     switch (template) {
       case 'welcome_day0':
+        // Deneme kurallari tek kaynaktan (billing/trial-policy.ts): 14 gun, kart yok,
+        // toplam 2 makale; denemede yapay zeka makaleyi KENDILIGINDEN yazmaz, uretim
+        // ancak yayin hedefi bagliyken ve kullanici baslatinca olur. Site eklenince
+        // kendiliginden calisan yalniz tarama (worker ONBOARDING_CHAIN runAudit) ve
+        // otomatik akis acikken (varsayilan) ilk AI gorunurluk olcumudur; sonraki
+        // olcumleri kullanici baslatir (kayan 7 gunde 1, billing/measurement-allowance.ts).
+        // Asistan listesi plans.ts ile ayni 6 asistan.
         return yap(
           `RanksUp'a hoş geldin, ${name}`,
-          'Hesabın hazır — ilk siteni bağlayınca tarama ve ilk makale otomatik başlar.',
+          'Hesabın hazır: 14 gün ücretsiz, kart gerekmez. İlk siteni bağlayınca tarama hemen başlar.',
           h(`Hoş geldin, ${name}`) +
-            p('Hesabın oluşturuldu. İlk siteni bağladığın anda üç şey kendiliğinden çalışmaya başlar:') +
+            p('Hesabın oluşturuldu ve 14 günlük ücretsiz denemen başladı; kart bilgisi gerekmez. İlk siteni bağladığında seni şunlar bekliyor:') +
             liste([
-              '<strong>SEO sağlık taraması</strong> — 14 kontrol, sayfa sayfa',
-              '<strong>GEO ölçümü</strong> — ChatGPT, Claude, Gemini ve Perplexity seni kaynak gösteriyor mu',
-              '<strong>İlk makalen</strong> — ücretsiz, süre sınırı yok',
+              '<strong>SEO sağlık taraması</strong> — 14 kontrol, sayfa sayfa; siteni eklediğin anda başlar',
+              '<strong>AI görünürlük ölçümü</strong> — ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek seni kaynak gösteriyor mu; ilk ölçüm kurulumda yapılır, sonrakileri haftada 1 kez sen başlatırsın',
+              '<strong>Makalelerin</strong> — denemede toplam 2 makale. Yapay zekâ konu başlıklarını hazırlar ama makaleyi kendiliğinden yazmaz: sitene bir yayın hedefi (ör. WordPress) bağladıktan sonra “Şimdi üret” ile sen başlatırsın',
             ]) +
             dugme('İlk siteni bağla', `${baseUrl}/onboarding`),
         );
@@ -250,16 +257,19 @@ export class EmailService {
         // Gonderim kosulu yalniz "deneme hesabi, kayittan 1 gun sonra"
         // (email.cron.ts): siteyi hic eklememis kullaniciya da gider. Bu yuzden
         // "ilk makalen uretildi" diye kesin konusulmaz, iki durum da yazilir.
+        // Denemede makale kendiliginden uretilmez (billing/trial-policy.ts): eski
+        // "tarama ve ilk makale kendiliginden baslar" metni bu kurala aykiriydi.
         // Baglantilar yalniz VAR OLAN yardim sayfalarina gider
         // (apps/web/src/app/(marketing)/help): eski /help/onboarding ve
         // /help/publish-targets hic yoktu, ikisi de 404 veriyordu. Yayin hedefi
         // icin ayri rehber yok; WordPress baglama adimlari SSS'de.
         // email-links.spec.ts her baglantinin web'de bir sayfaya gittigini denetler.
         return yap(
-          'İlk makalen hazır mı?',
-          'Siteni eklediysen ilk makaleni panelden kontrol et; eklemediysen birkaç dakikada başlayabilirsin.',
+          'İlk makaleni başlattın mı?',
+          'Siteni eklediysen konu başlıkların hazır; yayın hedefini bağlayıp ilk makaleni başlatabilirsin.',
           h(`Selam ${name}`) +
-            p('Siteni eklediysen kurulum ilk makaleni de üretime alır; henüz bakmadıysan panelden kontrol edebilirsin. Siteni henüz eklemediysen, eklediğin anda tarama ve ilk makale kendiliğinden başlar.') +
+            p('Siteni eklediysen tarama tamamlanmış ve konu başlıkların takvimine yazılmıştır. Denemede yapay zekâ makaleyi kendiliğinden yazmaz: sitene bir yayın hedefi (ör. WordPress) bağla, sonra istediğin konuda “Şimdi üret” ile başlat. Denemede toplam 2 makale hakkın var.') +
+            p('Siteni henüz eklemediysen, eklediğin anda SEO taraması hemen başlar ve konu başlıkların hazırlanır.') +
             dugme('Panele git', `${baseUrl}/dashboard`) +
             p('Takıldığın yer olursa: ' + baglanti('Hızlı başlangıç rehberi', `${baseUrl}/help/getting-started`) + ' · ' +
               baglanti('Sık sorulan sorular', `${baseUrl}/faq`) + ' (WordPress bağlama dahil)'),
@@ -519,12 +529,16 @@ export class EmailService {
       }
 
       case 'renewal_required':
+        // Elle yenileme yolunda gider (billing/renewal-policy.ts): otomatik yenileme
+        // KAPALIYKEN herkese, aciksa yalniz karti kayitli olmayana. "Kartini kaydedersen
+        // otomatik yenilenir" yalniz ozellik aciksa dogru: renewal.service
+        // recurringEnabled'i veriye koyar; alan yoksa kapali sayilir.
         return yap(
           'Aboneliğinin yenilenmesi gerekiyor',
           `${kacisla(String(data.deadlineText ?? '7 gün içinde'))} tarihine kadar yenilemezsen hesabın deneme düzeyine geçer.`,
           h(`${name}, aboneliğini yenilemen gerekiyor`) +
-            p(`<strong>${kacisla(String(data.planName ?? 'Planın'))}</strong> aboneliğinin ödenen dönemi ${data.periodEndText ? `<strong>${kacisla(String(data.periodEndText))}</strong> tarihinde bitiyor` : 'bitti'}. Kayıtlı bir kartın olmadığı için otomatik yenileyemiyoruz.`) +
-            p(`<strong>${kacisla(String(data.deadlineText ?? '7 gün içinde'))}</strong> tarihine kadar ödeme yapmazsan hesabın deneme düzeyine geçer; sitelerin ve içeriklerin silinmez. Yenilerken kartını kaydedersen sonraki dönemler otomatik yenilenir.`) +
+            p(`<strong>${kacisla(String(data.planName ?? 'Planın'))}</strong> aboneliğinin ödenen dönemi ${data.periodEndText ? `<strong>${kacisla(String(data.periodEndText))}</strong> tarihinde bitiyor` : 'bitti'}. ${data.recurringEnabled === true ? ' Kayıtlı bir kartın olmadığı için otomatik yenileyemiyoruz.' : ' Abonelikler şu an otomatik yenilenmiyor; yenilemeyi abonelik sayfasından sen yaparsın.'}`) +
+            p(`<strong>${kacisla(String(data.deadlineText ?? '7 gün içinde'))}</strong> tarihine kadar ödeme yapmazsan hesabın deneme düzeyine geçer; sitelerin ve içeriklerin silinmez.${data.recurringEnabled === true ? ' Yenilerken kartını kaydedersen sonraki dönemler otomatik yenilenir.' : ''}`) +
             dugme('Aboneliği yenile', `${baseUrl}/pricing`),
         );
 

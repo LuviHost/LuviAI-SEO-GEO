@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../prisma/prisma.service.js', () => ({ PrismaService: class {} }));
-const { GeoScoreCardService, crawlAccessNewerThanAudit } = await import('./geo-score-card.service.js');
+const { GeoScoreCardService, crawlAccessNewerThanAudit, AI_CITATION_FRESH_DAYS } = await import('./geo-score-card.service.js');
+const { MEASUREMENT_WINDOW_MS } = await import('../billing/measurement-allowance.js');
 
 /**
  * GEO Score Card — Crawler Erisimi sutunu, denetimin OKUYAMADIGI kok dosyalar.
@@ -172,13 +173,55 @@ describe('GeoScoreCardService — K6', () => {
     expect(p.checks.map((c: any) => c.name)).toEqual(['Claude', 'Gemini', 'ChatGPT', 'Perplexity', 'Grok (xAI)', 'DeepSeek']);
     // 6 olculen asistanin 4'u >= 30
     expect(p.score).toBe(67);
-    expect(p.checks[0].detail).toBe('Son 7 gün ortalaması: 40/100');
+    expect(p.checks[0].detail).toBe('Son 9 gün ortalaması: 40/100');
   });
 
   it('AI Citation: hic olcum yoksa tek satir ve Turkce neden; "saglayici aktif degil" denmez', async () => {
     const p = await kart({ snapshots: [] }).checkAiCitation('s1');
     expect(p.score).toBe(0);
-    expect(p.checks).toEqual([{ id: 'cite-none', name: 'AI ölçümü', ok: false, detail: 'Son 7 günde hiçbir AI asistanından ölçüm alınmadı.' }]);
+    expect(p.checks).toEqual([{ id: 'cite-none', name: 'AI ölçümü', ok: false, detail: 'Son 9 günde hiçbir AI asistanından ölçüm alınmadı.' }]);
+  });
+
+  /**
+   * NEDEN VAR: pencere 7 gundu. Snapshot tarihi UTC gece yarisina yuvarlanir, olcum hakki
+   * ise son olcumden tam 7x24 saat sonra acilir: haftada bir olcen kullanici yeniden olcum
+   * yapamadan saatlerce sutunu 0 goruyordu. Mock, gercek sorgu gibi date >= since uygular.
+   */
+  describe('AI Citation tazelik penceresi', () => {
+    const DAY = 86_400_000;
+    /** Snapshot tarihi tracker gibi UTC gece yarisina yuvarlanir */
+    const gunOnce = (gun: number) => {
+      const d = new Date(Date.now() - gun * DAY);
+      return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    };
+    const pencereli = (rows: Array<{ provider: string; score: number; date: Date }>) => {
+      const findMany = vi.fn(async (args: any) =>
+        rows.filter((r) => r.date.getTime() >= args.where.date.gte.getTime()).map(({ provider, score }) => ({ provider, score, available: true })));
+      const prisma = { aiCitationSnapshot: { findMany } };
+      return { svc: new GeoScoreCardService(prisma as any) as any, findMany };
+    };
+
+    it('pencere 9 gun = 7 gunluk olcum hakki + 1 gun tarih yuvarlamasi + 1 gun pay', () => {
+      expect(AI_CITATION_FRESH_DAYS).toBe(9);
+      expect(AI_CITATION_FRESH_DAYS).toBe(MEASUREMENT_WINDOW_MS / DAY + 2);
+    });
+
+    it('8 gun once (tarihi yuvarlanmis) alinan olcum hala sayilir', async () => {
+      const { svc } = pencereli([{ provider: 'openai', score: 50, date: gunOnce(8) }]);
+      const p = await svc.checkAiCitation('s1');
+      expect(p.checks.map((c: any) => c.id)).toEqual(['cite-openai']);
+      expect(p.score).toBe(100);
+    });
+
+    it('10 gun onceki olcum sayilmaz', async () => {
+      const { svc, findMany } = pencereli([{ provider: 'openai', score: 50, date: gunOnce(10) }]);
+      const p = await svc.checkAiCitation('s1');
+      expect(p.checks.map((c: any) => c.id)).toEqual(['cite-none']);
+      expect(p.score).toBe(0);
+      // Sorgu esigi ~9 gun once
+      const gte: Date = findMany.mock.calls[0][0].where.date.gte;
+      expect(Math.round((Date.now() - gte.getTime()) / DAY)).toBe(9);
+    });
   });
 
   it('Multi-Modal: yalniz hero gorsel; TTS/podcast vaadi yok, Turkce metin', async () => {
