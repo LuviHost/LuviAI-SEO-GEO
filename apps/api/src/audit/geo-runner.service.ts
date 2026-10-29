@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import * as cheerio from "cheerio";
 import { unblockHint, type BlockKind, type BlockSignal } from "../common/block-detect.js";
 import { fetchCustomerPage, type CustomerPage } from "./customer-page-fetch.js";
+import { contentSignals } from "./geo-content-signals.js";
 
 export interface GeoSignal {
   id: string;
@@ -42,8 +43,15 @@ export interface GeoAccessBlock {
  * Simdi sirasiyla article:modified_time, JSON-LD dateModified, <time datetime>,
  * article:published_time, JSON-LD datePublished okunur; ayristirilamayan tarih
  * (v2'de NaN → sessizce 30) 50 alir.
+ *
+ * v4 (Ekim 2026): AI alinti arastirmalarina gore iki yeni sinyal — "kanit
+ * bloklari" (rakam/istatistik, karsilastirma, adim; agirlik 12) ve "icerik
+ * derinligi" (kelime + alt baslik; agirlik 8), ikisi de yalniz ic sayfalardan.
+ * FAQ/soru-cevap agirligi 12 → 6, FAQPage isaretlemesinin payi 70 → 40.
+ * Tanim sinyali Turkce harfleri (tanım, açıklamak) ve <dfn> etiketini gorur.
+ * Gerekce ve kaynaklar: geo-content-signals.ts.
  */
-export const GEO_METHOD_VERSION = 3;
+export const GEO_METHOD_VERSION = 4;
 
 export interface GeoAuditResult {
   score: number | null;
@@ -77,11 +85,13 @@ function toAccessBlock(signal: BlockSignal, url: string): GeoAccessBlock {
  * Dahili GEO/AEO heuristic scorer.
  * Auriti CLI public paket olmadigi icin in-process analiz.
  *
- * 8 sinyal x weighted score = 0-100 GEO score.
+ * 10 sinyal x weighted score = 0-100 GEO score.
  * Sinyaller: llms.txt, JSON-LD schema, FAQ/QA, definition density,
- * heading hierarchy, OG/canonical, freshness, citation format.
+ * heading hierarchy, OG/canonical, freshness, citation format,
+ * evidence blocks (v4), content depth (v4).
  *
- * Site genelinde anasayfa + ilk 5 ic sayfa ornekleyerek ortalama skor.
+ * Site genelinde anasayfa + en fazla 8 ic sayfa ornekleyerek ortalama skor;
+ * kanit ve derinlik sinyalleri yalniz ic sayfalardan.
  */
 @Injectable()
 export class GeoRunnerService {
@@ -211,17 +221,25 @@ export class GeoRunnerService {
   private checkPagesAggregate(samples: { url: string; html: string }[]): GeoSignal[] {
     if (samples.length === 0) return [];
     const scores = samples.map(s => this.scorePage(s.html));
-    const avg = (key: keyof ReturnType<typeof this.scorePage>) =>
-      Math.round(scores.reduce((sum, s) => sum + (s[key] as number), 0) / scores.length);
+    type PageScores = ReturnType<typeof this.scorePage>;
+    const avgOf = (rows: PageScores[], key: keyof PageScores) =>
+      Math.round(rows.reduce((sum, s) => sum + (s[key] as number), 0) / rows.length);
+    const avg = (key: keyof PageScores) => avgOf(scores, key);
+    // Kanit ve derinlik ICERIK sayfasinin ozelligi: anasayfa dogasi geregi kisa
+    // bir vitrin, ortalamaya girerse her siteyi ayni yonde asagi ceker.
+    // Ic sayfa yoksa (tek sayfalik site) anasayfa olculur.
+    const content = scores.length > 1 ? scores.slice(1) : scores;
 
     return [
       { id: "structured_data", label: "JSON-LD schema kapsami", weight: 18, score: avg("schemaScore") },
-      { id: "faq_qa",          label: "FAQ / Soru-cevap formati", weight: 12, score: avg("faqScore") },
+      { id: "faq_qa",          label: "FAQ / Soru-cevap formati", weight: 6, score: avg("faqScore") },
       { id: "definition",      label: "Tanim yogunlugu (X nedir?)", weight: 12, score: avg("defScore") },
       { id: "heading",         label: "Heading hiyerarsisi (H1>H2>H3)", weight: 10, score: avg("headingScore") },
       { id: "og_canonical",    label: "Canonical + OG/Twitter meta", weight: 13, score: avg("metaScore") },
       { id: "freshness",       label: "Tarih sinyali (datePublished/Modified)", weight: 10, score: avg("freshScore") },
       { id: "citation_format", label: "Liste/tablo/citation formati", weight: 10, score: avg("citationScore") },
+      { id: "evidence",        label: "Kanit bloklari (rakam, karsilastirma, adim)", weight: 12, score: avgOf(content, "evidenceScore") },
+      { id: "depth",           label: "Icerik derinligi (kelime + bolum)", weight: 8, score: avgOf(content, "depthScore") },
     ];
   }
 
@@ -244,15 +262,23 @@ export class GeoRunnerService {
     const hits = desired.filter(d => types.has(d)).length;
     const schemaScore = Math.min(100, Math.round((hits / 3) * 100));
 
-    // 2) FAQ
+    // 2) FAQ — v4: isaretleme degil gorunur soru-cevap agir basar. FAQPage
+    // isaretlemesinin AI alintisina olculebilir katkisi bulunamadi (Ahrefs
+    // 1.885 sayfa kontrollu test, May 2026; Google FAQ zengin sonuclarini
+    // 7 May 2026'da kaldirdi; GEO Citation Lab'de Q&A bicimi alinti derinligine
+    // katki gostermedi). Sinyalin agirligi da 12 → 6.
     const hasFAQSchema = types.has("FAQPage") || types.has("Question");
     const text = $("body").text();
     const qaCount = (text.match(/\?\s*\n/g) ?? []).length;
-    const faqScore = (hasFAQSchema ? 70 : 0) + Math.min(30, qaCount * 5);
+    const faqScore = (hasFAQSchema ? 40 : 0) + Math.min(60, qaCount * 10);
 
     // 3) Definition density — "X nedir", "X ne demek", "X tanimlanir"
-    const defPatterns = [/\b\w+\s+nedir\??/gi, /\bne demek/gi, /\btanim/gi, /\baciklamak/gi, /<dfn>/gi];
-    const defHits = defPatterns.reduce((s, r) => s + ((text.match(r) ?? []).length), 0);
+    // v4: Turkce harfler — v3 "tanim"/"aciklamak" ASCII ariyordu, "tanım" ve
+    // "açıklamak" hic eslesmiyordu; <dfn> da .text() uzerinde aranip hic bulunmuyordu.
+    // Kelime BASINA bagli: capasiz [\p{L}\d]+ uzun bosluksuz metinde her konumdan
+    // yeniden tarayip karesel suruyordu (2 MB sayfada test kilitlendi).
+    const defPatterns = [/(?<![\p{L}\d])[\p{L}\d]+\s+nedir\??/giu, /\bne demek/giu, /tan[ıi]m/giu, /a[çc][ıi]klamak/giu];
+    const defHits = defPatterns.reduce((s, r) => s + ((text.match(r) ?? []).length), 0) + $("dfn").length;
     const defScore = Math.min(100, defHits * 8);
 
     // 4) Heading hierarchy
@@ -309,7 +335,9 @@ export class GeoRunnerService {
     if (tableCount >= 1) citationScore += 30;
     if (blockquoteCount >= 1) citationScore += 30;
 
-    return { schemaScore, faqScore, defScore, headingScore, metaScore, freshScore, citationScore };
+    const { evidenceScore, depthScore } = contentSignals($);
+
+    return { schemaScore, faqScore, defScore, headingScore, metaScore, freshScore, citationScore, evidenceScore, depthScore };
   }
 
   /** Sitemap'ten içerik (öncelikle post) URL'lerini toplar — GEO örneklemesi için. */
