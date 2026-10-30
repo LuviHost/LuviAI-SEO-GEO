@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { AuditStepBody } from '@/components/site-flow-stepper';
@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SectionHeader } from '@/components/ui/section-header';
 import { api } from '@/lib/api';
+import { AUDIT_PENDING_DESC, AUDIT_PENDING_TITLE, runQueuedAudit } from '@/lib/audit-run';
 import { siteHref } from '@/lib/site-routes';
 import { ShieldCheck, Sparkles, FileText, Send, Award, RefreshCw } from 'lucide-react';
 
@@ -19,20 +20,28 @@ export default function AuditPage() {
   // Yeni tarama bittiginde delta paneli de tazelenmeli; site context'i yalnizca
   // SON taramayi tasidigi icin panel kendi ucunu yeniden cagirmak zorunda.
   const [deltaKey, setDeltaKey] = useState(0);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
 
+  // Kuyruk + yoklama (lib/audit-run.ts): senkron istek vekil sunucuda 504'e dusuyordu
   const runAudit = async () => {
     setRunning(true);
     try {
-      await api.runAuditNow(site.id);
-      toast.success('Yeni tarama tamamlandı');
-      await refresh();
-      setDeltaKey((k) => k + 1);
-    } catch (err: any) {
-      toast.error(err.message || 'Tarama başarısız');
+      const out = await runQueuedAudit(
+        { queue: () => api.queueAudit(site.id), getJob: api.getJob },
+        { isAlive: () => alive.current },
+      );
+      if (!alive.current) return;
+      if (out.kind === 'done') toast.success('Yeni tarama tamamlandı');
+      else if (out.kind === 'failed') toast.error(out.error);
+      else toast.message(AUDIT_PENDING_TITLE, { description: AUDIT_PENDING_DESC });
       // Erişim engellendiyse API skor üretmez ama durumu kaydeder — kartta görünsün
       await refresh();
+      if (out.kind === 'done') setDeltaKey((k) => k + 1);
+    } catch (err: any) {
+      toast.error(err.message || 'Tarama başlatılamadı');
     } finally {
-      setRunning(false);
+      if (alive.current) setRunning(false);
     }
   };
 

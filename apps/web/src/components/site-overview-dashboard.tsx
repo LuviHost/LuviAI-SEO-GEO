@@ -13,6 +13,7 @@ import {
   aiCitationOf, aiCitationSkipLabel, api, autoFixIssues, autoFixMessages, geoAccessOf, geoSampleNote, isRobotsFixKey,
   isUnverifiedCheck, rootFileTarget,
 } from '@/lib/api';
+import { AUDIT_PENDING_DESC, AUDIT_PENDING_TITLE, runQueuedAudit } from '@/lib/audit-run';
 import { crawlAccessTitle, currentCrawlAccess, type CrawlAccess } from '@/lib/crawl-access';
 import { PLAN_LOCK_COPY, UPGRADE_HREF, isPlanLocked, scheduledCounts, splitScheduled } from '@/lib/plan-lock';
 import { PlanLockBadge } from '@/components/locked-article';
@@ -305,8 +306,10 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
       cta: 'Tekrar dene',
       run: async () => {
         try {
-          await api.runAuditNow(site.id);
-          toast.success('Erişim sağlandı, site skoru hesaplandı');
+          const out = await runQueuedAudit({ queue: () => api.queueAudit(site.id), getJob: api.getJob });
+          if (out.kind === 'done') toast.success('Erişim sağlandı, site skoru hesaplandı');
+          else if (out.kind === 'failed') toast.error(out.error);
+          else toast.message(AUDIT_PENDING_TITLE, { description: AUDIT_PENDING_DESC });
         } catch (err: any) {
           toast.error(err.message);
         } finally {
@@ -327,9 +330,11 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
       cta: 'Taramayı başlat',
       run: async () => {
         try {
-          await api.runAuditNow(site.id);
-          toast.success('Tarama başladı, sonuç genelde 1-2 dakika içinde gelir');
-          setTimeout(onRefresh, 5000);
+          const out = await runQueuedAudit({ queue: () => api.queueAudit(site.id), getJob: api.getJob });
+          if (out.kind === 'done') toast.success('Tarama tamamlandı');
+          else if (out.kind === 'failed') toast.error(out.error);
+          else toast.message(AUDIT_PENDING_TITLE, { description: AUDIT_PENDING_DESC });
+          onRefresh();
         } catch (err: any) { toast.error(err.message); }
       },
     });
