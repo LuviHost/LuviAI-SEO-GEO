@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
 import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
@@ -148,7 +149,8 @@ export const LLAMA_NO_MODEL_REASON = 'Meta AI (Llama) şu an ölçülmüyor: Ran
  *   brand mention (yalniz isim)  = yarim puan (50/probe)
  *
  * Sprint BYOK — Hibrit anahtar cozumlemesi:
- *   1. Site BYOK varsa onu kullan (sinirsiz, kota dusurmez — kullanicinin kendi parasi)
+ *   1. Site BYOK varsa VE sahibin planinda 'byok' varsa onu kullan (kota dusurmez —
+ *      kullanicinin kendi parasi); plan dusunce kayitli anahtar kullanilmaz
  *   2. Plan havuzundaysa ortak ENV key'i kullan (kotaya tabi)
  *   3. Yoksa saglayici olculmez; neden "<Saglayici> şu an ölçülmüyor: ..." olur
  *      (resolveKey — noPoolKeyReason / LLAMA_NO_POOL_KEY_REASON)
@@ -219,22 +221,32 @@ export class AiCitationService {
   // ────────────────────────────────────────────────────────────
   /**
    * Bu site icin bu provider'a hangi key kullanilacak?
-   * 1) BYOK varsa onu (verified olmasa bile dener; ilk kayitta zaten test edilmis olur)
+   * 1) BYOK varsa VE site sahibinin planinda 'byok' varsa onu (verified olmasa
+   *    bile dener; ilk kayitta zaten test edilmis olur)
    * 2) Plan havuzundaysa ENV key'i
    * 3) Yoksa null + reason
+   *
+   * @param role Site sahibinin rolu — ADMIN rota kapilarinda oldugu gibi muaf.
    */
-  private async resolveKey(siteId: string, provider: Provider, plan: string): Promise<KeyResolution> {
-    // 1) BYOK
-    try {
-      const byok = await this.prisma.siteAiProviderKey.findUnique({
-        where: { siteId_provider: { siteId, provider } },
-      });
-      if (byok) {
-        const key = decrypt(byok.enc);
-        if (key) return { key, source: 'byok' };
+  private async resolveKey(siteId: string, provider: Provider, plan: string, role?: string): Promise<KeyResolution> {
+    // 1) BYOK — yalniz plan izin veriyorsa. NEDEN: kapi yalniz anahtar KAYDINDA
+    // (site-ai-keys upsertKey) idi; Kurumsal'da anahtar baglayip sonra plani
+    // dusen kullanicinin kayitli anahtarlari kullanilmaya devam ediyordu. Aylik
+    // kota dolunca olcum BYOK saglayicilariyla surdugu icin bu, calistirma
+    // tavanini tamamen asmak demekti. Anahtar silinmez; plan yukselince yine
+    // kullanilir. Plan yoksa havuz yoluna (kotaya tabi) duser.
+    if (this.byokAllowed(plan, role)) {
+      try {
+        const byok = await this.prisma.siteAiProviderKey.findUnique({
+          where: { siteId_provider: { siteId, provider } },
+        });
+        if (byok) {
+          const key = decrypt(byok.enc);
+          if (key) return { key, source: 'byok' };
+        }
+      } catch (err: any) {
+        this.log.warn(`BYOK lookup fail (${siteId}/${provider}): ${err.message}`);
       }
-    } catch (err: any) {
-      this.log.warn(`BYOK lookup fail (${siteId}/${provider}): ${err.message}`);
     }
 
     // 2) ENV key varsa pool olarak kullan (operatör ENV'e koyduysa bu provider'ı havuza dahil etmiş demektir).
@@ -263,10 +275,15 @@ export class AiCitationService {
     return { key: null, source: 'none', reason: noPoolKeyReason(provider) };
   }
 
+  /** Site sahibinin planinda BYOK var mi (ADMIN muaf) — resolveKey ve getProviderStatus ayni kurali kullanir */
+  private byokAllowed(plan: string, role?: string): boolean {
+    return ownerHasPlanFeature({ plan, role }, 'byok');
+  }
+
   /**
    * UI icin: bu site/plan kombinasyonunda hangi provider havuzda, hangisi BYOK gerektiriyor?
    */
-  async getProviderStatus(siteId: string, plan: string): Promise<Array<{
+  async getProviderStatus(siteId: string, plan: string, role?: string): Promise<Array<{
     provider: Provider;
     label: string;
     inPool: boolean;
@@ -279,6 +296,10 @@ export class AiCitationService {
     const byokRows = await this.prisma.siteAiProviderKey.findMany({ where: { siteId } });
     const byokMap = new Map(byokRows.map(r => [r.provider, r]));
     const pool = this.quota.getPlanPool(plan);
+    // Kayitli anahtar plan izin vermiyorsa ETKIN kaynak degildir (resolveKey
+    // ile ayni kural); yoksa kota karari "BYOK var, devam" deyip havuzsuz
+    // calistirmaya izin verir ya da olculemeyecek saglayiciyi bekler.
+    const byokOn = this.byokAllowed(plan, role);
 
     const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
     return providers.map(provider => {
@@ -289,7 +310,7 @@ export class AiCitationService {
       // Plan listesinde olup env anahtari olmayan saglayici 'pool' sayilirsa
       // kota karari olculemeyen bir saglayiciyi olculuyor sanir.
       const inPool = pool.includes(provider) || hasEnvKey;
-      const effective: 'pool' | 'byok' | 'none' = byok ? 'byok' : (hasEnvKey ? 'pool' : 'none');
+      const effective: 'pool' | 'byok' | 'none' = byok && byokOn ? 'byok' : (hasEnvKey ? 'pool' : 'none');
       return {
         provider,
         label: PROVIDER_LABELS[provider],
@@ -425,6 +446,62 @@ export class AiCitationService {
     }
   }
 
+  // ────────────────────────────────────────────────────────────
+  //  DIS OLCUM YOLLARI ICIN ORTAK KAPI (GEO heatmap, App Prompt Lab)
+  // ────────────────────────────────────────────────────────────
+  // NEDEN: bu iki yol saglayicilara RanksUp havuz anahtariyla soruyor ama
+  // runForSite/runQueries'den gecmiyordu; ne aylik calistirma tavani (kota)
+  // ne de gunluk havuz butcesi (isOverBudget/addCost) uygulanıyordu. Tek
+  // istekte 20 soru x 4 saglayici kota dusmeden kosabiliyordu. Kural tek
+  // yerde kalsin diye ayni ozel yardimcilar disari acilir; yeni bir kural
+  // yazilmaz.
+
+  /** Havuz butce kapisi (global + kiraci payi) — runProvider'daki kontrolun aynisi */
+  async poolBudgetExceeded(provider: Provider, plannedProbes: number, userId?: string): Promise<boolean> {
+    return this.isOverBudget(provider, plannedProbes, userId);
+  }
+
+  /** Havuz maliyetini gunluk deftere yazar (global + kiraci) — runProvider ile ayni */
+  async recordPoolCost(provider: Provider, probeCount: number, userId?: string): Promise<number> {
+    return this.addCost(provider, probeCount, userId);
+  }
+
+  /** Butce asiminda musteriye gosterilen neden (runProvider ile ayni metin) */
+  poolBudgetReason(provider: Provider): string {
+    return `Günlük havuz bütçesi aşıldı (${this.DAILY_BUDGET_USD[provider]?.toFixed(2)} USD). BYOK ekleyebilir veya yarın tekrar denersiniz.`;
+  }
+
+  /**
+   * Calistirma ONCESI aylik hak kontrolu: `needed` calistirma kalmadiysa 403.
+   *
+   * Sayim kurali fiyat kartindaki gibi: "AI testi 1 çalıştırma, Prompt Lab'de
+   * her soru ve her dal 1" — GEO heatmap'te soru basina 1, App Prompt Lab'de
+   * sorulan soru basina 1. Kismi calistirma yapilmaz: kullanici kac hak
+   * gerektigini ve kac hakki kaldigini gorur, soru sayisini kendisi azaltir.
+   * Hak yeni ayda sifirlanir (QuotaService.maybeResetCitationQuota).
+   */
+  async assertCitationRuns(userId: string, needed: number, label: string): Promise<void> {
+    if (!(needed > 0)) return;
+    const q = await this.quota.checkCitationQuota(userId);
+    if (q.remaining >= needed) return;
+    if (q.remaining <= 0) {
+      throw new ForbiddenException(
+        `Aylık ${q.limit} AI görünürlük çalıştırması hakkın doldu (${q.used}/${q.limit}). Hak yeni ayda yenilenir; daha fazlası için planını yükseltebilirsin.`,
+      );
+    }
+    throw new ForbiddenException(
+      `${label} bu çalıştırmada ${needed} AI görünürlük çalıştırması kullanır; bu ay ${q.remaining} hakkın kaldı (${q.used}/${q.limit}). ` +
+      'Soru sayısını azaltarak ya da planını yükselterek devam edebilirsin.',
+    );
+  }
+
+  /** Olculen calistirma sayisi kadar hak dus (QuotaService yalniz +1 artirir) */
+  async consumeCitationRuns(userId: string, count: number): Promise<void> {
+    for (let i = 0; i < count; i++) {
+      try { await this.quota.incrementCitationUsage(userId); } catch { /* noop — runForSite ile ayni */ }
+    }
+  }
+
   async getTodayCosts(): Promise<Record<string, { spent: number; cap: number }>> {
     const today = new Date().toISOString().slice(0, 10);
     const out: Record<string, { spent: number; cap: number }> = {};
@@ -536,7 +613,7 @@ export class AiCitationService {
     // vardi; yani sayac artiyordu ama limit hicbir zaman bloklamiyordu ve
     // kotasi dolmus kullanici Prompt Lab uzerinden sinirsiz LLM cagrisi
     // yapabiliyordu (operatorun havuz butcesinden).
-    const status = await this.getProviderStatus(siteId, plan).catch(() => []);
+    const status = await this.getProviderStatus(siteId, plan, site.user.role).catch(() => []);
     const poolProviders = new Set(
       status.filter((s: any) => s.effectiveSource === 'pool').map((s: any) => s.provider),
     );
@@ -571,7 +648,7 @@ export class AiCitationService {
     }
 
     const results = await this.measured(trigger, site.user, () => Promise.all(
-      effectiveProviders.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors, site.userId)),
+      effectiveProviders.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors, site.userId, site.user.role)),
     ));
 
     // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis; sistem kosumu saymaz)
@@ -637,7 +714,7 @@ export class AiCitationService {
     //    anahtari olanlar (kullanicinin kendi parasi) calismaya devam eder.
     //    Calistirilabilecek hicbir saglayici kalmiyorsa hata disari firlatilir
     //    ki kullanici sessiz bos sonuc yerine net bir kota mesaji gorsun.
-    const status = await this.getProviderStatus(siteId, plan);
+    const status = await this.getProviderStatus(siteId, plan, site.user.role);
     let providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
 
     if (trigger === 'user') {
@@ -683,7 +760,7 @@ export class AiCitationService {
     const uniqueCompetitors = await this.resolveCompetitors(siteId, site.brain, brand);
 
     const results = await this.measured(trigger, site.user, () => Promise.all(
-      providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors, userId)),
+      providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors, userId, site.user.role)),
     ));
 
     // Havuz kullanan en az bir basarili test varsa kota +1.
@@ -701,12 +778,21 @@ export class AiCitationService {
   //  Site DB lookup yok, ENV anahtarlari ile direkt 6 provider'a paralel sor.
   //  Cost guard ve quota DEVRE DISI — caller (PublicCitationService)
   //  IP rate-limit + cache + Turnstile ile abuse'i kontrol eder.
+  //  Uye yolu (App Prompt Lab) budgetUserId gecer; aylik hak kontrolunu
+  //  cagiran yapar (assertCitationRuns / consumeCitationRuns).
   // ────────────────────────────────────────────────────────────
   async runPublicProbes(opts: {
     brand: string;
     host: string;
     queries: string[];
     competitors?: string[];
+    /**
+     * Uye yolu (App Prompt Lab) icin: verilirse gunluk havuz butcesi bu
+     * kiraci adina dayatilir (isOverBudget once, addCost sonra; runProvider
+     * ile ayni). Verilmezse eski davranis: anonim cagiranlar (landing, karne)
+     * kendi defterleriyle sinirlanir (publicAnonCostKey).
+     */
+    budgetUserId?: string;
   }): Promise<Array<{
     provider: Provider;
     label: string;
@@ -715,7 +801,7 @@ export class AiCitationService {
     reason?: string;
     cost: number;
   }>> {
-    const { brand, host, queries, competitors = [] } = opts;
+    const { brand, host, queries, competitors = [], budgetUserId } = opts;
     const systemPrompt = this.buildSystemPrompt();
     const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
 
@@ -731,6 +817,9 @@ export class AiCitationService {
       if (!key || isUnconfiguredProvider(provider)) {
         return { provider, label, available: false, probes: [], reason: 'NO_KEY', cost: 0 };
       }
+      if (budgetUserId && await this.isOverBudget(provider, queries.length, budgetUserId)) {
+        return { provider, label, available: false, probes: [], reason: this.poolBudgetReason(provider), cost: 0 };
+      }
       try {
         let probes: CitationProbe[] = [];
         switch (provider) {
@@ -743,7 +832,7 @@ export class AiCitationService {
           case 'meta':       probes = await this.probeMeta(key, host, brand, queries, systemPrompt, competitors); break;
         }
         // Cost defteri tutulur (public da olsa sistem kotasinin parcasi)
-        const cost = await this.addCost(provider, probes.length).catch(() => 0);
+        const cost = await this.addCost(provider, probes.length, budgetUserId).catch(() => 0);
         return { provider, label, available: true, probes, cost };
       } catch (err: any) {
         // Anonim uc: saglayici govdesi (hesap kimligi, kota ayrintisi) disari cikmaz — yalniz kod
@@ -886,6 +975,8 @@ export class AiCitationService {
     competitors: string[] = [],
     /** Butce muhasebesi kullanici basina da tutulur — tek kiraci havuzu tuketmesin */
     userId?: string,
+    /** Site sahibinin rolu — BYOK plan kapisinda ADMIN muafiyeti icin */
+    ownerRole?: string,
   ): Promise<CitationResult> {
     const label = PROVIDER_LABELS[provider];
     // Llama modeli tanimsizken (GROQ_LLAMA_MODEL; Groq varsayilan modeli
@@ -896,7 +987,7 @@ export class AiCitationService {
     if (provider === 'meta' && !llamaModelConfigured()) {
       return { provider, label, available: false, score: null, probes: [], reason: LLAMA_UNCONFIGURED_REASON };
     }
-    const resolved = await this.resolveKey(siteId, provider, plan);
+    const resolved = await this.resolveKey(siteId, provider, plan, ownerRole);
 
     if (!resolved.key) {
       return {
@@ -915,7 +1006,7 @@ export class AiCitationService {
     if (resolved.source === 'pool' && await this.isOverBudget(provider, queries.length, userId)) {
       return {
         provider, label, available: false, score: null, probes: [],
-        reason: `Günlük havuz bütçesi aşıldı (${this.DAILY_BUDGET_USD[provider]?.toFixed(2)} USD). BYOK ekleyebilir veya yarın tekrar denersiniz.`,
+        reason: this.poolBudgetReason(provider),
         source: 'pool',
       };
     }

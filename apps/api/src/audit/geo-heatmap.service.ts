@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
 import { GEO_HEATMAP_MAX_QUERIES, clampLimit } from './audit-limits.js';
+import { AiCitationService, type Provider } from './ai-citation.service.js';
 
 /**
  * Hucre durumu. 'error' (saglayici hatasi / bos cevap) ve 'disabled'
@@ -147,6 +148,7 @@ export class GeoHeatmapService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
+    private readonly citation: AiCitationService,
   ) {}
 
   async runForSite(siteId: string, opts: { maxQueries?: number } = {}): Promise<HeatmapResult> {
@@ -198,6 +200,13 @@ export class GeoHeatmapService {
     }
     const probeQueries = unbrandedQueries.slice(0, max);
 
+    // AYLIK HAK — olcum ONCESI. Eskiden heatmap ne aylik calistirma tavanina
+    // ne gunluk havuz butcesine tabiydi: tek istek 20 soru x 4 saglayici
+    // RanksUp anahtariyla kosuyordu. Sayim fiyat kartindaki kural: soru basina
+    // 1 calistirma. Yetmiyorsa hicbir saglayici cagrilmadan 403 (kismi izgara
+    // yok — eksik izgara firsat/zayif siniflarini yaniltir).
+    await this.citation.assertCitationRuns(site.userId, probeQueries.length, 'GEO ısı haritası');
+
     // Brain'deki rakip listesi
     const competitorsRaw: any[] = Array.isArray(site.brain?.competitors)
       ? (site.brain!.competitors as any[])
@@ -217,11 +226,28 @@ export class GeoHeatmapService {
       { id: 'perplexity', label: 'Perplexity', enabled: !!this.perplexityKey },
     ];
 
+    // GUNLUK HAVUZ BUTCESI — ana olcumle (runProvider) ayni kapi ve ayni
+    // defter: saglayici basina tum sorular icin onceden bakilir; asilmissa o
+    // saglayici bu izgarada olculmez (hucre 'error', skora girmez). Maliyet
+    // tavani ai-citation'in probe tablosundan (COST_PER_PROBE_USD) gelir;
+    // heatmap cagrisi web aramasiz oldugundan gercek maliyet bunun altinda
+    // kalir — kapi temkinli tarafta hata yapar.
+    const overBudget = new Set<string>();
+    for (const p of providers) {
+      if (p.enabled && probeQueries.length > 0
+        && await this.citation.poolBudgetExceeded(p.id as Provider, probeQueries.length, site.userId)) {
+        overBudget.add(p.id);
+      }
+    }
+
     const cells: HeatmapCell[] = [];
     for (const q of probeQueries) {
       const tasks = providers.map(async (p): Promise<HeatmapCell> => {
         if (!p.enabled) {
           return { query: q, provider: p.id, status: 'disabled', excerpt: 'Sağlayıcı bu sunucuda etkin değil — ölçülmedi.' };
+        }
+        if (overBudget.has(p.id)) {
+          return { query: q, provider: p.id, status: 'error', excerpt: this.citation.poolBudgetReason(p.id as Provider) };
         }
         try {
           const text = await this.askProvider(p.id, q);
@@ -242,6 +268,15 @@ export class GeoHeatmapService {
       const queryCells = await Promise.all(tasks);
       cells.push(...queryCells);
     }
+
+    // Maliyet ve hak yalniz OLCULEN hucre/soru icin (runProvider measuredOnly
+    // ve hasRealProbes ile ayni): hata veren cagri hak yemez.
+    for (const p of providers) {
+      const measured = cells.filter((c) => c.provider === p.id && isMeasuredCell(c)).length;
+      if (measured > 0) await this.citation.recordPoolCost(p.id as Provider, measured, site.userId).catch(() => 0);
+    }
+    const measuredQueries = probeQueries.filter((q) => cells.some((c) => c.query === q && isMeasuredCell(c))).length;
+    await this.citation.consumeCitationRuns(site.userId, measuredQueries);
 
     const providerIds = providers.map((p) => p.id);
     return {

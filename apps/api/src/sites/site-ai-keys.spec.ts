@@ -28,9 +28,9 @@ afterEach(() => {
   }
 });
 
-function setup(plan: string, byokRows: Array<{ provider: string; verified?: boolean }> = []) {
+function setup(plan: string, byokRows: Array<{ provider: string; verified?: boolean }> = [], role = 'USER') {
   const prisma = {
-    site: { findUnique: vi.fn(async () => ({ id: 's1', userId: 'u1', user: { plan } })) },
+    site: { findUnique: vi.fn(async () => ({ id: 's1', userId: 'u1', user: { plan, role } })) },
     siteAiProviderKey: {
       findMany: vi.fn(async () => byokRows.map((r) => ({ ...r, prefix: 'sk-test1', verified: r.verified ?? true, lastError: null }))),
       findUnique: vi.fn(),
@@ -45,9 +45,13 @@ function setup(plan: string, byokRows: Array<{ provider: string; verified?: bool
   return { svc: new SiteAiKeysService(prisma as never, quota), prisma, quota };
 }
 
-/** ai-citation.service resolveKey'in kurali: BYOK > env anahtari > yok */
-const engineSource = (byok: boolean, provider: (typeof SIX)[number]) =>
-  byok ? 'byok' : process.env[POOL_ENV_KEY[provider]] ? 'pool' : 'none';
+/**
+ * ai-citation.service resolveKey'in kurali: BYOK (yalniz planda 'byok' — Kurumsal
+ * ya da ADMIN) > env anahtari > yok. Plani dusen hesabin kayitli anahtari etkin
+ * kaynak degildir.
+ */
+const engineSource = (byok: boolean, provider: (typeof SIX)[number], plan: string) =>
+  byok && plan === 'ENTERPRISE' ? 'byok' : process.env[POOL_ENV_KEY[provider]] ? 'pool' : 'none';
 
 describe('SiteAiKeysService.getStatus — rozet olcum motoruyla ayni kural', () => {
   it('deneme planinda env anahtari olan saglayici "pool" (eski liste yalniz gemini derdi)', async () => {
@@ -70,7 +74,8 @@ describe('SiteAiKeysService.getStatus — rozet olcum motoruyla ayni kural', () 
       const st = await svc.getStatus('s1');
       for (const p of st.providers) {
         const provider = p.provider as (typeof SIX)[number];
-        expect(p.effectiveSource, `${plan}/${provider}`).toBe(engineSource(provider === 'perplexity', provider));
+        expect(p.effectiveSource, `${plan}/${provider}`).toBe(engineSource(provider === 'perplexity', provider, plan));
+        expect(p.hasByok, `${plan}/${provider}`).toBe(provider === 'perplexity');
         expect(p.poolKeyAvailable, `${plan}/${provider}`).toBe(!!process.env[POOL_ENV_KEY[provider]]);
       }
     }
@@ -91,13 +96,21 @@ describe('SiteAiKeysService.getStatus — rozet olcum motoruyla ayni kural', () 
   });
 
   it('yanit alanlari geriye donuk uyumlu', async () => {
-    const { svc } = setup('PRO', [{ provider: 'anthropic', verified: false }]);
+    const { svc } = setup('ENTERPRISE', [{ provider: 'anthropic', verified: false }]);
     const st = await svc.getStatus('s1');
     expect(Object.keys(st).sort()).toEqual(['plan', 'pool', 'providers', 'quota']);
     expect(Object.keys(st.providers[0]).sort()).toEqual(
       ['byokError', 'byokPrefix', 'byokVerified', 'effectiveSource', 'hasByok', 'inPool', 'label', 'poolKeyAvailable', 'provider'].sort(),
     );
     expect(st.providers.find((p) => p.provider === 'anthropic')).toMatchObject({ hasByok: true, byokVerified: false, effectiveSource: 'byok' });
+  });
+
+  it('plani dusen hesap: kayitli anahtar gorunur (hasByok) ama etkin kaynak degil; ADMIN muaf', async () => {
+    process.env.OPENAI_API_KEY = 'sk-env-openai';
+    const dusen = await setup('AGENCY', [{ provider: 'openai' }]).svc.getStatus('s1');
+    expect(dusen.providers.find((p) => p.provider === 'openai')).toMatchObject({ hasByok: true, effectiveSource: 'pool' });
+    const admin = await setup('TRIAL', [{ provider: 'openai' }], 'ADMIN').svc.getStatus('s1');
+    expect(admin.providers.find((p) => p.provider === 'openai')).toMatchObject({ hasByok: true, effectiveSource: 'byok' });
   });
 });
 

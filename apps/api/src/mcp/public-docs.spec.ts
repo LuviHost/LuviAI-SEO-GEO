@@ -1130,22 +1130,33 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
     expect(Number.isInteger(tumuLimit) && tumuLimit > 0, 'prompt-lab-panel runAllPrompts limiti bulunamadi').toBe(true);
   });
 
-  it('çalıştırma birimi kodla aynı (AI testi 1, Prompt Lab sorusu / dalı 1, Ürün Radarı sorusu 1, ısı haritası 0) ve llms-full.txt bunu yazıyor', () => {
+  it('çalıştırma birimi kodla aynı (AI testi 1, Prompt Lab sorusu / dalı 1, Ürün Radarı sorusu 1, ısı haritası sorusu 1, App Prompt Lab sorusu 1) ve llms-full.txt bunu yazıyor', () => {
     const citation = read(path.resolve(HERE, '../audit/ai-citation.service.ts'));
     const promptLab = read(path.resolve(HERE, '../audit/prompt-lab.service.ts'));
     const radar = read(path.resolve(HERE, '../audit/product-radar.service.ts'));
     const heatmap = read(path.resolve(HERE, '../audit/geo-heatmap.service.ts'));
-    // runForSite ve runQueries cagri basina en fazla 1 calistirma sayar
-    expect(citation.match(/this\.quota\.incrementCitationUsage\(/g)?.length, 'calistirma sayan yerler degisti: birim metinlerini guncelle').toBe(2);
+    const appPromptLab = read(path.resolve(HERE, '../aso/aso-prompt-lab.service.ts'));
+    // runForSite ve runQueries cagri basina en fazla 1 calistirma sayar; ucuncusu
+    // consumeCitationRuns (heatmap ve App Prompt Lab'in olculen soru sayisi kadar)
+    expect(citation.match(/this\.quota\.incrementCitationUsage\(/g)?.length, 'calistirma sayan yerler degisti: birim metinlerini guncelle').toBe(3);
     expect(promptLab).toContain('this.citation.runQueries(siteId, [prompt.text]');
     expect(promptLab).toContain('this.citation.runQueries(siteId, [branch.text]');
     expect(radar).toContain('this.citation.runQueries(siteId, [query]');
     // Haftalik otomatik radar taramasi sistem kosumu: hakka da tavana da sayilmaz
     expect(radar).toMatch(/this\.run\(s\.id, \{ trigger: 'system' \}\)/);
-    // Isi haritasi haftalik hakki kullanir ama aylik calistirma saymaz
+    // Isi haritasi haftalik hakki kullanir VE aylik tavana tabidir: olcum oncesi
+    // soru sayisi kadar hak arar, olculen soru basina 1 duser. Eskiden hic
+    // saymiyordu (20 soru x 4 saglayici kota disi kosuyordu).
     expect(heatmap).toContain('noteMeasured()');
-    expect(heatmap).not.toMatch(/incrementCitationUsage|enforceCitationQuota/);
-    expect(llmsFull).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1 çalıştırma sayılır; GEO ısı haritası çalıştırma saymaz");
+    expect(heatmap).toContain('this.citation.assertCitationRuns(site.userId, probeQueries.length');
+    expect(heatmap).toContain('this.citation.consumeCitationRuns(site.userId, measuredQueries)');
+    // App Prompt Lab: sorulan soru basina 1
+    expect(appPromptLab).toContain("this.citation.assertCitationRuns(site.userId, 1, ");
+    expect(appPromptLab).toContain('this.citation.consumeCitationRuns(site.userId, 1)');
+    // DIKKAT: llms-full.txt hala "GEO ısı haritası çalıştırma saymaz" diyor; metin
+    // pazarlama/llms sahibinde. Metin guncellenince asagidaki on ek kontrolu
+    // ısı haritası ve App Prompt Lab birimini de iceren tam cumleye genisletilmeli.
+    expect(llmsFull).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1 çalıştırma sayılır");
     expect(llmsFull).toContain(`"Tümünü çalıştır" tek ölçümde en fazla ${tumuLimit} soruyu`);
     expect(llmsFull).toContain(`hesap başına 7 günde 1 ölçüm, yani ayda en fazla ${ayEnFazla}`);
     expect(llmsFull).toContain("Ürün Radarı'nın haftalık otomatik taraması bu hakka sayılmaz");
