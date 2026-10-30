@@ -28,7 +28,8 @@ function ctxFor(handler: Function, cls: Function) {
 }
 
 function guard() {
-  const prisma = { user: { findUnique: vi.fn(async () => ({ id: 'u1' })) } };
+  // REST API anahtari Kurumsal planda (auth.guard apiAccess) — kapinin kendisi api-key-plan.spec'te
+  const prisma = { user: { findUnique: vi.fn(async () => ({ id: 'u1', plan: 'ENTERPRISE' })) } };
   const apiKeys = {
     validate: vi.fn(async () => ({ userId: 'u1', scopes: ['*'] })),
     requiredScope: vi.fn(() => null),

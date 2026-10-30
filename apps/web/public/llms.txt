@@ -2,21 +2,21 @@
 
 > RanksUp; Türkiye'deki KOBİ'ler, e-ticaret siteleri, mobil uygulama sahipleri ve dijital ajanslar için SEO, GEO (ChatGPT, Claude, Gemini gibi yapay zekâ asistanlarında görünürlük) ve ASO (App Store / Google Play) platformudur. Site denetimi, AI görünürlük ölçümü, AI makale üretimi ve yayını, uygulama mağazası optimizasyonu ve Apple Search Ads tek panelde. Ödeme PayTR ile alınır.
 
-Son güncelleme: 24 Ekim 2026 · RanksUp Ekibi
+Son güncelleme: 30 Ekim 2026 · RanksUp Ekibi
 
 Tek sayfalık ürün özeti (planlar, sınırlar, deneme, ölçülen asistanlar, nasıl başlanır; plan verisinden üretilir): https://ranksup.ai/ranksup.md
 
 ## Modüller
 
-- **AI görünürlük (GEO)**: İzlediğin soruları yapay zekâ asistanlarına sorar; markan anılıyor mu, siten kaynak gösteriliyor mu, rakiplerin kimler, ölçer (Prompt Lab). Ölçülen asistanlar (6): ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Meta Llama yalnızca sağlayıcıda kullanılabilir bir model tanımlıyken ölçülür. Ölçümü kullanıcı başlatır; hesap başına 7 günde 1 ölçüm yapılır (bkz. Fiyatlandırma). GEO skor kartı altı başlıkta değerlendirir: AI tarayıcı erişimi, yapısal veri, AI atıfları, otorite, tazelik, çoklu ortam.
-- **Site denetimi**: 14 teknik SEO/GEO kontrolü, PageSpeed ve harf notu; otomatik ya da önizlemeli düzeltilebilen maddeler ayrıca işaretlenir.
+- **AI görünürlük (GEO)**: İzlediğin soruları yapay zekâ asistanlarına sorar; markan anılıyor mu, siten kaynak gösteriliyor mu, rakiplerin kimler, ölçer (Prompt Lab). Ölçülen asistanlar (6): ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Meta Llama yalnızca sağlayıcıda kullanılabilir bir model tanımlıyken ölçülür. Ölçümü kullanıcı başlatır; hesap başına 7 günde 1 ölçüm yapılır (bkz. Fiyatlandırma). GEO skor kartı altı başlıkta değerlendirir: AI tarayıcı erişimi, yapısal veri, AI atıfları, otorite, tazelik, çoklu ortam; sonuç A+ ile F arasında bir harf notudur (GEO Lab).
+- **Site denetimi**: 14 teknik SEO/GEO kontrolü ve PageSpeed iyileştirme önerileri; otomatik ya da önizlemeli düzeltilebilen maddeler ayrıca işaretlenir.
 - **Ajan Hazırlığı (AXO)**: robots.txt'teki AI bot duruşu, llms.txt, sitemap ve ajanlara yönelik keşif dosyaları denetlenir; robots.txt / llms.txt / sitemap için önizlemeli düzeltme (site denetimindeki kurallarla aynı; robots.txt değişikliği önizlenip onaylanmadan yazılmaz) Profesyonel ve üstü planlarda.
-- **AI makale**: 5 ajanlı üretim hattı (anahtar kelime → taslak → yazar → editör → görsel) ve yayın öncesi QA kapısı; 14 yayın hedefi (WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…); içerik takvimi ve zamanlanmış üretim. Yarı otomatik modda (varsayılan) her yazı yayınlanmadan önce onayını bekler; Tam otomatik modda takvimdeki yazılar editör ve QA kontrollerinden geçince varsayılan yayın hedefine kendiliğinden yayınlanır.
+- **AI makale**: 5 ajanlı üretim hattı (anahtar kelime → taslak → yazar → editör → görsel) ve yayın öncesi QA kapısı; 13 yayın hedefi (WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…); içerik takvimi ve zamanlanmış üretim. Yarı otomatik modda (varsayılan) her yazı yayınlanmadan önce onayını bekler; Tam otomatik modda takvimdeki yazılar editör ve QA kontrollerinden geçince varsayılan yayın hedefine kendiliğinden yayınlanır.
 - **RanksUp Video**: Sitenin adı, logosu ve tema rengiyle makale, site ve ürün tanıtım videoları. Yayındaki makaleden dikey video (1080×1920; Reels, Shorts, TikTok biçimi); sitenin ana sayfası ve marka profilinden site tanıtımı (dikey ya da yatay 1920×1080); sitenin kendi alan adındaki bir ürün/hizmet sayfasından ürün tanıtımı (dikey ya da yatay; görsel sayfadan, fiyat yalnız sayfada açıkça yazıyor ve doğrulanabiliyorsa). Süre 15–60 sn, tempo seçilebilir (Hızlı 15 sn; Normal ve Yavaş'ta her metin okunacak kadar ekranda kalır). Metin makalenin ya da sayfanın kendi başlık, cümle ve sayılarından derlenir; yapay zekâ ile kısaltılan metin, makalede birebir geçmeyen sayıları reddeden bir denetimden geçer (tanıtım videolarında aynı denetim sitenin kendi metnine uygulanır). Video MP4 olarak indirilir; RanksUp videoyu hiçbir platformda yayınlamaz. Profesyonel ve üstü planlarda; aylık hak: Profesyonel 20, Ajans 60, Kurumsal 200 video (her takvim ayı yenilenir, üretilemeyen videonun hakkı iade edilir).
 - **İçerik fırsatları (kapalı döngü)**: Kaybedilen AI sorgularından makale fırsatı çıkarır, makaleyi üretir ve yeniden ölçer (Profesyonel ve üstü).
-- **ASO**: Uygulamanı bağla; App Store ve Google Play metadata'sını AI ile optimize et, anahtar kelime sıralarını her gün otomatik takip et. Profesyonel ve üstünde: Apple Search Ads (kampanya kurulumu, senkron, günlük oto-pilot), App Store Connect (sürüm senkronu, yorum çekme ve LLM duygu analizi), App Prompt Lab (AI asistanları uygulamanı öneriyor mu) ve Screenshot Studio.
-- **Takılmış sayfa tespiti**: Takılmış sayfaları bulur, LLM ile kurtarma önerir, tek tıkla geri alınabilir (Profesyonel ve üstü).
-- **Ajans araçları**: Programatik SEO (tek şablonla 81 il için şehir sayfası), Ürün Radarı (haftalık rakip ses payı ve kategori sırası), GEO ısı haritası, Canlı Tarayıcı (AI botlarının canlı akışı ve sunucu logu) — Ajans ve üstü.
+- **ASO**: Uygulamanı bağla; App Store ve Google Play metadata'sı için AI önerileri al (öneriyi mağazaya sen girersin; App Store'a doğrudan yazma Profesyonel ve üstünde App Store Connect ile), mağaza anahtar kelime sıraların her gün otomatik takip edilir. Profesyonel ve üstünde: Apple Search Ads (kampanya kurulumu, senkron, günlük oto-pilot), App Store Connect (sürüm senkronu, yorumları çekme ve AI yanıt taslağı), App Prompt Lab (AI asistanları uygulamanı öneriyor mu) ve Screenshot Studio.
+- **Takılmış sayfa tespiti**: Google Search Console verisiyle takılmış sayfaları bulur, LLM ile kurtarma önerir; RanksUp'ın yayınladığı yazıda uygulanan düzeltme tek tıkla geri alınabilir (Profesyonel ve üstü).
+- **Ajans araçları**: Programatik SEO (tek şablonla 81 il için şehir sayfası; kalan aylık makale hakkın kadar üretilir), Ürün Radarı (haftalık rakip ses payı ve kategori sırası), GEO ısı haritası, Canlı Tarayıcı (AI botlarının canlı akışı ve sunucu logu) — Ajans ve üstü.
 
 ## Fiyatlandırma (Ekim 2026)
 
@@ -24,25 +24,25 @@ Fiyatlar USD bazlıdır. TL tutarı sabit değildir: ödeme anında günün TCMB
 
 AI görünürlük ölçümü her planda hesap başına 7 günde 1'dir ve tüm siteler bu hakkı paylaşır: AI testi, yol haritası, Prompt Lab, panelden başlatılan site taramasındaki AI testi ve diğer ölçümler aynı haftalık hakka sayılır; sonuç vermeyen ölçüm hakkı yakmaz. Ölçümlerde ayrıca plana göre aylık bir görünürlük çalıştırması tavanı vardır: AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma sayılır; tek bir haftalık ölçüm (örneğin Prompt Lab'de tüm soruları çalıştırmak) birden çok çalıştırma kullanır. Çalıştırma sayacı her takvim ayının başında sıfırlanır.
 
-- **Ücretsiz Deneme**: $0 — 2 AI makale, haftada 1 AI ölçümü, 3 görünürlük çalıştırması, 1 site, 1 izlenen uygulama · destek: topluluk · 14 gün · kredi kartı istemez · makaleleri yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı plan seçilince yazılır · 14 gün dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez), veriler silinmez
-- **Büyüme**: $149/ay, yıllık $1.490 — 15 AI makale/ay, haftada 1 AI ölçümü, en fazla 20 görünürlük çalıştırması/ay, 2 site, 1 izlenen uygulama · destek: e-posta 24 saat
-- **Profesyonel** (en çok tercih edilen): $349/ay, yıllık $3.490 — 40 AI makale/ay, haftada 1 AI ölçümü, en fazla 75 görünürlük çalıştırması/ay, 5 site, 3 izlenen uygulama · destek: e-posta 4 saat
-- **Ajans**: $749/ay, yıllık $7.490 — 100 AI makale/ay, haftada 1 AI ölçümü, en fazla 300 görünürlük çalıştırması/ay, 15 site, 10 izlenen uygulama · destek: öncelikli + Slack
-- **Kurumsal** (satış ekibiyle): $1.499/ay, yıllık $14.990 — 350 AI makale/ay, haftada 1 AI ölçümü, en fazla 1.000 görünürlük çalıştırması/ay, 50 site, 50 izlenen uygulama · destek: özel hesap yöneticisi + SLA
+- **Ücretsiz Deneme**: $0 — 2 AI makale, haftada 1 AI ölçümü, 3 görünürlük çalıştırması, 1 site, 1 izlenen uygulama · destek: e-posta · 14 gün · kredi kartı istemez · makaleleri yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı plan seçilince yazılır · 14 gün dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez), veriler silinmez
+- **Büyüme**: $149/ay, yıllık $1.490 — 15 AI makale/ay, haftada 1 AI ölçümü, en fazla 20 görünürlük çalıştırması/ay, 2 site, 1 izlenen uygulama · destek: e-posta
+- **Profesyonel** (en çok tercih edilen): $349/ay, yıllık $3.490 — 40 AI makale/ay, haftada 1 AI ölçümü, en fazla 75 görünürlük çalıştırması/ay, 5 site, 3 izlenen uygulama · destek: e-posta
+- **Ajans**: $749/ay, yıllık $7.490 — 100 AI makale/ay, haftada 1 AI ölçümü, en fazla 300 görünürlük çalıştırması/ay, 15 site, 10 izlenen uygulama · destek: e-posta
+- **Kurumsal** (satış ekibiyle): $1.499/ay, yıllık $14.990 — 350 AI makale/ay, haftada 1 AI ölçümü, en fazla 1.000 görünürlük çalıştırması/ay, 50 site, 50 izlenen uygulama · destek: e-posta
 
 Plana göre öne çıkanlar:
 
-- **Büyüme**: site SEO/GEO denetimi, ASO metadata optimizasyonu, günlük anahtar kelime sıra takibi, 14 yayın hedefi, içerik takvimi ve otomatik yayın (Tam otomatik modda; varsayılan Yarı otomatik modda yazılar yayından önce onay bekler), haftalık e-posta performans raporu.
+- **Büyüme**: site SEO/GEO denetimi, ASO metadata önerileri, günlük anahtar kelime sıra takibi (site için Search Console bağlıyken), 13 yayın hedefi, içerik takvimi ve otomatik yayın (Tam otomatik modda; varsayılan Yarı otomatik modda yazılar yayından önce onay bekler), haftalık e-posta performans raporu.
 - **Profesyonel**: Büyüme'deki her şey + Apple Search Ads, App Store Connect, App Prompt Lab, Screenshot Studio, Ajan Hazırlığı önizlemeli düzeltme, takılmış sayfa tespiti, içerik fırsatları, RanksUp Video (ayda 20 video).
-- **Ajans**: Profesyonel'deki her şey + Programatik SEO, Ürün Radarı, GEO ısı haritası, Canlı Tarayıcı, öncelikli destek ve Slack kanalı, RanksUp Video (ayda 60 video).
-- **Kurumsal**: Ajans'taki her şey + BYOK (kendi sağlayıcı anahtarların), MCP sunucusu, REST API ve scope'lu API anahtarları, AI maliyet ve token muhasebesi, özel hesap yöneticisi + SLA, sözleşmeli kurulum, RanksUp Video (ayda 200 video).
+- **Ajans**: Profesyonel'deki her şey + Programatik SEO, Ürün Radarı, GEO ısı haritası, Canlı Tarayıcı, RanksUp Video (ayda 60 video).
+- **Kurumsal**: Ajans'taki her şey + BYOK (kendi sağlayıcı anahtarların), MCP sunucusu, REST API ve API anahtarları (scope'lar site, makale, denetim, reklam ve analitik uçlarını kapsar), AI maliyet ve token muhasebesi, RanksUp Video (ayda 200 video).
 
 Şartlar:
 
 - Yıllık ödemede 10 ay fiyatına 12 ay (2 ay bedava).
 - Aylık plan istediğin zaman iptal edilir; iptalden sonra ödenen dönemin sonuna kadar erişim sürer.
 - Kullanım Şartları'na göre yıllık planda ilk 30 gün tam iade, sonrasında kalan ay başına orantılı iade.
-- Kurumsal plan satış ekibiyle, sözleşmeli kurulur.
+- Kurumsal plan satış ekibiyle görüşülerek açılır.
 
 ## Ajanlar / MCP
 
@@ -101,4 +101,4 @@ Plana göre öne çıkanlar:
 - **Fiyat ve ödeme**: Fiyatlar USD; TL tutarı günün TCMB kuruyla hesaplanır; ödeme PayTR ile.
 - **Veri konumu** (Gizlilik Politikası): Sunucular LuviHost İstanbul veri merkezinde, yedekler Frankfurt bölgesinde; yapay zekâ çağrıları sağlayıcıların sunucularına gider.
 - **Şifreleme**: Google bağlantı token'ları ve yayın hedefi bilgileri AES-256-GCM ile şifreli saklanır.
-- **Bağlantılar**: Google Search Console, Google Analytics, Apple Search Ads, App Store Connect ve 14 yayın hedefi.
+- **Bağlantılar**: Google Search Console, Google Analytics, Apple Search Ads, App Store Connect ve 13 yayın hedefi.

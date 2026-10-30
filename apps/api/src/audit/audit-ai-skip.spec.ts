@@ -23,7 +23,7 @@ function servis(runForSite: () => Promise<any[]>) {
       deleteMany: vi.fn(async () => ({})),
       findUnique: vi.fn(async ({ where }: any) => rows.get(where.key) ?? null),
     },
-    site: { findUniqueOrThrow: async () => ({ id: 's1', userId: 'u1', url: 'https://site.com' }), update: vi.fn(async () => ({})) },
+    site: { findUniqueOrThrow: async () => ({ id: 's1', userId: 'u1', url: 'https://site.com' }), update: vi.fn(async () => ({})), updateMany: vi.fn(async () => ({ count: 1 })) },
     audit: { create: auditCreate },
   };
   const crawler = { crawl: vi.fn(async () => ({ baseUrl: 'https://site.com', pages: [], sitemapUrl: null, robotsTxt: null, llmsTxt: null, totalPages: 0 })) };

@@ -9,6 +9,8 @@ import { RANKSUP_BOT_UA } from '../common/safe-fetch.js';
 import { McpToolsService } from './mcp-tools.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { REFERRAL_LABEL_KEEP, REFERRAL_LABEL_MAX, referralLabel } from '../affiliate/referral-label.js';
+import { publishTargetCatalog } from '../publish-targets/publish-target-catalog.js';
+import { EXPORT_TARGET_TYPES } from '../articles/republish-policy.js';
 import {
   AGENT_SETUP_URL,
   DEFAULT_API_ORIGIN,
@@ -219,6 +221,91 @@ describe('fiyat karti maddeleri = kod', () => {
       expect(liste, 'asistan listesi maddesi').toBeDefined();
       expect(Number(sayiMaddesi!.match(sayiRe)![1])).toBe(liste!.split(' · ').length);
     }
+  });
+});
+
+// ─── Kart maddeleri yalniz teslim edilen seyi yazar (30.10.2026) ────────────
+//
+// NEDEN: destek kademeleri (24 / 4 saat, Slack, hesap yoneticisi + SLA) ve
+// bazi maddeler ("14 yayin hedefi", "harf notu", "LLM duygu analizi",
+// "81 ilin tamamina") kodun verdiginden fazlasini satiyordu. Sahip karari:
+// operasyonel destek taahhudu yazilmaz; kosula bagli ozellik kosuluyla yazilir.
+describe('kart maddeleri = teslim edilen', () => {
+  const tr = BASE_PLANS.flatMap((p) => p.features_tr);
+  const en = BASE_PLANS.flatMap((p) => p.features_en);
+  const madde = (liste: string[], bas: string) => {
+    const m = liste.find((x) => x.startsWith(bas));
+    expect(m, `"${bas}" maddesi`).toBeDefined();
+    return m!;
+  };
+  const MARKETING_DIR = path.join(WEB_SRC, 'app/(marketing)');
+  const i18nSrc = read(path.join(WEB_SRC, 'lib/i18n.ts'));
+
+  // Yanit suresi, SLA, Slack ve hesap yoneticisi: kodda ve operasyonda karsiligi yok
+  const DESTEK_VAADI = /\bSLA\b|Slack kanal|Slack channel|\+ Slack|hesap yöneticisi|account manager|öncelikli destek|priority support|e-posta \d+ saat|email \d+h|Yanıt süresi|Response time|sözleşmeli kurulum|contracted onboarding/i;
+
+  it('destek alani yalniz kanal yazar; hicbir plan ve musteri metni destek taahhudu vermiyor', () => {
+    for (const p of BASE_PLANS) {
+      expect(p.support_tr, p.id).toBe('e-posta');
+      expect(p.support_en, p.id).toBe('email');
+    }
+    const metinler: Array<[string, string]> = [
+      ['plans.ts', [...tr, ...en].join('\n')],
+      ['llms.txt', llms],
+      ['llms-full.txt', llmsFull],
+      ['i18n.ts', stripComments(i18nSrc)],
+      ['ranksup-md.ts', stripComments(read(path.join(WEB_SRC, 'lib/ranksup-md.ts')))],
+      ...['help/page.tsx', 'help/billing/page.tsx', 'use-cases/page.tsx', 'pricing/layout.tsx', 'pricing/pricing-view.tsx', 'faq/page.tsx']
+        .map((f): [string, string] => [f, stripComments(read(path.join(MARKETING_DIR, f)))]),
+    ];
+    for (const [ad, metin] of metinler) expect(metin, ad).not.toMatch(DESTEK_VAADI);
+  });
+
+  it('yayin hedefi sayisi = musterinin ekleyip teslim alabildigi katalog hedefleri', () => {
+    // KOBIPRATIK yalniz admin; Markdown ZIP sunucuya dosya yazar, indirme vermez
+    const teslim = publishTargetCatalog().filter((e) => !e.adminOnly && !EXPORT_TARGET_TYPES.has(e.type));
+    const n = teslim.length;
+    expect(n).toBe(13);
+    expect(madde(tr, `${n} yayın hedefi — `)).toBeTruthy();
+    expect(madde(en, `${n} publishing targets — `)).toBeTruthy();
+    const yerler: Array<[string, string, RegExp]> = [
+      ['llms.txt', llms, /(\d+) yayın hedefi/g],
+      ['llms-full.txt', llmsFull, /(\d+) yayın hedefi/g],
+      ['i18n.ts', i18nSrc, /(\d+) (?:yayın hedef|publishing target)/g],
+      ['layout.tsx', read(path.join(WEB_SRC, 'app/layout.tsx')), /(\d+) yayın hedef/g],
+      ['pricing/layout.tsx', read(path.join(MARKETING_DIR, 'pricing/layout.tsx')), /(\d+) yayın hedef/g],
+      ['compare-view.tsx', read(path.join(MARKETING_DIR, 'compare/compare-view.tsx')), /(\d+) (?:yayın hedefi|publish targets|hedef'|targets')/g],
+    ];
+    for (const [ad, metin, re] of yerler) {
+      const sayilar = [...metin.matchAll(re)].map((m) => Number(m[1]));
+      expect(sayilar.length, `${ad} yayin hedefi sayisi anmiyor`).toBeGreaterThan(0);
+      for (const s of sayilar) expect(s, ad).toBe(n);
+    }
+    expect(llmsFull).not.toMatch(/yayın hedefi:[^\n]*Markdown ZIP/);
+  });
+
+  it('kosula bagli ozellikler kosuluyla yaziliyor (TR + EN)', () => {
+    // Harf notu yalniz GEO skor kartinda (geo-score-card.service grade); denetim harf vermez
+    expect(madde(tr, 'Site SEO/GEO denetimi')).toContain('GEO Lab');
+    expect(madde(en, 'Site SEO/GEO audit')).toContain('GEO Lab');
+    // Site keyword sirasi yalniz Search Console verisinden (analytics.service)
+    expect(madde(tr, 'Google Search Console bağlıyken günlük')).toContain('keyword sıra takibi');
+    expect(madde(en, 'Daily automated keyword rank tracking')).toContain('Google Search Console');
+    // Metadata AI onerisi; Google Play'e yazma yok, App Store'a yazma Pro ASC ile
+    expect(madde(tr, 'ASO:')).toContain('AI öneri');
+    expect(madde(en, 'ASO:')).toContain('suggestions');
+    for (const m of [madde(tr, 'ASO:'), madde(en, 'ASO:')]) expect(m).not.toMatch(/optimize et|AI-optimize/);
+    // ASC yorumlarina duygu analizi yapilmiyor (asc.service fetchReviews); yanit taslagi var
+    expect(madde(tr, 'App Store Connect')).toContain('yanıt taslağı');
+    expect(madde(en, 'App Store Connect')).toContain('reply drafts');
+    for (const m of [madde(tr, 'App Store Connect'), madde(en, 'App Store Connect')]) expect(m).not.toMatch(/duygu|sentiment/i);
+    // Tespit Search Console ister; geri alma yalniz RanksUp'in yazisinda (STUCK_REVERT_EXTERNAL)
+    expect(madde(tr, 'Takılmış sayfa')).toMatch(/Search Console[\s\S]*RanksUp’ın yayınladığı/);
+    expect(madde(en, 'Stuck page')).toMatch(/Search Console[\s\S]*RanksUp published/);
+    // Sehir sayisi kalan aylik makale hakkiyla sinirli (programmatic-seo.service actualMax)
+    expect(madde(tr, 'Programmatic SEO')).toContain('makale kotan kadar');
+    expect(madde(en, 'Programmatic SEO')).toContain('remaining monthly article quota');
+    expect(madde(tr, 'Programmatic SEO')).not.toContain('tamamına');
   });
 });
 
@@ -1130,22 +1217,31 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
     expect(Number.isInteger(tumuLimit) && tumuLimit > 0, 'prompt-lab-panel runAllPrompts limiti bulunamadi').toBe(true);
   });
 
-  it('çalıştırma birimi kodla aynı (AI testi 1, Prompt Lab sorusu / dalı 1, Ürün Radarı sorusu 1, ısı haritası 0) ve llms-full.txt bunu yazıyor', () => {
+  it('çalıştırma birimi kodla aynı (AI testi 1, Prompt Lab sorusu / dalı 1, Ürün Radarı sorusu 1, ısı haritası sorusu 1, App Prompt Lab sorusu 1) ve llms-full.txt bunu yazıyor', () => {
     const citation = read(path.resolve(HERE, '../audit/ai-citation.service.ts'));
     const promptLab = read(path.resolve(HERE, '../audit/prompt-lab.service.ts'));
     const radar = read(path.resolve(HERE, '../audit/product-radar.service.ts'));
     const heatmap = read(path.resolve(HERE, '../audit/geo-heatmap.service.ts'));
-    // runForSite ve runQueries cagri basina en fazla 1 calistirma sayar
-    expect(citation.match(/this\.quota\.incrementCitationUsage\(/g)?.length, 'calistirma sayan yerler degisti: birim metinlerini guncelle').toBe(2);
+    const appPromptLab = read(path.resolve(HERE, '../aso/aso-prompt-lab.service.ts'));
+    // runForSite ve runQueries cagri basina en fazla 1 calistirma sayar; ucuncusu
+    // consumeCitationRuns (heatmap ve App Prompt Lab'in olculen soru sayisi kadar)
+    expect(citation.match(/this\.quota\.incrementCitationUsage\(/g)?.length, 'calistirma sayan yerler degisti: birim metinlerini guncelle').toBe(3);
     expect(promptLab).toContain('this.citation.runQueries(siteId, [prompt.text]');
     expect(promptLab).toContain('this.citation.runQueries(siteId, [branch.text]');
     expect(radar).toContain('this.citation.runQueries(siteId, [query]');
     // Haftalik otomatik radar taramasi sistem kosumu: hakka da tavana da sayilmaz
     expect(radar).toMatch(/this\.run\(s\.id, \{ trigger: 'system' \}\)/);
-    // Isi haritasi haftalik hakki kullanir ama aylik calistirma saymaz
+    // Isi haritasi haftalik hakki kullanir VE aylik tavana tabidir: olcum oncesi
+    // soru sayisi kadar hak arar, olculen soru basina 1 duser. Eskiden hic
+    // saymiyordu (20 soru x 4 saglayici kota disi kosuyordu).
     expect(heatmap).toContain('noteMeasured()');
-    expect(heatmap).not.toMatch(/incrementCitationUsage|enforceCitationQuota/);
-    expect(llmsFull).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1 çalıştırma sayılır; GEO ısı haritası çalıştırma saymaz");
+    expect(heatmap).toContain('this.citation.assertCitationRuns(site.userId, probeQueries.length');
+    expect(heatmap).toContain('this.citation.consumeCitationRuns(site.userId, measuredQueries)');
+    // App Prompt Lab: sorulan soru basina 1
+    expect(appPromptLab).toContain("this.citation.assertCitationRuns(site.userId, 1, ");
+    expect(appPromptLab).toContain('this.citation.consumeCitationRuns(site.userId, 1)');
+    expect(llmsFull).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1, GEO ısı haritasında ölçülen her soru 1, App Prompt Lab'de her soru 1 çalıştırma sayılır");
+    expect(llmsFull).not.toContain('ısı haritası çalıştırma saymaz');
     expect(llmsFull).toContain(`"Tümünü çalıştır" tek ölçümde en fazla ${tumuLimit} soruyu`);
     expect(llmsFull).toContain(`hesap başına 7 günde 1 ölçüm, yani ayda en fazla ${ayEnFazla}`);
     expect(llmsFull).toContain("Ürün Radarı'nın haftalık otomatik taraması bu hakka sayılmaz");

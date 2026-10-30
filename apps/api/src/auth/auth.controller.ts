@@ -9,7 +9,7 @@ import { SessionOnly } from './session-only.decorator.js';
 import { AuthService } from './auth.service.js';
 import { GscOAuthService } from './gsc-oauth.service.js';
 import { GaOAuthService } from './ga-oauth.service.js';
-import { EmailService } from '../email/email.service.js';
+import { EMAIL_NOT_SENT_STATUSES, EmailService } from '../email/email.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { assertSiteAccess } from './site-access.js';
 import { readSessionUserId } from './session-cookie.js';
@@ -235,8 +235,10 @@ export class AuthController {
     await this.auth.ensureTrialStarted(user.id);
 
     // Daha onceki welcome_day0 maili gonderildi mi? (idempotent)
+    // Gonderilmemis kayit (saglayici yok / hata) sayilmaz — yoksa anahtar
+    // eksikken yazilan tek kayit karsilama e-postasini kalici olarak engellerdi
     const earlier = await this.prisma.emailLog.findFirst({
-      where: { userId: user.id, template: 'welcome_day0' },
+      where: { userId: user.id, template: 'welcome_day0', status: { notIn: [...EMAIL_NOT_SENT_STATUSES] } },
       select: { id: true },
     });
     if (earlier) {

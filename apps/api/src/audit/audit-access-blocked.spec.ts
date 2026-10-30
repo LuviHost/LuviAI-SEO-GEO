@@ -51,7 +51,7 @@ function servis(crawl: Partial<CrawlResult>) {
   const siteUpdate = vi.fn(async () => ({}));
   const prisma = {
     ...kv,
-    site: { findUniqueOrThrow: async () => ({ id: 's1', userId: 'u1', url: 'https://ofsayt.com' }), update: siteUpdate },
+    site: { findUniqueOrThrow: async () => ({ id: 's1', userId: 'u1', url: 'https://ofsayt.com' }), update: siteUpdate, updateMany: siteUpdate },
     audit: { create: auditCreate },
   };
   const crawler = { crawl: vi.fn(async () => ({ baseUrl: 'https://ofsayt.com', pages: [], sitemapUrl: null, robotsTxt: null, llmsTxt: null, totalPages: 0, ...crawl })) };

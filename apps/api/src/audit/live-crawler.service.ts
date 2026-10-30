@@ -6,6 +6,7 @@ import { WebhookNotifierService } from './webhook-notifier.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { CRAWLER_EVENT_RETENTION_DAYS } from './crawler-event-retention.js';
 import { isSuccessfulCrawlStatus } from './crawler-analytics.service.js';
+import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
 import {
   generateIngestSecret,
   verifyIngestSignature,
@@ -128,13 +129,13 @@ export class LiveCrawlerService {
     events: IngestEvent[],
     source = 'worker',
     auth?: IngestAuthContext,
-  ): Promise<{ accepted: number; skipped: number }> {
+  ): Promise<{ accepted: number; skipped: number; reason?: 'plan' }> {
     if (!siteId || !Array.isArray(events) || events.length === 0) {
       throw new BadRequestException('site + events zorunlu');
     }
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      select: { id: true, userId: true, name: true, ingestSecret: true },
+      select: { id: true, userId: true, name: true, ingestSecret: true, user: { select: { plan: true, role: true } } },
     });
     if (!site) throw new NotFoundException('Site bulunamadi');
 
@@ -149,6 +150,20 @@ export class LiveCrawlerService {
     if (!verdict.ok) {
       this.log.warn(`[${siteId}] Ingest reddedildi (${source}): ${describeIngestFailure(verdict.reason!)}`);
       throw new UnauthorizedException('Ingest imzasi dogrulanamadi');
+    }
+
+    // PLAN KAPISI — imzadan SONRA: imzasiz istek plan durumunu ogrenemesin.
+    // Sahibin planinda liveCrawler (Ajans) yoksa olaylar KABUL EDILIR AMA
+    // KAYDEDILMEZ (accepted:0, reason:'plan'): ne CrawlerHitEvent ne gunluk
+    // AiCrawlerHit toplami ne de cite bildirimi.
+    // NEDEN 2xx (403 degil): snippet musterinin edge'inde (Cloudflare Worker,
+    // WP eklentisi, nginx ajani) her bot ziyaretinde ateslenir. Hata kodu
+    // donersek bazi kurulumlar (yeniden deneyen ajanlar, hata loglayan
+    // eklentiler) dongu ve log gurultusu uretir; musterinin sitesine fayda
+    // yok. Plan yukselince ayni snippet hicbir degisiklik olmadan yeniden
+    // kaydetmeye baslar. Gunluk sayim sorgusu da yapilmaz (DB yuku yok).
+    if (!ownerHasPlanFeature(site.user, 'liveCrawler')) {
+      return { accepted: 0, skipped: events.length, reason: 'plan' };
     }
 
     // Gunluk tavan — kacak/dongusel worker koruması

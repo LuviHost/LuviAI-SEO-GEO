@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { useEntitlements } from '@/lib/entitlements';
+import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
 import {
   Activity, Flame, Copy, Wifi, WifiOff, Pause, Play, Cloud, Server,
@@ -40,6 +42,10 @@ function timeAgo(ts: string | Date): string {
 
 export default function CrawlerLivePage() {
   const { site } = useSiteContext();
+  const { can, requirementFor } = useEntitlements();
+  // Canli Tarayici Ajans planinda (api liveCrawler kapisi). Alt planda uclar
+  // 403 doner; sayfa hata/bos akis yerine kilit kartini gosterir.
+  const allowed = can('liveCrawler');
   const [data, setData] = useState<any>(null);
   const [snippets, setSnippets] = useState<any>(null);
   const [tab, setTab] = useState<'worker' | 'wordpress' | 'nginx'>('worker');
@@ -60,13 +66,17 @@ export default function CrawlerLivePage() {
     }
   };
 
+  // Haklar KESIN gelene kadar istek atilmaz: kapali planda 5 sn'lik yoklama
+  // her turda 403 uretirdi (diger kilitli sayfalarla ayni kural).
   useEffect(() => {
+    if (allowed !== true) return;
     load();
     api.getLiveCrawlerSnippets(site.id).then(setSnippets).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [site.id]);
+  }, [site.id, allowed]);
 
   useEffect(() => {
+    if (allowed !== true) return;
     if (paused) {
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = null;
@@ -75,7 +85,16 @@ export default function CrawlerLivePage() {
     timerRef.current = setInterval(load, 5000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paused, site.id]);
+  }, [paused, site.id, allowed]);
+
+  if (allowed === false) {
+    return (
+      <PlanLockedCard
+        requirement={requirementFor('liveCrawler')}
+        description="AI botlarının (GPTBot, ClaudeBot, ChatGPT-User…) sitene yaptığı ziyaretleri anlık izler; bir cevapta canlı okunduğunda haber verir."
+      />
+    );
+  }
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text).then(

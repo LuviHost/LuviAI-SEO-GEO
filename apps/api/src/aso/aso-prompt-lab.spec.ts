@@ -16,10 +16,15 @@ function make(results: unknown[]) {
   const prisma = {
     trackedApp: { findFirst: vi.fn().mockResolvedValue(APP) },
     geoPrompt: { findFirst: vi.fn().mockResolvedValue(PROMPT), update: vi.fn().mockResolvedValue({}) },
-    site: { findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 's1', url: 'https://butcem.app' }) },
+    site: { findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 's1', userId: 'u1', url: 'https://butcem.app' }) },
     geoPromptRun: { createMany },
   };
-  const citation = { runPublicProbes: vi.fn().mockResolvedValue(results) };
+  // Hak ve butce kapisi serbest — kapinin kendisi audit/olcum-hak-butce.spec'te
+  const citation = {
+    runPublicProbes: vi.fn().mockResolvedValue(results),
+    assertCitationRuns: vi.fn().mockResolvedValue(undefined),
+    consumeCitationRuns: vi.fn().mockResolvedValue(undefined),
+  };
   const svc = new AsoPromptLabService(prisma as any, citation as any, {} as any);
   return { svc, createMany };
 }

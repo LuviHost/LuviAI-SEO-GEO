@@ -110,7 +110,8 @@ function ctxFor(r: Route, authorization: string, handlerFn?: Handler) {
 /** Gercek scope kurali (requiredScope / hasScopeForRoute) — yalniz validate sahte */
 function guard(scopes: string[]) {
   const real = new ApiKeysService({} as never);
-  const prisma = { user: { findUnique: vi.fn(async () => ({ id: 'u1', deletionRequestedAt: null })) } };
+  // REST API anahtari Kurumsal planda (auth.guard apiAccess) — kapinin kendisi api-key-plan.spec'te
+  const prisma = { user: { findUnique: vi.fn(async () => ({ id: 'u1', deletionRequestedAt: null, plan: 'ENTERPRISE' })) } };
   const apiKeys = {
     validate: vi.fn(async () => ({ userId: 'u1', scopes, keyId: 'k1' })),
     requiredScope: real.requiredScope.bind(real),

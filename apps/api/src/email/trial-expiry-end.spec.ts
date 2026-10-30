@@ -38,7 +38,7 @@ describe('EmailCron — d11/d13 metnine satin alma durumunu verir', () => {
     const now = Date.now();
     const users = [{ id: 'u1', email: 'a@ornek.com', name: 'A', role, createdAt: new Date(now - 11 * 86_400_000), trialEndsAt: new Date(now + 2.5 * 86_400_000) }];
     const email = { send: vi.fn(async () => ({ ok: true })) };
-    const cron = new EmailCron({ user: { findMany: vi.fn(async () => users) } } as any, email as any);
+    const cron = new EmailCron({ user: { findMany: vi.fn(async () => users) }, kvStore: { create: vi.fn(async () => ({})) } } as any, email as any);
     await cron.dailyEmails();
     return email.send.mock.calls.map((c: any[]) => c[0]);
   }

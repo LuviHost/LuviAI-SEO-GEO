@@ -176,12 +176,18 @@ export class AuditController {
   ) {}
 
   // ────────────────────────────────────────────────────────────
-  //  LIVE CRAWLER — canli AI bot akisi
-  //  Asagidaki iki GET bilerek ACIK: akisi izleme ve kurulum kodunu gorme
-  //  plana bagli degil. Plan kapisi log yutma ucunda (crawler/ingest).
+  //  LIVE CRAWLER — canli AI bot akisi (liveCrawler = Ajans)
+  //  Uc panel ucu da plana bagli. Eskiden akis ve kurulum kodu acikti, kapi
+  //  yalniz log yutma ucundaydi (crawler/ingest); edge ingest'i (POST
+  //  /tracker/events) da plana bakmadigi icin alt plandaki site snippet'i
+  //  kurup Ajans ozelligini tam haliyle kullanabiliyordu. Simdi ingest de
+  //  sahibin planina bakar (live-crawler.service ingest). Akis yalniz son
+  //  120 dakikayi gosterir — "gecmis veri" degil canli ozelligin kendisidir;
+  //  uzun donem toplamlar crawler/history'de acik kalir.
   // ────────────────────────────────────────────────────────────
 
   /** GET /sites/:siteId/audit/live-crawler?minutes=10&limit=50 */
+  @RequiresPlan('liveCrawler')
   @Get('live-crawler')
   liveCrawlerRecent(
     @Param('siteId') siteId: string,
@@ -201,6 +207,7 @@ export class AuditController {
   // Yanit duz metin ingest sirrini tasir: varsayilan (audit:read) bir API
   // anahtariyla okunursa sahte bot ziyareti imzalanabilir. Yalniz panel oturumu.
   @SessionOnly()
+  @RequiresPlan('liveCrawler')
   @Get('live-crawler/snippets')
   liveCrawlerSnippets(@Param('siteId') siteId: string) {
     return this.liveCrawler.snippets(siteId);
@@ -212,6 +219,7 @@ export class AuditController {
    * reddedilir, bu yuzden cevapta snippet'i yeniden kurma uyarisi doner.
    */
   @SessionOnly()
+  @RequiresPlan('liveCrawler')
   @Post('live-crawler/rotate-secret')
   liveCrawlerRotateSecret(@Param('siteId') siteId: string) {
     return this.liveCrawler.rotateIngestSecret(siteId);
@@ -404,9 +412,19 @@ export class AuditController {
     return this.audit.compareAudits(siteId, { fromId: queryText(fromId, 64), toId: queryText(toId, 64) });
   }
 
+  /**
+   * POST /sites/:siteId/audit/run-now — ESKI AD, artik /audit/run ile ayni:
+   * taramayi kuyruga atar ve is kaydini ({ id, status: 'QUEUED', bullJobId })
+   * hemen doner; sonuc GET /jobs/:id yoklamasiyla ya da /audit/latest ile okunur.
+   *
+   * NEDEN: tarama API prosesinde senkron kosuyordu. 100 sayfalik bir tarama
+   * ~930 MB'a cikip API'nin pm2 bellek sinirini (800 MB) asti, pm2 API'yi
+   * yeniden baslatti ve tum istekler 502 dondu. Herkese acik SDK (AuditAPI.runNow)
+   * bu ucu kullandigi icin rota silinmedi.
+   */
   @Post('run-now')
   async runNow(@Param('siteId') siteId: string) {
-    return this.audit.runAudit(siteId);
+    return this.audit.queueAudit(siteId);
   }
 
   @Post('run')

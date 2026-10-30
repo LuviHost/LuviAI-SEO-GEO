@@ -80,10 +80,13 @@ function kur(rows: Array<Record<string, unknown>>, olaylar: HamOlay[] = []) {
 /** AiCrawlerHit deposu: create ve {increment}/duz deger update'leri (iki guvenilir yazicinin upsert'leri) */
 function hitDeposu() {
   const rows = new Map<string, Record<string, any>>();
+  const key = (w: any) => `${w.siteId_date_bot.siteId}|${w.siteId_date_bot.date.toISOString()}|${w.siteId_date_bot.bot}`;
   return {
     rows,
+    // Log yuklemesi mevcut satiri okuyup eksik kadar artirir (mergeLogIntoDailyHit)
+    findUnique: vi.fn(async ({ where }: any) => rows.get(key(where)) ?? null),
     upsert: vi.fn(async ({ where, create, update }: any) => {
-      const k = `${where.siteId_date_bot.siteId}|${where.siteId_date_bot.date.toISOString()}|${where.siteId_date_bot.bot}`;
+      const k = key(where);
       const cur = rows.get(k);
       if (!cur) { rows.set(k, { ...create }); return create; }
       for (const [f, v] of Object.entries(update)) {
@@ -184,7 +187,7 @@ describe('R16 — 304 Not Modified / 3xx "ulasildi" sayilir', () => {
     const olaylar: HamOlay[] = [];
     const events = olayDeposu(olaylar);
     const live = new LiveCrawlerService({
-      site: { findUnique: async () => ({ id: SITE, userId: 'u1', name: 'Ornek Site', ingestSecret: secret }) },
+      site: { findUnique: async () => ({ id: SITE, userId: 'u1', name: 'Ornek Site', ingestSecret: secret, user: { plan: 'AGENCY', role: 'USER' } }) },
       crawlerHitEvent: events,
       aiCrawlerHit: store,
       kvStore: { create: async () => ({}) },
@@ -227,7 +230,7 @@ function canliHat() {
   const store = hitDeposu();
   const olaylar: HamOlay[] = [];
   const live = new LiveCrawlerService({
-    site: { findUnique: async () => ({ id: SITE, userId: 'u1', name: 'Ornek Site', ingestSecret: secret }) },
+    site: { findUnique: async () => ({ id: SITE, userId: 'u1', name: 'Ornek Site', ingestSecret: secret, user: { plan: 'AGENCY', role: 'USER' } }) },
     crawlerHitEvent: olayDeposu(olaylar),
     aiCrawlerHit: store,
     kvStore: { create: async () => ({}) },

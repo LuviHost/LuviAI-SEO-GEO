@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
 // Havuz anahtarinin env adi TEK KAYNAKTAN: olcum motoru (ai-citation.service
 // resolveKey) da bu tabloyu okur. Eskiden burada yerel bir kopyasi vardi;
 // iki tablo ayrisirsa panel rozeti olcumden baska bir sey soylerdi.
@@ -45,7 +46,7 @@ export class SiteAiKeysService {
   async getStatus(siteId: string) {
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      select: { id: true, userId: true, user: { select: { plan: true } } },
+      select: { id: true, userId: true, user: { select: { plan: true, role: true } } },
     });
     if (!site) throw new NotFoundException('Site bulunamadi');
 
@@ -55,6 +56,10 @@ export class SiteAiKeysService {
 
     const byokRows = await this.prisma.siteAiProviderKey.findMany({ where: { siteId } });
     const byokMap = new Map(byokRows.map(r => [r.provider, r]));
+    // Olcum motoru (ai-citation resolveKey) kayitli anahtari yalniz planda
+    // 'byok' varken kullanir; rozet de ayni kurali soylemeli. hasByok kayit
+    // durumunu tasimaya devam eder: plani dusen kullanici anahtarini gorup silebilir.
+    const byokOn = ownerHasPlanFeature(site.user, 'byok');
 
     const providers = VALID_PROVIDERS.map((provider) => {
       const byok = byokMap.get(provider);
@@ -67,7 +72,7 @@ export class SiteAiKeysService {
       // listesinde olmayan saglayici olculurken panel "anahtar yok" diyordu.
       const poolKeyAvailable = !!process.env[POOL_ENV_KEY[provider]];
       const effectiveSource: 'byok' | 'pool' | 'none' =
-        byok ? 'byok' : (poolKeyAvailable ? 'pool' : 'none');
+        byok && byokOn ? 'byok' : (poolKeyAvailable ? 'pool' : 'none');
 
       return {
         provider,

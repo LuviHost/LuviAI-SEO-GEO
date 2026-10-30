@@ -142,6 +142,11 @@ export interface BasePlan {
   trackedApps: number;
   /** RanksUp Video aylik hakki — VIDEOS_PER_MONTH'tan; QuotaService.consumeVideoAllowance dayatir */
   videosPerMonth: number;
+  /**
+   * Destek kanali (fiyat ozeti ve /billing/plans). Yalniz kanal yazilir: yanit suresi,
+   * SLA, Slack kanali ya da hesap yoneticisi vaadi YAZILMAZ — kodda ve operasyonda
+   * karsiligi yok (sahip karari 30.10.2026). public-docs.spec.ts denetler.
+   */
   support_tr: string;
   support_en: string;
   /** Kart bu planin maddelerini "X'teki her sey, arti:" diye gosterir */
@@ -173,6 +178,15 @@ export interface BasePlan {
  * vaat edilmez: Groq Llama sohbet modelini kaldirdi, saglayici ozel env
  * olmadan olculmuyor. public-docs.spec.ts ikisini de denetler.
  *
+ * DOGRULUK KURALI (30.10.2026): madde yalniz musterinin bugun eline gecen
+ * seyi yazar. Yayin hedefi sayisi musterinin ekleyip yazisini teslim
+ * alabildigi hedeflerdir: KOBIPRATIK yalniz admin, Markdown ZIP sunucuya
+ * dosya yazar ama indirme vermez (packages/adapters/src/markdown-zip.ts) —
+ * ikisi sayilmaz; public-docs.spec.ts sayiyi katalogla denetler. Kosula
+ * bagli ozellik kosulunu da yazar: keyword sira takibi ve takilmis sayfa
+ * tespiti Search Console verisiyle calisir, geri alma yalniz RanksUp'in
+ * yayinladigi yazida, sehir sayfalari kalan aylik makale hakki kadar.
+ *
  * OLCUM MADDESI (18.10.2026): 16.10.2026'dan beri her hesap kayan 7 gunde 1
  * AI olcumu yapabilir (billing/measurement-allowance.ts; tum olcum araclari
  * ayni hakki paylasir, ADMIN ve platform otomasyonu sayilmaz). "20 AI
@@ -200,8 +214,8 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'limited',
     trackedApps: 1,
     videosPerMonth: VIDEOS_PER_MONTH.trial,
-    support_tr: 'topluluk',
-    support_en: 'community',
+    support_tr: 'e-posta',
+    support_en: 'email',
     // Sahip karari 21.10.2026: deneme 14 gun (billing/trial-policy.ts), 2 makale TOPLAM (ay basi
     // sifirlanmaz) ve makaleyi kullanici baslatir (yayin hedefi sarti); takvimin hakki asan
     // konulari kilitli bekler, plan secilince yazilir (articles/plan-lock.ts). Sure dolunca
@@ -232,18 +246,18 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'all',
     trackedApps: 1,
     videosPerMonth: VIDEOS_PER_MONTH.starter,
-    support_tr: 'e-posta 24 saat',
-    support_en: 'email 24h',
+    support_tr: 'e-posta',
+    support_en: 'email',
     features_tr: [
       '15 AI makale / ay — 5 ajanlı üretim hattı, yayın öncesi QA kapısı',
       'Hesap başına haftada 1 AI görünürlük ölçümü — AI testi, Prompt Lab ve diğer ölçümler bu hakkı paylaşır',
       'AI testi ve Prompt Lab’in ana sorusu 6 AI asistanına birden sorulur, Prompt Lab dalları 3 asistana (ChatGPT, Claude, Gemini); ölçümlerde ayda en fazla 20 çalıştırma (AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma)',
       'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
       '2 site',
-      'Site SEO/GEO denetimi — 14 teknik kontrol + PageSpeed + harf notu',
-      'ASO: uygulamanı bağla, App Store + Google Play metadata’sını AI ile optimize et',
-      'Günlük otomatik keyword sıra takibi',
-      '14 yayın hedefi — WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…',
+      'Site SEO/GEO denetimi — 14 teknik kontrol + PageSpeed önerileri; GEO Lab’de A+–F GEO notu',
+      'ASO: uygulamanı bağla — App Store + Google Play metadata’sı için AI önerileri, günlük mağaza sıra takibi',
+      'Google Search Console bağlıyken günlük otomatik keyword sıra takibi',
+      '13 yayın hedefi — WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…',
       'İçerik takvimi, zamanlanmış üretim ve otomatik yayın',
       'Haftalık e-posta performans raporu',
     ],
@@ -253,10 +267,10 @@ export const BASE_PLANS: BasePlan[] = [
       'The AI test and the main Prompt Lab question go to 6 AI assistants at once, Prompt Lab branches to 3 (ChatGPT, Claude, Gemini); up to 20 runs/mo across measurements (an AI test is 1 run, each Prompt Lab question or branch is 1)',
       'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
       '2 sites',
-      'Site SEO/GEO audit — 14 technical checks + PageSpeed + letter grade',
-      'ASO: connect your app, AI-optimize App Store + Google Play metadata',
-      'Daily automated keyword rank tracking',
-      '14 publishing targets — WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…',
+      'Site SEO/GEO audit — 14 technical checks + PageSpeed suggestions; A+–F GEO grade in GEO Lab',
+      'ASO: connect your app — AI metadata suggestions for App Store + Google Play, daily store rank tracking',
+      'Daily automated keyword rank tracking once Google Search Console is connected',
+      '13 publishing targets — WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…',
       'Content calendar, scheduled generation and auto-publish',
       'Weekly performance report by email',
     ],
@@ -274,28 +288,28 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'all',
     trackedApps: 3,
     videosPerMonth: VIDEOS_PER_MONTH.pro,
-    support_tr: 'e-posta 4 saat',
-    support_en: 'email 4h',
+    support_tr: 'e-posta',
+    support_en: 'email',
     inheritsFrom: 'starter',
     features_tr: [
       '40 AI makale / ay · ayda en fazla 75 çalıştırma (ölçüm yine haftada 1) · 5 site',
       'Apple Search Ads — kampanya kurulumu, senkron ve günlük oto-pilot',
-      'App Store Connect — sürüm senkronu, yorum çekme + LLM duygu analizi',
+      'App Store Connect — sürüm senkronu, yorumları çekme + AI yanıt taslağı',
       'App Prompt Lab — AI asistanları uygulamanı öneriyor mu, ölç',
       'Screenshot Studio — AI arka plan + caption, 1290×2796 canvas editör',
       'Agent Readiness (AXO) — AI bot ve ajan keşif dosyaları taraması; robots.txt / llms.txt / sitemap için önizlemeli düzeltme',
-      'Takılmış sayfa tespiti — LLM ile kurtarma, tek tıkla geri alma',
+      'Takılmış sayfa tespiti (Search Console ile) — LLM ile kurtarma; RanksUp’ın yayınladığı yazıda tek tıkla geri alma',
       'İçerik fırsatları — kaybettiğin promptlardan makale üretip yeniden ölçen kapalı döngü',
       `RanksUp Video — makale, site ve ürün tanıtım videoları, sitenin markasıyla (ayda ${VIDEOS_PER_MONTH.pro} video)`,
     ],
     features_en: [
       '40 AI articles/mo · up to 75 runs/mo (still 1 measurement a week) · 5 sites',
       'Apple Search Ads — campaign setup, sync and daily auto-pilot',
-      'App Store Connect — release sync, review ingest + LLM sentiment analysis',
+      'App Store Connect — release sync, review ingest + AI reply drafts',
       'App Prompt Lab — measure whether AI assistants recommend your app',
       'Screenshot Studio — AI backgrounds + captions, 1290×2796 canvas editor',
       'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed robots.txt / llms.txt / sitemap fixes',
-      'Stuck page detection — LLM-driven recovery, one-click revert',
+      'Stuck page detection (via Search Console) — LLM-driven recovery; one-click revert on articles RanksUp published',
       'Content opportunities — closed loop that writes for lost prompts and re-measures',
       `RanksUp Video — article, site and product promo videos in your site's branding (${VIDEOS_PER_MONTH.pro} videos/mo)`,
     ],
@@ -314,25 +328,23 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'all',
     trackedApps: 10,
     videosPerMonth: VIDEOS_PER_MONTH.agency,
-    support_tr: 'öncelikli + Slack',
-    support_en: 'priority + Slack',
+    support_tr: 'e-posta',
+    support_en: 'email',
     inheritsFrom: 'pro',
     features_tr: [
       '100 AI makale / ay · ayda en fazla 300 çalıştırma (ölçüm yine haftada 1) · 15 site',
-      'Programmatic SEO — tek şablonla 81 ilin tamamına şehir sayfası (aylık makale kotasından düşer)',
+      'Programmatic SEO — tek şablonla 81 il için şehir sayfası; kalan aylık makale kotan kadar üretilir',
       'Product Radar — haftalık rakip ses payı ve kategori sırası',
       'GEO Heatmap — çoklu sağlayıcıda görünürlük ısı haritası',
       'Live Crawler — AI botlarının canlı akışı + sunucu logu yutma',
-      'Öncelikli destek + Slack kanalı',
       `RanksUp Video — ayda ${VIDEOS_PER_MONTH.agency} video`,
     ],
     features_en: [
       '100 AI articles/mo · up to 300 runs/mo (still 1 measurement a week) · 15 sites',
-      'Programmatic SEO — one template, city pages for all 81 provinces (counts toward your monthly article quota)',
+      'Programmatic SEO — one template, city pages for the 81 provinces; generated up to your remaining monthly article quota',
       'Product Radar — weekly competitor share-of-voice and category rank',
       'GEO Heatmap — multi-provider visibility heatmap',
       'Live Crawler — live AI bot stream + server log ingestion',
-      'Priority support + Slack channel',
       `RanksUp Video — ${VIDEOS_PER_MONTH.agency} videos/mo`,
     ],
   },
@@ -349,25 +361,23 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'all',
     trackedApps: 50,
     videosPerMonth: VIDEOS_PER_MONTH.enterprise,
-    support_tr: 'özel hesap yöneticisi + SLA',
-    support_en: 'dedicated account manager + SLA',
+    support_tr: 'e-posta',
+    support_en: 'email',
     inheritsFrom: 'agency',
     features_tr: [
       '350 AI makale / ay · ayda en fazla 1.000 çalıştırma (ölçüm yine haftada 1) · 50 site',
       'BYOK — kendi sağlayıcı anahtarların; aylık çalıştırma tavanı dolsa da ölçüm bu anahtarlarla sürer (haftada 1 ölçüm kuralı geçerli)',
       'MCP sunucusu — Claude Code, Cursor ya da özel başlık gönderebilen kendi ajanından bağlan',
-      'REST API + scope’lu API anahtarları',
-      'AI maliyet ve token muhasebesi — sağlayıcı / bağlam / gün kırılımı',
-      'Özel hesap yöneticisi + SLA, sözleşmeli kurulum',
+      'REST API + API anahtarları — scope’lar site, makale, denetim, reklam ve analitik uçlarını kapsar',
+      'AI maliyet ve token muhasebesi — panelde son 7 gün toplamı, token ve en çok harcayan bağlamlar; sağlayıcı ve gün kırılımı API’de',
       `RanksUp Video — ayda ${VIDEOS_PER_MONTH.enterprise} video`,
     ],
     features_en: [
       '350 AI articles/mo · up to 1,000 runs/mo (still 1 measurement a week) · 50 sites',
       'BYOK — your own provider keys; measurement continues on them past the monthly run cap (the weekly measurement rule still applies)',
       'MCP server — connect from Claude Code, Cursor or your own agent that can send a custom header',
-      'REST API + scoped API keys',
-      'AI cost and token accounting — by provider / context / day',
-      'Dedicated account manager + SLA, contracted onboarding',
+      'REST API + API keys — scopes cover site, article, audit, ads and analytics endpoints',
+      'AI cost and token accounting — last-7-day total, tokens and top contexts in the dashboard; provider and day breakdown via the API',
       `RanksUp Video — ${VIDEOS_PER_MONTH.enterprise} videos/mo`,
     ],
     contactSales: true,

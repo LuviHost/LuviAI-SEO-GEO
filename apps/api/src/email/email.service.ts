@@ -53,6 +53,20 @@ export function denemeSonu(readOnlyAtEnd: unknown): string {
     : 'Deneme bittiğinde yapay zekâ ile yeni üretim ve ölçüm için bir plan seçmen istenecek. Ödeme altyapımız şu an test aşamasında; satın alma açılana kadar kalan deneme haklarınla devam edebilirsin. Verilerin hesabında kalır.';
 }
 
+/**
+ * Gonderim saglayicisi (RESEND_API_KEY) yokken yazilan kayit durumu.
+ *
+ * NEDEN AYRI DURUM: anahtar yokken e-posta yalniz loglanip 'sent' kaydediliyor
+ * ve { ok: true } donuyordu. Uretimde anahtar dusse kayitlar "gitti" diyor,
+ * bildirim emailSentAt / ozet emailedAt damgalari yaziliyor, karsilama kancasi
+ * ilk kaydi gorup bir daha denemiyordu — kimse hicbir sey almamisti.
+ * Yerel gelistirme bozulmaz: hata firlatilmaz, konu loga yazilir.
+ */
+export const EMAIL_STATUS_NO_PROVIDER = 'not_sent_no_provider';
+
+/** Gonderilmemis sayilan kayit durumlari (karsilama kancasi tekrar deneyebilsin) */
+export const EMAIL_NOT_SENT_STATUSES = [EMAIL_STATUS_NO_PROVIDER, 'failed'] as const;
+
 @Injectable()
 export class EmailService {
   private readonly log = new Logger(EmailService.name);
@@ -94,7 +108,7 @@ export class EmailService {
     to: string;
     template: EmailTemplate;
     data?: Record<string, any>;
-  }): Promise<{ ok: boolean; resendId?: string; skipped?: 'account_deletion' }> {
+  }): Promise<{ ok: boolean; resendId?: string; skipped?: 'account_deletion' | 'no_provider' }> {
     // Silme talebi olan hesaba sablon e-postasi (karsilama serisi, rapor, makale,
     // odeme/plan bildirimi) GITMEZ: erisim kapandi, hesap 30 gun sonra kalici
     // silinecek. Silme talebi ve tamamlandi e-postalari sendRaw ile gider ve bu
@@ -107,10 +121,11 @@ export class EmailService {
     const { subject, html } = this.renderTemplate(opts.template, opts.data ?? {});
 
     if (!this.client) {
-      // Dev mode: log
-      this.log.log(`[EMAIL] ${opts.template} → ${opts.to}: ${subject}`);
-      await this.logEmail(opts, subject, 'sent', null);
-      return { ok: true };
+      // Saglayici yok (yerel gelistirme ya da uretimde eksik anahtar): GITMEDI
+      // diye kaydedilir — EMAIL_STATUS_NO_PROVIDER aciklamasi
+      this.log.warn(`[EMAIL] ${opts.template} → ${opts.to} GÖNDERİLMEDİ (RESEND_API_KEY yok): ${subject}`);
+      await this.logEmail(opts, subject, EMAIL_STATUS_NO_PROVIDER, null);
+      return { ok: false, skipped: 'no_provider' };
     }
 
     try {
@@ -120,6 +135,13 @@ export class EmailService {
         subject,
         html,
       });
+      // Resend SDK API hatasinda FIRLATMAZ, { data: null, error } doner — eskiden
+      // bu da 'sent' kaydediliyordu
+      if ((result as any)?.error) {
+        this.log.error(`Email send error: ${(result as any).error?.message ?? 'bilinmeyen hata'}`);
+        await this.logEmail(opts, subject, 'failed', null);
+        return { ok: false };
+      }
 
       await this.logEmail(opts, subject, 'sent', result.data?.id ?? null);
       return { ok: true, resendId: result.data?.id };
@@ -139,9 +161,10 @@ export class EmailService {
     to: string;
     subject: string;
     html: string;
-  }): Promise<{ ok: boolean; resendId?: string }> {
+  }): Promise<{ ok: boolean; resendId?: string; skipped?: 'no_provider' }> {
     if (!this.client) {
-      this.log.log(`[EMAIL RAW] → ${opts.to}: ${opts.subject}`);
+      // send() ile ayni kural: GITMEDI diye kaydet (EMAIL_STATUS_NO_PROVIDER)
+      this.log.warn(`[EMAIL RAW] → ${opts.to} GÖNDERİLMEDİ (RESEND_API_KEY yok): ${opts.subject}`);
       try {
         await this.prisma.emailLog.create({
           data: {
@@ -149,14 +172,14 @@ export class EmailService {
             to: opts.to,
             template: 'weekly_report' as EmailTemplate,
             subject: opts.subject,
-            status: 'sent',
+            status: EMAIL_STATUS_NO_PROVIDER,
             metadata: { kind: 'raw' } as any,
           },
         });
       } catch {
         // Gelistirme modu: kayit yazilamamasi gonderim sonucunu degistirmez
       }
-      return { ok: true };
+      return { ok: false, skipped: 'no_provider' };
     }
     try {
       const result = await this.client.emails.send({
@@ -165,6 +188,10 @@ export class EmailService {
         subject: opts.subject,
         html: opts.html,
       });
+      if ((result as any)?.error) {
+        this.log.error(`Raw email fail: ${(result as any).error?.message ?? 'bilinmeyen hata'}`);
+        return { ok: false };
+      }
       await this.prisma.emailLog.create({
         data: {
           userId: opts.userId,

@@ -47,11 +47,11 @@ export interface PublicPage {
  * kaldirildi (saglik ucu yok).
  */
 export const PUBLIC_PAGES: readonly PublicPage[] = [
-  { path: '/',                      updated: '2026-10-22', changeFrequency: 'weekly',  priority: 1.0 },
-  { path: '/pricing',               updated: '2026-10-22', changeFrequency: 'weekly',  priority: 0.9 },
+  { path: '/',                      updated: '2026-10-30', changeFrequency: 'weekly',  priority: 1.0 },
+  { path: '/pricing',               updated: '2026-10-30', changeFrequency: 'weekly',  priority: 0.9 },
   { path: '/faq',                   updated: '2026-10-29', changeFrequency: 'monthly', priority: 0.8 },
-  { path: '/use-cases',             updated: '2026-10-18', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/compare',               updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/use-cases',             updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/compare',               updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/about',                 updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.7 },
   // Rehber (GEO icerik merkezi) — icerik content/rehber/*.ts; kaynaklar yeniden kontrol
   // edilince ya da metin degisince ilgili satirin tarihi ayni committe guncellenir.
@@ -65,7 +65,7 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
   // Ucretsiz arac — form + metin app/(marketing)/google-isletme-karnesi ve components/landing/gbp-karne.tsx
   { path: '/google-isletme-karnesi', updated: '2026-10-27', changeFrequency: 'monthly', priority: 0.8 },
-  { path: '/help',                  updated: '2026-10-21', changeFrequency: 'monthly', priority: 0.5 },
+  { path: '/help',                  updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.5 },
   // Help center alt sayfalari — SEO + AI alintisi icin kritik (her biri modul rehberi)
   { path: '/help/getting-started',  updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/ai-visibility',    updated: '2026-10-20', changeFrequency: 'monthly', priority: 0.6 },
@@ -73,7 +73,7 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/help/asa-asc',          updated: '2026-10-18', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/auto-pilot',       updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/api-keys',         updated: '2026-10-18', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/help/billing',          updated: '2026-10-21', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/help/billing',          updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/video',            updated: '2026-10-23', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/glossary',         updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/privacy',               updated: '2026-10-28', changeFrequency: 'yearly',  priority: 0.3 },

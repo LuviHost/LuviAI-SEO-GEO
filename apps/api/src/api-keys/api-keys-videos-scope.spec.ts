@@ -19,7 +19,8 @@ function guardFor(scopes: string[]) {
     requiredScope: (m: string, p: string) => svc.requiredScope(m, p),
     hasScopeForRoute: (s: string[], r: string) => svc.hasScopeForRoute(s, r),
   };
-  const prisma = { user: { findUnique: vi.fn(async () => ({ id: 'u1', role: 'USER' })) } };
+  // REST API anahtari Kurumsal planda (auth.guard apiAccess) — kapinin kendisi api-key-plan.spec'te
+  const prisma = { user: { findUnique: vi.fn(async () => ({ id: 'u1', role: 'USER', plan: 'ENTERPRISE' })) } };
   return new AuthGuard(prisma as any, new Reflector(), apiKeys as any);
 }
 

@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenEx
 import type { Prisma } from '@prisma/client';
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { siteWhereForFeatureOrAdmin } from '../../billing/plan-site-filter.js';
 import type { AsaCredentials } from './asa-http.js';
 import { createAsaClient, getAsaApiVersion, v5SunsetNotice, type CreateAsaClientOptions } from './asa-client.factory.js';
 import { isAsaApiError, lastNDaysRange, type AsaAdsClient, type AsaApiVersion, type AsaKeywordReportRow } from './asa-types.js';
@@ -761,10 +762,18 @@ export class AsaService {
     return result;
   }
 
-  /** Cron: tüm enabled hesaplar için auto-pilot çalıştır */
+  /**
+   * Cron: tüm enabled hesaplar için auto-pilot çalıştır.
+   *
+   * Yalniz sahibinin planinda asaEnabled olan hesaplar (ADMIN sahipli dahil).
+   * NEDEN: otopilot musterinin Apple reklam hesabinda kelime ekler/duraklatir.
+   * Plan kapisi yalniz baglama ucundaydi; Profesyonel'den denemeye (TRIAL)
+   * dusen hesapta otopilot her gece calismaya devam ediyordu. Bayrak
+   * (autoPilotEnabled) silinmez: plan geri yukseltilince kaldigi yerden surer.
+   */
   async runAllAutoPilots() {
     const accounts = await this.prisma.asaAccount.findMany({
-      where: { autoPilotEnabled: true, isActive: true },
+      where: { autoPilotEnabled: true, isActive: true, site: siteWhereForFeatureOrAdmin('asaEnabled') },
     });
     this.log.log(`[auto-pilot] ${accounts.length} aktif hesap için run başlıyor`);
     for (const acc of accounts) {

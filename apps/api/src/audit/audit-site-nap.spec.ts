@@ -40,7 +40,7 @@ function servis(crawl: Partial<CrawlResult>, opts: { kvBroken?: boolean } = {}) 
   const auditCreate = vi.fn(async ({ data }: any) => ({ id: 'a1', ...data }));
   const prisma = {
     kvStore,
-    site: { findUniqueOrThrow: async () => ({ id: 's1', userId: 'u1', url: 'https://lavantakuafor.com' }), update: vi.fn(async () => ({})) },
+    site: { findUniqueOrThrow: async () => ({ id: 's1', userId: 'u1', url: 'https://lavantakuafor.com' }), update: vi.fn(async () => ({})), updateMany: vi.fn(async () => ({ count: 1 })) },
     audit: { create: auditCreate },
   };
   const crawler = { crawl: vi.fn(async () => ({ baseUrl: 'https://lavantakuafor.com', pages: [], sitemapUrl: null, robotsTxt: null, llmsTxt: null, totalPages: 0, ...crawl })) };

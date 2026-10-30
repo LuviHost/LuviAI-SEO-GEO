@@ -182,8 +182,11 @@ async function bootstrap() {
       return { ok: true };
     },
 
-    SITE_AUDIT: async ({ siteId }) => {
-      const audit = await services.audit.runAudit(siteId);
+    SITE_AUDIT: async ({ siteId, trigger }) => {
+      // Zamanlanmis tarama (AuditCron) is verisinde trigger 'system' tasir:
+      // kullanicinin olcum hakkindan dusmez. Bilinmeyen deger 'user' sayilir.
+      const kaynak = trigger === 'system' || trigger === 'test' ? trigger : 'user';
+      const audit = await services.audit.runAudit(siteId, { trigger: kaynak });
       return { auditId: audit.id, score: audit.overallScore };
     },
 
