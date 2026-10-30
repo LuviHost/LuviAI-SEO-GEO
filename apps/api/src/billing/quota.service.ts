@@ -611,6 +611,11 @@ export class QuotaService {
   }
 
   private async maybeResetCitationQuota(user: { id: string; plan: string; aiCitationQuotaResetAt: Date }) {
+    // TRIAL'in 3 AI gorunurluk calistirmasi TOPLAM hak (makale hakki gibi,
+    // maybeResetMonthlyQuota); ay donumunde sifirlamak denemeyi ayliga ceviriyordu.
+    // Ucretli plana gecince ilk kontrol sifirlar (son sifirlama eski ayda kalir).
+    if (user.plan === 'TRIAL') return;
+
     const lastReset = new Date(user.aiCitationQuotaResetAt);
     const now = new Date();
     const sameMonth = lastReset.getFullYear() === now.getFullYear() && lastReset.getMonth() === now.getMonth();

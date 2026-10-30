@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
-import { findPlan } from '../billing/plans.js';
+import { QuotaService } from '../billing/quota.service.js';
 
 /**
  * Programmatic SEO — sablon × deger ile bulk sayfa uretir.
@@ -25,6 +25,7 @@ export class ProgrammaticSeoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobQueue: JobQueueService,
+    private readonly quota: QuotaService,
   ) {}
 
   /**
@@ -35,24 +36,36 @@ export class ProgrammaticSeoService {
     cities?: string[];      // ozelse, yoksa 81 il
     spreadDays?: number;    // sayfalari N gune yay
     maxQuota?: number;      // kotaya gore maksimum
-  }): Promise<{ scheduled: number; topics: string[] }> {
+  }): Promise<{
+    scheduled: number;
+    topics: string[];
+    /** Istenen sehir sayisi (maxQuota ve liste uzunluguyla kirpilmis) */
+    requested: number;
+    /** Kalan makale hakki yetmedigi icin eklenmeyen sehir sayisi */
+    skippedForQuota: number;
+    /** Islem oncesi kalan makale hakki */
+    remainingQuota: number;
+  }> {
     const cities = opts.cities ?? this.getTurkishCities();
     const spreadDays = opts.spreadDays ?? 30;
     const max = opts.maxQuota ?? 81;
 
     const site: any = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },
-      include: { user: { select: { id: true, plan: true, articlesUsedThisMonth: true } } },
+      select: { id: true, userId: true, niche: true, language: true },
     });
 
-    // Aylik makale tavani plans.ts'ten okunur — TEK KAYNAK.
-    // Burada duran ayri bir PLAN_LIMITS tablosu ucuncu bir plan tanimiydi:
-    // fiyat kartiyla celisiyordu (STARTER 10 vs 15, ENTERPRISE 9999 vs 350) ve
-    // fiyat guncellendiginde sessizce eskiyordu. PlanTier enum'u BUYUK harf,
-    // plans.ts kimlikleri kucuk harf oldugu icin cevirip ariyoruz.
-    const limit = findPlan(site.user.plan.toLowerCase())?.articlesPerMonth ?? 1;
-    const remaining = Math.max(0, limit - site.user.articlesUsedThisMonth);
-    const actualMax = Math.min(max, remaining, cities.length);
+    // Kalan hak QuotaService'ten: once ay basi sifirlamasini uygular, sonra
+    // satiri yeniden okur. Eskiden sayac dogrudan okunuyordu; yeni ayin ilk
+    // cagrisinda gecen ayin dolu sayaci gorulup 0 sehir donuyordu. Tavan
+    // QuotaService.LIMITS — plans.ts ile esitligi plans-quota-sync.spec'te.
+    const { remaining } = await this.quota.checkArticleQuota(site.userId);
+    const requested = Math.min(max, cities.length);
+    const actualMax = Math.min(requested, remaining);
+    const skippedForQuota = requested - actualMax;
+    if (skippedForQuota > 0) {
+      this.log.log(`[${siteId}] Programmatic SEO: ${skippedForQuota} sehir makale hakki yetmedigi icin eklenmedi (kalan hak ${remaining})`);
+    }
 
     // 'hosting' LuviHost kalıntısı bir varsayılandı: nişi boş olan bir finans
     // sitesinde "İstanbul için hosting önerileri" gibi konusu tamamen yanlış
@@ -99,7 +112,7 @@ export class ProgrammaticSeoService {
     }
 
     this.log.log(`[${siteId}] Programmatic SEO: ${scheduled}/${cities.length} sehir scheduled (${spreadDays} gune yayildi)`);
-    return { scheduled, topics };
+    return { scheduled, topics, requested, skippedForQuota, remainingQuota: remaining };
   }
 
   /**

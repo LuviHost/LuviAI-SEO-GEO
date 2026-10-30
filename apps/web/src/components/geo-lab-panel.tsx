@@ -465,7 +465,10 @@ function ProgrammaticTab({ siteId, ownerId }: { siteId: string; ownerId?: string
     try {
       const res = await api.generateProgrammaticCities(siteId, { template, spreadDays, maxQuota });
       setResult(res);
-      toast.success(`${res.scheduled} sehir takvime eklendi`);
+      // Hak yetmeyen sehirler sessizce dusmesin (programmatic-seo.service skippedForQuota)
+      const atlanan = Number(res?.skippedForQuota ?? 0);
+      if (atlanan > 0) toast.warning(`${res.scheduled} şehir takvime eklendi; ${atlanan} şehir makale hakkın yetmediği için eklenmedi`);
+      else toast.success(`${res.scheduled} şehir takvime eklendi`);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -528,6 +531,11 @@ function ProgrammaticTab({ siteId, ownerId }: { siteId: string; ownerId?: string
       {result && (
         <div className="rounded-md border p-3 bg-success/5 space-y-2">
           <p className="flex items-center gap-1.5 text-sm font-semibold"><CheckCircle2 className="h-4 w-4 text-success" aria-hidden />{result.scheduled} şehir takvime eklendi</p>
+          {Number(result.skippedForQuota ?? 0) > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {result.skippedForQuota} şehir makale hakkın yetmediği için eklenmedi (kalan hak: {result.remainingQuota ?? 0}).
+            </p>
+          )}
           <details>
             <summary className="text-xs cursor-pointer text-muted-foreground">Eklenen başlıklar</summary>
             <ul className="mt-2 space-y-0.5 text-label">
