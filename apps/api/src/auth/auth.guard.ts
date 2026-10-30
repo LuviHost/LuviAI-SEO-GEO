@@ -6,9 +6,19 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { ApiKeysService } from '../api-keys/api-keys.service.js';
 import { SESSION_ONLY_KEY } from './session-only.decorator.js';
 import { extractSessionToken } from './session-cookie.js';
+import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
+import { FEATURE_MIN_PLAN, findPlan } from '../billing/plans.js';
 
 /** Silme talebi olan hesabin istekleri — istemciler 401 ile oturumu kapatir */
 export const DELETED_ACCOUNT_MESSAGE = 'Bu hesap için silme talebi alındı; hesaba erişim kapatıldı.';
+
+/**
+ * Plani REST API erisimini icermeyen hesabin anahtarla gelen istegi (403).
+ * Plan adi plans.ts'ten: plan yeniden adlandirilirsa metin kendiliginden duzelir.
+ */
+export const API_KEY_PLAN_MESSAGE =
+  `Bu API anahtarı şu an çalışmıyor: REST API erişimi ${findPlan(FEATURE_MIN_PLAN.apiAccess)?.name_tr ?? 'Kurumsal'} planına dahil ve hesabının mevcut planı bunu içermiyor. ` +
+  'Anahtarların silinmedi; planını yükselttiğinde yeniden çalışır.';
 
 /**
  * NextAuth session JWT'sini doğrular.
@@ -94,6 +104,22 @@ export class AuthGuard implements CanActivate {
             throw new ForbiddenException('Bu API anahtari salt-okunur (yalnizca :read scope). Yazma islemi icin :write scope\'lu anahtar uret.');
           }
         }
+      }
+
+      // ── Plan kapisi (apiAccess) ──
+      // NEDEN: kapi yalniz anahtar URETIMINDE (api-keys.controller create)
+      // idi. Kurumsal'da anahtar uretip sonra plani dusen (odeme yok / iptal
+      // → TRIAL) hesabin anahtarlari calismaya devam ediyordu; yani REST API
+      // fiilen her plana acikti. Her istekte sahibin GUNCEL plani bakilir
+      // (user satiri zaten yukarida DB'den okundu, ek sorgu yok).
+      // MCP tasima ucu haric: McpController kendi kapisini (mcpAccess) JSON-RPC
+      // hatasi olarak doner; istemciler (Claude, Cursor) ciplak 403'u gostermez.
+      // ADMIN sahipli anahtarlar (or. yonetimden uretilen salt-okunur onizleme
+      // anahtari) rota kapilarindaki muafiyetle tutarli olarak calisir.
+      // Scope denetiminden SONRA: yanlis scope / panel-only ucunda kullanici
+      // once o daha ozgul nedeni gorsun.
+      if (!isMcpTransport && !ownerHasPlanFeature(user, 'apiAccess')) {
+        throw new ForbiddenException(API_KEY_PLAN_MESSAGE);
       }
 
       (req as any).user = user;
