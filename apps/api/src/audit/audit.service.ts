@@ -10,6 +10,7 @@ import { PageSpeedService } from './pagespeed.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
 import { AiCitationService } from './ai-citation.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
+import { AUDIT_ADVANCES_FROM } from '../sites/site-status.js';
 import { groupIssues } from './issue-grouping.js';
 import { annotateAuditFixRoutes, withFixRoutes } from './fix-routes.js';
 import { ImageInventoryService } from './image-alt/image-inventory.service.js';
@@ -1070,9 +1071,12 @@ export class AuditService {
       },
     });
 
-    // 7) Site status güncelle
-    await this.prisma.site.update({
-      where: { id: siteId },
+    // 7) Site durumu — YALNIZ ILERI. Kosulsuz AUDIT_COMPLETE yazmak kurulumu
+    // bitmis (ACTIVE) siteyi her yeniden taramada geri dusuruyor, site yalniz
+    // ACTIVE secen gunluk/haftalik islerden (GSC kaydi, rapor e-postasi...)
+    // sessizce cikiyordu. Kural ve ERROR karari: sites/site-status.ts
+    await this.prisma.site.updateMany({
+      where: { id: siteId, status: { in: [...AUDIT_ADVANCES_FROM] as any } },
       data: { status: 'AUDIT_COMPLETE' },
     });
 
