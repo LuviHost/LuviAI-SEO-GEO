@@ -75,6 +75,15 @@ describe('summarizeHeatmap — yalniz olculen hucreler', () => {
   });
 });
 
+/** Hak ve butce kapisi her seye izin verir — bu bloklar yalniz hucre/siniflama davranisini sinar */
+const serbestKapi = () => ({
+  assertCitationRuns: async () => undefined,
+  consumeCitationRuns: async () => undefined,
+  poolBudgetExceeded: async () => false,
+  recordPoolCost: async () => 0,
+  poolBudgetReason: () => 'butce',
+}) as any;
+
 describe('GeoHeatmapService.runForSite — bos cevap, hata ve etkin olmayan saglayici', () => {
   const KEYS = ['ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'PERPLEXITY_API_KEY'];
   let backup: Record<string, string | undefined> = {};
@@ -100,7 +109,7 @@ describe('GeoHeatmapService.runForSite — bos cevap, hata ve etkin olmayan sagl
         }),
       },
     };
-    const svc = new GeoHeatmapService(prisma as any, { assertAiEnabled: async () => undefined } as any);
+    const svc = new GeoHeatmapService(prisma as any, { assertAiEnabled: async () => undefined } as any, serbestKapi());
     (svc as any).askProvider = async (provider: string, q: string) => {
       if (provider === 'openai') throw new Error('HTTP 400: bad request');
       return q.startsWith('en iyi') ? 'Kaynak: kobipratik.com' : '   ';
@@ -132,7 +141,7 @@ describe('GeoHeatmapService.runForSite — bos cevap, hata ve etkin olmayan sagl
         }),
       },
     };
-    const svc = new GeoHeatmapService(prisma as any, { assertAiEnabled: async () => undefined } as any);
+    const svc = new GeoHeatmapService(prisma as any, { assertAiEnabled: async () => undefined } as any, serbestKapi());
     const ask = vi.fn(async () => 'cevap');
     (svc as any).askProvider = ask;
     for (const [max, beklenen] of [[500, 20], [undefined, 10], [0, 1], [Number.NaN, 10], [3, 3]] as const) {

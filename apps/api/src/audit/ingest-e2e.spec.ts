@@ -103,6 +103,8 @@ function makePrismaMock() {
         userId: 'user_1',
         name: 'E2E Site',
         ingestSecret: SECRET,
+        // Canli Tarayici Ajans planinda; alt planda olay kabul edilir ama kaydedilmez
+        user: { plan: 'AGENCY', role: 'USER' },
       })),
     },
     crawlerHitEvent: {

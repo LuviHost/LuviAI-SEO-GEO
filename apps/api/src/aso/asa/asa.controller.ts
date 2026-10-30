@@ -3,12 +3,13 @@ import type { Request } from 'express';
 import { AsaService } from './asa.service.js';
 import { QuotaService } from '../../billing/quota.service.js';
 import { SessionOnly } from '../../auth/session-only.decorator.js';
+import { RequiresPlan } from '../../billing/plan-feature.decorator.js';
 import { ConnectAsaDto, CreateAsaCampaignDto, SetAsaAutoPilotDto, UpdateAsaBidDto } from './asa.dto.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
   if (!user) throw new UnauthorizedException();
-  return user as { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
+  return user as { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER'; plan?: string };
 }
 
 /**
@@ -21,6 +22,20 @@ function ensureUser(req: Request) {
  * insan onayi panelde verilir. Okuma uclari ve kampanya senkronu (Apple'dan
  * okur, harcama yapmaz) anahtarla calismaya devam eder. Web paneli ve mobil
  * oturumla cagirir; SDK ve MCP bu uclari kullanmiyor.
+ *
+ * PLAN KAPISI (asaEnabled) — PLAN DUSUNCE DE TUTMALI, yalniz baglarken degil.
+ * Eskiden kapi yalniz connect'teydi: Profesyonel'de baglayip sonra denemeye
+ * (TRIAL) dusen kullanici kampanya acmaya, teklif degistirmeye, otopilotu
+ * calistirmaya devam ediyordu; gunluk cron'lar da plana bakmiyordu. Simdi:
+ *   - KAPALI (plan ister): Apple'a yazan ya da Apple'dan canli okuyan her uc —
+ *     connect, sync, kampanya olusturma, teklif, otopilotu ACMA, otopilot
+ *     calistirma, Apple Ads icgoru uclari (search-term-popularity,
+ *     impression-share: musterinin kimligiyle canli Apple istegi).
+ *   - ACIK: DB'de zaten duran verinin okunmasi (hesaplar, kampanyalar,
+ *     performans gecmisi, kural tabanli oneri), baglantiyi kesme ve otopilotu
+ *     KAPATMA. Plani dusen kullanici gecmis harcamasini gorebilmeli ve
+ *     reklam hesabina dokunan otomasyonu kendisi durdurabilmeli.
+ * Cron tarafi: asa.cron.ts + asa.service runAllAutoPilots (sahip plani).
  */
 @Controller()
 export class AsaController {
@@ -34,11 +49,11 @@ export class AsaController {
   /**
    * POST /api/sites/:siteId/aso/asa/connect — Apple Search Ads API key bağla
    *
-   * Plan kapisi yalnizca BAGLAMA ucunda: fiyat karti ASA'yi Profesyonel'e
-   * veriyor. Listeleme/silme acik kalir ki plani dusen kullanici mevcut
-   * hesabini gorup baglantisini kesebilsin.
+   * Fiyat karti ASA'yi Profesyonel'e veriyor. Listeleme/silme acik kalir ki
+   * plani dusen kullanici mevcut hesabini gorup baglantisini kesebilsin.
    */
   @SessionOnly()
+  @RequiresPlan('asaEnabled')
   @Post('sites/:siteId/aso/asa/connect')
   async connect(
     @Req() req: Request,
@@ -46,7 +61,6 @@ export class AsaController {
     @Body() body: ConnectAsaDto,
   ) {
     const user = ensureUser(req);
-    await this.quota.enforcePlanFeature(user.id, 'asaEnabled');
     return this.asa.connectAccount({ ...body, siteId }, user);
   }
 
@@ -66,6 +80,7 @@ export class AsaController {
   // ─── Campaigns ───────────────────────────────────────
 
   /** POST /api/aso/asa/accounts/:accountId/sync — Apple'dan kampanyaları sync et */
+  @RequiresPlan('asaEnabled')
   @Post('aso/asa/accounts/:accountId/sync')
   syncCampaigns(@Req() req: Request, @Param('accountId') accountId: string) {
     return this.asa.syncCampaigns(accountId, ensureUser(req));
@@ -87,6 +102,7 @@ export class AsaController {
 
   /** POST /api/aso/asa/campaigns — yeni kampanya oluştur */
   @SessionOnly()
+  @RequiresPlan('asaEnabled')
   @Post('aso/asa/campaigns')
   createCampaign(
     @Req() req: Request,
@@ -99,6 +115,7 @@ export class AsaController {
 
   /** PUT /api/aso/asa/keyword-bids/:id { bidUsd } */
   @SessionOnly()
+  @RequiresPlan('asaEnabled')
   @Put('aso/asa/keyword-bids/:id')
   updateBid(
     @Req() req: Request,
@@ -126,6 +143,7 @@ export class AsaController {
   // v5 modunda { available: false } doner.
 
   /** GET /api/sites/:siteId/aso/asa/search-term-popularity?terms=a,b&country=TR&genre=GAMES */
+  @RequiresPlan('asaEnabled')
   @Get('sites/:siteId/aso/asa/search-term-popularity')
   searchTermPopularity(
     @Req() req: Request,
@@ -142,6 +160,7 @@ export class AsaController {
   }
 
   /** GET /api/sites/:siteId/aso/asa/impression-share?days=7&country=TR */
+  @RequiresPlan('asaEnabled')
   @Get('sites/:siteId/aso/asa/impression-share')
   impressionShare(
     @Req() req: Request,
@@ -157,7 +176,13 @@ export class AsaController {
 
   // ─── Auto-Pilot (Seviye 2) ──────────────────────────
 
-  /** PUT /api/aso/asa/accounts/:accountId/autopilot — toggle + budget cap */
+  /**
+   * PUT /api/aso/asa/accounts/:accountId/autopilot — toggle + budget cap
+   *
+   * Kapi yalniz ACMADA (enabled:true): plani dusen kullanici otopilotu
+   * kapatabilmeli. Dekorator yerine govdede cunku karar istek govdesine bagli;
+   * ADMIN muafiyeti PlanFeatureGuard ile ayni.
+   */
   @SessionOnly()
   @Put('aso/asa/accounts/:accountId/autopilot')
   setAutoPilot(
@@ -165,11 +190,16 @@ export class AsaController {
     @Param('accountId') accountId: string,
     @Body() body: SetAsaAutoPilotDto,
   ) {
-    return this.asa.setAutoPilot(accountId, body, ensureUser(req));
+    const user = ensureUser(req);
+    if (body?.enabled === true && user.role !== 'ADMIN') {
+      this.quota.assertPlanFeature(user.plan ?? '', 'asaEnabled');
+    }
+    return this.asa.setAutoPilot(accountId, body, user);
   }
 
   /** POST /api/aso/asa/accounts/:accountId/autopilot/run — manuel tetik */
   @SessionOnly()
+  @RequiresPlan('asaEnabled')
   @Post('aso/asa/accounts/:accountId/autopilot/run')
   runAutoPilotNow(@Req() req: Request, @Param('accountId') accountId: string) {
     return this.asa.runAutoPilot(accountId, ensureUser(req));

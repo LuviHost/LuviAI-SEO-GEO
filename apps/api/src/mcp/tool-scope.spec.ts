@@ -164,7 +164,8 @@ describe('MCP arac scope\'lari REST ikiziyle ayni (inceleme R21)', () => {
     for (const scopes of anahtarlar) {
       const realKeys = new ApiKeysService({} as never);
       const guard = new AuthGuard(
-        { user: { findUnique: vi.fn(async () => ({ id: 'u1', deletionRequestedAt: null })) } } as any,
+        // REST API anahtari Kurumsal planda (auth.guard apiAccess) — kapinin kendisi api-key-plan.spec'te
+        { user: { findUnique: vi.fn(async () => ({ id: 'u1', deletionRequestedAt: null, plan: 'ENTERPRISE' })) } } as any,
         new Reflector(),
         { validate: vi.fn(async () => ({ userId: 'u1', scopes, keyId: 'k1' })), requiredScope: realKeys.requiredScope.bind(realKeys), hasScopeForRoute: realKeys.hasScopeForRoute.bind(realKeys) } as any,
       );

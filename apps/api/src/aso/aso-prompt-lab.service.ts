@@ -146,11 +146,22 @@ export class AsoPromptLabService {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
     const host = site.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 
+    // AYLIK HAK + GUNLUK BUTCE. Eskiden bu yol runPublicProbes'u (anonim
+    // landing yolu) dogrudan cagiriyordu: ne aylik calistirma tavani ne de
+    // kiraci basina gunluk havuz butcesi vardi; kullanici dugmeye bastikca
+    // RanksUp anahtarlariyla 7 saglayiciya soru gidiyordu. Sayim fiyat
+    // kartindaki gibi: sorulan soru basina 1 calistirma. Hak OLCUM ONCESI
+    // denetlenir, yalniz en az bir saglayici olcum dondurduyse dusulur
+    // (runForSite ile ayni: basarisiz olcum hak yemez). Kota site SAHIBINE
+    // yazilir (runForSite ile ayni).
+    await this.citation.assertCitationRuns(site.userId, 1, 'Uygulama soru laboratuvarı');
+
     const results = await this.citation.runPublicProbes({
       brand: app.name,
       host,
       queries: [prompt.text],
       competitors: [],
+      budgetUserId: site.userId,
     });
 
     const today = this.utcToday();
@@ -229,6 +240,7 @@ export class AsoPromptLabService {
     }
 
     if (runRows.length > 0) {
+      await this.citation.consumeCitationRuns(site.userId, 1);
       // Gecmis yazimi basarisiz olsa da olcum yapildi ve hak/maliyet harcandi:
       // cevap bellekteki sonuctan uretilir, yalniz gecmis eksilir (prompt-lab
       // persistRuns ile ayni kural). Eskiden hata 500 donup odenen olcumu

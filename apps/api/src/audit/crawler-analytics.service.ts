@@ -200,6 +200,53 @@ export function isSuccessfulCrawlStatus(status: number): boolean {
   return (status >= 200 && status < 300) || status === 304;
 }
 
+/** AiCrawlerHit satirinin log yuklemesinin dokundugu sayac alanlari */
+export type CrawlerHitCounters = Pick<CrawlerSummary, 'hits' | 'uniqueUrls' | 'status2xx' | 'status4xx' | 'status5xx' | 'bytesServed'>;
+
+const LOG_COUNTER_FIELDS = ['hits', 'uniqueUrls', 'status2xx', 'status4xx', 'status5xx', 'bytesServed'] as const;
+
+/**
+ * Log yuklemesinin mevcut gunluk satira YIKICI OLMAYAN birlestirmesi — saf.
+ *
+ * NEDEN: yukleme eskiden satiri mutlak degerle eziyordu (hits: s.hits). Ayni
+ * (site, gun, bot) satirina imzali edge ingest (live-crawler) ve beacon ara
+ * katmani `increment` ile yazar; Worker'in gun icinde topladigi 900 ziyaret,
+ * 100 satirlik bir log parcasi yuklenince 100'e dusuyordu.
+ *
+ * NEDEN TOPLAMA DEGIL "EKSIK KADAR ARTIR" (max): log ile edge ajani AYNI
+ * trafigi gorur — sunucu logundaki bot istegini Worker da yakalamistir.
+ * Duz toplama ayni ziyareti iki kez sayardi; ayni logu yeniden yuklemek de
+ * sayilari katlardi. Her sayac max(mevcut, log) olur ve bu fark `increment`
+ * ile yazilir: okuma ile yazma arasinda canli ingest artirirsa o artis
+ * kaybolmaz (en kotu durumda hafif fazla sayim, asla silme). Ayni logu ikinci
+ * kez yuklemek idempotenttir. Bilinen sinir: ayni gunun AYRIK iki log parcasi
+ * (dondurulmus log) toplanmaz, buyuk olan kalir — eksik sayim, kayip degil.
+ *
+ * topUrls: adres basina en buyuk sayi, ilk 10 (ayni max kurali).
+ */
+export function mergeLogIntoDailyHit(
+  existing: (CrawlerHitCounters & { topUrls?: unknown }) | null,
+  log: CrawlerHitCounters & { topUrls: Array<{ url: string; count: number }> },
+): { increments: CrawlerHitCounters; topUrls: Array<{ url: string; count: number }> } {
+  const increments = {} as CrawlerHitCounters;
+  for (const f of LOG_COUNTER_FIELDS) {
+    const cur = Number(existing?.[f] ?? 0) || 0;
+    increments[f] = Math.max(0, (log[f] ?? 0) - cur);
+  }
+  const byUrl = new Map<string, number>();
+  const prev = Array.isArray(existing?.topUrls) ? (existing!.topUrls as Array<{ url?: unknown; count?: unknown }>) : [];
+  for (const u of [...prev, ...log.topUrls]) {
+    if (typeof u?.url !== 'string') continue;
+    const c = Number(u.count) || 0;
+    byUrl.set(u.url, Math.max(byUrl.get(u.url) ?? 0, c));
+  }
+  const topUrls = [...byUrl.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([url, count]) => ({ url, count }));
+  return { increments, topUrls };
+}
+
 /**
  * Yalniz robots.txt'te KONTROL belirteci olan, kendi HTTP kullanici ajani
  * OLMAYAN adlar — sunucu logunda hic gorunmezler, ziyaret takibine girmezler.
@@ -386,16 +433,20 @@ export class CrawlerAnalyticsService {
 
       for (const [bot, s] of summary) {
         try {
+          // Mutlak deger yazmak canli ingest sayaclarini eziyordu — bkz. mergeLogIntoDailyHit
+          const where = { siteId_date_bot: { siteId, date, bot } };
+          const existing = await this.prisma.aiCrawlerHit.findUnique({ where });
+          const merged = mergeLogIntoDailyHit(existing, s);
           await this.prisma.aiCrawlerHit.upsert({
-            where: { siteId_date_bot: { siteId, date, bot } },
+            where,
             update: {
-              hits: s.hits,
-              uniqueUrls: s.uniqueUrls,
-              topUrls: s.topUrls as any,
-              status2xx: s.status2xx,
-              status4xx: s.status4xx,
-              status5xx: s.status5xx,
-              bytesServed: s.bytesServed,
+              hits: { increment: merged.increments.hits },
+              uniqueUrls: { increment: merged.increments.uniqueUrls },
+              topUrls: merged.topUrls as any,
+              status2xx: { increment: merged.increments.status2xx },
+              status4xx: { increment: merged.increments.status4xx },
+              status5xx: { increment: merged.increments.status5xx },
+              bytesServed: { increment: merged.increments.bytesServed },
             },
             create: {
               siteId,
