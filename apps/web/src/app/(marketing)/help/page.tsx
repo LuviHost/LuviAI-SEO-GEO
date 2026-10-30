@@ -22,10 +22,11 @@ const TOPICS_BASE = [
   { id: 'glossary', icon: BookOpen, color: 'purple' as Color, href: '/help/glossary' },
 ];
 
-// Destek metni plans.ts destek kademeleriyle ayni (Büyüme e-posta 24 saat,
-// Profesyonel e-posta 4 saat, Ajans öncelikli + Slack, Kurumsal özel hesap
-// yöneticisi). Eski "Pro ve ustu canli destek" ve "15 dakika ucretsiz ekran
-// paylasimi" vaatleri hicbir plana dayanmiyordu. BYOK yalniz Kurumsal.
+// Destek metni plans.ts support_tr ile ayni: her planda e-posta. Yanit suresi
+// (24 / 4 saat), Slack kanali ve ozel hesap yoneticisi vaatleri kaldirildi —
+// kodda ve operasyonda karsiligi yoktu (sahip karari 30.10.2026). Eski "Pro ve
+// ustu canli destek" ve "15 dakika ucretsiz ekran paylasimi" vaatleri de hicbir
+// plana dayanmiyordu. BYOK yalniz Kurumsal.
 const COPY = {
   tr: {
     eyebrow: '📚 Yardım Merkezi',
@@ -35,7 +36,7 @@ const COPY = {
     lead2: 'Sorunu bulamadıysan ',
     readGuide: 'Rehberi oku →',
     stuckTitle: 'Hâlâ takılı kaldın mı?',
-    stuckBody: 'Destek ekibine e-postayla yaz. Yanıt süresi planına göre değişir: Büyüme’de 24 saat, Profesyonel’de 4 saat; Ajans planında öncelikli destek ve Slack kanalı, Kurumsal planda özel hesap yöneticisi var.',
+    stuckBody: 'Destek ekibine e-postayla ulaş; sorunu ve site adresini yazman işimizi kolaylaştırır.',
     mailBtn: '📧 Mail destek',
     signinBtn: 'Hesabıma giriş',
     topics: {
@@ -58,7 +59,7 @@ const COPY = {
     lead2: "Can't find what you need? ",
     readGuide: 'Read guide →',
     stuckTitle: 'Still stuck?',
-    stuckBody: 'Email our support team. Response time depends on your plan: 24 hours on Growth, 4 hours on Professional; Agency adds priority support and a Slack channel, Enterprise a dedicated account manager.',
+    stuckBody: 'Email our support team; including the problem and your site address helps us look into it.',
     mailBtn: '📧 Email support',
     signinBtn: 'Sign in to my account',
     topics: {

@@ -18,7 +18,7 @@ import { CONTENT_AUTHOR, SITE_URL, formatPageDate, pageUpdated } from './page-up
  * kimler icin, nasil baslanir) degisince guncellenir. Gorunur tarih bununla /pricing'in
  * tarihinden (plan maddeleri) hangisi yeniyse odur; plan verisinin alindigi an ayrica yazilir.
  */
-export const RANKSUP_MD_UPDATED = '2026-10-24';
+export const RANKSUP_MD_UPDATED = '2026-10-30';
 
 /** /billing/plans planinin bu ozette kullanilan alanlari (LandingPlan ile uyumlu) */
 export interface SummaryPlan {
@@ -51,7 +51,7 @@ function assistantsFrom(plans: readonly SummaryPlan[]): string[] {
 
 function planBlock(p: SummaryPlan): string {
   const fiyat = p.contactSales
-    ? `$${tl(p.monthly)}/ay, yıllık $${tl(p.annual)} (satış ekibiyle, sözleşmeli kurulum)`
+    ? `$${tl(p.monthly)}/ay, yıllık $${tl(p.annual)} (satış ekibiyle)`
     : `$${tl(p.monthly)}/ay, yıllık $${tl(p.annual)}`;
   const sinir = `${p.articlesPerMonth} AI makale/ay · ${p.sites} site · en fazla ${tl(p.aiRunsPerMonth)} görünürlük çalıştırması/ay · destek: ${p.support}`;
   const lines = [
@@ -91,9 +91,9 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
     '- **AI görünürlük (GEO)**: İzlediğin soruları yapay zekâ asistanlarına sorar; markan anılıyor mu, siten kaynak gösteriliyor mu, rakiplerin kimler, ölçer.',
     // Sayi yazilmaz (kontrol / ajan / yayin hedefi sayisi): kesin sayilar asagidaki plan
     // maddelerinde, tek kaynak plans.ts.
-    '- **Site denetimi**: teknik SEO/GEO kontrolleri, PageSpeed ve harf notu.',
+    '- **Site denetimi**: teknik SEO/GEO kontrolleri ve PageSpeed iyileştirme önerileri; GEO Lab\'de A+ ile F arası GEO notu.',
     '- **AI makale ve yayın**: çok ajanlı üretim hattı ve yayın öncesi QA kapısı; WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity gibi yayın hedeflerine otomatik yayın.',
-    '- **ASO**: App Store ve Google Play metadata optimizasyonu ve günlük anahtar kelime sıra takibi; üst planlarda Apple Search Ads ve App Store Connect.',
+    '- **ASO**: App Store ve Google Play için AI metadata önerileri ve günlük mağaza anahtar kelime sıra takibi; üst planlarda Apple Search Ads ve App Store Connect.',
     '',
     '## Kimler için',
     '',

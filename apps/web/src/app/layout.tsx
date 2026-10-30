@@ -213,16 +213,17 @@ const orgJsonLd = {
         highPrice: '1499',
         offerCount: 4,
       },
-      // Yalniz calisan ozellikler: Shopify yayin hedefi yok (14 hedef:
-      // publish-targets.service TARGET_TYPES), sosyal medya modulu kaldirildi,
+      // Yalniz calisan ozellikler: Shopify yayin hedefi yok (13 hedef: katalogdaki
+      // musteri hedefleri; KOBIPRATIK yalniz admin, Markdown ZIP indirme vermez —
+      // plans.ts DOGRULUK KURALI), sosyal medya modulu kaldirildi,
       // makale uzunlugu sabit degil (yazar istemi: dolgu yok).
       featureList: [
         'AI site denetimi (SEO + GEO)',
         'AI makale üretimi (5 ajanlı üretim hattı + yayın öncesi kalite kapısı)',
-        'WordPress, Webflow, Ghost, FTP/SFTP, cPanel ve GitHub dahil 14 yayın hedefine otomatik yayın',
+        'WordPress, Webflow, Ghost, FTP/SFTP, cPanel ve GitHub dahil 13 yayın hedefine otomatik yayın',
         'AI görünürlük ölçümü (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek)',
         'Ajan Hazırlığı (AXO) taraması ve önizlemeli robots.txt / llms.txt / sitemap düzeltmesi',
-        'ASO: App Store ve Google Play metadata optimizasyonu, anahtar kelime sıra takibi',
+        'ASO: App Store ve Google Play için AI metadata önerileri, anahtar kelime sıra takibi',
         'Apple Search Ads ve App Store Connect entegrasyonu',
         'Google Ads + Meta Ads kampanya denetimi',
         'AI crawler trafiği takibi (GPTBot, ClaudeBot, PerplexityBot)',
