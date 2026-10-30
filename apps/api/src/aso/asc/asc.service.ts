@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenEx
 import type { Prisma } from '@prisma/client';
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { siteWhereForFeatureOrAdmin } from '../../billing/plan-site-filter.js';
 import { AscApiClient, type AscCredentials } from './asc-api.client.js';
 import { findPlaceholders } from './review-reply.js';
 
@@ -352,9 +353,18 @@ export class AscService {
     });
   }
 
-  /** Cron için: tüm aktif hesaplar üzerinden günlük sync */
+  /**
+   * Cron için: tüm aktif hesaplar üzerinden günlük sync.
+   *
+   * Yalniz sahibinin planinda ascEnabled olan hesaplar (ADMIN sahipli dahil).
+   * NEDEN: kapi yalniz baglama ucundaydi; plani dusen hesap her gun musterinin
+   * App Store Connect kimligiyle senkron edilmeye ve yeni surum uyarisi
+   * uretmeye devam ediyordu. Baglanti silinmez: plan yukselince senkron surer.
+   */
   async runDailySyncAll() {
-    const accounts = await this.prisma.ascAccount.findMany({ where: { isActive: true } });
+    const accounts = await this.prisma.ascAccount.findMany({
+      where: { isActive: true, site: siteWhereForFeatureOrAdmin('ascEnabled') },
+    });
     this.log.log(`[asc-cron] ${accounts.length} hesap için günlük sync`);
     for (const acc of accounts) {
       try {

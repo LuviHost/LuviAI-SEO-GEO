@@ -13,6 +13,16 @@ function ensureUser(req: AuthedRequest) {
   return req.user;
 }
 
+/**
+ * PLAN KAPISI (ascEnabled) — plan dusunce de tutar, yalniz baglarken degil.
+ * App Store Connect'e canli istek atan her uc kapali: connect, uygulama ve
+ * surum senkronu, yorumlar (Apple'dan canli okunur), yanit taslagi ve yanit.
+ * Acik kalanlar DB'deki veriyi okur ya da yalniz yerel kaydi degistirir:
+ * hesap listesi, baglantiyi kesme, kayitli surum uyarilarinin listesi ve
+ * "goruldu" isareti. Uyarilari ureten gunluk senkron da artik sahip planina
+ * bakar (asc.service runDailySyncAll), yani plani dusen hesapta yeni uyari
+ * olusmaz; eskiler okunup kapatilabilir.
+ */
 @Controller()
 export class AscController {
   constructor(
@@ -22,12 +32,12 @@ export class AscController {
   ) {}
 
   /**
-   * Plan kapisi yalnizca baglamada — bkz. AsaController.connect gerekcesi.
    * Yalniz panel oturumu: sitenin App Store Connect ozel anahtarini (.p8)
    * degistirir. /aso scope haritasinda yok; isaretsizken herhangi bir ':write'
    * anahtari (or. yalniz 'social:write') kayitli anahtari ezebiliyordu.
    */
   @SessionOnly()
+  @RequiresPlan('ascEnabled')
   @Post('sites/:siteId/aso/asc/connect')
   async connect(
     @Req() req: AuthedRequest,
@@ -35,7 +45,6 @@ export class AscController {
     @Body() body: ConnectAscDto,
   ) {
     const user = ensureUser(req);
-    await this.quota.enforcePlanFeature(user.id, 'ascEnabled');
     return this.asc.connectAccount({ ...body, siteId }, user);
   }
 
@@ -53,16 +62,20 @@ export class AscController {
 
   // Bu uclarda :siteId yok → SiteAccessGuard devreye girmez; sahiplik
   // servis tarafinda user uzerinden dogrulanir. user'i GECIRMEYI UNUTMA.
+  @RequiresPlan('ascEnabled')
   @Post('aso/asc/accounts/:accountId/sync')
   syncApps(@Req() req: AuthedRequest, @Param('accountId') accountId: string) {
     return this.asc.syncApps(accountId, ensureUser(req));
   }
 
+  @RequiresPlan('ascEnabled')
   @Post('aso/asc/apps/:appId/sync-releases')
   syncReleases(@Req() req: AuthedRequest, @Param('appId') appId: string) {
     return this.asc.syncReleases(appId, ensureUser(req));
   }
 
+  // Kayitli veri degil: her cagri App Store Connect'e canli istek atar
+  @RequiresPlan('ascEnabled')
   @Get('aso/asc/apps/:appId/reviews')
   reviews(@Req() req: AuthedRequest, @Param('appId') appId: string) {
     return this.asc.fetchReviews(appId, ensureUser(req));

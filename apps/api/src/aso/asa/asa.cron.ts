@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { AsaService } from './asa.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { acquireCronLock } from '../../common/cron-lock.js';
+import { siteWhereForFeatureOrAdmin } from '../../billing/plan-site-filter.js';
 import { getAsaApiVersion, v5SunsetNotice } from './asa-client.factory.js';
 
 /**
@@ -44,7 +45,13 @@ export class AsaCronService implements OnModuleInit {
   async dailyPerformanceFetch() {
     if (!(await acquireCronLock(this.prisma, 'asa-perf-fetch', 'daily'))) return;
     this.warnIfV5Sunset();
-    const accounts = await this.prisma.asaAccount.findMany({ where: { isActive: true } });
+    // Yalniz sahibinin planinda asaEnabled olan hesaplar (ADMIN sahipli dahil):
+    // senkron musterinin Apple kimligiyle canli istek atar ve paneldeki
+    // performans verisini tazeler; plani dusen hesapta durmali (eski veri
+    // panelde okunabilir kalir).
+    const accounts = await this.prisma.asaAccount.findMany({
+      where: { isActive: true, site: siteWhereForFeatureOrAdmin('asaEnabled') },
+    });
     this.log.log(`[asa-cron] daily perf fetch: ${accounts.length} hesap`);
     for (const acc of accounts) {
       try {
