@@ -82,12 +82,10 @@ const dictionary = {
     'land.pricing.monthly_billing': 'Aylık faturalandırılır',
     'land.pricing.contact_us': 'Bizimle iletişime geç',
     'land.pricing.start_free': 'Ücretsiz başla',
-    'land.pricing.support_em24': 'Destek: e-posta 24 saat',
-    'land.pricing.support_em4': 'Destek: e-posta 4 saat',
-    'land.pricing.support_priority': 'Destek: öncelikli + Slack',
-    'land.pricing.support_dedicated': 'Destek: özel hesap yöneticisi + SLA',
+    // land.pricing.support_* silindi (30.10.2026): kullanilmiyordu ve kodda karsiligi
+    // olmayan yanit suresi / Slack / SLA / hesap yoneticisi vaadi tasiyordu.
     // Olcum sikligi her planda ayni: hesap basina 7 gunde 1 (billing/measurement-allowance.ts)
-    'land.pricing.footer_note': 'Ücretli her planda: 14 yayın hedefi · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında · Türkçe ve İngilizce makale',
+    'land.pricing.footer_note': 'Ücretli her planda: 13 yayın hedefi · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında · Türkçe ve İngilizce makale',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Sıkça sorulanlar',
@@ -95,7 +93,7 @@ const dictionary = {
     'land.faq.cta': 'Daha fazla soru? Tam SSS\'ye git →',
     'land.faq.q1': 'Hangi sitelerde çalışıyor?',
     // Shopify/Wix yayin hedefi yok (PublishTargetType); denetim ve olcum her sitede calisir
-    'land.faq.a1': 'Herhangi bir web sitesinde: denetim ve AI görünürlük ölçümü için adresi yapıştırman yeterli. Yayın için WordPress, Webflow, Ghost, FTP/SFTP, cPanel ya da GitHub gibi 14 yayın hedefinden birini bağlarsın. Mobil uygulaman için App Store ya da Google Play kaydını eklersin.',
+    'land.faq.a1': 'Herhangi bir web sitesinde: denetim ve AI görünürlük ölçümü için adresi yapıştırman yeterli. Yayın için WordPress, Webflow, Ghost, FTP/SFTP, cPanel ya da GitHub gibi 13 yayın hedefinden birini bağlarsın. Mobil uygulaman için App Store ya da Google Play kaydını eklersin.',
     'land.faq.q2': 'Kredi kartı vermem gerekiyor mu?',
     // Sahip karari 21.10.2026: deneme 14 gun (kayitta trialEndsAt); bitince hesap salt okunur
     // (api billing/trial-policy.ts, trial-expiry.guard.ts) — yalniz satin alma acikken. Hesap
@@ -189,7 +187,7 @@ const dictionary = {
     // Ayni sayfada "5 dakikada kurulum" (land.cta.subtitle, land2.how.title) varken burada
     // "kurulum 10 dakika" yaziyordu; olculmus bir sure degil, celiski kaldirildi.
     // Kartlardaki "ayda en fazla N calistirma" bir tavan; olcum sikligi her planda haftada 1
-    'land.pric.footer_note': 'Ücretli her planda: 14 yayın hedefi (denemede WordPress ve Markdown ZIP) · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında · Türkçe ve İngilizce makale',
+    'land.pric.footer_note': 'Ücretli her planda: 13 yayın hedefi (denemede WordPress) · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında · Türkçe ve İngilizce makale',
     // Plan adlari burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Özel',
 
@@ -363,18 +361,14 @@ const dictionary = {
     'land.pricing.monthly_billing': 'Billed monthly',
     'land.pricing.contact_us': 'Contact us',
     'land.pricing.start_free': 'Start free',
-    'land.pricing.support_em24': 'Support: email 24h',
-    'land.pricing.support_em4': 'Support: email 4h',
-    'land.pricing.support_priority': 'Support: priority + Slack',
-    'land.pricing.support_dedicated': 'Support: dedicated account manager + SLA',
-    'land.pricing.footer_note': 'On every paid plan: 14 publishing targets · on every plan: 1 AI visibility measurement per week across 6 AI assistants · articles in Turkish and English',
+    'land.pricing.footer_note': 'On every paid plan: 13 publishing targets · on every plan: 1 AI visibility measurement per week across 6 AI assistants · articles in Turkish and English',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Frequently asked',
     'land.faq.title': 'First questions that come to mind',
     'land.faq.cta': 'More questions? Go to full FAQ →',
     'land.faq.q1': 'Which websites does it work on?',
-    'land.faq.a1': 'Any website: paste the address to run the audit and the AI visibility measurement. To publish, you connect one of 14 publishing targets such as WordPress, Webflow, Ghost, FTP/SFTP, cPanel or GitHub. For a mobile app you add its App Store or Google Play listing.',
+    'land.faq.a1': 'Any website: paste the address to run the audit and the AI visibility measurement. To publish, you connect one of 13 publishing targets such as WordPress, Webflow, Ghost, FTP/SFTP, cPanel or GitHub. For a mobile app you add its App Store or Google Play listing.',
     'land.faq.q2': 'Do I need to enter a credit card?',
     'land.faq.a2': 'No. No card is needed for the free trial; it lasts 14 days and includes 2 articles (you start them yourself after connecting a publish target to your site; the rest of the calendar appears locked in the dashboard and is written when you upgrade). If you want to continue, you choose a plan and pay at that point. If you don’t, your account is not closed and your data is not deleted; after 14 days it becomes read-only, so you can still view and download your data.',
     'land.faq.q3': 'Can AI really understand my industry?',
@@ -445,7 +439,7 @@ const dictionary = {
     // Bullet text comes from plans.ts — do not keep a second copy here.
     'land.pric.cta_free': 'Choose plan',
     'land.pric.cta_contact': 'Contact us',
-    'land.pric.footer_note': 'On every paid plan: 14 publishing targets (trial: WordPress and Markdown ZIP) · on every plan: 1 AI visibility measurement per week across 6 AI assistants · articles in Turkish and English',
+    'land.pric.footer_note': 'On every paid plan: 13 publishing targets (trial: WordPress) · on every plan: 1 AI visibility measurement per week across 6 AI assistants · articles in Turkish and English',
     // Plan names are NOT kept here — single source is apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Custom',
 

@@ -3,7 +3,7 @@ import { pageUpdated, SITE_URL } from '@/lib/page-updated';
 
 export const metadata: Metadata = {
   title: 'Fiyatlandırma — Büyüme $149 / Profesyonel $349 / Ajans $749',
-  description: 'Büyüme $149, Profesyonel $349, Ajans $749, Kurumsal $1.499 — aylık iptal, taahhüt yok. 14 gün ücretsiz dene, 2 makale üret (kart gerekmez), PayTR ile güvenli ödeme. Her planda: 6 AI asistanında görünürlük ölçümü, ASO, 14 yayın hedefi. Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
+  description: 'Büyüme $149, Profesyonel $349, Ajans $749, Kurumsal $1.499 — aylık iptal, taahhüt yok. 14 gün ücretsiz dene, 2 makale üret (kart gerekmez), PayTR ile güvenli ödeme. Ücretli her planda: 6 AI asistanında görünürlük ölçümü, ASO, 13 yayın hedefi. Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
   alternates: { canonical: `${SITE_URL}/pricing` },
   openGraph: {
     title: 'RanksUp Fiyatlandırma — $149 / $349 / $749 / $1.499',
@@ -27,7 +27,7 @@ const PLANS = [
   { name: 'Büyüme',      price: '149',  desc: 'İki site, KOBİ ve freelancer için AI görünürlük ölçümü + içerik otomasyonu. Aylık 15 makale.' },
   { name: 'Profesyonel', price: '349',  desc: 'Büyüyen markalar için Apple Search Ads, App Store Connect ve App Prompt Lab dahil. Aylık 40 makale.' },
   { name: 'Ajans',       price: '749',  desc: 'Çoklu site yönetimi, Programmatic SEO, Product Radar ve GEO Heatmap ile ajanslara özel.' },
-  { name: 'Kurumsal',    price: '1499', desc: 'BYOK, MCP sunucusu, REST API ve SLA ile kurumsal ölçek.' },
+  { name: 'Kurumsal',    price: '1499', desc: 'BYOK, MCP sunucusu, REST API ve AI maliyet muhasebesiyle kurumsal ölçek.' },
 ];
 
 const pricingJsonLd = {

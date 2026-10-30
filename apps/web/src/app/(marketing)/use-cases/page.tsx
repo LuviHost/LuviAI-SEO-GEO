@@ -9,7 +9,9 @@ import { PageUpdatedLine } from '@/components/page-updated-line';
 // vaatleri (white-label panel, SLA'li kurumsal plan), calismayan white-label /
 // ozel alan adi ve dayanaksiz "KKB + ETBIS uyumlu icerik", "haftada 50+ makale"
 // (Ajans plani ayda 100) yaziyordu. WooCommerce'e ayri bir REST hedefi yok;
-// yayin WordPress REST hedefiyle yapilir.
+// yayin WordPress REST hedefiyle yapilir. Kurumsal kartindaki "Ozel hesap
+// yoneticisi + SLA, sozlesmeli kurulum" maddesi de kaldirildi (30.10.2026):
+// kodda ve operasyonda karsiligi yoktu.
 const USE_CASES = {
   tr: {
     eyebrow: '🎯 Kullanım Senaryoları',
@@ -66,9 +68,8 @@ const USE_CASES = {
         title: 'Kurumsal',
         bullets: [
           'Kurumsal planda 50 site, ayda 350 makale',
-          'MCP sunucusu, REST API ve kapsamlı API anahtarları',
+          'MCP sunucusu, REST API ve scope’lu API anahtarları',
           'Kendi sağlayıcı anahtarınla ölçüm (BYOK)',
-          'Özel hesap yöneticisi + SLA, sözleşmeli kurulum',
         ],
         cta: 'Kurumsal için başla',
       },
@@ -142,7 +143,6 @@ const USE_CASES = {
           '50 sites and 350 articles a month on the Enterprise plan',
           'MCP server, REST API and scoped API keys',
           'Measure with your own provider keys (BYOK)',
-          'Dedicated account manager + SLA, contracted onboarding',
         ],
         cta: 'Start for Enterprise',
       },

@@ -43,7 +43,7 @@ export default function Page() {
         <li><strong>Büyüme</strong> — 15 makale + ayda en fazla 20 çalıştırma + 2 site</li>
         <li><strong>Profesyonel</strong> (en çok tercih edilen) — 40 makale + ayda en fazla 75 çalıştırma + 5 site, Apple Search Ads ve App Store Connect dahil</li>
         <li><strong>Ajans</strong> — 100 makale + ayda en fazla 300 çalıştırma + 15 site, Programmatic SEO ve Product Radar dahil</li>
-        <li><strong>Kurumsal</strong> — 350 makale + ayda en fazla 1.000 çalıştırma + 50 site, BYOK, MCP, REST API, özel hesap yöneticisi + SLA</li>
+        <li><strong>Kurumsal</strong> — 350 makale + ayda en fazla 1.000 çalıştırma + 50 site, BYOK, MCP, REST API, AI maliyet ve token muhasebesi</li>
       </ul>
       <p>
         Güncel fiyatlar için <a href="/pricing">fiyatlandırma sayfasına</a> bakın. Fiyatlar ABD doları
