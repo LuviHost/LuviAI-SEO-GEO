@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SiteCrawlerService } from './site-crawler.service.js';
+import { BRAIN_ADVANCES_FROM } from './site-status.js';
 import type { CrawlResult } from './site-crawler.service.js';
 import { clearCrawlAccess, CrawlAccessError, recordCrawlAccess } from './crawl-access.js';
 
@@ -119,13 +120,15 @@ export class BrainGeneratorService {
       }
     }
 
-    // Site status güncelle
-    await this.prisma.site.update({
-      where: { id: siteId },
+    // Site durumu — YALNIZ ILERI (sites/site-status.ts). Kosulsuz AUDIT_PENDING
+    // yazmak, beyni yeniden uretilen ACTIVE siteyi yalniz ACTIVE secen islerden
+    // dusuruyordu; zincirde tarama once bittiyse AUDIT_COMPLETE'i de geri cekiyordu.
+    const moved = await this.prisma.site.updateMany({
+      where: { id: siteId, status: { in: [...BRAIN_ADVANCES_FROM] as any } },
       data: { status: 'AUDIT_PENDING' }, // brain bitti, sıra audit'te
     });
 
-    this.log.log(`${siteId}: Brain oluşturuldu, AUDIT_PENDING durumuna geçildi`);
+    this.log.log(`${siteId}: Brain oluşturuldu${moved.count > 0 ? ', AUDIT_PENDING durumuna geçildi' : ' (site durumu korundu)'}`);
   }
 
   private shouldRegenerate(updatedAt: Date): boolean {

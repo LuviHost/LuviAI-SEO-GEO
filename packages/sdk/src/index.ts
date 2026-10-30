@@ -154,10 +154,25 @@ class ArticlesAPI {
   }
 }
 
+/** Kuyruga alinmis tarama isi — `audit.runNow` donusu. */
+export interface QueuedAuditJob {
+  /** Is kimligi; GET /jobs/:id ile durum yoklanir (QUEUED | PROCESSING | COMPLETED | FAILED) */
+  id: string;
+  status: 'QUEUED';
+  bullJobId: string;
+}
+
 class AuditAPI {
   constructor(private req: Requester) {}
   latest(siteId: string) { return this.req(`/sites/${siteId}/audit/latest`); }
-  runNow(siteId: string) { return this.req(`/sites/${siteId}/audit/run-now`, { method: 'POST' }); }
+  /**
+   * Site taramasini baslatir. ASENKRON: tarama kuyruga alinir, cagri hemen is
+   * kaydini doner (eski surumler tarama bitene kadar bekleyip Audit donuyordu).
+   * Sonuc birkac dakika icinde `audit.latest(siteId)` ile okunur.
+   */
+  runNow(siteId: string): Promise<QueuedAuditJob> {
+    return this.req<QueuedAuditJob>(`/sites/${siteId}/audit/run-now`, { method: 'POST' });
+  }
   scoreCard(siteId: string) { return this.req(`/sites/${siteId}/audit/score-card`); }
   citationHistory(siteId: string, days = 30) { return this.req(`/sites/${siteId}/audit/citation-history`, { params: { days } }); }
   citationSnapshot(siteId: string) { return this.req(`/sites/${siteId}/audit/citation-snapshot`, { method: 'POST' }); }

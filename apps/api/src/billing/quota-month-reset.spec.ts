@@ -42,4 +42,22 @@ describe('QuotaService ay basi', () => {
     await expect(q.enforceArticleQuota('u1')).rejects.toThrow(/Deneme hesabındaki \d+ ücretsiz makale hakkını kullandın/);
     expect(prisma.row.articlesUsedThisMonth).toBe(99);
   });
+
+  it('deneme hesabinin AI gorunurluk hakki ay donumunde SIFIRLANMAZ (3 calistirma toplam)', async () => {
+    const prisma: any = prismaWith({ id: 'u1', plan: 'TRIAL', aiCitationTestsThisMonth: 3, aiCitationQuotaResetAt: lastMonth });
+    const q = new QuotaService(prisma);
+    const r = await q.checkCitationQuota('u1');
+    expect(r.allowed).toBe(false);
+    expect(r.used).toBe(3);
+    expect(prisma.row.aiCitationTestsThisMonth).toBe(3);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('ucretli planin AI gorunurluk hakki ay donumunde sifirlanir', async () => {
+    const prisma: any = prismaWith({ id: 'u1', plan: 'STARTER', aiCitationTestsThisMonth: 20, aiCitationQuotaResetAt: lastMonth });
+    const q = new QuotaService(prisma);
+    const r = await q.checkCitationQuota('u1');
+    expect(r.allowed).toBe(true);
+    expect(r.used).toBe(0);
+  });
 });

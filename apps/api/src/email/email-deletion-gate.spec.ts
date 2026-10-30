@@ -57,8 +57,9 @@ describe.each([
     const prisma = makePrisma({ u2: { deletionRequestedAt: null } });
     const svc = new EmailService(prisma as never);
     const r = await svc.send({ userId: 'u2', to: 'c@d.co', template: 'article_ready', data: { name: 'Can', title: 'Başlık' } });
-    expect(r.ok).toBe(true);
-    expect(r.skipped).toBeUndefined();
+    // Anahtar yoksa gitmedi: ok false + no_provider (email-no-provider.spec.ts)
+    expect(r.ok).toBe(!!key);
+    expect(r.skipped).toBe(key ? undefined : 'no_provider');
     expect(resendSend).toHaveBeenCalledTimes(key ? 1 : 0);
     expect(prisma.emailLog.create).toHaveBeenCalledTimes(1);
   });
@@ -67,7 +68,7 @@ describe.each([
     const prisma = makePrisma({});
     const svc = new EmailService(prisma as never);
     const r = await svc.send({ to: 'test@ranksup.ai', template: 'welcome_day0', data: { name: 'Test' } });
-    expect(r.ok).toBe(true);
+    expect(r.ok).toBe(!!key);
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
@@ -75,7 +76,7 @@ describe.each([
     const prisma = makePrisma({ u1: { deletionRequestedAt: REQUESTED } });
     const svc = new EmailService(prisma as never);
     const r = await svc.sendRaw({ userId: 'u1', to: 'a@b.co', subject: 'Hesap silme talebin alındı', html: '<p>x</p>' });
-    expect(r.ok).toBe(true);
+    expect(r.ok).toBe(!!key);
     expect(resendSend).toHaveBeenCalledTimes(key ? 1 : 0);
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
