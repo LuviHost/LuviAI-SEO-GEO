@@ -42,6 +42,8 @@ function hitDeposu() {
   const rows = new Map<string, Record<string, any>>();
   return {
     rows,
+    // Log yuklemesi mevcut satiri okuyup eksik kadar artirir (mergeLogIntoDailyHit)
+    findUnique: vi.fn(async ({ where }: any) => rows.get(`${where.siteId_date_bot.date.toISOString()}|${where.siteId_date_bot.bot}`) ?? null),
     upsert: vi.fn(async ({ where, create, update }: any) => {
       const k = `${where.siteId_date_bot.date.toISOString()}|${where.siteId_date_bot.bot}`;
       const cur = rows.get(k);
@@ -86,7 +88,7 @@ describe('Imzali edge ingest (LiveCrawlerService.updateDailyAggregates)', () => 
     const store = hitDeposu();
     const olaylar: Array<{ status: number }> = [];
     const live = new LiveCrawlerService({
-      site: { findUnique: async () => ({ id: SITE, userId: 'u1', name: 'Ornek Site', ingestSecret: secret }) },
+      site: { findUnique: async () => ({ id: SITE, userId: 'u1', name: 'Ornek Site', ingestSecret: secret, user: { plan: 'AGENCY', role: 'USER' } }) },
       crawlerHitEvent: {
         count: async () => 0,
         createMany: async ({ data }: any) => { olaylar.push(...data); return { count: data.length }; },
