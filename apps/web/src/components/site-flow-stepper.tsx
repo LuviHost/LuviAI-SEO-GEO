@@ -1,7 +1,7 @@
 'use client';
 
 import { siteHref } from '@/lib/site-routes';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -27,6 +27,7 @@ import { PROVIDER_LABELS } from '@/lib/chart-colors';
 import { displayProbeText } from '@/lib/probe-error-text';
 import { CrawlAccessNotice } from '@/components/crawl-access-notice';
 import { currentCrawlAccess } from '@/lib/crawl-access';
+import { AUDIT_PENDING_DESC, AUDIT_PENDING_TITLE, runQueuedAudit } from '@/lib/audit-run';
 
 /*
  * Bu dosyada yalniz baska sayfalarin kullandigi govdeler kalir: AuditStepBody
@@ -127,18 +128,27 @@ export function AuditStepBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audit?.fixesApplied, siteUrl]);
 
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+
+  // Kuyruk + yoklama (lib/audit-run.ts): senkron istek vekil sunucuda 504'e dusuyordu
   const run = async () => {
     setRunning(true);
     try {
-      await api.runAuditNow(siteId);
-      toast.success('Site skoru güncellendi');
+      const out = await runQueuedAudit(
+        { queue: () => api.queueAudit(siteId), getJob: api.getJob },
+        { isAlive: () => alive.current },
+      );
+      if (!alive.current) return;
+      if (out.kind === 'done') toast.success('Site skoru güncellendi');
+      else if (out.kind === 'failed') toast.error(out.error);
+      else toast.message(AUDIT_PENDING_TITLE, { description: AUDIT_PENDING_DESC });
+      // Erişim engeli kalıcı kayıt bırakır — paneli tazele ki durum görünsün
       onRefresh();
     } catch (err: any) {
-      toast.error(err.message);
-      // Erişim engeli (422) kalıcı kayıt bırakır — paneli tazele ki durum görünsün
-      onRefresh();
+      toast.error(err.message || 'Tarama başlatılamadı');
     } finally {
-      setRunning(false);
+      if (alive.current) setRunning(false);
     }
   };
 
