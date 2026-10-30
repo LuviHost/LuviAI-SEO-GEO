@@ -2905,7 +2905,46 @@ export function aiCitationOf(audit: any): AiCitationState | null {
   return { measured, score: measured ? e.score : null, measuredProviders, skipped };
 }
 
+/** Site Skoru kartindaki AI satiri: hangi olcum gosteriliyor ve ne zaman yapildi */
+export interface AiCardView {
+  source: 'run' | 'audit';
+  /** ISO; eski denetimde aiCitations.ranAt yoksa denetimin ranAt'i */
+  at: string | null;
+  score: number | null;
+  providers: Array<{ provider: string; label?: string; available: boolean; score: number | null; reason?: string | null }>;
+}
+
+/**
+ * Site Skoru kartinin AI bolumu icin GUNCEL olcum. NEDEN: kart yalniz taramanin
+ * icindeki AI adimini okuyordu; sonradan yapilan "Yeniden Test" kosumlari
+ * (AiCitationRun) karta hic yansimiyordu: sabah taramasi 0/100 yazarken ayni
+ * gun ogleden sonraki test daha yuksek bir skor buluyordu — ayni panelde iki
+ * farkli "AI gorunurluk" sayisi. Taramadan YENI bir test varsa o
+ * gosterilir; yoksa (ya da test skor donduremediyse) taramadaki olcum kalir.
+ */
+export function aiCardView(audit: any, latestRun: any): AiCardView | null {
+  const e = audit?.checks?.aiCitations;
+  const auditAt: string | null = typeof e?.ranAt === 'string' ? e.ranAt : typeof audit?.ranAt === 'string' ? audit.ranAt : null;
+  const runAt = typeof latestRun?.runAt === 'string' ? Date.parse(latestRun.runAt) : NaN;
+  const runProviders: any[] = Array.isArray(latestRun?.providers) ? latestRun.providers : [];
+  const runMeasured = typeof latestRun?.headlineScore === 'number'
+    && runProviders.some((p) => p?.available === true && typeof p?.score === 'number');
+  const auditTime = auditAt ? Date.parse(auditAt) : NaN;
+  if (runMeasured && Number.isFinite(runAt) && (!Number.isFinite(auditTime) || runAt > auditTime)) {
+    return { source: 'run', at: latestRun.runAt, score: latestRun.headlineScore, providers: runProviders };
+  }
+  const state = aiCitationOf(audit);
+  if (!state) return null;
+  return { source: 'audit', at: auditAt, score: state.score, providers: Array.isArray(e?.providers) ? e.providers : [] };
+}
+
 const AI_SKIP_DATE_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+
+/** "28 Ekim 15:35" — AI olcum zamani etiketi */
+export function aiMeasuredAtLabel(iso: string | null | undefined): string | null {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? AI_SKIP_DATE_FMT.format(new Date(t)) : null;
+}
 
 /**
  * Ölçülmeyen AI adımının kısa açıklaması — "Ölçülmedi: haftalık ölçüm hakkı kullanıldı
