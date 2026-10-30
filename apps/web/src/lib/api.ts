@@ -858,13 +858,12 @@ export const api = {
     request<any>(`/sites/${siteId}/audit/latest`),
 
   /**
-   * SENKRON tarama — istek tarama bitene kadar (1-3 dk) acik kalir.
-   * Vekil sunucu (Cloudflare varsayilani ~100 sn) bunu keser; UI icin
-   * queueAudit + getJob yoklamasi kullanin. Eski cagrilar bozulmasin diye
-   * duruyor.
+   * ESKI AD — artik queueAudit ile ayni: taramayi kuyruga atar, is kaydini
+   * hemen doner (tarama API prosesinde kosup bellek sinirini asiyordu; api
+   * audit.controller runNow). Yeni kodda queueAudit + getJob kullanin.
    */
   runAuditNow: (siteId: string) =>
-    request<any>(`/sites/${siteId}/audit/run-now`, { method: 'POST' }),
+    request<{ id: string; status: string; bullJobId?: string }>(`/sites/${siteId}/audit/run-now`, { method: 'POST' }),
 
   /** Taramayi KUYRUGA atar, hemen doner. Durum icin getJob ile yoklayin. */
   queueAudit: (siteId: string) =>

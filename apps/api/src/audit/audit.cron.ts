@@ -24,6 +24,12 @@ export class AuditCron {
   /** Ucretli planlar — TRIAL periyodik taramaya girmez (maliyet freni). */
   private static readonly PAID = ['STARTER', 'PRO', 'AGENCY', 'ENTERPRISE'];
 
+  /** BullMQ'da buyuk sayi = dusuk oncelik; kullanici taramasi 5, kurulum 10 */
+  private static readonly QUEUE_PRIORITY = 50;
+
+  /** Ardisik siteler arasi gecikme — 100 site ~100 dakikaya yayilir */
+  private static readonly STAGGER_MS = 60_000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -75,22 +81,30 @@ export class AuditCron {
     const atlanan = uygun.length - secilen.length;
     this.log.log(`Haftalik tarama: ${secilen.length} site${atlanan > 0 ? ` (${atlanan} site tavana takildi)` : ''}`);
 
-    let basarili = 0;
+    // Tarama BU PROSESTE KOSMAZ, worker kuyruguna atilir (SITE_AUDIT). Cron
+    // API'de de tetiklenir ve kilidi API kazanabilir; 100 sayfalik bir tarama
+    // ~930 MB'a cikip API'nin pm2 bellek sinirini (800 MB) asti, API yeniden
+    // basladi ve tum istekler 502 dondu. trigger 'system' is verisinde gider:
+    // kullanicinin olcum hakki dusmez. Dusuk oncelik + kademeli gecikme:
+    // kullanici taramalarinin onune gecmez, siteler ayni anda baslamaz (eskiden
+    // siteler arasi 5 sn bekleniyordu; dis servis rate limit'i ve CPU).
+    let kuyrukta = 0;
     let hatali = 0;
-    for (const site of secilen) {
+    for (const [i, site] of secilen.entries()) {
       try {
-        await this.audit.runAudit(site.id, { trigger: 'system' });
-        basarili++;
+        await this.audit.queueAudit(site.id, {
+          trigger: 'system',
+          priority: AuditCron.QUEUE_PRIORITY,
+          delay: i * AuditCron.STAGGER_MS,
+        });
+        kuyrukta++;
       } catch (err: any) {
         hatali++;
-        this.log.warn(`[${site.id}] ${site.name} taranamadi: ${err.message}`);
+        this.log.warn(`[${site.id}] ${site.name} kuyruga atilamadi: ${err.message}`);
       }
-      // Tarama crawl + PageSpeed + 7 saglayici probe demek; siteler arasi ara
-      // vermek hem dis servislerin rate limit'ini hem kendi CPU'muzu korur.
-      await new Promise((r) => setTimeout(r, 5000));
     }
 
-    this.log.log(`Haftalik tarama bitti: ${basarili} basarili, ${hatali} hatali`);
-    return { taranan: basarili, hatali, atlanan };
+    this.log.log(`Haftalik tarama kuyruga atildi: ${kuyrukta} site, ${hatali} hatali`);
+    return { kuyrukta, hatali, atlanan };
   }
 }

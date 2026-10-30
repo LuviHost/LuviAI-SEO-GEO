@@ -404,9 +404,19 @@ export class AuditController {
     return this.audit.compareAudits(siteId, { fromId: queryText(fromId, 64), toId: queryText(toId, 64) });
   }
 
+  /**
+   * POST /sites/:siteId/audit/run-now — ESKI AD, artik /audit/run ile ayni:
+   * taramayi kuyruga atar ve is kaydini ({ id, status: 'QUEUED', bullJobId })
+   * hemen doner; sonuc GET /jobs/:id yoklamasiyla ya da /audit/latest ile okunur.
+   *
+   * NEDEN: tarama API prosesinde senkron kosuyordu. 100 sayfalik bir tarama
+   * ~930 MB'a cikip API'nin pm2 bellek sinirini (800 MB) asti, pm2 API'yi
+   * yeniden baslatti ve tum istekler 502 dondu. Herkese acik SDK (AuditAPI.runNow)
+   * bu ucu kullandigi icin rota silinmedi.
+   */
   @Post('run-now')
   async runNow(@Param('siteId') siteId: string) {
-    return this.audit.runAudit(siteId);
+    return this.audit.queueAudit(siteId);
   }
 
   @Post('run')

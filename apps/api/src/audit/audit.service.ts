@@ -810,14 +810,28 @@ export class AuditService {
    * (Tam olarak bu yasandi; tsc yakalamadi cunku web kendi donus tipini
    * bagimsiz beyan ediyor.) Uc, is kimligini HER ZAMAN `id` adiyla verir.
    */
-  async queueAudit(siteId: string): Promise<{ id: string; status: 'QUEUED'; bullJobId: string }> {
+  /**
+   * Taramayi worker kuyruguna atar. Tarama API prosesinde KOSMAZ: 100 sayfalik
+   * tarama ~930 MB'a cikip API'nin pm2 bellek sinirini (800 MB) asmis, pm2 API'yi
+   * yeniden baslatmis ve tum istekler 502 donmustu.
+   *
+   * @param opts.trigger 'system' — zamanlanmis tarama (AuditCron); worker bunu
+   *   runAudit'e gecirir, kullanicinin olcum hakki dusmez. Verilmezse 'user'.
+   * @param opts.priority / opts.delay — toplu (cron) kuyruga atmada kullanici
+   *   taramalarinin onune gecmesin ve hepsi ayni anda baslamasin diye.
+   */
+  async queueAudit(
+    siteId: string,
+    opts: { trigger?: Exclude<AuditTrigger, 'user'>; priority?: number; delay?: number } = {},
+  ): Promise<{ id: string; status: 'QUEUED'; bullJobId: string }> {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
     const { dbJobId, bullJobId } = await this.jobQueue.enqueue({
       type: 'SITE_AUDIT',
       userId: site.userId,
       siteId,
-      payload: { siteId, url: site.url },
-      priority: 5,
+      payload: { siteId, url: site.url, ...(opts.trigger ? { trigger: opts.trigger } : {}) },
+      priority: opts.priority ?? 5,
+      ...(opts.delay ? { delay: opts.delay } : {}),
     });
     return { id: dbJobId, status: 'QUEUED', bullJobId: String(bullJobId) };
   }
@@ -1071,7 +1085,7 @@ export class AuditService {
       },
     });
 
-    // 7) Site durumu — YALNIZ ILERI. Kosulsuz AUDIT_COMPLETE yazmak kurulumu
+    // 7) Site status — YALNIZ ILERI. Kosulsuz AUDIT_COMPLETE yazmak kurulumu
     // bitmis (ACTIVE) siteyi her yeniden taramada geri dusuruyor, site yalniz
     // ACTIVE secen gunluk/haftalik islerden (GSC kaydi, rapor e-postasi...)
     // sessizce cikiyordu. Kural ve ERROR karari: sites/site-status.ts
