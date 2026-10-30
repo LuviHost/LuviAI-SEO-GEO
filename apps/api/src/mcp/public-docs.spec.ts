@@ -1240,10 +1240,8 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
     // App Prompt Lab: sorulan soru basina 1
     expect(appPromptLab).toContain("this.citation.assertCitationRuns(site.userId, 1, ");
     expect(appPromptLab).toContain('this.citation.consumeCitationRuns(site.userId, 1)');
-    // DIKKAT: llms-full.txt hala "GEO ısı haritası çalıştırma saymaz" diyor; metin
-    // pazarlama/llms sahibinde. Metin guncellenince asagidaki on ek kontrolu
-    // ısı haritası ve App Prompt Lab birimini de iceren tam cumleye genisletilmeli.
-    expect(llmsFull).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1 çalıştırma sayılır");
+    expect(llmsFull).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1, GEO ısı haritasında ölçülen her soru 1, App Prompt Lab'de her soru 1 çalıştırma sayılır");
+    expect(llmsFull).not.toContain('ısı haritası çalıştırma saymaz');
     expect(llmsFull).toContain(`"Tümünü çalıştır" tek ölçümde en fazla ${tumuLimit} soruyu`);
     expect(llmsFull).toContain(`hesap başına 7 günde 1 ölçüm, yani ayda en fazla ${ayEnFazla}`);
     expect(llmsFull).toContain("Ürün Radarı'nın haftalık otomatik taraması bu hakka sayılmaz");
