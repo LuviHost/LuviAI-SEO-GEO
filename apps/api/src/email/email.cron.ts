@@ -4,12 +4,17 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from './email.service.js';
 import { checkoutTestModeOn } from '../billing/checkout-mode.js';
 import { eskiFiyatBilgisi } from './grandfathering.js';
+import { acquireCronLock } from '../common/cron-lock.js';
 
 /**
  * Email otomasyon cron'ları:
  *  - Welcome series (gün 1, 3, 7)
  *  - Trial expiry warnings (gün 11, 13)
  *  - Weekly reports (Pazartesi 09:00)
+ *
+ * HER CRON KILITLI (common/cron-lock.ts): API ve worker ayni AppModule'u
+ * bootstrap ettigi icin @Cron iki proseste birden tetikleniyor; kilitsiz her
+ * kullanici her e-postayi IKI KEZ aliyordu.
  */
 @Injectable()
 export class EmailCron {
@@ -23,6 +28,7 @@ export class EmailCron {
   /** Her gün 09:00 — welcome series + trial warnings */
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async dailyEmails() {
+    if (!(await acquireCronLock(this.prisma, 'email-daily', 'daily'))) return;
     const now = Date.now();
     const day = 86400000;
 
@@ -77,6 +83,7 @@ export class EmailCron {
   /** Pazartesi 09:00 — haftalık rapor */
   @Cron('0 9 * * 1')
   async weeklyReports() {
+    if (!(await acquireCronLock(this.prisma, 'email-weekly-report', 'weekly'))) return;
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
     // Rapor mailindeki karsilastirma ve gunluk grafik icin 14 gun cekiliyor:
     // ilk 7 gun onceki hafta (referans), son 7 gun bu hafta.
@@ -181,6 +188,7 @@ export class EmailCron {
    */
   @Cron('0 10 * * *')
   async grandfatheringNotifications() {
+    if (!(await acquireCronLock(this.prisma, 'email-grandfathering', 'daily'))) return;
     const now = new Date();
     const in30Days = new Date(now.getTime() + 30 * 86400000);
     const in29Days = new Date(now.getTime() + 29 * 86400000);

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AnalyticsService } from './analytics.service.js';
+import { acquireCronLock } from '../common/cron-lock.js';
 
 /**
  * Daily GSC snapshot — her gece 02:00 UTC çalışır.
@@ -18,6 +19,9 @@ export class AnalyticsCron {
 
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async dailySnapshot() {
+    // API ve worker ayni AppModule'u bootstrap ediyor (common/cron-lock.ts):
+    // kilitsiz her site icin GSC sorgulari iki kez atiliyor, API kotasi bosa yaniyordu.
+    if (!(await acquireCronLock(this.prisma, 'analytics-daily-snapshot', 'daily'))) return;
     this.log.log('🕑 Daily snapshot başlıyor');
     const sites = await this.prisma.site.findMany({
       where: {
