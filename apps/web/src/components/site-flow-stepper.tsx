@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  aiCitationOf, aiCitationSkipLabel, api, autoFixIssues, autoFixMessages, geoAccessOf, geoSampleNote, isRobotsFixKey,
+  aiCardView, aiCitationOf, aiCitationSkipLabel, aiMeasuredAtLabel, api, autoFixIssues, autoFixMessages, geoAccessOf, geoSampleNote, isRobotsFixKey,
   isUnverifiedCheck, rootFileTarget,
 } from '@/lib/api';
 // robots.txt yalniz onizleme + acik onayla yazilir (API 'preview_required'); ayni diyalog Ajan Hazirligi sayfasinda da
@@ -94,6 +94,8 @@ export function AuditStepBody({
   const [previewFile, setPreviewFile] = useState<{ filename: string; content: string } | null>(null);
   /** robots.txt onizleme diyalogu — acikken duzeltme anahtari ('robots_txt') */
   const [robotsPreviewKey, setRobotsPreviewKey] = useState<string | null>(null);
+  // Son AI gorunurluk testi: taramadan yeniyse kart onu gosterir (lib/api.ts aiCardView)
+  const [latestRun, setLatestRun] = useState<any>(null);
 
   // Dosya yazabilen yayin hedefi var mi? Kok dosya duzeltmesi icin zorunlu. + site URL'i (public link kurmak icin)
   useEffect(() => {
@@ -107,6 +109,14 @@ export function AuditStepBody({
       .catch(() => { if (!cancelled) setHasFileTarget(false); });
     return () => { cancelled = true; };
   }, [siteId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getCitationRuns(siteId, 1)
+      .then((runs) => { if (!cancelled) setLatestRun(Array.isArray(runs) ? runs[0] ?? null : null); })
+      .catch(() => { if (!cancelled) setLatestRun(null); });
+    return () => { cancelled = true; };
+  }, [siteId, audit?.id]);
 
   // audit.fixesApplied varsa onu da göster (sayfa yenilendiğinde geçmiş kalsın)
   useEffect(() => {
@@ -187,6 +197,10 @@ export function AuditStepBody({
   const checks = audit.checks ?? {};
   // Taramadaki AI ölçümü: atlandıysa (haftalık hak, kota, sağlayıcı yok) skor yok — 0/100 değil
   const ai = aiCitationOf(audit);
+  // Kartta gosterilen: taramadan yeni bir "Yeniden Test" varsa o, yoksa taramadaki olcum
+  const aiView = aiCardView(audit, latestRun);
+  const aiFromRun = aiView?.source === 'run';
+  const aiAt = aiMeasuredAtLabel(aiView?.at);
   // Doğrulanamayan kontrol (erişim engeli) ve ölçülmeyen AI adımı "sorunlu" sayılmaz — ölçülemedi
   const failedCount = Object.values(checks).filter((v: any) =>
     v?.name && !v?.details?.unverified && !(v?.id === 'ai_citations' && !ai?.measured) && (v?.score ?? 0) < 100,
@@ -615,31 +629,35 @@ export function AuditStepBody({
       {/* Denetimin AI adımı. Atlandıysa (haftalık ölçüm hakkı, kota, sağlayıcı yok) skor YOK —
           eskiden boş sağlayıcı listesiyle "0 AI asistanında ölçüldü · 0/100" görünüyordu.
           Sayılan: skor döndüren asistanlar (yapılandırılmamış Llama gibi ölçülemeyenler değil). */}
-      {ai && (
+      {aiView && ai && (
         <div className="rounded-lg border p-4">
           <div className="flex items-start justify-between gap-3 mb-2">
             <div className="min-w-0">
-              <p className="text-sm font-semibold">AI Arama Görünürlüğü (otomatik)</p>
+              <p className="text-sm font-semibold">AI Arama Görünürlüğü {aiFromRun ? '(son test)' : '(otomatik)'}</p>
               <p className="text-xs text-muted-foreground">
-                {ai.measured ? `${ai.measuredProviders} AI asistanında ölçüldü` : aiCitationSkipLabel(ai)}
+                {aiFromRun
+                  ? `${aiView.providers.filter((p) => p.available && typeof p.score === 'number').length} AI asistanında ölçüldü${aiAt ? ` · ${aiAt}` : ''}`
+                  : ai.measured
+                    ? `${ai.measuredProviders} AI asistanında ölçüldü${aiAt ? ` · tarama anında, ${aiAt}` : ''}`
+                    : aiCitationSkipLabel(ai)}
               </p>
             </div>
-            {ai.measured ? (
-              <span className="text-metric-lg tabular-nums text-brand shrink-0">{ai.score}/100</span>
+            {aiFromRun || ai.measured ? (
+              <span className="text-metric-lg tabular-nums text-brand shrink-0">{aiView.score}/100</span>
             ) : (
               <span className="text-sm font-semibold text-muted-foreground shrink-0">Ölçülmedi</span>
             )}
           </div>
-          {!ai.measured && (
+          {(aiFromRun || !ai.measured) && (
             <p className="text-xs text-muted-foreground mb-2">
-              AI görünürlük ölçümlerin{' '}
+              {aiFromRun ? 'Taramadan sonra yapılan en son testin sonucu. Tüm ölçümler ve soru bazında cevaplar ' : 'AI görünürlük ölçümlerin '}
               <Link href={siteHref(siteId, 'visibility')} className="underline hover:text-foreground">AI Görünürlük</Link>{' '}
               sayfasında tutulur.
             </p>
           )}
-          {Array.isArray(checks.aiCitations?.providers) && checks.aiCitations.providers.length > 0 && (
+          {aiView.providers.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {(checks.aiCitations.providers as any[]).map((p) => (
+              {aiView.providers.map((p) => (
                 <div key={p.provider} className="rounded-md border p-2">
                   <div className="flex items-center justify-between">
                     <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
