@@ -215,7 +215,12 @@ export class SnippetGeneratorService {
         const metaDescription = $('meta[name="description"]').attr('content')?.trim() ?? null;
         const h1 = $('h1').first().text().trim() || null;
         const hasCanonical = $('link[rel="canonical"]').length > 0;
-        const hasOG = $('meta[property^="og:"]').length >= 3; // en az og:type, og:title, og:url
+        // OG tam = og:title + og:image (tekil sayfa uretimiyle ayni kural, generateForPage).
+        // Eskiden herhangi 3 og: etiketi (type/title/url) yetiyordu: paylasimda gorsel
+        // cikmayan sayfa tabloda ✓ gorunuyor, "Üret" ise OG eksik diye oneri uretiyordu.
+        const ogVar = (prop: string) => !!$(`meta[property="${prop}"]`).attr('content')?.trim();
+        const hasOgTitle = ogVar('og:title');
+        const hasOG = hasOgTitle && ogVar('og:image');
         const hasTwitter = $('meta[name^="twitter:"]').length >= 2;
         const schemaScripts = $('script[type="application/ld+json"]');
         const hasSchema = schemaScripts.length > 0;
@@ -243,7 +248,9 @@ export class SnippetGeneratorService {
 
         if (h1) score += 10; else issues.push('H1 yok');
         if (hasCanonical) score += 10; else issues.push('Canonical yok');
-        if (hasOG) score += 15; else issues.push('Open Graph yok');
+        if (hasOG) score += 15;
+        else if (hasOgTitle) { score += 8; issues.push('Open Graph görseli (og:image) yok'); }
+        else issues.push('Open Graph yok');
         if (hasTwitter) score += 10; else issues.push('Twitter Card yok');
         if (hasSchema) score += 15; else issues.push('Schema markup yok');
         if (hasFAQ) score += 5;
