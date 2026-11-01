@@ -26,7 +26,7 @@ function serve(map: Record<string, Reply>) {
 
 const GOOD = `<html><head><title>Bu baslik yirmi karakterden uzun olmali</title>
 <meta name="description" content="${'a'.repeat(150)}"><link rel="canonical" href="x">
-<meta property="og:a" content="1"><meta property="og:b" content="1"><meta property="og:c" content="1">
+<meta property="og:title" content="Baslik"><meta property="og:image" content="https://site.com/og.png"><meta property="og:type" content="website">
 <meta name="twitter:a" content="1"><meta name="twitter:b" content="1">
 <script type="application/ld+json">{"@type":"Article"}</script></head><body><h1>H</h1></body></html>`;
 const CF_WAF: Reply = { status: 403, headers: { server: 'cloudflare', 'cf-ray': 'x' }, text: 'Sorry, you have been blocked' };
@@ -240,5 +240,37 @@ describe('assertWithinSiteHost', () => {
     expect(() => assertWithinSiteHost('https://rakip.com', 'https://site.com', 'Statik HTML yazımı')).toThrow(
       "Statik HTML yazımı yalnızca sitenin kendi alan adında yapılabilir (site.com; www'li/www'suz hali ve alt alan adları dahil). Girilen adres bu siteye ait değil.",
     );
+  });
+});
+
+describe('SnippetGeneratorService.bulkScan — Open Graph: og:title + og:image sart', () => {
+  const sayfa = (og: string) => GOOD.replace(/<meta property="og:[^>]*>/g, '').replace('</head>', `${og}</head>`);
+
+  it('og:image yoksa OG ✗; kismi puan ve acik neden (paylasimda gorsel cikmaz)', async () => {
+    // Uc og: etiketi var — eski kural bunu ✓ sayiyordu
+    serve({ 'https://site.com/a': { status: 200, text: sayfa('<meta property="og:title" content="T"><meta property="og:type" content="website"><meta property="og:url" content="https://site.com/a">') } });
+    const p = (await build(['https://site.com/a']).bulkScan('s1')).pages[0];
+    expect(p.hasOG).toBe(false);
+    expect(p.issues).toContain('Open Graph görseli (og:image) yok');
+    expect(p.score).toBe(88);
+  });
+
+  it('bos content og:image sayilmaz', async () => {
+    serve({ 'https://site.com/a': { status: 200, text: sayfa('<meta property="og:title" content="T"><meta property="og:image" content="  ">') } });
+    expect((await build(['https://site.com/a']).bulkScan('s1')).pages[0].hasOG).toBe(false);
+  });
+
+  it('hic OG yoksa eskisi gibi "Open Graph yok", puan yok', async () => {
+    serve({ 'https://site.com/a': { status: 200, text: sayfa('') } });
+    const p = (await build(['https://site.com/a']).bulkScan('s1')).pages[0];
+    expect(p.issues).toContain('Open Graph yok');
+    expect(p.score).toBe(80);
+  });
+
+  it('og:title + og:image varsa ✓ ve tam puan', async () => {
+    serve({ 'https://site.com/a': { status: 200, text: GOOD } });
+    const p = (await build(['https://site.com/a']).bulkScan('s1')).pages[0];
+    expect(p.hasOG).toBe(true);
+    expect(p.score).toBe(95);
   });
 });
