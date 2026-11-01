@@ -18,9 +18,11 @@ export default function KvkkPage() {
             araclari) ama sayfada yalniz yururluk tarihi vardi; okuyan metnin degistigini goremezdi.
             Gizlilik sayfasindaki duzen: yururluk tarihi korunur, son guncelleme ve degisiklik notu
             ayrica yazilir (okuyan neyin degistigini de gorsun). Tarih bu icerigin yayin gunu
-            (28 Ekim 2026: aktarim listesi, ucretsiz test ve LinkedIn), gizlilik sayfasiyla ayni gun. */}
+            (28 Ekim 2026: aktarim listesi, ucretsiz test ve LinkedIn), gizlilik sayfasiyla ayni gun.
+            2 Kasim 2026: gizlilik sayfasi guncellendi (web aramasi yapan servisler); bu metinde icerik
+            degisikligi yok, tarih gizlilik sayfasiyla ayni gun tutulur ve notta acikca yazilir. */}
         <p className="text-sm text-muted-foreground mb-1">Yürürlük: 27 Nisan 2026</p>
-        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 28 Ekim 2026</p>
+        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 2 Kasım 2026</p>
         <p className="text-sm text-muted-foreground mb-8">
           Değişiklik: Aktarılan Taraflar bölümüne yalnız çerez onayınızla yüklenen Google ve Microsoft araçları ile sizi
           davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi. İşlenen Kişisel Veriler bölümüne RanksUp
@@ -28,7 +30,8 @@ export default function KvkkPage() {
           Taraflar listesi kodda kullanılan tüm hizmet sağlayıcılarla tamamlandı (AI görünürlük ölçümü için OpenAI,
           Perplexity, xAI ve DeepSeek; görsel üreticileri; Sentry; Cloudflare Turnstile; IndexNow; bağladığınız Google,
           Meta ve Apple hizmetleri); ücretsiz AI görünürlük testi ve tekrar ölçüm e-postaları için yeni bölüm eklendi;
-          Kurumsal İletişim bölümü LinkedIn kanalını da kapsayacak şekilde genişletildi (28 Ekim 2026).
+          Kurumsal İletişim bölümü LinkedIn kanalını da kapsayacak şekilde genişletildi (28 Ekim 2026). Gizlilik
+          Politikası 2 Kasım 2026'da güncellendi; bu metinde içerik değişikliği yoktur.
         </p>
 
         <div className="space-y-6 text-sm leading-relaxed">

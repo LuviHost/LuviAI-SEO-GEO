@@ -77,7 +77,9 @@ export function geoImpact(data: any): GeoImpact {
     growthPct: null,
     enginesStart: 0,
     enginesNow: trends.filter((t) => isNum(t.last) && t.last > 0).length,
-    totalEngines: trends.length,
+    // Yalniz OLCULEN saglayicilar: anahtari/modeli olmadigi icin hic olculmeyen
+    // (Meta AI gibi, last null) payda olunca "4/7" yaziyordu; dogrusu "4/6".
+    totalEngines: trends.filter((t) => isNum(t.last)).length,
     mentionsStart: 0,
     mentionsNow: 0,
     newEngines: [],

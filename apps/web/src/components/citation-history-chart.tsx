@@ -11,6 +11,7 @@ import { formatTrDate } from '@/components/geo-impact';
 import { EngineLogo } from '@/components/engine-logo';
 import { PROVIDER_COLORS, PROVIDER_LABELS, PROVIDER_FALLBACK } from '@/lib/chart-colors';
 import { CHART } from '@/lib/chart-colors';
+import { splitSeriesByMethod } from '@/lib/citation-chart-segments';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
 import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
 import { FilterChip } from '@/components/ui/filter-chip';
@@ -165,35 +166,15 @@ export function CitationHistoryChart({
 
   const byProvider = data.byProvider ?? {};
   const trends = data.trends ?? [];
-  const providers = Object.keys(byProvider).filter((p) => byProvider[p].length > 0);
-
-  // Tum tarihleri topla, x-axis icin
-  const allDates = new Set<string>();
-  for (const p of providers) {
-    for (const point of byProvider[p]) allDates.add(point.date);
-  }
-  const sortedDates = [...allDates].sort();
-
-  // Skor map: provider -> date -> score
-  const scoreMap: Record<string, Record<string, number | null>> = {};
-  for (const p of providers) {
-    scoreMap[p] = {};
-    for (const point of byProvider[p]) {
-      scoreMap[p][point.date] = point.score;
-    }
-  }
+  const sortedDates = [...new Set(Object.values(byProvider).flatMap((pts: any) => pts.map((pt: any) => pt.date as string)))].sort();
 
   // Olcum yontemi degisim gunu (API trends[].methodChangedAt) — grafikte kesikli cizgi
   const breakDates: string[] = trends.map((t: any) => t.methodChangedAt).filter((d: unknown): d is string => typeof d === 'string').sort();
   const methodBreak: string | null = breakDates.length > 0 && sortedDates.includes(breakDates[0]) ? breakDates[0].slice(5) : null;
 
-  // recharts veri formati: [{date, anthropic: 80, gemini: 40, ...}] — null'lar atlanir
-  const chartData = sortedDates.map((d) => {
-    const row: Record<string, string | number | null> = { date: d.slice(5) };
-    for (const pr of providers) row[pr] = scoreMap[pr][d] ?? null;
-    return row;
-  });
-
+  // recharts veri formati: [{date, anthropic: 80, ...}]; yontem degisiminden onceki
+  // noktalar ayri ("__eski") seride — iki yontem tek cizgiyle BAGLANMAZ
+  const { rows: chartData, series: chartSeries } = splitSeriesByMethod(byProvider, trends);
   return (
     <Card>
       <CardContent className="p-4">
@@ -385,15 +366,17 @@ export function CitationHistoryChart({
                     label={{ value: 'yöntem güncellendi', position: 'insideTopRight', fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                   />
                 )}
-                {providers.map((p) => (
+                {chartSeries.map(({ key, provider: p, legacy }) => (
                   <Line
-                    key={p}
+                    key={key}
                     type="monotone"
-                    dataKey={p}
-                    name={PROVIDER_LABELS[p] ?? p}
+                    dataKey={key}
+                    name={`${PROVIDER_LABELS[p] ?? p}${legacy ? ' (önceki yöntem)' : ''}`}
                     stroke={PROVIDER_COLORS[p] ?? PROVIDER_FALLBACK}
-                    strokeWidth={2}
-                    dot={{ r: 2.5, strokeWidth: 0, fill: PROVIDER_COLORS[p] ?? PROVIDER_FALLBACK }}
+                    strokeWidth={legacy ? 1.5 : 2}
+                    strokeOpacity={legacy ? 0.4 : 1}
+                    strokeDasharray={legacy ? '3 3' : undefined}
+                    dot={{ r: 2.5, strokeWidth: 0, fill: PROVIDER_COLORS[p] ?? PROVIDER_FALLBACK, fillOpacity: legacy ? 0.4 : 1 }}
                     activeDot={{ r: 4 }}
                     connectNulls
                     isAnimationActive={false}
