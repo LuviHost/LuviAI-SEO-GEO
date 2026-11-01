@@ -910,6 +910,21 @@ model AiCrawlerHit {
   status5xx   Int      @default(0)
   bytesServed Int      @default(0)
 
+  /**
+   * IP dogrulamasi (bot-verification.ts, 2026-11-02). hits = UA'si bu bot olan
+   * TUM istekler; verifiedHits = IP'si saglayicinin resmi listesinde (ya da ters
+   * DNS / ASN / Cloudflare) olanlar; unverifiedHits = dogrulama yontemi calisti
+   * ama IP saglayiciya ait degil (taklit olabilir). Kalan (hits - ikisi) =
+   * dogrulanamadi: eski Worker IP gondermiyor, liste okunamadi ya da bu bot icin
+   * resmi yontem yok. Eski satirlarda ikisi de 0 → tumu "dogrulanamadi".
+   */
+  verifiedHits   Int @default(0)
+  unverifiedHits Int @default(0)
+  /** Dogrulanamayan (taklit olabilir) isteklerin durum kovalari — hata alarmi bunlari dusar */
+  unverified2xx  Int @default(0)
+  unverified4xx  Int @default(0)
+  unverified5xx  Int @default(0)
+
   createdAt DateTime @default(now())
 
   @@unique([siteId, date, bot])
@@ -2632,6 +2647,15 @@ model CrawlerHitEvent {
    */
   source String @default("worker")
   meta   Json?
+
+  /**
+   * IP dogrulamasi: verified | unverified | unknown (bot-verification.ts).
+   * Ham IP SAKLANMAZ — yalniz sonuc, neden ve (Worker gonderdiyse) ASN.
+   * verifyReason 'no-ip': kaynak IP gondermedi (eski Worker/eklenti kodu).
+   */
+  verify       String  @default("unknown") @db.VarChar(12)
+  verifyReason String? @db.VarChar(24)
+  asn          Int?
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 

@@ -142,7 +142,7 @@ export class LookerController {
     const site = await this.ensureSite(req, siteId);
     const hits = await this.prisma.aiCrawlerHit.findMany({
       where: { siteId: site.id, date: { gte: this.days(days) } },
-      select: { date: true, bot: true, hits: true, status2xx: true, status4xx: true, status5xx: true },
+      select: { date: true, bot: true, hits: true, status2xx: true, status4xx: true, status5xx: true, verifiedHits: true, unverifiedHits: true },
       orderBy: { date: 'asc' },
     });
     return {
@@ -150,6 +150,10 @@ export class LookerController {
         date: h.date.toISOString().slice(0, 10),
         bot: h.bot,
         hits: h.hits,
+        // IP dogrulamasi (bot-verification.ts): hits = UA'si bu bot olan TUM istekler
+        verified: h.verifiedHits,
+        unverified: h.unverifiedHits,
+        unknown: Math.max(0, h.hits - h.verifiedHits - h.unverifiedHits),
         // ok: basarili yanit (status2xx kovasi: 2xx + 304). errors eskiden
         // yalniz 4xx'ti; sunucu hatalari (5xx) disa aktarimda kayboluyordu.
         ok: h.status2xx,

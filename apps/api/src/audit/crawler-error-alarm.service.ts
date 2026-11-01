@@ -26,6 +26,11 @@ export interface AlarmHitRow {
   status2xx: number;
   status4xx: number;
   status5xx: number;
+  /** IP dogrulamasi: taklit olabilecek istekler ve durum kovalari (bot-verification.ts) */
+  unverifiedHits?: number | null;
+  unverified2xx?: number | null;
+  unverified4xx?: number | null;
+  unverified5xx?: number | null;
 }
 
 const sayi = (v: number | null | undefined) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : 0);
@@ -81,6 +86,30 @@ export function trustedStatusRow(r: AlarmHitRow, liveRedirects = 0): BotDailyRow
     status2xx: s2,
     status4xx: s4,
     status5xx: s5,
+  };
+}
+
+/**
+ * Satirdan DOGRULANAMAYAN (IP'si saglayiciya ait olmayan, taklit olabilecek)
+ * istekleri duser — alarm taklit UA'li bir patlamayla tetiklenmesin.
+ *
+ * Vaka (02.11.2026): ayni IP'lerden UA degistiren bir kaziyici ChatGPT-User /
+ * Claude-User / PerplexityBot gibi gorunuyordu. Musterinin WAF'i bu kaziyiciyi
+ * 403 ile engellediginde eski alarm "GPTBot sitene ulasamiyor" derdi; oysa WAF
+ * dogru isini yapiyordu. 'unknown' (eski Worker IP gondermiyor, ya da bu bot
+ * icin yontem yok) DUSULMEZ: o istekler eskisi gibi sayilir.
+ */
+export function withoutUnverified(r: AlarmHitRow): AlarmHitRow {
+  return {
+    ...r,
+    hits: Math.max(0, sayi(r.hits) - sayi(r.unverifiedHits)),
+    status2xx: Math.max(0, sayi(r.status2xx) - sayi(r.unverified2xx)),
+    status4xx: Math.max(0, sayi(r.status4xx) - sayi(r.unverified4xx)),
+    status5xx: Math.max(0, sayi(r.status5xx) - sayi(r.unverified5xx)),
+    unverifiedHits: 0,
+    unverified2xx: 0,
+    unverified4xx: 0,
+    unverified5xx: 0,
   };
 }
 
@@ -168,9 +197,13 @@ export class CrawlerErrorAlarmService {
       try {
         const rows: AlarmHitRow[] = await this.prisma.aiCrawlerHit.findMany({
           where: { siteId: site.id, date: { gte: since } },
-          select: { bot: true, date: true, hits: true, uniqueUrls: true, status2xx: true, status4xx: true, status5xx: true },
+          select: {
+            bot: true, date: true, hits: true, uniqueUrls: true, status2xx: true, status4xx: true, status5xx: true,
+            unverifiedHits: true, unverified2xx: true, unverified4xx: true, unverified5xx: true,
+          },
         });
-        const valid = rows.filter((r) => BOT_ADI_RE.test(r.bot));
+        // Taklit olabilecek istekler (IP dogrulamasi 'unverified') alarma girmez
+        const valid = rows.filter((r) => BOT_ADI_RE.test(r.bot)).map(withoutUnverified);
         // Hic 4xx/5xx yoksa tetik olamaz: ham istek sorgusu da yapilmaz
         if (!valid.some((r) => sayi(r.status4xx) + sayi(r.status5xx) > 0)) continue;
         const redirects = await this.liveRedirects(site.id, valid);
@@ -238,7 +271,8 @@ export class CrawlerErrorAlarmService {
       const start = new Date(`${day}T00:00:00.000Z`);
       const groups = await this.prisma.crawlerHitEvent.groupBy({
         by: ['bot', 'status'],
-        where: { siteId, ts: { gte: start, lt: new Date(start.getTime() + 86_400_000) } },
+        // Dogrulanamayan (taklit olabilir) ham istekler satirdan da dusuldu; burada da sayilmaz
+        where: { siteId, ts: { gte: start, lt: new Date(start.getTime() + 86_400_000) }, verify: { not: 'unverified' } },
         _count: { _all: true },
       });
       for (const g of groups) {

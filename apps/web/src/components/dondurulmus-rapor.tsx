@@ -363,9 +363,17 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t">
                   {/* 24.10.2026 oncesi dondurulan raporlar hits toplami degil satir sayisi
                       (gun × bot / kaynak) tasir; damga yoksa notr etiket (site-report.service AI_SAYIM_YONTEMI). */}
-                  {geo.aiSayimYontemi === 'hits_toplami' ? (
+                  {/* 02.11.2026'dan sonra dondurulan raporlar IP ile dogrulanmis bot ziyaretini ayri tasir
+                      (site-report.service AI_BOT_DOGRULAMA_YONTEMI); oncekilerde sayi taklit UA'lari da icerir. */}
+                  {geo.aiBotDogrulamaYontemi === 'ip_dogrulama_v1' ? (
                     <>
-                      <Kutu etiket="AI bot ziyareti" deger={sayi(geo.aiBotZiyareti)} />
+                      <Kutu etiket="Doğrulanmış AI bot ziyareti" deger={sayi(geo.aiBotDogrulanmis)} />
+                      <Kutu etiket="AI'dan gelen ziyaret (referer veya utm etiketi)" deger={sayi(geo.aiReferrer)} />
+                      <Kutu etiket="Taklit olabilecek bot isteği (IP doğrulanamadı)" deger={sayi(geo.aiBotDogrulanamayan)} />
+                    </>
+                  ) : geo.aiSayimYontemi === 'hits_toplami' ? (
+                    <>
+                      <Kutu etiket="AI bot isteği (IP doğrulaması öncesi)" deger={sayi(geo.aiBotZiyareti)} />
                       <Kutu etiket="AI'dan gelen ziyaret (referer veya utm etiketi)" deger={sayi(geo.aiReferrer)} />
                     </>
                   ) : (

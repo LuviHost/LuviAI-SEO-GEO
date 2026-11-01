@@ -378,3 +378,29 @@ describe('AppModule — ara katman kaydi', () => {
     for (const k of kayitlar) expect(k.routes).not.toContain('*');
   }, 60_000);
 });
+
+describe('beacon sayaci — IP dogrulamasi', () => {
+  it('siniflandirici sonucu verifiedHits / unverifiedHits olarak yazilir; dogrulanamayan yalniz hits', async () => {
+    const { CrawlerBeaconCounter, BEACON_LIMITS } = await freshMiddleware();
+    const prisma = makePrisma();
+    const verdict = (bot: string, ip: string) => (ip === '132.196.86.5' ? 'verified' : ip === '45.140.10.20' ? 'unverified' : 'unknown');
+    const c = new CrawlerBeaconCounter(prisma as never, BEACON_LIMITS, () => Date.UTC(2026, 10, 2, 10), verdict as never);
+    c.record({ ua: GPTBOT, site: SITE, ip: '132.196.86.5' });
+    c.record({ ua: GPTBOT, site: SITE, ip: '45.140.10.20' });
+    c.record({ ua: GPTBOT, site: SITE, ip: '45.140.10.20' });
+    c.record({ ua: GPTBOT, site: SITE, ip: '9.9.9.9' });
+    await c.flush();
+    const arg = prisma.aiCrawlerHit.upsert.mock.calls[0][0] as any;
+    expect(arg.update).toEqual({ hits: { increment: 4 }, verifiedHits: { increment: 1 }, unverifiedHits: { increment: 2 } });
+    expect(arg.create).toMatchObject({ hits: 4, verifiedHits: 1, unverifiedHits: 2 });
+  });
+
+  it('siniflandirici firlatirsa isabet yine sayilir (unknown)', async () => {
+    const { CrawlerBeaconCounter, BEACON_LIMITS } = await freshMiddleware();
+    const prisma = makePrisma();
+    const c = new CrawlerBeaconCounter(prisma as never, BEACON_LIMITS, () => Date.UTC(2026, 10, 2, 10), (() => { throw new Error('x'); }) as never);
+    expect(c.record({ ua: GPTBOT, site: SITE, ip: '132.196.86.5' })).toBe('buffered');
+    await c.flush();
+    expect((prisma.aiCrawlerHit.upsert.mock.calls[0][0] as any).update).toEqual({ hits: { increment: 1 } });
+  });
+});

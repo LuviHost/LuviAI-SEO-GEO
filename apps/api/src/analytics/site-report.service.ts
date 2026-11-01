@@ -49,8 +49,17 @@ export interface GeoBolumu {
   alintilanan: number;
   /** Kac probe'ta marka adi anildi (alinti olmadan da olabilir) */
   anilan: number;
-  /** Donemde AI botlarinin istek toplami (ai_crawler_hits.hits) */
+  /** Donemde UA'si AI botu olan TUM isteklerin toplami (ai_crawler_hits.hits) — dogrulanmamislar dahil */
   aiBotZiyareti: number;
+  /** Donemde IP'si saglayicinin resmi listesiyle dogrulanmis bot ziyareti (manset) */
+  aiBotDogrulanmis?: number;
+  /** Kendini bot olarak tanitan ama IP'si saglayiciya ait olmayan (taklit olabilir) istek */
+  aiBotDogrulanamayan?: number;
+  /**
+   * Damga: bu alan varsa aiBotDogrulanmis/aiBotDogrulanamayan gecerli. Olmayan (02.11.2026
+   * oncesi dondurulmus) raporlarda yalniz aiBotZiyareti vardir ve dogrulanmamis istekleri de icerir.
+   */
+  aiBotDogrulamaYontemi?: typeof AI_BOT_DOGRULAMA_YONTEMI;
   /** Donemde AI kaynakli insan ziyareti toplami (ai_referrer_hits.hits; referer ya da utm) */
   aiReferrer: number;
   /**
@@ -191,6 +200,8 @@ function ort(sayilar: number[]): number | null {
  * hits toplami. Bu alan olmayan (daha once dondurulmus) raporlarda sayi satir sayisidir.
  */
 export const AI_SAYIM_YONTEMI = 'hits_toplami' as const;
+/** Bot ziyaretleri IP ile dogrulaniyor (bot-verification.ts, 2026-11-02) */
+export const AI_BOT_DOGRULAMA_YONTEMI = 'ip_dogrulama_v1' as const;
 
 @Injectable()
 export class SiteReportService {
@@ -366,10 +377,13 @@ export class SiteReportService {
     // tek gunde 500 bot istegi alan site "1". ai-kpis ve client-report zaten hits topluyor.
     const donemde = { siteId, date: { gte: d.rangeStart, lte: d.rangeEnd } };
     const [botToplami, referrerToplami] = await Promise.all([
-      this.prisma.aiCrawlerHit.aggregate({ where: donemde, _sum: { hits: true } }),
+      this.prisma.aiCrawlerHit.aggregate({ where: donemde, _sum: { hits: true, verifiedHits: true, unverifiedHits: true } }),
       this.prisma.aiReferrerHit.aggregate({ where: donemde, _sum: { hits: true } }),
     ]);
     const aiBotZiyareti = botToplami._sum.hits ?? 0;
+    // IP dogrulamasi (bot-verification.ts): manset dogrulanmis ziyaret
+    const aiBotDogrulanmis = botToplami._sum.verifiedHits ?? 0;
+    const aiBotDogrulanamayan = botToplami._sum.unverifiedHits ?? 0;
     const aiReferrer = referrerToplami._sum.hits ?? 0;
 
     return {
@@ -386,6 +400,9 @@ export class SiteReportService {
       alintilanan,
       anilan,
       aiBotZiyareti,
+      aiBotDogrulanmis,
+      aiBotDogrulanamayan,
+      aiBotDogrulamaYontemi: AI_BOT_DOGRULAMA_YONTEMI,
       aiReferrer,
       // Dondurulmus rapor bu damgayla sayinin hits toplami oldugunu bilir; damgasiz eski
       // raporlar satir sayisi (gun × bot / kaynak) tasir ve notr etiketle gosterilir.

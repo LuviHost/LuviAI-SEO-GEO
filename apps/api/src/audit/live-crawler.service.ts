@@ -1,5 +1,5 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Injectable, Logger, BadRequestException, NotFoundException, UnauthorizedException, HttpException, HttpStatus } from '@nestjs/common';
+import { Cron, Interval } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
@@ -12,6 +12,10 @@ import {
   verifyIngestSignature,
   describeIngestFailure,
 } from './ingest-auth.js';
+import { BotVerifier, sharedBotVerifier } from './bot-verifier.service.js';
+import type { BotVerdict } from './bot-verification.js';
+import { FixedWindowLimiter, ingestSiteRateLimit } from './ingest-rate-limit.js';
+import { parseThrottleValue, readIngestHealth, throttleKey } from './ingest-health.js';
 
 /**
  * Live Crawler — istek bazli, gercek zamanli AI bot ziyaret hatti.
@@ -92,6 +96,24 @@ export interface IngestEvent {
   path?: string;
   status?: number;
   ts?: string | number;
+  /**
+   * Botun IP'si — dogrulama icin (bot-verification.ts). Worker: cf-connecting-ip;
+   * WordPress: REMOTE_ADDR; nginx: $remote_addr. Imzali govdenin icinde oldugu
+   * icin ucuncu kisi degistiremez. SAKLANMAZ: yalniz siniflandirma sonucu yazilir.
+   * Eski kurulumlar gondermez → isabet 'unknown' (dogrulanamadi).
+   */
+  ip?: string;
+  /** WordPress: HTTP_CF_CONNECTING_IP — yalniz ip bir Cloudflare adresiyse kullanilir */
+  fwd?: string;
+  /** Cloudflare Worker: request.cf.asn */
+  asn?: number;
+  /** Cloudflare Worker: Cloudflare bu istegi dogrulanmis bot saydi (yalniz true gonderilir) */
+  cfVerified?: boolean;
+}
+
+/** Ingest govdesinden gelen metin alanini sinirla (IP icin 64 karakter yeter) */
+function shortText(v: unknown, max = 64): string | null {
+  return typeof v === 'string' && v.length > 0 && v.length <= max ? v : null;
 }
 
 /** Ingest istegini imzalayan basliklar + govdenin HAM hali */
@@ -105,12 +127,21 @@ export interface IngestAuthContext {
 @Injectable()
 export class LiveCrawlerService {
   private readonly log = new Logger(LiveCrawlerService.name);
+  private readonly verifier: BotVerifier;
+  /** Imzali istekler icin site basina dakikalik kova (ingest-rate-limit.ts) */
+  private readonly siteLimiter = new FixedWindowLimiter(60_000);
+  /** Bu surecte 429 ile dusen imzali istekler — dakikada bir kvStore'a yazilir */
+  private readonly throttledPending = new Map<string, { n: number; last: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly webhook: WebhookNotifierService,
-  ) {}
+    verifier?: BotVerifier,
+  ) {
+    // Nest DI her zaman verir (audit.module); dogrudan `new` ile kuran testler surec ortak dogrulayicisini kullanir
+    this.verifier = verifier ?? sharedBotVerifier();
+  }
 
   // ────────────────────────────────────────────────────────────
   //  INGEST — edge kaynaklarindan batch event
@@ -152,6 +183,17 @@ export class LiveCrawlerService {
       throw new UnauthorizedException('Ingest imzasi dogrulanamadi');
     }
 
+    // SITE KOVASI — yalniz imzasi dogrulanan istek buraya gelir; paylasimli
+    // Worker cikis IP'leri yuzunden IP basina tavan mesru trafigi kesiyordu
+    // (ingest-rate-limit.ts). Dusen istek sayilir ve panelde gorunur.
+    if (!this.siteLimiter.take(siteId, ingestSiteRateLimit())) {
+      this.recordThrottled(siteId);
+      throw new HttpException(
+        { statusCode: 429, message: 'Site ingest tavani asildi', retryAfter: this.siteLimiter.retryAfterSeconds() },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     // PLAN KAPISI — imzadan SONRA: imzasiz istek plan durumunu ogrenemesin.
     // Sahibin planinda liveCrawler (Ajans) yoksa olaylar KABUL EDILIR AMA
     // KAYDEDILMEZ (accepted:0, reason:'plan'): ne CrawlerHitEvent ne gunluk
@@ -180,7 +222,9 @@ export class LiveCrawlerService {
     const rows: Array<{
       siteId: string; ts: Date; bot: string; path: string;
       status: number; isCiteFetch: boolean; source: string;
+      verify: BotVerdict; verifyReason: string; asn: number | null;
     }> = [];
+    const verifyInputs: Array<{ bot: string; ip: string | null; fwd: string | null; asn: number | null; cfVerified: boolean }> = [];
 
     for (const ev of events.slice(0, MAX_BATCH)) {
       const bot = (typeof ev.bot === 'string' && ev.bot.trim())
@@ -202,10 +246,34 @@ export class LiveCrawlerService {
         status: Math.min(Math.max(status, 100), 599),
         isCiteFetch: CITE_FETCH_BOTS.has(bot),
         source: cleanSource,
+        verify: 'unknown',
+        verifyReason: 'no-ip',
+        asn: null,
+      });
+      verifyInputs.push({
+        bot,
+        ip: shortText(ev.ip),
+        fwd: shortText(ev.fwd),
+        asn: typeof ev.asn === 'number' ? ev.asn : null,
+        cfVerified: ev.cfVerified === true,
       });
     }
 
     if (rows.length === 0) return { accepted: 0, skipped: events.length };
+
+    // IP dogrulamasi — hata asla ingest'i dusurmez; en kotu durumda 'unknown'
+    try {
+      const verdicts = await this.verifier.classifyMany(verifyInputs);
+      verdicts.forEach((v, i) => {
+        const r = rows[i]!;
+        r.verify = v.verdict;
+        r.verifyReason = v.reason;
+        r.asn = v.asn;
+      });
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Bot dogrulamasi yapilamadi: ${err?.message ?? err}`);
+      for (const r of rows) { r.verify = 'unknown'; r.verifyReason = 'list-unavailable'; }
+    }
 
     const room = DAILY_EVENT_CAP - todayCount;
     const toInsert = rows.slice(0, Math.max(0, room));
@@ -216,8 +284,9 @@ export class LiveCrawlerService {
       this.log.warn(`[${siteId}] Gunluk aggregate guncellenemedi: ${err.message}`),
     );
 
-    // Cite sinyali bildirimi (gunde 1, fire-and-forget)
-    const cites = toInsert.filter((r) => r.isCiteFetch);
+    // Cite sinyali bildirimi (gunde 1, fire-and-forget) — YALNIZ dogrulanmis:
+    // "ChatGPT az once sayfani okudu" bildirimi taklit UA'yla tetiklenemesin
+    const cites = toInsert.filter((r) => r.isCiteFetch && r.verify === 'verified');
     if (cites.length > 0) {
       this.notifyCiteFetch(site, cites).catch((err) =>
         this.log.warn(`[${siteId}] Cite bildirimi gonderilemedi: ${err.message}`),
@@ -235,51 +304,117 @@ export class LiveCrawlerService {
     const minutes = Math.min(Math.max(opts.minutes ?? 10, 1), 120);
     const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
     const since = new Date(Date.now() - minutes * 60_000);
+    const since24h = new Date(Date.now() - 24 * 3600_000);
 
-    const [events, lastEvent, citeLast24h] = await Promise.all([
+    const [events, citeLast24h, citeCounts, health] = await Promise.all([
       this.prisma.crawlerHitEvent.findMany({
         where: { siteId, ts: { gte: since } },
         orderBy: { ts: 'desc' },
         take: limit,
-        select: { id: true, ts: true, bot: true, path: true, status: true, isCiteFetch: true, source: true },
+        select: { id: true, ts: true, bot: true, path: true, status: true, isCiteFetch: true, source: true, verify: true, verifyReason: true },
       }),
-      this.prisma.crawlerHitEvent.findFirst({
-        where: { siteId },
-        orderBy: { ts: 'desc' },
-        select: { ts: true, source: true },
-      }),
+      // Vitrin YALNIZ dogrulanmis cite'lari gosterir: taklit UA "ChatGPT sayfani okudu" dedirtemez
       this.prisma.crawlerHitEvent.findMany({
-        where: { siteId, isCiteFetch: true, ts: { gte: new Date(Date.now() - 24 * 3600_000) } },
+        where: { siteId, isCiteFetch: true, verify: 'verified', ts: { gte: since24h } },
         orderBy: { ts: 'desc' },
         take: 10,
         select: { ts: true, bot: true, path: true },
       }),
+      this.prisma.crawlerHitEvent.groupBy({
+        by: ['verify'],
+        where: { siteId, isCiteFetch: true, ts: { gte: since24h } },
+        _count: { _all: true },
+      }),
+      readIngestHealth(this.prisma as any, siteId),
     ]);
 
-    // Pencere icindeki bot sayaclari (limit'ten bagimsiz gercek toplam)
+    // Pencere icindeki bot sayaclari (limit'ten bagimsiz gercek toplam), dogrulama kirilimiyla
     const counts = await this.prisma.crawlerHitEvent.groupBy({
-      by: ['bot'],
+      by: ['bot', 'verify'],
       where: { siteId, ts: { gte: since } },
-      _count: { bot: true },
+      _count: { _all: true },
     });
-    const byBot = counts
-      .map((c) => ({ bot: c.bot, hits: c._count.bot }))
-      .sort((a, b) => b.hits - a.hits);
+    const bots = new Map<string, { bot: string; hits: number; verified: number; unverified: number; unknown: number }>();
+    for (const c of counts) {
+      const cur = bots.get(c.bot) ?? { bot: c.bot, hits: 0, verified: 0, unverified: 0, unknown: 0 };
+      const n = c._count._all;
+      cur.hits += n;
+      if (c.verify === 'verified') cur.verified += n;
+      else if (c.verify === 'unverified') cur.unverified += n;
+      else cur.unknown += n;
+      bots.set(c.bot, cur);
+    }
+    // Siralama dogrulanmis isabete gore: manset gercek ziyaret
+    const byBot = [...bots.values()].sort((a, b) => b.verified - a.verified || b.hits - a.hits);
     const total = byBot.reduce((a, b) => a + b.hits, 0);
+    const verification = {
+      verified: byBot.reduce((a, b) => a + b.verified, 0),
+      unverified: byBot.reduce((a, b) => a + b.unverified, 0),
+      unknown: byBot.reduce((a, b) => a + b.unknown, 0),
+    };
+    const citeFetchCounts24h = { verified: 0, unverified: 0, unknown: 0 };
+    for (const c of citeCounts) {
+      const k = c.verify === 'verified' || c.verify === 'unverified' ? c.verify : 'unknown';
+      citeFetchCounts24h[k] += c._count._all;
+    }
 
     // "Worker Connected": son 10 dk icinde herhangi bir event
-    const workerConnected = !!lastEvent && Date.now() - lastEvent.ts.getTime() < 10 * 60_000;
+    const lastEventAt = health.lastEventAt ? new Date(health.lastEventAt) : null;
+    const workerConnected = !!lastEventAt && Date.now() - lastEventAt.getTime() < 10 * 60_000;
 
     return {
       windowMinutes: minutes,
       workerConnected,
-      lastEventAt: lastEvent?.ts ?? null,
-      lastEventSource: lastEvent?.source ?? null,
+      lastEventAt,
+      lastEventSource: health.lastEventSource,
+      /** UA'si bot olan TUM istekler (dogrulanmis + taklit olabilir + dogrulanamadi) */
       total,
+      verification,
       byBot,
       events,
       citeFetches24h: citeLast24h,
+      citeFetchCounts24h,
+      ingestHealth: health,
     };
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  429 SAYACI — site tavanina takilan imzali istekler
+  // ────────────────────────────────────────────────────────────
+
+  /** Bellekte biriktirir; dakikada bir kvStore'a yazilir (patlama aninda her 429'da DB'ye yazilmaz) */
+  recordThrottled(siteId: string): void {
+    const cur = this.throttledPending.get(siteId) ?? { n: 0, last: 0 };
+    cur.n++;
+    cur.last = Date.now();
+    this.throttledPending.set(siteId, cur);
+  }
+
+  @Interval(60_000)
+  async flushThrottled(): Promise<number> {
+    if (this.throttledPending.size === 0) return 0;
+    const batch = [...this.throttledPending.entries()];
+    this.throttledPending.clear();
+    let written = 0;
+    for (const [siteId, p] of batch) {
+      const day = new Date(p.last).toISOString().slice(0, 10);
+      const key = throttleKey(siteId, day);
+      try {
+        const row = await this.prisma.kvStore.findUnique({ where: { key } });
+        const prev = parseThrottleValue(row?.value);
+        const value = JSON.stringify({ n: prev.n + p.n, last: new Date(p.last).toISOString() });
+        await this.prisma.kvStore.upsert({
+          where: { key },
+          create: { key, value, expiresAt: new Date(Date.now() + 8 * 86_400_000) },
+          update: { value },
+        });
+        written++;
+      } catch (err: any) {
+        this.log.warn(`[${siteId}] 429 sayaci yazilamadi: ${err?.message ?? err}`);
+      }
+    }
+    if (written > 0) this.log.warn(`Ingest site tavani: ${batch.reduce((a, [, p]) => a + p.n, 0)} istek 429 ile dustu (${written} site)`);
+    return written;
   }
 
   // ────────────────────────────────────────────────────────────
@@ -357,6 +492,9 @@ const RANKSUP_INGEST = '${ingest}';
 const SITE_ID = '${siteId}';
 const RANKSUP_SECRET = '${secret}';
 const AI_BOT = /${uaPattern}/i;
+// Surum 2: botun IP'si (dogrulama icin; RanksUp IP'yi saklamaz) + 429/5xx'te yeniden deneme
+const RANKSUP_WORKER_VERSION = 2;
+const RETRY_STATUS = [429, 500, 502, 503, 504];
 
 async function ranksupSign(payload) {
   const enc = new TextEncoder();
@@ -368,34 +506,51 @@ async function ranksupSign(payload) {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// En fazla 3 deneme; 429/5xx ya da ag hatasinda bekleyip yeniden dener
+async function ranksupSend(event) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ts = String(Date.now());
+    const body = JSON.stringify({ site: SITE_ID, source: 'worker', v: RANKSUP_WORKER_VERSION, events: [event] });
+    const sig = await ranksupSign(ts + '.' + body);
+    let res = null;
+    try {
+      res = await fetch(RANKSUP_INGEST, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'X-RanksUp-Timestamp': ts,
+          'X-RanksUp-Signature': 'sha256=' + sig,
+        },
+        body,
+      });
+    } catch (e) { res = null; }
+    if (res && !RETRY_STATUS.includes(res.status)) return;
+    if (attempt === 2) return;
+    const retryAfter = res ? Number(res.headers.get('retry-after')) : NaN;
+    const wait = retryAfter > 0 && retryAfter <= 5 ? retryAfter * 1000 : 300 * 2 ** attempt + Math.random() * 300;
+    await new Promise((r) => setTimeout(r, wait));
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const response = await fetch(request); // istegi normal isle — sifir gecikme
     const ua = request.headers.get('user-agent') || '';
     if (AI_BOT.test(ua)) {
-      ctx.waitUntil((async () => {
-        const ts = String(Date.now());
-        const body = JSON.stringify({
-          site: SITE_ID,
-          source: 'worker',
-          events: [{
-            ua,
-            path: new URL(request.url).pathname,
-            status: response.status,
-            ts: Number(ts),
-          }],
-        });
-        const sig = await ranksupSign(ts + '.' + body);
-        await fetch(RANKSUP_INGEST, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'X-RanksUp-Timestamp': ts,
-            'X-RanksUp-Signature': 'sha256=' + sig,
-          },
-          body,
-        });
-      })().catch(() => {}));
+      const cf = request.cf || {};
+      const bm = cf.botManagement || {};
+      const event = {
+        ua,
+        path: new URL(request.url).pathname,
+        status: response.status,
+        ts: Date.now(),
+        // Cloudflare'in yazdigi gercek istemci IP'si — "gercek bot mu" dogrulamasi icin
+        ip: request.headers.get('cf-connecting-ip') || '',
+        asn: typeof cf.asn === 'number' ? cf.asn : undefined,
+        // Bot Management planlarinda Cloudflare'in kendi dogrulamasi (varsa ek sinyal)
+        cfVerified: bm.verifiedBot === true || (typeof cf.verifiedBotCategory === 'string' && cf.verifiedBotCategory !== '') ? true : undefined,
+      };
+      ctx.waitUntil(ranksupSend(event).catch(() => {}));
     }
     return response;
   },
@@ -405,7 +560,8 @@ export default {
 /**
  * Plugin Name: RanksUp Live Crawler
  * Description: AI bot ziyaretlerini (GPTBot, ClaudeBot, ChatGPT-User...) RanksUp'a anlik bildirir.
- * Version: 1.1
+ * Version: 1.2
+ * 1.2: botun IP'si dogrulama icin gonderilir (RanksUp IP'yi saklamaz).
  */
 // NOT: RANKSUP_SECRET gizlidir; bu dosyayi herkese acik bir repoda paylasma.
 define('RANKSUP_INGEST', '${ingest}');
@@ -425,6 +581,9 @@ add_action('template_redirect', function () {
       'path'   => isset($_SERVER['REQUEST_URI']) ? strtok($_SERVER['REQUEST_URI'], '?') : '/',
       'status' => 200,
       'ts'     => (int) $ts,
+      // Dogrulama icin botun IP'si. fwd yalniz REMOTE_ADDR bir Cloudflare adresiyse kullanilir
+      'ip'     => isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '',
+      'fwd'    => isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? $_SERVER['HTTP_CF_CONNECTING_IP'] : '',
     )),
   ));
   $sig = hash_hmac('sha256', $ts . '.' . $body, RANKSUP_SECRET);
@@ -452,13 +611,16 @@ SECRET='${secret}'
 tail -F /var/log/nginx/access.log | while read -r line; do
   ua=$(echo "$line" | grep -oE '"[^"]*"$' | tr -d '"')
   echo "$ua" | grep -qiE '${uaPattern}' || continue
+  # Botun IP'si (combined formatta ilk alan) — dogrulama icin, RanksUp saklamaz
+  ip=$(echo "$line" | awk '{print $1}')
   path=$(echo "$line" | awk '{print $7}')
   status=$(echo "$line" | awk '{print $9}')
   # Milisaniye epoch — date +%s%3N BSD/macOS'ta yok, carpim her yerde calisir
   ts=$(( $(date +%s) * 1000 ))
-  body="{\\"site\\":\\"$SITE\\",\\"source\\":\\"log\\",\\"events\\":[{\\"ua\\":\\"$ua\\",\\"path\\":\\"$path\\",\\"status\\":$status,\\"ts\\":$ts}]}"
+  body="{\\"site\\":\\"$SITE\\",\\"source\\":\\"log\\",\\"events\\":[{\\"ua\\":\\"$ua\\",\\"path\\":\\"$path\\",\\"status\\":$status,\\"ts\\":$ts,\\"ip\\":\\"$ip\\"}]}"
   sig=$(printf '%s' "$ts.$body" | openssl dgst -sha256 -hmac "$SECRET" -r | awk '{print $1}')
-  curl -s -m 2 -X POST "$INGEST" -H 'Content-Type: application/json' \\
+  # --retry: 429 ve 5xx'te curl kendisi bekleyip yeniden dener
+  curl -s -m 5 --retry 2 --retry-max-time 15 -X POST "$INGEST" -H 'Content-Type: application/json' \\
     -H "X-RanksUp-Timestamp: $ts" \\
     -H "X-RanksUp-Signature: sha256=$sig" \\
     -d "$body" > /dev/null 2>&1 &
@@ -495,16 +657,35 @@ done`;
    * (inceleme R16); 1xx ise "basarili" sayiliyordu (ingest 0 ya da negatif
    * durumu 100'e sikistirir — yani durumu bilinmeyen istek basarili gorunurdu).
    */
-  private async updateDailyAggregates(siteId: string, rows: Array<{ bot: string; ts: Date; status: number; path: string }>) {
-    const byDateBot = new Map<string, { date: Date; bot: string; hits: number; s2xx: number; s4xx: number; s5xx: number }>();
+  private async updateDailyAggregates(
+    siteId: string,
+    rows: Array<{ bot: string; ts: Date; status: number; path: string; verify?: BotVerdict }>,
+  ) {
+    type Agg = {
+      date: Date; bot: string; hits: number; s2xx: number; s4xx: number; s5xx: number;
+      verified: number; unverified: number; u2xx: number; u4xx: number; u5xx: number;
+    };
+    const byDateBot = new Map<string, Agg>();
     for (const r of rows) {
       const dateKey = r.ts.toISOString().slice(0, 10);
       const key = `${dateKey}|${r.bot}`;
-      const cur = byDateBot.get(key) ?? { date: new Date(dateKey), bot: r.bot, hits: 0, s2xx: 0, s4xx: 0, s5xx: 0 };
+      const cur = byDateBot.get(key) ?? {
+        date: new Date(dateKey), bot: r.bot, hits: 0, s2xx: 0, s4xx: 0, s5xx: 0,
+        verified: 0, unverified: 0, u2xx: 0, u4xx: 0, u5xx: 0,
+      };
       cur.hits++;
-      if (isSuccessfulCrawlStatus(r.status)) cur.s2xx++;
-      else if (r.status >= 500) cur.s5xx++;
-      else if (r.status >= 400) cur.s4xx++;
+      const bucket = isSuccessfulCrawlStatus(r.status) ? '2' : r.status >= 500 ? '5' : r.status >= 400 ? '4' : null;
+      if (bucket === '2') cur.s2xx++;
+      else if (bucket === '5') cur.s5xx++;
+      else if (bucket === '4') cur.s4xx++;
+      if (r.verify === 'verified') cur.verified++;
+      else if (r.verify === 'unverified') {
+        // Taklit olabilecek isteklerin durum kovalari ayri tutulur: hata alarmi bunlari duser
+        cur.unverified++;
+        if (bucket === '2') cur.u2xx++;
+        else if (bucket === '5') cur.u5xx++;
+        else if (bucket === '4') cur.u4xx++;
+      }
       byDateBot.set(key, cur);
     }
     for (const agg of byDateBot.values()) {
@@ -514,12 +695,19 @@ done`;
           siteId, date: agg.date, bot: agg.bot,
           hits: agg.hits, uniqueUrls: 0, topUrls: [],
           status2xx: agg.s2xx, status4xx: agg.s4xx, status5xx: agg.s5xx,
+          verifiedHits: agg.verified, unverifiedHits: agg.unverified,
+          unverified2xx: agg.u2xx, unverified4xx: agg.u4xx, unverified5xx: agg.u5xx,
         },
         update: {
           hits: { increment: agg.hits },
           status2xx: { increment: agg.s2xx },
           status4xx: { increment: agg.s4xx },
           status5xx: { increment: agg.s5xx },
+          verifiedHits: { increment: agg.verified },
+          unverifiedHits: { increment: agg.unverified },
+          unverified2xx: { increment: agg.u2xx },
+          unverified4xx: { increment: agg.u4xx },
+          unverified5xx: { increment: agg.u5xx },
         },
       });
     }

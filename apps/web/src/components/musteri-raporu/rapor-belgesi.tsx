@@ -427,14 +427,21 @@ function BotZiyaretleri({ rapor }: { rapor: MusteriRaporu }) {
       ) : (
         <div className="rapor-blok">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 print:grid-cols-4">
-            <Kutu etiket="Son 7 gün" deger={trSayi(rapor.botlar.son7)} ipucu="AI bot isteği" />
-            <Kutu etiket="Son 30 gün" deger={trSayi(rapor.botlar.son30)} ipucu="AI bot isteği" />
+            {/* Sayilar IP adresi saglayicinin resmi listesinde olan (dogrulanmis) bot ziyaretleri */}
+            <Kutu etiket="Son 7 gün" deger={trSayi(rapor.botlar.son7)} ipucu="Doğrulanmış AI bot ziyareti" />
+            <Kutu etiket="Son 30 gün" deger={trSayi(rapor.botlar.son30)} ipucu="Doğrulanmış AI bot ziyareti" />
             <Kutu etiket="Yayında" deger={trSayi(rapor.icerik.yayinda)} ipucu="RanksUp içeriği" />
             <Kutu etiket="Takvimde" deger={trSayi(rapor.icerik.takvimde)} ipucu="Planlanan içerik" />
           </div>
           {rapor.botlar.botlar.length > 0 && (
             <p className="mt-2 text-sm text-muted-foreground">
               En çok gelen botlar (30 gün): {rapor.botlar.botlar.map((b) => `${b.ad} (${trSayi(b.ziyaret)})`).join(', ')}.
+            </p>
+          )}
+          {(rapor.botlar.dogrulanamayan30 ?? 0) > 0 && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Ayrıca son 30 günde {trSayi(rapor.botlar.dogrulanamayan30 ?? 0)} istek kendini AI botu olarak tanıttı ama IP adresi
+              sağlayıcıya ait değil — taklit olabilir, ziyaret sayısına eklenmedi.
             </p>
           )}
         </div>

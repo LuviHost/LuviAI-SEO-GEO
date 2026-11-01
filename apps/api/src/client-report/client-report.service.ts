@@ -81,7 +81,7 @@ export class ClientReportService {
       yut(this.tracker.getHistory(siteId, 30, true) as Promise<any>, null, 'citation-headline'),
       yut(this.prisma.aiCitationRun.findFirst({ where: { siteId }, orderBy: { runAt: 'desc' }, select: { runAt: true, providers: true } }), null, 'citation-run'),
       yut(this.kpis.getKpis(siteId), null, 'ai-kpis'),
-      yut(this.prisma.aiCrawlerHit.findMany({ where: { siteId, date: { gte: d30 } }, select: { date: true, bot: true, hits: true } }), [], 'crawler-hits'),
+      yut(this.prisma.aiCrawlerHit.findMany({ where: { siteId, date: { gte: d30 } }, select: { date: true, bot: true, hits: true, verifiedHits: true, unverifiedHits: true } }), [], 'crawler-hits'),
       yut(this.prisma.aiCrawlerHit.findFirst({ where: { siteId }, select: { id: true } }), null, 'crawler-any'),
       yut(this.prisma.article.count({ where: { siteId, status: 'PUBLISHED' } }), 0, 'articles-published'),
       yut(this.takvimdeki(siteId, site.userId), 0, 'articles-scheduled'),
@@ -96,10 +96,17 @@ export class ClientReportService {
       yut(this.readinessWithDate(siteId), null, 'agent-readiness'),
     ]);
 
-    const son7 = botSatirlari.filter((r) => r.date >= d7).reduce((a, r) => a + r.hits, 0);
-    const son30 = botSatirlari.reduce((a, r) => a + r.hits, 0);
+    // Musteriye giden sayi DOGRULANMIS ziyaret (IP saglayicinin resmi listesinde;
+    // bot-verification.ts). Taklit UA'li istekler "AI asistanlari sitenizi okuyor"
+    // kaniti olarak gosterilmez; ayrica sayilir.
+    const dogrulanmis = (r: { verifiedHits?: number | null }) => Number(r.verifiedHits) || 0;
+    const son7 = botSatirlari.filter((r) => r.date >= d7).reduce((a, r) => a + dogrulanmis(r), 0);
+    const son30 = botSatirlari.reduce((a, r) => a + dogrulanmis(r), 0);
+    const dogrulanamayan30 = botSatirlari.reduce((a, r) => a + (Number((r as { unverifiedHits?: number }).unverifiedHits) || 0), 0);
     const botToplam = new Map<string, number>();
-    for (const r of botSatirlari) botToplam.set(r.bot, (botToplam.get(r.bot) ?? 0) + r.hits);
+    for (const r of botSatirlari) {
+      if (dogrulanmis(r) > 0) botToplam.set(r.bot, (botToplam.get(r.bot) ?? 0) + dogrulanmis(r));
+    }
 
     const sov = shareOfVoiceList(
       unbrandedOnly(sovSatirlari as Array<{ brandMentioned: boolean; brandInQuery: boolean; competitors: unknown }>).map((r) => ({
@@ -133,6 +140,7 @@ export class ClientReportService {
         takipVar: !!site.ingestSecret || !!botVarMi,
         son7,
         son30,
+        dogrulanamayan30,
         botlar: [...botToplam.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([ad, ziyaret]) => ({ ad, ziyaret })),
       },
       icerik: { yayinda, takvimde },

@@ -103,7 +103,11 @@ describe('Log yuklemesi canli sayaclari ezmez', () => {
     expect(mergeLogIntoDailyHit(null, log(5)).increments).toMatchObject({ hits: 5, status2xx: 5 });
     const canli = { hits: 900, uniqueUrls: 0, status2xx: 880, status4xx: 20, status5xx: 0, bytesServed: 0, topUrls: [] };
     // Kucuk log parcasi: hicbir sayac dusmez
-    expect(mergeLogIntoDailyHit(canli, log(100)).increments).toEqual({ hits: 0, uniqueUrls: 2, status2xx: 0, status4xx: 0, status5xx: 0, bytesServed: 100 });
+    expect(mergeLogIntoDailyHit(canli, log(100)).increments).toEqual({
+      hits: 0, uniqueUrls: 2, status2xx: 0, status4xx: 0, status5xx: 0, bytesServed: 100,
+      // IP dogrulama sayaclari ayni max kuralina tabi (logda dogrulama yoksa 0)
+      verifiedHits: 0, unverifiedHits: 0, unverified2xx: 0, unverified4xx: 0, unverified5xx: 0,
+    });
     // Log daha buyukse fark kadar artar (ayni trafigi iki kez saymaz)
     expect(mergeLogIntoDailyHit(canli, log(1000)).increments.hits).toBe(100);
   });

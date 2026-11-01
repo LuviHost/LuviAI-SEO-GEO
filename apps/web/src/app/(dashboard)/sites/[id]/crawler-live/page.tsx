@@ -15,6 +15,13 @@ import {
   RefreshCw, KeyRound, AlertTriangle,
 } from 'lucide-react';
 import { SectionHeader } from '@/components/ui/section-header';
+import { ingestNotices, normalizeCounts, sourceLabel, unverifiedText, verdictBadge } from '@/lib/crawler-verification';
+
+const BADGE_TONE: Record<'ok' | 'warn' | 'muted', string> = {
+  ok: 'text-emerald-600 dark:text-emerald-400',
+  warn: 'text-amber-600 dark:text-amber-400',
+  muted: 'text-muted-foreground',
+};
 
 /**
  * Live Crawler — AI botlarının siteye CANLI ziyaret akışı.
@@ -127,7 +134,11 @@ export default function CrawlerLivePage() {
   };
 
   const connected = data?.workerConnected;
+  // Vitrin yalniz IP'si dogrulanmis cite'lari gosterir (api live-crawler recent)
   const cites: any[] = data?.citeFetches24h ?? [];
+  const citeUnverified = data?.citeFetchCounts24h?.unverified ?? 0;
+  const verification = normalizeCounts(data?.verification, data?.total ?? 0);
+  const notices = ingestNotices(data?.ingestHealth);
 
   return (
     <div className="space-y-5">
@@ -159,17 +170,37 @@ export default function CrawlerLivePage() {
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold">
               {connected
-                ? `Kaynak bağlı (${data?.lastEventSource === 'wp' ? 'WordPress eklentisi' : data?.lastEventSource === 'log' ? 'nginx ajanı' : 'Cloudflare Worker'}) — gerçek zamanlı AI bot tespiti aktif`
+                ? `Kaynak bağlı (${sourceLabel(data?.lastEventSource)}) — gerçek zamanlı AI bot tespiti aktif`
                 : 'Henüz canlı kaynak bağlı değil'}
             </div>
             <div className="text-xs text-muted-foreground">
               {data?.lastEventAt
-                ? `Son event: ${timeAgo(data.lastEventAt)}`
+                ? `Son kayıt: ${timeAgo(data.lastEventAt)} (${new Date(data.lastEventAt).toLocaleString('tr-TR')})`
                 : 'Aşağıdaki kurulumlardan birini yap — Cloudflare Worker (önerilen), WordPress eklentisi veya nginx ajanı.'}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Kurulu kod eski (IP gondermiyor) / 429 ile dusen istekler */}
+      {(notices.codeUpdate || notices.throttled) && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-4 space-y-1.5 text-xs">
+            {notices.codeUpdate && (
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span><strong>{notices.codeUpdate}</strong></span>
+              </div>
+            )}
+            {notices.throttled && (
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>{notices.throttled}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Cite fetch — vitrin */}
       {cites.length > 0 && (
@@ -177,7 +208,7 @@ export default function CrawlerLivePage() {
           <CardContent className="p-4 space-y-2">
             <div className="text-sm font-semibold flex items-center gap-2">
               <Flame className="h-4 w-4 text-red-500" /> Canlı Cite Sinyalleri (24 saat)
-              <span className="text-xs text-muted-foreground font-normal">— gerçek bir kullanıcının AI sohbetinde sayfan canlı çekildi</span>
+              <span className="text-xs text-muted-foreground font-normal">— gerçek bir kullanıcının AI sohbetinde sayfan canlı çekildi (IP adresi doğrulandı)</span>
             </div>
             <div className="space-y-1">
               {cites.map((c, i) => (
@@ -193,21 +224,34 @@ export default function CrawlerLivePage() {
         </Card>
       )}
 
-      {/* Sayaçlar */}
+      {citeUnverified > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Son 24 saatte {citeUnverified.toLocaleString('tr-TR')} istek kendini ChatGPT-User / Claude-User gibi canlı okuyucu olarak tanıttı
+          ama IP adresi sağlayıcıya ait değil — taklit olabilir, cite sinyali sayılmadı.
+        </p>
+      )}
+
+      {/* Sayaçlar — manset dogrulanmis ziyaret */}
       {data && data.total > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           <Card>
             <CardContent className="p-3.5">
-              <div className="text-label font-semibold text-muted-foreground mb-1">Toplam İstek</div>
-              <div className="text-2xl font-bold">{data.total}</div>
-              <div className="text-[10px] text-muted-foreground">son {data.windowMinutes} dk</div>
+              <div className="text-label font-semibold text-muted-foreground mb-1">Doğrulanmış ziyaret</div>
+              <div className="text-2xl font-bold">{verification.verified}</div>
+              <div className="text-label text-muted-foreground">
+                son {data.windowMinutes} dk · {data.total} isteğin {verification.unverified} tanesi taklit olabilir, {verification.unknown} tanesi doğrulanamadı
+              </div>
             </CardContent>
           </Card>
           {(data.byBot ?? []).slice(0, 5).map((b: any) => (
             <Card key={b.bot}>
               <CardContent className="p-3.5">
                 <div className={cn('text-label font-semibold mb-1 truncate', BOT_COLOR[b.bot] ?? 'text-muted-foreground')}>{b.bot}</div>
-                <div className="text-2xl font-bold">{b.hits}</div>
+                <div className="text-2xl font-bold">{b.verified ?? 0}</div>
+                <div className="text-label text-muted-foreground">doğrulanmış</div>
+                {(b.unverified ?? 0) > 0 && (
+                  <div className="text-label text-amber-700 dark:text-amber-400 mt-1">{unverifiedText(b.bot, b.unverified)}</div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -227,16 +271,21 @@ export default function CrawlerLivePage() {
             </div>
           ) : (
             <div className="space-y-0.5 font-mono text-xs">
-              {data.events.map((e: any) => (
-                <div key={e.id} className={cn('flex items-center gap-3 rounded px-2 py-1.5', e.isCiteFetch ? 'bg-red-500/5' : 'odd:bg-muted/30')}>
+              {data.events.map((e: any) => {
+                const badge = verdictBadge(e.verify);
+                const liveCite = e.isCiteFetch && e.verify === 'verified';
+                return (
+                <div key={e.id} className={cn('flex items-center gap-3 rounded px-2 py-1.5', liveCite ? 'bg-red-500/5' : 'odd:bg-muted/30')}>
                   <span className="text-muted-foreground w-16 shrink-0">{timeAgo(e.ts)}</span>
                   <span className={cn('w-40 shrink-0 truncate font-semibold', BOT_COLOR[e.bot] ?? '')}>
-                    {e.isCiteFetch && <Flame className="h-3 w-3 text-red-500 inline mr-1" />}{e.bot}
+                    {liveCite && <Flame className="h-3 w-3 text-red-500 inline mr-1" />}{e.bot}
                   </span>
+                  <span className={cn('w-28 shrink-0 truncate', BADGE_TONE[badge.tone])} title={badge.title}>{badge.label}</span>
                   <span className={cn('w-10 shrink-0', e.status < 300 ? 'text-emerald-500' : e.status < 500 ? 'text-amber-500' : 'text-red-500')}>{e.status}</span>
                   <span className="flex-1 truncate text-muted-foreground">{e.path}</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -314,7 +363,8 @@ export default function CrawlerLivePage() {
             <div className="text-xs text-muted-foreground">Kurulum kodları yükleniyor…</div>
           )}
           <p className="text-[11px] text-muted-foreground">
-            Worker/eklenti yalnızca AI bot isteklerini bildirir (ziyaretçi verisi gönderilmez), yanıtı geciktirmez (non-blocking).
+            Worker/eklenti yalnızca kendini AI botu olarak tanıtan istekleri bildirir (ziyaretçi verisi gönderilmez), yanıtı geciktirmez (non-blocking).
+            Gerçek bot olup olmadığını doğrulamak için isteğin IP adresi de gönderilir; RanksUp IP adresini saklamaz, yalnızca doğrulama sonucunu kaydeder.
             Kod sitene özel — site kimliği gömülü.
           </p>
         </CardContent>

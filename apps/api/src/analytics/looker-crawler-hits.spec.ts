@@ -13,13 +13,14 @@ describe('GET /looker/crawler-hits', () => {
       site: { findUnique: vi.fn(async () => ({ id: 's1', userId: 'u1', name: 'Örnek', url: 'https://ornek.com' })) },
       aiCrawlerHit: {
         findMany: vi.fn(async () => [
-          { date: new Date('2026-10-17T00:00:00Z'), bot: 'GPTBot', hits: 10, status2xx: 6, status4xx: 1, status5xx: 3 },
+          { date: new Date('2026-10-17T00:00:00Z'), bot: 'GPTBot', hits: 10, status2xx: 6, status4xx: 1, status5xx: 3, verifiedHits: 4, unverifiedHits: 5 },
         ]),
       },
     };
     const ctrl = new LookerController(prisma as never);
     const { rows } = await ctrl.crawlerHits({ user: { id: 'u1', role: 'USER' } } as never, 's1');
-    expect(rows).toEqual([{ date: '2026-10-17', bot: 'GPTBot', hits: 10, ok: 6, errors: 4 }]);
+    // IP dogrulama kirilimi: 4 dogrulanmis + 5 taklit olabilir + 1 dogrulanamadi = 10
+    expect(rows).toEqual([{ date: '2026-10-17', bot: 'GPTBot', hits: 10, verified: 4, unverified: 5, unknown: 1, ok: 6, errors: 4 }]);
     const select = (prisma.aiCrawlerHit.findMany.mock.calls[0] as any)[0].select;
     expect(select.status5xx).toBe(true);
   });

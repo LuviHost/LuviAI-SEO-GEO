@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Header, Headers, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Header, Headers, HttpException, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AiReferrerService } from './ai-referrer.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
 import { LiveCrawlerService, type IngestEvent } from './live-crawler.service.js';
 import { Public } from '../auth/public.decorator.js';
-import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 import { INGEST_SIGNATURE_HEADER, INGEST_TIMESTAMP_HEADER } from './ingest-auth.js';
+import { FixedWindowLimiter, ingestIpFailureLimit } from './ingest-rate-limit.js';
+import { clientIp } from '../common/client-ip.js';
 import { trackerFilterData } from './ai-source.js';
 
 /**
@@ -39,12 +41,11 @@ import { trackerFilterData } from './ai-source.js';
  * zorundaydi; makine mesgulken bu 2 dakikayi asip testi dusuruyordu
  * (iki kez yasandi). Testte limit kucultuluyor, davranis ayni kaliyor.
  *
- * Uretim varsayilani DEGISMEDI: 300/dk. Ingest bir batch ucu (tek istekte
- * 500 event), mesru bir edge kaynagi bu kadarina ihtiyac duymaz.
+ * Uretim varsayilani DEGISMEDI: 300/dk. 02.11.2026'dan beri yalniz IMZASIZ /
+ * GECERSIZ istekleri sayar; imzali istekler site basina ayri kovada
+ * (ingest-rate-limit.ts, INGEST_SITE_RATE_LIMIT).
  */
-const INGEST_RATE_LIMIT = Number(process.env.INGEST_RATE_LIMIT) > 0
-  ? Number(process.env.INGEST_RATE_LIMIT)
-  : 300;
+const INGEST_RATE_LIMIT = ingestIpFailureLimit();
 
 /**
  * Sorgu parametresi yalniz duz metin olarak kabul edilir. Express'in qs
@@ -132,6 +133,9 @@ export function buildTrackerJs(siteId: string, apiBase: string): string {
 @SkipThrottle()
 @Controller()
 export class TrackerController {
+  /** Imzasiz / gecersiz ingest istekleri — IP basina dakikalik kova */
+  private readonly failureLimiter = new FixedWindowLimiter(60_000);
+
   constructor(
     private readonly aiReferrer: AiReferrerService,
     private readonly personaChat: PersonaChatService,
@@ -146,34 +150,56 @@ export class TrackerController {
    * site bazli sirla HMAC-SHA256 imzalanir (X-RanksUp-Signature +
    * X-RanksUp-Timestamp) — dogrulama LiveCrawlerService.ingest icinde.
    *
-   * SkipThrottle KALDIRILDI: sinif seviyesindeki muafiyet, imzasiz istekleri de
-   * sinirsiz birakiyordu; yani gecersiz imzayla bile HMAC + DB sorgusu
-   * tetiklenip ucuz bir CPU/DB tuketim vektoru aciliyordu. Ingest bir batch
-   * ucudur (tek istekte 500 event), yani mesru bir edge kaynaginin dakikada
-   * 300 isteğe ihtiyaci olmaz; bu limit gercek trafigi kesmez.
+   * Imzasiz istek SINIRSIZ DEGIL: eskiden sinif seviyesindeki muafiyet onlari
+   * da sinirsiz birakiyordu; gecersiz imzayla bile HMAC + DB sorgusu
+   * tetiklenip ucuz bir CPU/DB tuketim vektoru aciliyordu.
+   *
+   * THROTTLE (02.11.2026): genel @nestjs/throttler (IP basina 300/dk) yerine
+   * iki kovali kendi tavanimiz (ingest-rate-limit.ts):
+   *  - imzasiz / gecersiz istek (400/401/404) IP basina INGEST_RATE_LIMIT ile
+   *    sayilir; kovasi dolan IP imza/DB'ye ulasmadan 429 alir (eski korumanin
+   *    aynisi: gecersiz imzayla ucuz CPU/DB tuketimi yok);
+   *  - imzasi dogrulanan istek SITE kimligine gore, cok daha yuksek tavanla
+   *    sayilir (LiveCrawlerService.ingest). Worker cikis IP'leri paylasimli;
+   *    IP tavani mesru bot isabetlerini 429 ile dusuruyordu (~3,5 kat eksik sayim).
    */
   @Public()
-  @SkipThrottle({ default: false })
-  @Throttle({ default: { limit: INGEST_RATE_LIMIT, ttl: 60_000 } })
   @Post('tracker/events')
   async ingestEvents(
     @Body() body: { site?: string; source?: string; events?: IngestEvent[] },
     @Headers() headers: Record<string, string | undefined>,
     @Req() req: RawBodyRequest<Request>,
+    @Res({ passthrough: true }) res: Response,
   ) {
+    const ip = clientIp(req) || 'unknown';
+    if (!this.failureLimiter.allows(ip, INGEST_RATE_LIMIT)) {
+      res.setHeader('Retry-After', String(this.failureLimiter.retryAfterSeconds()));
+      throw new HttpException('Too Many Requests', HttpStatus.TOO_MANY_REQUESTS);
+    }
     // Imza HAM govde uzerinden hesaplanir; parse edilmis nesneyi yeniden
     // JSON.stringify etmek (anahtar sirasi/bosluk farki) imzayi bozardi.
     const rawBody = req.rawBody ? req.rawBody.toString('utf8') : '';
-    return this.liveCrawler.ingest(
-      String(body?.site ?? ''),
-      body?.events ?? [],
-      body?.source,
-      {
-        signature: headers[INGEST_SIGNATURE_HEADER],
-        timestamp: headers[INGEST_TIMESTAMP_HEADER],
-        rawBody,
-      },
-    );
+    try {
+      return await this.liveCrawler.ingest(
+        String(body?.site ?? ''),
+        body?.events ?? [],
+        body?.source,
+        {
+          signature: headers[INGEST_SIGNATURE_HEADER],
+          timestamp: headers[INGEST_TIMESTAMP_HEADER],
+          rawBody,
+        },
+      );
+    } catch (err) {
+      const status = err instanceof HttpException ? err.getStatus() : 500;
+      if (status === 429) {
+        const retry = (err as HttpException).getResponse() as { retryAfter?: number };
+        res.setHeader('Retry-After', String(retry?.retryAfter ?? 60));
+      } else if (status === 400 || status === 401 || status === 404) {
+        this.failureLimiter.take(ip, INGEST_RATE_LIMIT);
+      }
+      throw err;
+    }
   }
 
   @Public()
