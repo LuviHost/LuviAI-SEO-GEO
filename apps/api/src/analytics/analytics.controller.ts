@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Header, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { AnalyticsService } from './analytics.service.js';
+import { AnalyticsService, GSC_MAX_HISTORY_DAYS } from './analytics.service.js';
 import { GaService } from './ga.service.js';
 import { ReportsService, type ReportOpts, type ReportRange } from './reports.service.js';
 import { SiteReportService } from './site-report.service.js';
@@ -72,10 +72,10 @@ export class AnalyticsController {
     return this.googleAi.aiModeQueries(siteId, days ? parseInt(days, 10) : 28);
   }
 
-  /** GET /sites/:siteId/analytics/overview?days=30 */
+  /** GET /sites/:siteId/analytics/overview?days=30[&brand=0] — brand=0: marka payi hesaplanmaz (canli GSC sorgusu yok) */
   @Get('overview')
-  overview(@Param('siteId') siteId: string, @Query('days') days?: string) {
-    return this.analytics.getOverview(siteId, days ? parseInt(days, 10) : 30);
+  overview(@Param('siteId') siteId: string, @Query('days') days?: string, @Query('brand') brand?: string) {
+    return this.analytics.getOverview(siteId, days ? parseInt(days, 10) : 30, { brandSplit: brand !== '0' });
   }
 
   /** GET /sites/:siteId/analytics/top-articles?limit=10 */
@@ -103,13 +103,18 @@ export class AnalyticsController {
   }
 
   /**
-   * POST /sites/:siteId/analytics/snapshot-now?days=14
-   * Manuel tetik — son N günün GSC verisini DB'ye yazar (default 14).
+   * POST /sites/:siteId/analytics/snapshot-now?days=90
+   * Manuel tetik — son N günün GSC verisini DB'ye yazar (default 90).
    * Yeni bağlanan siteler için ilk doldurma + günlük cron eksiği yakalama.
+   *
+   * Varsayilan 14 idi: yeni baglanan sitede panel "Son 30 gun" etiketinin
+   * altinda 15 gunluk toplam gosteriyordu. UI 90 gune kadar donem sunuyor;
+   * toplamlar tek istekle geldigi icin 90 gun ucuz (GSC 16 ay verir).
    */
   @Post('snapshot-now')
   async snapshotNow(@Param('siteId') siteId: string, @Query('days') daysStr?: string) {
-    const days = daysStr ? Math.max(1, Math.min(90, parseInt(daysStr, 10))) : 14;
+    const parsed = daysStr ? parseInt(daysStr, 10) : NaN;
+    const days = Number.isFinite(parsed) ? Math.max(1, Math.min(GSC_MAX_HISTORY_DAYS, parsed)) : 90;
     return this.analytics.backfillSnapshots(siteId, days);
   }
 

@@ -17,6 +17,7 @@ import { FilterChip } from '@/components/ui/filter-chip';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/empty-state';
 import Link from 'next/link';
+import { formatGscRange } from '@/lib/gsc-coverage';
 
 interface KeywordRanking {
   query: string;
@@ -43,9 +44,16 @@ interface RankingsResponse {
     avgPosition: number;
     totalClicks: number;
     totalImpressions: number;
+    /** Sorgu satirlarinin toplami (GSC anonim sorgulari icermez); eski API'de yok */
+    queryClicks?: number;
+    queryImpressions?: number;
   } | null;
   hasData: boolean;
-  period?: { days: number; startDate: string; endDate: string };
+  period?: { days: number; startDate: string; endDate: string; previousStartDate?: string; previousEndDate?: string };
+  source?: 'gsc' | 'unavailable';
+  reason?: 'not_connected' | 'no_data' | 'gsc_error';
+  totalKeywords?: number;
+  keywordsTruncated?: boolean;
 }
 
 const TIER_BADGES: Record<KeywordRanking['tier'], { label: string; variant: 'success' | 'info' | 'warning' | 'secondary' }> = {
@@ -314,7 +322,7 @@ export default function RankTrackingPage() {
             <Badge variant="outline" className="text-label">GSC</Badge>
           </span>
         }
-        description="Search Console'dan her gün çekilen verilerle her sorgunun sırası, trendi ve fırsatları."
+        description="Search Console'un seçili dönem verisiyle her sorgunun sırası, önceki döneme göre değişimi ve fırsatları."
         actions={
           <>
             <Button size="sm" variant="outline" onClick={refresh} disabled={refreshing}>
@@ -337,16 +345,33 @@ export default function RankTrackingPage() {
             Son {d} gün
           </FilterChip>
         ))}
+        {data?.period?.startDate && data.period.endDate && (
+          <span className="text-xs text-muted-foreground">
+            {formatGscRange(data.period.startDate, data.period.endDate)}
+            {data.period.previousStartDate && data.period.previousEndDate
+              ? ` · karşılaştırma: ${formatGscRange(data.period.previousStartDate, data.period.previousEndDate)}`
+              : ''}
+          </span>
+        )}
       </div>
 
       {/* Henuz veri yok — uyari degil, notr bos durum */}
       {!loading && !data?.hasData && (
-        <EmptyState
-          icon={BarChart3}
-          title="Henüz sıralama verisi yok"
-          description="Sıralama takibi için Google Search Console bağlı olmalı ve birkaç gün veri birikmeli. Yeni bağladıysan birkaç gün sonra tekrar bak."
-          primary={{ label: 'GSC bağlantısını kontrol et', href: siteHref(site.id, 'connections') }}
-        />
+        data?.reason === 'gsc_error' ? (
+          <EmptyState
+            icon={BarChart3}
+            title="Search Console'a şu an ulaşılamadı"
+            description="Sıralama verisi doğrudan Search Console'dan okunuyor. Biraz sonra tekrar dene; sorun sürerse GSC bağlantısını yenile."
+            primary={{ label: 'GSC bağlantısını kontrol et', href: siteHref(site.id, 'connections') }}
+          />
+        ) : (
+          <EmptyState
+            icon={BarChart3}
+            title="Henüz sıralama verisi yok"
+            description="Sıralama takibi için Google Search Console bağlı olmalı ve birkaç gün veri birikmeli. Yeni bağladıysan birkaç gün sonra tekrar bak."
+            primary={{ label: 'GSC bağlantısını kontrol et', href: siteHref(site.id, 'connections') }}
+          />
+        )
       )}
 
       {/* SUMMARY KPIS */}
@@ -389,6 +414,12 @@ export default function RankTrackingPage() {
                 </div>
               </div>
             </div>
+            {typeof data.summary.queryClicks === 'number' && data.summary.queryClicks < data.summary.totalClicks && (
+              <p className="basis-full text-xs text-muted-foreground">
+                Sorgu tablosunun toplamı {formatNum(data.summary.queryClicks)} tıklama: Google gizlilik nedeniyle nadir sorguları
+                sorgu düzeyinde göstermez, bu tıklamalar yalnız site toplamında yer alır.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -410,6 +441,9 @@ export default function RankTrackingPage() {
               </div>
               <span className="text-label text-muted-foreground tabular-nums">
                 {formatNum(filtered.length)} / {formatNum(data.keywords.length)} sorgu
+                {data.keywordsTruncated && typeof data.totalKeywords === 'number'
+                  ? ` (toplam ${formatNum(data.totalKeywords)} sorgunun en çok gösterim alanları)`
+                  : ''}
               </span>
             </div>
             <div className="flex flex-wrap gap-2" role="group" aria-label="Sıra aralığı">
@@ -451,7 +485,9 @@ export default function RankTrackingPage() {
             <strong className="text-foreground">Veri kaynağı:</strong> Google Search Console.
             GSC yalnız kendi sitenin sıralama verisini gösterir — rakip sıralamaları burada görünmez.
             Sıralar GSC&apos;nin verdiği <em>ortalama sıra</em>dır (kullanıcı, konum ve cihaz farkları yumuşatılır).
-            Yeni sorguların görünmesi için 2-3 gün veri birikmesi gerekir.
+            Değişim, hemen önceki eşit uzunluktaki dönemle aynı sorgu için hesaplanır; iki dönemde de en az 10 gösterim
+            alan sorgular karşılaştırılır, en az 1 sıralık hareket yükselen/düşen sayılır. Trend çizgisi en çok gösterim
+            alan 100 sorgu için günlük sıradır. Google verisi yaklaşık 2 gün gecikmeli gelir.
           </div>
         </CardContent>
       </Card>

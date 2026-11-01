@@ -42,6 +42,18 @@ export type EmailTemplate =
  */
 export const EDITOR_SCORE_MAX = 90;
 
+const AYLAR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+
+/** "2026-10-24".."2026-10-30" → "24–30 Ekim"; ay/yil farkliysa ikisi de yazilir */
+export function gscGunAraligi(from: string, to: string): string {
+  const [fy, fm, fd] = from.slice(0, 10).split('-').map(Number);
+  const [ty, tm, td] = to.slice(0, 10).split('-').map(Number);
+  if (![fy, fm, fd, ty, tm, td].every(Number.isFinite)) return `${from} – ${to}`;
+  if (fy === ty && fm === tm) return `${fd}–${td} ${AYLAR[tm - 1]}`;
+  if (fy === ty) return `${fd} ${AYLAR[fm - 1]} – ${td} ${AYLAR[tm - 1]}`;
+  return `${fd} ${AYLAR[fm - 1]} ${fy} – ${td} ${AYLAR[tm - 1]} ${ty}`;
+}
+
 /**
  * Deneme bittiginde ne olur — e-postadaki tek cumle. readOnlyAtEnd true: satin alma
  * acik, hesap salt okunur olur (trial-expiry.guard.ts). false/yok: satin alma kapali
@@ -436,6 +448,10 @@ export class EmailService {
           `${sayi(tik)} tıklama, ${sayi(gos)} gösterim, ${sayi(data.articlesPublished ?? 0)} yeni makale.`,
           etiket('Haftalık rapor') +
             h('Bu hafta') +
+            // GSC ~2-3 gun gecikmeli: hangi gunlerin sayildigi acikca yazilir
+            (typeof data.dataFrom === 'string' && typeof data.dataTo === 'string'
+              ? p(`Search Console verisi: ${kacisla(gscGunAraligi(data.dataFrom, data.dataTo))}`)
+              : '') +
             // Tek buyuk sayi: haftanin en onemli rakami. Fark ancak onceki
             // hafta olculduyse gosterilir — yoksa "sifirdan buyume" yalani.
             kahramanOlcu({

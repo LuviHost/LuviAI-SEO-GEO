@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { coverageLabel, coverageRange, formatGscRange, trendBadgeText } from '@/lib/gsc-coverage';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -122,6 +123,11 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
   }
 
   const totals = overview.totals;
+  // "Son 30 gün" etiketi verinin gercek kapsamini da soyler (lib/gsc-coverage.ts)
+  const donemEtiketi = coverageLabel(overview.coverage, 30);
+  const donemAraligi = coverageRange(overview.coverage);
+  const markaPayi = overview.brandSplit;
+  const markaGsc = markaPayi?.source === 'gsc';
 
   // Eskiden ~9 kart tek uzun kaydirmaydi; simdi alti sekme. GSC ozeti ilk sekmede.
   return (
@@ -152,11 +158,20 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
       {/* ── Genel: GSC KPI + grafik ── */}
       <TabsContent value="genel" className="space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <MetricCard icon={MousePointerClick} label="Tıklama (30 gün)" value={totals.clicks} />
-          <MetricCard icon={Eye} label="Gösterim (30 gün)" value={totals.impressions} accent="muted" />
-          <MetricCard icon={Percent} label="Tıklama oranı" value={formatPct(totals.avgCtr, 2)} accent="muted" />
-          <MetricCard icon={Hash} label="Ort. sıra" value={formatPos(totals.avgPosition)} accent="muted" />
+          <MetricCard icon={MousePointerClick} label="Tıklama" value={totals.clicks} hint={donemEtiketi} />
+          <MetricCard icon={Eye} label="Gösterim" value={totals.impressions} accent="muted" hint={donemEtiketi} />
+          <MetricCard icon={Percent} label="Tıklama oranı" value={formatPct(totals.avgCtr, 2)} accent="muted" hint={donemEtiketi} />
+          <MetricCard icon={Hash} label="Ort. sıra" value={formatPos(totals.avgPosition)} accent="muted" hint={donemEtiketi} />
         </div>
+        {donemAraligi && (
+          <p className="text-xs text-muted-foreground -mt-1">
+            Search Console verisi: {donemAraligi}
+            {overview.coverage && !overview.coverage.complete
+              ? ` — ${overview.coverage.requestedDays} günün ${overview.coverage.coveredDays} günü kayıtlı. Eksik günler için “Yenile”ye bas.`
+              : ''}
+            {' '}Google verisi yaklaşık 2 gün gecikmeli gelir.
+          </p>
+        )}
 
         {/* Markasız tıklama payı — organik "keşif kanalı" ölçüsü (AI tarafındaki brandInQuery ayrımının ikizi) */}
         {overview.brandSplit && (
@@ -172,11 +187,27 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
                 <div>
                   <strong>{formatNum(overview.brandSplit.unbranded.clicks)}</strong> markasız ·{' '}
                   <strong>{formatNum(overview.brandSplit.branded.clicks)}</strong> markalı tıklama
-                  {' '}({formatNum(overview.brandSplit.unbranded.queries + overview.brandSplit.branded.queries)} sorgu örneklemi, {overview.brandSplit.daysWithQueries} gün)
+                  {markaGsc ? (
+                    <>
+                      {' '}({formatNum(markaPayi.unbranded.queries + markaPayi.branded.queries)} sorgu
+                      {markaPayi.from && markaPayi.to ? `, ${formatGscRange(markaPayi.from, markaPayi.to)}` : ''})
+                    </>
+                  ) : (
+                    <>
+                      {' '}({formatNum(overview.brandSplit.unbranded.queries + overview.brandSplit.branded.queries)} sorgu örneklemi, {overview.brandSplit.daysWithQueries} gün)
+                    </>
+                  )}
                 </div>
                 <div className="mt-1">
                   Marka adını (<em>{overview.brandSplit.brand}</em>) içeren sorgular seni zaten bilenlerden gelir — bu hafıza, keşif değil.
-                  Markasız pay ne kadar yüksekse Google o kadar gerçek bir keşif kanalı. Örneklem: gün başına en çok tıklanan 100 sorgu.
+                  Markasız pay ne kadar yüksekse Google o kadar gerçek bir keşif kanalı.{' '}
+                  {markaGsc
+                    ? `Kaynak: Search Console'un bu dönemdeki tüm sorguları.${
+                        markaPayi.anonymizedClicks > 0
+                          ? ` Google'ın gizlilik nedeniyle sorgusunu göstermediği ${formatNum(markaPayi.anonymizedClicks)} tıklama bu paya dahil değil.`
+                          : ''
+                      }`
+                    : 'Search Console’a şu an ulaşılamadı; pay kayıtlı günlerin en çok tıklanan 100 sorgusundan oluşan bir örneklemden hesaplandı.'}
                 </div>
                 {overview.brandSplit.unbrandedClickSharePct !== null && overview.brandSplit.unbrandedClickSharePct < 20 && (
                   <div className="mt-1 text-warning">
@@ -251,6 +282,11 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
             <h3 className="font-semibold flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-success" aria-hidden /> Yükselen sorgular (son 7 gün)
             </h3>
+            {trending[0]?.from && trending[0]?.to && (
+              <p className="text-xs text-muted-foreground">
+                {formatGscRange(trending[0].from, trending[0].to)}, önceki 7 günle aynı sorgu kıyaslanır. En az 50 gösterim; önceki dönemde 10 gösterimin altındaysa “yeni”.
+              </p>
+            )}
           </CardHeader>
           <CardContent className="p-0">
             {trending.length === 0 ? (
@@ -263,8 +299,11 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
                   <div key={i} className="px-5 py-3 flex items-center justify-between gap-3 text-sm">
                     <span className="font-medium min-w-0 truncate">{t.query}</span>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-xs text-muted-foreground">{formatNum(t.recentImp)} gösterim</span>
-                      <Badge variant="success">+{t.growthPct}%</Badge>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {formatNum(t.recentImp)} gösterim
+                        {!t.isNew && typeof t.prevImp === 'number' ? ` (önceki 7 gün ${formatNum(t.prevImp)})` : ''}
+                      </span>
+                      <Badge variant={t.isNew ? 'info' : 'success'}>{trendBadgeText(t)}</Badge>
                     </div>
                   </div>
                 ))}

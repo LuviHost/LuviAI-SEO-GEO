@@ -866,7 +866,8 @@ export class McpToolsService {
         name: 'get_analytics_summary',
         scope: 'analytics:read',
         title: 'GSC analytics ozeti',
-        description: 'Son GSC gunluk snapshot\'lari: tiklama, gosterim, CTR, pozisyon (son 14 gun).',
+        // Gun toplamlari GSC'nin gun agregasidir (Search Console grafigiyle ayni; ilk-N sayfa toplami DEGIL)
+        description: 'Son 14 GSC gunluk snapshot\'i: tiklama, gosterim, CTR, pozisyon. Her gun Search Console\'un o gunku site toplamidir (anonim sorgular dahil, pozisyon gosterim-agirlikli). GSC verisi ~2 gun gecikmeli; son kayit bugunden 2-3 gun eskidir.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
