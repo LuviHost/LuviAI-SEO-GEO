@@ -160,6 +160,8 @@ export interface QueuedAuditJob {
   id: string;
   status: 'QUEUED';
   bullJobId: string;
+  /** true: bu site icin calisan/siradaki tarama dondu, yeni tarama eklenmedi */
+  reused?: true;
 }
 
 class AuditAPI {

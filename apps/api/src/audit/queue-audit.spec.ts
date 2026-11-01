@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { AuditService } from './audit.service.js';
+import { AUDIT_REUSE_WINDOW_MS, pickReusableAuditJob } from './audit-reuse.js';
 
 /**
  * POST /audit/run sozlesmesi — is kimligi HER ZAMAN `id` adiyla donmeli.
@@ -33,10 +34,16 @@ function fakeQueue() {
   };
 }
 
-function service(queue: any): AuditService {
+function service(queue: any, runningJobs: any[] = [], seenWhere: any[] = []): AuditService {
   const prisma = {
     site: {
       findUniqueOrThrow: async () => ({ id: 'site_1', userId: 'user_1', url: 'https://ofsayt.com' }),
+    },
+    job: {
+      findMany: async (args: any) => {
+        seenWhere.push(args.where);
+        return runningJobs;
+      },
     },
   } as never;
   const n = null as never;
@@ -87,5 +94,79 @@ describe('web istemcisi sunucu sekliyle ayni', () => {
     const satir = web.slice(web.indexOf('queueAudit:'), web.indexOf('queueAudit:') + 220);
     expect(satir).toContain('id: string');
     expect(satir).not.toContain('dbJobId');
+  });
+});
+
+describe('queueAudit — ayni site icin tekrar tarama eklenmez', () => {
+  const simdi = () => new Date();
+  const calisan = (over: any = {}) => ({
+    id: 'job_eski', status: 'PROCESSING', payload: { siteId: 'site_1' },
+    queuedAt: simdi(), bullJobId: '555', ...over,
+  });
+
+  it('kullanici taramasi calisiyorsa yenisi kuyruga eklenmez, mevcut is doner', async () => {
+    const q = fakeQueue();
+    const res = await service(q, [calisan()]).queueAudit('site_1');
+    expect(q.calls.length, 'ikinci tarama kuyruga eklendi — olcum hakki iki kez duser').toBe(0);
+    expect(res).toEqual({ id: 'job_eski', status: 'QUEUED', bullJobId: '555', reused: true });
+  });
+
+  it('sirada bekleyen (QUEUED) kullanici taramasi da yeniden kullanilir', async () => {
+    const q = fakeQueue();
+    const res = await service(q, [calisan({ status: 'QUEUED' })]).queueAudit('site_1');
+    expect(q.calls.length).toBe(0);
+    expect(res.id).toBe('job_eski');
+  });
+
+  it('sistem (haftalik) taramasi varken kullanici taramasi yine eklenir', async () => {
+    const q = fakeQueue();
+    const res = await service(q, [calisan({ status: 'QUEUED', payload: { siteId: 'site_1', trigger: 'system' } })]).queueAudit('site_1');
+    expect(q.calls.length).toBe(1);
+    expect(res.id).toBe('job_123');
+  });
+
+  it('pencereden eski kayit kopmus sayilir, yeni tarama eklenir', async () => {
+    const q = fakeQueue();
+    const eski = new Date(Date.now() - AUDIT_REUSE_WINDOW_MS - 60_000);
+    await service(q, [calisan({ queuedAt: eski })]).queueAudit('site_1');
+    expect(q.calls.length).toBe(1);
+  });
+
+  it('kuyruga hic eklenememis (bullJobId yok) kayit yeniden kullanilmaz', async () => {
+    const q = fakeQueue();
+    await service(q, [calisan({ bullJobId: null })]).queueAudit('site_1');
+    expect(q.calls.length).toBe(1);
+  });
+
+  it('sorgu yalnizca bu sitenin, canli durumdaki tarama islerine bakar', async () => {
+    const where: any[] = [];
+    await service(fakeQueue(), [], where).queueAudit('site_1');
+    expect(where[0]).toMatchObject({ siteId: 'site_1', type: 'SITE_AUDIT', status: { in: ['QUEUED', 'PROCESSING'] } });
+    expect(where[0].queuedAt.gte).toBeInstanceOf(Date);
+  });
+
+  it('sistem taramasi (cron) tekrar denetimine girmez, her zaman kuyruga eklenir', async () => {
+    const q = fakeQueue();
+    const where: any[] = [];
+    await service(q, [calisan()], where).queueAudit('site_1', { trigger: 'system', priority: 50 });
+    expect(where.length, 'cron yolu tekrar sorgusu yapmamali').toBe(0);
+    expect(q.calls.length).toBe(1);
+  });
+});
+
+describe('pickReusableAuditJob', () => {
+  const now = new Date('2026-11-01T12:00:00Z');
+  const j = (over: any = {}) => ({ id: 'a', status: 'QUEUED', payload: {}, queuedAt: now, bullJobId: '1', ...over });
+
+  it('bitmis/basarisiz isleri atlar, ilk uygun canli isi secer', () => {
+    expect(pickReusableAuditJob([j({ id: 'x', status: 'COMPLETED' }), j({ id: 'y', status: 'FAILED' }), j({ id: 'z' })], now)?.id).toBe('z');
+  });
+
+  it("trigger: 'user' acikca yazilmissa da kullanici taramasi sayilir", () => {
+    expect(pickReusableAuditJob([j({ payload: { trigger: 'user' } })], now)?.id).toBe('a');
+  });
+
+  it('bos listede null', () => {
+    expect(pickReusableAuditJob([], now)).toBeNull();
   });
 });

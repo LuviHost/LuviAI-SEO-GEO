@@ -11,6 +11,7 @@ import { GeoRunnerService } from './geo-runner.service.js';
 import { AiCitationService } from './ai-citation.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { AUDIT_ADVANCES_FROM } from '../sites/site-status.js';
+import { AUDIT_REUSE_WINDOW_MS, pickReusableAuditJob } from './audit-reuse.js';
 import { groupIssues } from './issue-grouping.js';
 import { annotateAuditFixRoutes, withFixRoutes } from './fix-routes.js';
 import { ImageInventoryService } from './image-alt/image-inventory.service.js';
@@ -819,12 +820,34 @@ export class AuditService {
    *   runAudit'e gecirir, kullanicinin olcum hakki dusmez. Verilmezse 'user'.
    * @param opts.priority / opts.delay — toplu (cron) kuyruga atmada kullanici
    *   taramalarinin onune gecmesin ve hepsi ayni anda baslamasin diye.
+   *
+   * Kullanici taramasi zaten kuyrukta/calisiyorsa yenisi eklenmez; mevcut is
+   * `reused: true` ile doner (bkz. audit-reuse.ts).
    */
   async queueAudit(
     siteId: string,
     opts: { trigger?: Exclude<AuditTrigger, 'user'>; priority?: number; delay?: number } = {},
-  ): Promise<{ id: string; status: 'QUEUED'; bullJobId: string }> {
+  ): Promise<{ id: string; status: 'QUEUED'; bullJobId: string; reused?: true }> {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+    if (!opts.trigger) {
+      const now = new Date();
+      const candidates = await this.prisma.job.findMany({
+        where: {
+          siteId,
+          type: 'SITE_AUDIT',
+          status: { in: ['QUEUED', 'PROCESSING'] },
+          queuedAt: { gte: new Date(now.getTime() - AUDIT_REUSE_WINDOW_MS) },
+        },
+        orderBy: { queuedAt: 'desc' },
+        take: 5,
+        select: { id: true, status: true, payload: true, queuedAt: true, bullJobId: true },
+      });
+      const running = pickReusableAuditJob(candidates, now);
+      if (running) {
+        this.log.log(`[${siteId}] Tarama zaten sirada/calisiyor (${running.id}) — yeni is eklenmedi`);
+        return { id: running.id, status: 'QUEUED', bullJobId: running.bullJobId, reused: true };
+      }
+    }
     const { dbJobId, bullJobId } = await this.jobQueue.enqueue({
       type: 'SITE_AUDIT',
       userId: site.userId,
