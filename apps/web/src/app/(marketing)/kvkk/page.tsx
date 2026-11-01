@@ -19,8 +19,8 @@ export default function KvkkPage() {
             Gizlilik sayfasindaki duzen: yururluk tarihi korunur, son guncelleme ve degisiklik notu
             ayrica yazilir (okuyan neyin degistigini de gorsun). Tarih bu icerigin yayin gunu
             (28 Ekim 2026: aktarim listesi, ucretsiz test ve LinkedIn), gizlilik sayfasiyla ayni gun.
-            2 Kasim 2026: gizlilik sayfasi guncellendi (web aramasi yapan servisler); bu metinde icerik
-            degisikligi yok, tarih gizlilik sayfasiyla ayni gun tutulur ve notta acikca yazilir. */}
+            2 Kasim 2026: Canli Tarayici kodunun bot dogrulamasi icin ilettigi (saklanmayan) IP adresi
+            Islenen Kisisel Veriler bolumune eklendi; gizlilik sayfasiyla ayni gun. */}
         <p className="text-sm text-muted-foreground mb-1">Yürürlük: 27 Nisan 2026</p>
         <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 2 Kasım 2026</p>
         <p className="text-sm text-muted-foreground mb-8">
@@ -30,8 +30,9 @@ export default function KvkkPage() {
           Taraflar listesi kodda kullanılan tüm hizmet sağlayıcılarla tamamlandı (AI görünürlük ölçümü için OpenAI,
           Perplexity, xAI ve DeepSeek; görsel üreticileri; Sentry; Cloudflare Turnstile; IndexNow; bağladığınız Google,
           Meta ve Apple hizmetleri); ücretsiz AI görünürlük testi ve tekrar ölçüm e-postaları için yeni bölüm eklendi;
-          Kurumsal İletişim bölümü LinkedIn kanalını da kapsayacak şekilde genişletildi (28 Ekim 2026). Gizlilik
-          Politikası 2 Kasım 2026'da güncellendi; bu metinde içerik değişikliği yoktur.
+          Kurumsal İletişim bölümü LinkedIn kanalını da kapsayacak şekilde genişletildi (28 Ekim 2026). İşlenen Kişisel
+          Veriler bölümüne, Canlı Tarayıcı kodunun bot doğrulaması için ilettiği ve saklanmayan IP adresi eklendi
+          (2 Kasım 2026).
         </p>
 
         <div className="space-y-6 text-sm leading-relaxed">
@@ -58,7 +59,10 @@ export default function KvkkPage() {
               Google Search Console, Google Analytics 4, Google Ads, Google İşletme Profili, Meta (Facebook) reklam hesabı,
               App Store Connect ve Apple Search Ads bağlantı anahtarları (şifreli) ile bu hesaplardan okunan veriler; ödeme
               sırasında PayTR’ye iletilen ad, e-posta ve IP adresi; sunucu hatalarında hata kaydına giren istek bilgileri
-              (Gizlilik Politikası 1. ve 3. bölüm). Hesabı olmayan ziyaretçilerde ücretsiz testte girilen alan adı, IP
+              (Gizlilik Politikası 1. ve 3. bölüm). Sitenize Canlı Tarayıcı kodunu kurarsanız yalnız kendini yapay zekâ
+              botu olarak tanıtan isteklerin sayfa adresi, tarayıcı bilgisi ve IP adresi; IP adresi yalnız resmi IP
+              listeleri ve DNS kaydıyla bot doğrulaması için kullanılır ve saklanmaz, yalnız doğrulama sonucu ve ağ
+              numarası (ASN) saklanır (Gizlilik Politikası 4. bölüm). Hesabı olmayan ziyaretçilerde ücretsiz testte girilen alan adı, IP
               adresinin özetlenmiş (hash) hâli ve tekrar ölçüm e-postası istenirse e-posta adresi (aşağıda ve Gizlilik
               Politikası 8. bölüm).
             </p>
