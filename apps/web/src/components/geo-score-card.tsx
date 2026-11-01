@@ -8,6 +8,10 @@ import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InfoTooltip } from '@/components/info-tooltip';
+import {
+  type GeoScoreCardData, type GeoScorePillar,
+  isPillarMeasured, measuredSummary, pillarScoreText, pillarUnmeasuredReason, UNMEASURED_LABEL,
+} from '@/lib/geo-score-card';
 
 // Durum tonlari token'dan
 const STATUS_COLOR: Record<string, string> = {
@@ -15,6 +19,8 @@ const STATUS_COLOR: Record<string, string> = {
   good: 'text-info bg-info/10 border-info/30',
   warning: 'text-warning bg-warning/10 border-warning/30',
   critical: 'text-danger bg-danger/10 border-danger/30',
+  // Olculemeyen sutun: 0 degil, notr (kirmizi yalan olurdu)
+  unmeasured: 'text-muted-foreground bg-muted/40 border-border',
 };
 
 const GRADE_COLOR: Record<string, string> = {
@@ -31,7 +37,7 @@ const GRADE_COLOR: Record<string, string> = {
  * 6 pillar uzerinden agirlikli ortalama + harf notu.
  */
 export function GeoScoreCard({ siteId }: { siteId: string }) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<GeoScoreCardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -62,6 +68,9 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
     );
   }
 
+  const summary = measuredSummary(data);
+  const statusOf = (p: GeoScorePillar) => (isPillarMeasured(p) ? p.status : 'unmeasured');
+
   return (
     <Card>
       <CardContent className="p-4 space-y-4">
@@ -78,6 +87,7 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
               </InfoTooltip>
               'lerde görünürlük seviyesi · 6 sütun · ağırlıklı ortalama
             </p>
+            {summary && <p className="text-xs text-muted-foreground mt-0.5">{summary}</p>}
           </div>
           <Button size="sm" variant="outline" onClick={load}>
             <RefreshCw className="h-3.5 w-3.5 mr-1" aria-hidden /> Yenile
@@ -86,19 +96,36 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
 
         {/* Ozet: not + skor + 6 sutun puani; kontrol ayrintilari katli */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border bg-muted/20 p-4">
-          <div className="flex items-baseline gap-3">
-            <span className={`text-metric-lg ${GRADE_COLOR[data.grade] ?? 'text-muted-foreground'}`} aria-label={`Harf notu ${data.grade}`}>
-              {data.grade}
-            </span>
-            <span className="text-metric-lg tabular-nums">
-              {data.overallScore}<span className="text-sm font-normal text-muted-foreground">/100</span>
-            </span>
-          </div>
+          {/* Genel skor null: hicbir sutun olculemedi — 0/F gosterilmez */}
+          {data.overallScore === null ? (
+            <div className="flex items-baseline gap-3">
+              <span className="text-metric-lg text-muted-foreground">—</span>
+              <span className="text-sm text-muted-foreground">Henüz ölçülemedi</span>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-3">
+              {data.grade && (
+                <span className={`text-metric-lg ${GRADE_COLOR[data.grade] ?? 'text-muted-foreground'}`} aria-label={`Harf notu ${data.grade}`}>
+                  {data.grade}
+                </span>
+              )}
+              <span className="text-metric-lg tabular-nums">
+                {data.overallScore}<span className="text-sm font-normal text-muted-foreground">/100</span>
+              </span>
+            </div>
+          )}
           <div className="flex flex-1 flex-wrap gap-2">
-            {data.pillars.map((p: any) => (
-              <span key={p.id} className={`inline-flex items-center gap-1.5 rounded-chip border px-2 py-1 text-xs ${STATUS_COLOR[p.status] ?? ''}`}>
+            {data.pillars.map((p) => (
+              <span key={p.id} className={`inline-flex items-center gap-1.5 rounded-chip border px-2 py-1 text-xs ${STATUS_COLOR[statusOf(p)] ?? ''}`}>
                 <span className="font-medium text-foreground">{p.name}</span>
-                <span className="font-semibold tabular-nums">{p.score}</span>
+                {isPillarMeasured(p) ? (
+                  <span className="font-semibold tabular-nums">{p.score}</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    — {UNMEASURED_LABEL}
+                    <InfoTooltip text={pillarUnmeasuredReason(p)} />
+                  </span>
+                )}
               </span>
             ))}
           </div>
@@ -110,14 +137,24 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
             <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
           </summary>
           <div className="grid grid-cols-1 gap-3 border-t p-3 md:grid-cols-2 lg:grid-cols-3">
-            {data.pillars.map((p: any) => (
+            {data.pillars.map((p) => (
               <div key={p.id} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-label">{p.name}</span>
-                  <span className={`text-metric tabular-nums ${(STATUS_COLOR[p.status] ?? '').split(' ')[0]}`}>{p.score}</span>
+                  {isPillarMeasured(p) ? (
+                    <span className={`text-metric tabular-nums ${(STATUS_COLOR[p.status] ?? '').split(' ')[0]}`}>{p.score}</span>
+                  ) : (
+                    <span className="text-label text-muted-foreground">{pillarScoreText(p)}</span>
+                  )}
                 </div>
+                {!isPillarMeasured(p) && (
+                  <p className="flex items-start gap-1.5 text-label font-normal text-muted-foreground">
+                    <Info className="h-3 w-3 mt-0.5 shrink-0" aria-hidden />
+                    <span>{pillarUnmeasuredReason(p)} · genel skora katılmadı</span>
+                  </p>
+                )}
                 <ul className="space-y-1 text-label font-normal">
-                  {p.checks.map((c: any) => (
+                  {p.checks.map((c) => (
                     <li key={c.id} className="flex items-start gap-1.5">
                       {/*
                         unverified: denetim dosyayi OKUYAMADI (erisim engeli / sunucu hatasi —

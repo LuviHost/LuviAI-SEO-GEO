@@ -494,7 +494,7 @@ export class McpToolsService {
         name: 'get_geo_score_card',
         scope: 'audit:read',
         title: 'GEO Score Card',
-        description: 'AI arama motorlarinda gorunurluk skoru — 6 pillar (crawler erisimi, yapisal veri, AI citation, otorite, tazelik, multi-modal) + harf notu + oneriler.',
+        description: 'AI arama motorlarinda gorunurluk skoru — 6 pillar (crawler erisimi, yapisal veri, AI citation, otorite, tazelik, multi-modal) + harf notu + oneriler. Olculemeyen pillar score null + unmeasuredReason doner (0 degildir; or. RanksUp\'tan yayinlanmis makale yoksa yapisal veri/tazelik/multi-modal, son 9 gunde AI olcumu yoksa AI citation) ve genel skora girmez; hicbiri olculemezse overallScore ve grade null.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
