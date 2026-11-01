@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, Minus, Sparkles, Rocket, Bot, Search, PartyPopper, Info } from 'lucide-react';
 import { api } from '@/lib/api';
+import { sinceGscDay } from '@/lib/gsc-coverage';
 import { geoImpact, formatTrDate } from '@/components/geo-impact';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
@@ -43,7 +44,7 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
     let mounted = true;
     Promise.allSettled([
       api.getCitationHistory(siteId, days),
-      api.getAnalyticsOverview(siteId, days),
+      api.getAnalyticsOverview(siteId, days, { brandSplit: false }),
     ]).then(([g, s]) => {
       if (!mounted) return;
       if (g.status === 'fulfilled') setGeo(g.value);
@@ -94,7 +95,11 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
         </span>
         <div>
           <h3 className="font-semibold text-sm leading-none">RanksUp etkisi</h3>
-          <p className="text-label text-muted-foreground mt-1">Markanın AI ve Google&apos;daki değişimi · son {days} gün</p>
+          <p className="text-label text-muted-foreground mt-1">Markanın AI ve Google&apos;daki değişimi · son {days} gün
+            {seo?.coverage && !seo.coverage.complete && seo.coverage.from
+              ? ` (Google verisi ${sinceGscDay(seo.coverage.from)} beri, ${seo.coverage.coveredDays} gün)`
+              : ''}
+          </p>
         </div>
       </div>
 

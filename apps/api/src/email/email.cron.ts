@@ -5,6 +5,7 @@ import { EmailService } from './email.service.js';
 import { checkoutTestModeOn } from '../billing/checkout-mode.js';
 import { eskiFiyatBilgisi } from './grandfathering.js';
 import { acquireCronLock } from '../common/cron-lock.js';
+import { weeklySiteSummary } from '../analytics/gsc-aggregate.js';
 
 /**
  * Email otomasyon cron'ları:
@@ -85,9 +86,11 @@ export class EmailCron {
   async weeklyReports() {
     if (!(await acquireCronLock(this.prisma, 'email-weekly-report', 'weekly'))) return;
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
-    // Rapor mailindeki karsilastirma ve gunluk grafik icin 14 gun cekiliyor:
-    // ilk 7 gun onceki hafta (referans), son 7 gun bu hafta.
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000);
+    // Rapor mailindeki karsilastirma ve gunluk grafik: SITENIN SON 7 VERI GUNU
+    // ve hemen onceki 7 gun (weeklySiteSummary). GSC ~2-3 gun gecikmeli oldugu
+    // icin bugunden geriye 7 gun saymak "bu hafta"yi 4 gune dusuruyordu;
+    // 21 gun cekilir ki iki tam hafta gecikmeyle birlikte sigsin.
+    const snapshotSince = new Date(Date.now() - 21 * 86400000);
 
     const users = await this.prisma.user.findMany({
       where: {
@@ -100,7 +103,7 @@ export class EmailCron {
           include: {
             articles: { where: { publishedAt: { gte: sevenDaysAgo } } },
             analyticsSnapshots: {
-              where: { date: { gte: fourteenDaysAgo } },
+              where: { date: { gte: snapshotSince } },
               orderBy: { date: 'asc' },
             },
           },
@@ -114,31 +117,34 @@ export class EmailCron {
         let totalClicks = 0;
         let totalImpressions = 0;
         let articlesPublished = 0;
-        let positionSum = 0;
-        let positionCount = 0;
+        // Pozisyon GOSTERIMLE AGIRLIKLI (gunlerin duz ortalamasi degil)
+        let positionWeight = 0;
         let topArticle: any = null;
 
         // Gunluk tiklama serisi — mailde sutun grafik olarak ciziliyor.
         // Tarih -> toplam; birden fazla site varsa gunler toplaniyor.
         const gunlukTiklama = new Map<string, number>();
         let oncekiHaftaTiklama = 0;
-        let oncekiOlcumVar = false;
+        // Her verili site onceki haftada da en az bu hafta kadar gunle
+        // olculduyse karsilastirilir; biri eksikse fark hic verilmez.
+        let karsilastirilabilir = true;
+        let veriliSite = 0;
+        let ilkGun: string | null = null;
+        let sonGun: string | null = null;
 
         for (const site of u.sites) {
           articlesPublished += site.articles.length;
-          for (const snap of site.analyticsSnapshots) {
-            const buHafta = snap.date >= sevenDaysAgo;
-            if (buHafta) {
-              totalClicks += snap.totalClicks;
-              totalImpressions += snap.totalImpressions;
-              positionSum += snap.avgPosition;
-              positionCount++;
-              const gun = snap.date.toISOString().slice(0, 10);
-              gunlukTiklama.set(gun, (gunlukTiklama.get(gun) ?? 0) + snap.totalClicks);
-            } else {
-              oncekiHaftaTiklama += snap.totalClicks;
-              oncekiOlcumVar = true;
-            }
+          const hafta = weeklySiteSummary(site.analyticsSnapshots);
+          if (hafta && hafta.coveredDays > 0) {
+            veriliSite++;
+            totalClicks += hafta.clicks;
+            totalImpressions += hafta.impressions;
+            positionWeight += hafta.position * hafta.impressions;
+            oncekiHaftaTiklama += hafta.prevClicks;
+            if (!hafta.comparable) karsilastirilabilir = false;
+            for (const d of hafta.daily) gunlukTiklama.set(d.date, (gunlukTiklama.get(d.date) ?? 0) + d.clicks);
+            if (!ilkGun || hafta.current.from < ilkGun) ilkGun = hafta.current.from;
+            if (!sonGun || hafta.current.to > sonGun) sonGun = hafta.current.to;
           }
           for (const a of site.articles) {
             const m = (a.performanceMetrics as any) ?? {};
@@ -160,12 +166,14 @@ export class EmailCron {
             articlesPublished,
             totalClicks,
             totalImpressions,
-            avgPosition: positionCount > 0 ? (positionSum / positionCount).toFixed(1) : null,
+            avgPosition: totalImpressions > 0 ? (positionWeight / totalImpressions).toFixed(1) : null,
             topArticle,
-            // Onceki hafta HIC olculmediyse prevClicks GONDERILMEZ; sablon o
-            // zaman fark yerine "gecen hafta olcum yok" yaziyor. 0 gondermek
-            // "sifirdan buraya geldik" yalanini uretirdi.
-            ...(oncekiOlcumVar ? { prevClicks: oncekiHaftaTiklama } : {}),
+            // Hangi gunlerin verisi oldugu — "bu hafta" GSC gecikmesiyle kayar
+            ...(ilkGun && sonGun ? { dataFrom: ilkGun, dataTo: sonGun } : {}),
+            // Onceki hafta HIC (ya da daha az gunle) olculduyse prevClicks
+            // GONDERILMEZ; sablon o zaman fark yerine "gecen hafta olcum yok"
+            // yaziyor. 0 gondermek "sifirdan buraya geldik" yalanini uretirdi.
+            ...(veriliSite > 0 && karsilastirilabilir ? { prevClicks: oncekiHaftaTiklama } : {}),
             clicksSeries: [...gunlukTiklama.entries()]
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([, n]) => n),

@@ -2037,8 +2037,9 @@ export const api = {
   // yanitindaki fx alaninda), cagiran yoktu.
 
   // Analytics
-  getAnalyticsOverview: (siteId: string, days = 30) =>
-    request<any>(`/sites/${siteId}/analytics/overview?days=${days}`),
+  /** brandSplit=false: marka payi istenmez (API canli GSC sorgusu atmaz) */
+  getAnalyticsOverview: (siteId: string, days = 30, opts: { brandSplit?: boolean } = {}) =>
+    request<any>(`/sites/${siteId}/analytics/overview?days=${days}${opts.brandSplit === false ? '&brand=0' : ''}`),
 
   getTopArticles: (siteId: string, limit = 10) =>
     request<any[]>(`/sites/${siteId}/analytics/top-articles?limit=${limit}`),

@@ -1,4 +1,37 @@
-import { containsBrand } from '../audit/brand-in-query.js';
+import { containsBrand, brandMatchMode, MIN_BRAND_LEN } from '../audit/brand-in-query.js';
+import { foldForMatch } from '../common/text-normalize.js';
+
+/** brand-in-query.ts WORD_CHARS ile ayni sinif */
+const NON_WORD = /[^a-z0-9à-ſğüşöç]+/;
+const NON_WORD_G = /[^a-z0-9à-ſğüşöç]+/g;
+
+/**
+ * Organik sorguda marka geciyor mu — containsBrand + BOSLUKLU YAZIM.
+ *
+ * NEDEN: kullanicilar markayi arama kutusuna bitisik ya da ayri yazar
+ * ("ornekpratik" / "ornek pratik"). containsBrand kelime sinirli birebir
+ * eslesme yapar; marka "Ornekpratik" iken "ornek pratik giris" markasiz
+ * sayiliyordu (ve tersi). Burada ardisik sorgu kelimeleri birlestirilip
+ * markanin bitisik haline TAM esit mi diye bakilir — kelime siniri korunur
+ * ("ornekpratikci" yine markasiz). Yalniz organik ayrimda: AI olcumunun
+ * eslesme surumu (CITATION_MATCH_VERSION) degismesin diye ortak kurala
+ * eklenmedi. Jenerik alan-adi modunda (emlak ← emlak.com) uygulanmaz.
+ */
+export function brandInOrganicQuery(query: string, brand: string, host?: string | null): boolean {
+  if (containsBrand(query, brand, host)) return true;
+  if (host && brandMatchMode(brand, host) === 'domain') return false;
+  const b = foldForMatch(brand || '').replace(NON_WORD_G, '');
+  if (b.length < MIN_BRAND_LEN) return false;
+  const tokens = foldForMatch(query || '').split(NON_WORD).filter(Boolean);
+  for (let i = 0; i < tokens.length; i++) {
+    let acc = '';
+    for (let j = i; j < tokens.length && acc.length < b.length; j++) {
+      acc += tokens[j];
+      if (acc === b) return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Organik (GSC) trafikte markali / markasiz ayrimi — tek formul.
@@ -12,8 +45,10 @@ import { containsBrand } from '../audit/brand-in-query.js';
  * tum sitelere Mar 2026) ama API'de dimension olarak belgelenmedi; bu yuzden
  * kendi tespitimizle (brand-in-query.ts — AI tarafiyla AYNI kural) boluyoruz.
  *
- * SINIR: AnalyticsSnapshot.queryDetails gun basina ilk 100 sorgu (tiklama
- * sirali). Pay bir ORNEKLEM uzerinden hesaplanir; UI bunu soyler.
+ * KAYNAK: panel ve rapor once GSC'nin donem sorgu agregasini (tum sorgular,
+ * gsc-live.service.ts) verir. Ona ulasilamazsa AnalyticsSnapshot.queryDetails
+ * (gun basina ilk 100 sorgu, tiklama sirali) ORNEKLEM olarak kullanilir; UI
+ * hangisi oldugunu soyler (`source`).
  *
  * HOST: marka alan adindan turetilmis jenerik bir kelimeyse ("emlak" ←
  * emlak.com) yalin kelime sayilmaz, yalniz alan adi gecisi markali sayilir
@@ -80,7 +115,7 @@ export function splitQueriesByBrand(rows: OrganicQueryRow[], brand: string, host
   const branded = { ...EMPTY };
   const unbranded = { ...EMPTY };
   for (const r of agg) {
-    const b = containsBrand(r.query, brand, host) ? branded : unbranded;
+    const b = brandInOrganicQuery(r.query, brand, host) ? branded : unbranded;
     b.clicks += r.clicks;
     b.impressions += r.impressions;
     b.queries += 1;
