@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -175,6 +176,11 @@ export function CitationHistoryChart({
   // recharts veri formati: [{date, anthropic: 80, ...}]; yontem degisiminden onceki
   // noktalar ayri ("__eski") seride — iki yontem tek cizgiyle BAGLANMAZ
   const { rows: chartData, series: chartSeries } = splitSeriesByMethod(byProvider, trends);
+
+  // Son olcumde sorulan sorular (saglayicilar ayni sorulari sorar; tekillestirilir)
+  const testQueries: string[] = [...new Set<string>(
+    (data.latestResults ?? []).flatMap((r: any) => (Array.isArray(r.probes) ? r.probes : []).map((p: any) => String(p.query ?? '').trim())),
+  )].filter(Boolean).slice(0, 5);
   return (
     <Card>
       <CardContent className="p-4">
@@ -197,6 +203,25 @@ export function CitationHistoryChart({
             <p className="text-label text-muted-foreground mt-0.5 max-w-2xl">
               Ölçüm sağlayıcıların API&apos;si üzerinden yapılır; tüketici uygulamalarındaki reklamlar ölçüme girmez. OpenAI&apos;a göre ChatGPT&apos;de gösterilen reklamlar cevabın altında, ayrı ve etiketli durur ve cevapları etkilemez — yani reklam vermek cevapta kaynak gösterilmeyi sağlamaz.
             </p>
+            {/*
+              Hangi sorular soruluyor: test Prompt Lab'den BAGIMSIZ, site profilindeki (brain)
+              ilk 5 soruyu her olcumde ayni sorar — egilim kiyaslanabilir kalsin diye (sahip
+              karari 02.11.2026). Musteri "Prompt Lab bos, neye gore olcuyor?" diye soruyordu.
+            */}
+            {testQueries.length > 0 && (
+              <details className="mt-1 max-w-2xl text-label text-muted-foreground">
+                <summary className="cursor-pointer select-none hover:text-foreground">
+                  Bu test hangi soruları soruyor? ({testQueries.length} soru, her ölçümde aynı)
+                </summary>
+                <ol className="mt-1 ml-4 list-decimal space-y-0.5">
+                  {testQueries.map((q) => <li key={q}>{q}</li>)}
+                </ol>
+                <p className="mt-1">
+                  Sorular sitenin profilinden gelir ve her ölçümde aynı kalır; böylece değişim kıyaslanabilir.
+                  Kendi sorularını <Link href={`/sites/${siteId}/geo-lab`} className="underline hover:text-foreground">GEO Lab → Prompt Lab</Link>&apos;de ayrıca ölçebilirsin; o sorular bu skoru değiştirmez.
+                </p>
+              </details>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <div className="inline-flex gap-1">
