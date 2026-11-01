@@ -84,7 +84,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             '**Güçlü yanları:** ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçüm; 14 kontrollü site SEO/GEO denetimi; ASO, Profesyonel ve üstü planlarda App Prompt Lab; yapay zekâ ile makale üretimi ve 14 yayın hedefi; Profesyonel ve üstü planlarda kaybedilen sorudan içerik üretip yeniden ölçen kapalı döngü; Türkçe arayüz ve destek, PayTR ile Türk lirası ödeme.',
-            '**Sınırlamaları:** Google AI Bakışı, AI Modu ve Copilot’u doğrudan ölçmez (AI Bakışı için Search Console verisi içe aktarılabilir). Ölçüm hesap başına 7 günde birdir. Grok ve DeepSeek ölçümünde web araması yoktur. Ücretli planlar Büyüme $149/ay’dan başlar (KDV dahil); yalnız ölçüm isteyen biri için daha ucuz seçenekler var.',
+            '**Sınırlamaları:** Google AI Bakışı, AI Modu ve Copilot’u doğrudan ölçmez (AI Bakışı için Search Console verisi içe aktarılabilir). Ölçüm hesap başına 7 günde birdir. Ücretli planlar Büyüme $149/ay’dan başlar (KDV dahil); yalnız ölçüm isteyen biri için daha ucuz seçenekler var.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility'],
         },

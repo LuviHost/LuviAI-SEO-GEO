@@ -51,8 +51,12 @@ export const COST_PER_PROBE_USD: Readonly<Record<Provider, number>> = {
   // ~9K arama icerigi girdi tokeni (gpt-4o-mini $0.15/1M) + cikti.
   openai:     0.03,
   perplexity: 0.0006,
-  xai:        0.0003,
-  deepseek:   0.0006,
+  // Kasim 2026: web aramali. grok-4.7 $2/1M girdi + $6/1M cikti; arama icerigi
+  // ~25K girdi tokeni + 1500 cikti + arama ucreti (dokumanda yok, pay birakildi).
+  xai:        0.10,
+  // deepseek-v4-pro (Anthropic uyumlu uc) zirve $1.32/1M girdi + $3.96/1M cikti;
+  // ~25K girdi + 3000 cikti + 2 arama x $0.00075.
+  deepseek:   0.05,
   meta:       0.0002,        // Groq Llama 3.3 70B ~$0.59/1M in + $0.79/1M out → ~$0.0002/probe
 };
 

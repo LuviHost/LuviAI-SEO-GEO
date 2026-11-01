@@ -34,6 +34,7 @@ import {
   type FixedQuestionSet,
 } from './public-citation.service.js';
 import { PublicCitationRetestCron } from './public-citation-retest.cron.js';
+import { CITATION_MATCH_VERSION } from './host-match.js';
 
 const GUN = 24 * 60 * 60 * 1000;
 const SAGLAYICILAR = ['openai', 'anthropic', 'gemini', 'perplexity', 'xai', 'deepseek'];
@@ -43,7 +44,7 @@ function sonuc(anilan: number, o: { matchVersion?: number; tier?: 'anon' | 'memb
   const sorular = o.sorular ?? SORULAR;
   let i = 0;
   return {
-    matchVersion: o.matchVersion ?? 4,
+    matchVersion: o.matchVersion ?? CITATION_MATCH_VERSION,
     brand: 'Kobipratik',
     access: { tier: o.tier ?? 'anon', unlockedQueries: sorular.length, totalQueries: sorular.length, lockedQueries: 0 },
     queries: sorular.map((query) => ({
@@ -65,7 +66,7 @@ describe('compareRetest — kiyas yalniz ayni kosulda', () => {
     const cmp = compareRetest(simdi(sonuc(6)), kayit(sonuc(3)));
     expect(cmp).toMatchObject({
       methodChanged: false, delta: 3, deltaPct: 100, comparedAnswers: 18, partialCoverage: false,
-      current: { totalCited: 6, total: 18, matchVersion: 4 }, past: { totalCited: 3, total: 18, matchVersion: 4 },
+      current: { totalCited: 6, total: 18, matchVersion: CITATION_MATCH_VERSION }, past: { totalCited: 3, total: 18, matchVersion: CITATION_MATCH_VERSION },
     });
     expect(cmp.methodChangeReason).toBeUndefined();
   });

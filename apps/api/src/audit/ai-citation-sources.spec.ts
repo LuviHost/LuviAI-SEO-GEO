@@ -8,10 +8,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  */
 
 const anthropicCreate = vi.fn();
+const deepseekCreate = vi.fn();
+const deepseekClientOpts: any[] = [];
 const geminiGenerate = vi.fn();
 
+// DeepSeek Anthropic SDK'sini kendi baseURL'iyle kullanir; cagrilar ayri izlenir
 vi.mock('@anthropic-ai/sdk', () => ({
-  default: class { messages = { create: anthropicCreate }; },
+  default: class {
+    messages: { create: (...a: any[]) => any };
+    constructor(opts: any = {}) {
+      const ds = String(opts.baseURL ?? '').includes('deepseek');
+      if (ds) deepseekClientOpts.push(opts);
+      this.messages = { create: (...a: any[]) => (ds ? deepseekCreate : anthropicCreate)(...a) };
+    }
+  },
 }));
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class { models = { generateContent: geminiGenerate }; },
@@ -30,6 +40,8 @@ beforeEach(() => {
   backup = Object.fromEntries(PROVIDER_KEYS.map((k) => [k, process.env[k]]));
   for (const k of PROVIDER_KEYS) delete process.env[k];
   anthropicCreate.mockReset();
+  deepseekCreate.mockReset();
+  deepseekClientOpts.length = 0;
   geminiGenerate.mockReset();
 });
 afterEach(() => {
@@ -106,7 +118,7 @@ describe('probe.sources — saglayici basina', () => {
     expect(JSON.stringify(probe)).not.toContain('vertexaisearch');
   });
 
-  it('ChatGPT + Perplexity (fetch) ve aramasiz Grok', async () => {
+  it('ChatGPT + Perplexity (fetch) ve web aramali Grok', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
     process.env.PERPLEXITY_API_KEY = 'pplx-test';
     process.env.XAI_API_KEY = 'xai-test';
@@ -137,7 +149,24 @@ describe('probe.sources — saglayici basina', () => {
           search_results: [{ title: 'Logo Kobi', url: 'https://www.logo.com.tr/kobi' }],
         });
       }
-      return jsonResponse({ choices: [{ message: { content: LONG_ANSWER }, finish_reason: 'stop' }] });
+      if (url === 'https://api.x.ai/v1/responses') {
+        return jsonResponse({
+          status: 'completed',
+          // Ust duzey citations: aracin topladigi TUM adresler — alinti sayilmaz
+          citations: ['https://www.kobipratik.com/yalniz-okundu'],
+          output: [
+            { type: 'web_search_call', id: 'ws_x', status: 'completed' },
+            {
+              type: 'message',
+              content: [{
+                type: 'output_text', text: LONG_ANSWER,
+                annotations: [{ type: 'url_citation', start_index: 0, end_index: 5, url: 'https://x.com/i/status/1', title: '1' }],
+              }],
+            },
+          ],
+        });
+      }
+      throw new Error(`beklenmeyen istek: ${url}`);
     });
 
     const out = await service().runPublicProbes({ brand: 'Muhasebe Uzmani', host: HOST, queries: ['kobi muhasebe'] });
@@ -152,10 +181,83 @@ describe('probe.sources — saglayici basina', () => {
       { url: 'https://logo.com.tr/kobi', domain: 'logo.com.tr', title: 'Logo Kobi' },
       { url: 'https://youtube.com/watch?v=7', domain: 'youtube.com' },
     ]);
-    // Aramasiz saglayici: damga var, kaynak listesi yok
+    // Grok artik web aramali (CITATION_MATCH_VERSION 5): Responses API + web_search,
+    // kaynak = inline url_citation; ust duzey citations alinti sayilmaz
     const grok = out.find((r) => r.provider === 'xai')!.probes[0];
-    expect(grok.sourcesVersion).toBe(1);
-    expect(grok).not.toHaveProperty('sources');
+    expect(grok.cited).toBe(false);
+    expect(grok.sources).toEqual([{ url: 'https://x.com/i/status/1', domain: 'x.com', title: '1' }]);
+    const grokCall = (globalThis.fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes('api.x.ai'));
+    const body = JSON.parse(grokCall[1].body);
+    expect(body.tools).toEqual([{ type: 'web_search' }]);
+    expect(body.model).toBe('grok-4.7');
+    expect(body.instructions).toMatch(/web aramasi yap/);
+  });
+
+  it('Grok: cevaptaki url_citation bizim alan adimizsa alinti sayilir', async () => {
+    process.env.XAI_API_KEY = 'xai-test';
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => jsonResponse({
+      status: 'completed',
+      output: [{
+        type: 'message',
+        content: [{ type: 'output_text', text: LONG_ANSWER, annotations: [{ type: 'url_citation', start_index: 0, end_index: 5, url: 'https://www.kobipratik.com/pratik-araclar/kdv-hesaplama', title: '1' }] }],
+      }],
+    }));
+    const out = await service().runPublicProbes({ brand: 'Muhasebe Uzmani', host: HOST, queries: ['kdv nasil hesaplanir'] });
+    const grok = out.find((r) => r.provider === 'xai')!.probes[0];
+    expect(grok.cited).toBe(true);
+  });
+
+  it('DeepSeek: Anthropic uyumlu uc + web_search; alinti listesi yok, metin olculur', async () => {
+    process.env.DEEPSEEK_API_KEY = 'ds-test';
+    deepseekCreate.mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [
+        { type: 'server_tool_use', id: 's1', name: 'web_search', input: { query: 'kobi muhasebe' } },
+        { type: 'web_search_tool_result', tool_use_id: 's1', content: [{ type: 'web_search_result', url: 'https://www.kobipratik.com/yalniz-arama', title: 'x' }] },
+        { type: 'text', text: `${LONG_ANSWER} Kaynak: kobipratik.com` },
+      ],
+    });
+    const out = await service().runPublicProbes({ brand: 'Muhasebe Uzmani', host: HOST, queries: ['kobi muhasebe'] });
+    const ds = out.find((r) => r.provider === 'deepseek')!.probes[0];
+    // Metinde alan adi geciyor → alinti (arama sonucunda gorunmesi tek basina sayilmazdi)
+    expect(ds.cited).toBe(true);
+    // Uc alinti listesi dondurmuyor: "arandi, kaynak yok" diye bos dizi YAZILMAZ
+    expect(ds).not.toHaveProperty('sources');
+    expect(deepseekClientOpts[0].baseURL).toBe('https://api.deepseek.com/anthropic');
+    const req = deepseekCreate.mock.calls[0][0];
+    expect(req.model).toBe('deepseek-v4-pro');
+    expect(req.tools).toEqual([{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }]);
+    expect(anthropicCreate).not.toHaveBeenCalled();
+  });
+
+  it('DeepSeek: yalniz arama sonucunda gorunmek alinti sayilmaz', async () => {
+    process.env.DEEPSEEK_API_KEY = 'ds-test';
+    deepseekCreate.mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [
+        { type: 'web_search_tool_result', tool_use_id: 's1', content: [{ type: 'web_search_result', url: 'https://www.kobipratik.com/rehber', title: 'x' }] },
+        { type: 'text', text: LONG_ANSWER },
+      ],
+    });
+    const out = await service().runPublicProbes({ brand: 'Muhasebe Uzmani', host: HOST, queries: ['kobi muhasebe'] });
+    expect(out.find((r) => r.provider === 'deepseek')!.probes[0].cited).toBe(false);
+  });
+
+  it('DeepSeek: web aramasi hep hata verirse soru olculemedi (HATA), 0 puan degil', async () => {
+    process.env.DEEPSEEK_API_KEY = 'ds-test';
+    deepseekCreate.mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [
+        { type: 'web_search_tool_result', tool_use_id: 's1', content: { type: 'web_search_tool_result_error', error_code: 'unavailable' } },
+        { type: 'text', text: LONG_ANSWER },
+      ],
+    });
+    const svc: any = service();
+    svc.ARAMA_BEKLEME_MS = 0;
+    const out = await svc.runPublicProbes({ brand: 'Muhasebe Uzmani', host: HOST, queries: ['kobi muhasebe'] });
+    const ds = out.find((r: any) => r.provider === 'deepseek')!.probes[0];
+    expect(ds.excerpt).toBe('HATA: arama hatasi (error_code=unavailable)');
+    expect(isErrorProbe(ds)).toBe(true);
   });
 
   it('aramali saglayicida alinti yoksa sources bos dizi; HATA satirinda damga yok', async () => {

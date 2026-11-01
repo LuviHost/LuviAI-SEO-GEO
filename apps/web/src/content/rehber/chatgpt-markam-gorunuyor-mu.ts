@@ -113,7 +113,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             'Siten için seçilen en fazla 5 soruyu ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’e sorar.',
-            'ChatGPT, Claude, Gemini ve Perplexity ölçümde web’de arama yaparak cevap verir. Grok ve DeepSeek ölçümünde web araması yoktur; cevap modelin kendi bilgisinden gelir.',
+            'Altı asistanın hepsi ölçümde web’de arama yaparak cevap verir; Perplexity kendi arama altyapısını kullanır.',
             'Puanlama: siten kaynak gösterildiyse 100, marka yalnız anıldıysa 50, hiç geçmiyorsa 0. Marka adı geçen sorular puana girmez.',
             'Ölçümü sen başlatırsın. Hesap başına 7 günde bir ölçüm yapılır ve tüm sitelerin bu hakkı paylaşır.',
           ],

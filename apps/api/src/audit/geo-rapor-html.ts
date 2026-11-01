@@ -72,6 +72,7 @@ const YONTEM_DEGISIKLIGI: Record<number, string> = {
   2: 'benzer alan adları artık atıf sayılmıyor (ör. ornek.com için notornek.com ya da ornek.com.tr)',
   3: 'web araması yapan motorlarda (ChatGPT, Gemini, Claude) cevabın kaynak listesindeki alan adı da atıf sayılıyor',
   4: 'alan adından türetilen jenerik marka adı (ör. eticaret.com için “eticaret”) tek başına anılma sayılmıyor ve hata veren cevaplar ölçüme girmiyor',
+  5: 'Grok ve DeepSeek de artık cevaplarken web’de arama yapıyor (önceden yalnız modelin kendi bilgisiyle cevaplıyordu)',
 };
 
 export function yontemNotu(v: { a: number; b: number } | undefined): string {
