@@ -176,10 +176,12 @@ describe('GeoScoreCardService — K6', () => {
     expect(p.checks[0].detail).toBe('Son 9 gün ortalaması: 40/100');
   });
 
-  it('AI Citation: hic olcum yoksa tek satir ve Turkce neden; "saglayici aktif degil" denmez', async () => {
+  it('AI Citation: hic olcum yoksa olculemedi (0 degil) ve Turkce neden; "saglayici aktif degil" denmez', async () => {
     const p = await kart({ snapshots: [] }).checkAiCitation('s1');
-    expect(p.score).toBe(0);
-    expect(p.checks).toEqual([{ id: 'cite-none', name: 'AI ölçümü', ok: false, detail: 'Son 9 günde hiçbir AI asistanından ölçüm alınmadı.' }]);
+    expect(p.score).toBeNull();
+    expect(p.status).toBe('unmeasured');
+    expect(p.checks).toEqual([]);
+    expect(p.unmeasuredReason).toBe("Son 9 günde AI ölçümü yok — AI Görünürlük'te Yeniden Test ile ölçülür");
   });
 
   /**
@@ -216,8 +218,8 @@ describe('GeoScoreCardService — K6', () => {
     it('10 gun onceki olcum sayilmaz', async () => {
       const { svc, findMany } = pencereli([{ provider: 'openai', score: 50, date: gunOnce(10) }]);
       const p = await svc.checkAiCitation('s1');
-      expect(p.checks.map((c: any) => c.id)).toEqual(['cite-none']);
-      expect(p.score).toBe(0);
+      expect(p.checks).toEqual([]);
+      expect(p.score).toBeNull();
       // Sorgu esigi ~9 gun once
       const gte: Date = findMany.mock.calls[0][0].where.date.gte;
       expect(Math.round((Date.now() - gte.getTime()) / DAY)).toBe(9);
@@ -226,7 +228,8 @@ describe('GeoScoreCardService — K6', () => {
 
   it('Multi-Modal: yalniz hero gorsel; TTS/podcast vaadi yok, Turkce metin', async () => {
     const bos = await kart({ articles: [] }).checkMultiModal('s1');
-    expect(bos.checks).toEqual([{ id: 'hero-image', name: 'Hero görsel', ok: false, detail: 'Henüz yayınlanmış makale yok' }]);
+    // RanksUp makalesi yok: olculemedi (geo-score-card-olculemedi.spec.ts)
+    expect(bos).toMatchObject({ score: null, status: 'unmeasured', checks: [] });
     const dolu = await kart({ articles: [{ heroImageUrl: 'https://cdn/x.webp', frontmatter: {} }, { heroImageUrl: null, frontmatter: {} }] }).checkMultiModal('s1');
     expect(dolu.checks[0]).toMatchObject({ ok: false, detail: '1/2 makalede hero görsel' });
     expect(JSON.stringify(dolu)).not.toMatch(/podcast|TTS|audio/i);

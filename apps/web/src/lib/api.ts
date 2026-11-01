@@ -10,6 +10,7 @@ import type { ArticleVideo, VideoBrandPreview, VideoQuota, VideoRequestBody } fr
 import type { MusteriRaporu, PaylasilanRapor, PaylasimOzeti } from './musteri-raporu';
 import type { CitedSourcesResponse, SourceType } from './cited-sources';
 import type { AiTrafficResponse } from './ai-traffic';
+import type { GeoScoreCardData } from './geo-score-card';
 import { readApiErrorCode, trialErrorAction, TRIAL_ERROR_EVENT } from './trial-errors';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -1564,7 +1565,7 @@ export const api = {
     request<any>(`/sites/${siteId}/audit/crawler/history?days=${days}`),
 
   getGeoScoreCard: (siteId: string) =>
-    request<any>(`/sites/${siteId}/audit/score-card`),
+    request<GeoScoreCardData>(`/sites/${siteId}/audit/score-card`),
 
   validateSchema: (siteId: string, url: string) =>
     request<any>(`/sites/${siteId}/audit/schema-validate`, {

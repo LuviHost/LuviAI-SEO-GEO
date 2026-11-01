@@ -113,11 +113,33 @@ function orgSchemaCheckOf(levels: unknown): {
   return null;
 }
 
+/**
+ * Makale sutunlarinin (Yapisal Veri, Tazelik, Multi-Modal) "olculemedi" nedeni.
+ * Bu sutunlar YALNIZ RanksUp'in yayinladigi yazilara (Article, PUBLISHED) bakar,
+ * musterinin kendi sitesindeki sayfalara degil. RanksUp'tan yayin yoksa olculecek
+ * bir sey yok: 0 vermek, kendi blogunu baska yerden yoneten siteyi sebepsiz
+ * F'ye dusuruyordu (uc sahte sifir).
+ */
+export const NO_RANKSUP_ARTICLES_REASON =
+  "RanksUp'tan yayınlanmış makale yok — bu sütun yalnız RanksUp'ın yayınladığı yazılara bakar";
+
+/** AI Citation sutununun "olculemedi" nedeni: tazelik penceresinde hic olcum yok */
+export const NO_FRESH_CITATION_REASON =
+  `Son ${AI_CITATION_FRESH_DAYS} günde AI ölçümü yok — AI Görünürlük'te Yeniden Test ile ölçülür`;
+
+export type GeoGrade = 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
+
 export interface GeoScoreCard {
-  overallScore: number;
-  grade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
+  /** null: hicbir sutun olculemedi — 0 degil, olcum yok */
+  overallScore: number | null;
+  /** Yalniz olculen sutunlardan; genel skor null ise null */
+  grade: GeoGrade | null;
   pillars: GeoPillar[];
   recommendations: string[];
+  /** Genel skora giren (olculen) sutunlarin agirlik toplami */
+  measuredWeight: number;
+  /** Tum sutunlarin agirlik toplami */
+  totalWeight: number;
   generatedAt: string;
 }
 
@@ -125,8 +147,14 @@ export interface GeoPillar {
   id: string;
   name: string;
   weight: number;       // 1-3
-  score: number;        // 0-100
-  status: 'great' | 'good' | 'warning' | 'critical';
+  /**
+   * 0-100; null = sutun OLCULEMEDI (unmeasuredReason): genel skora girmez,
+   * agirligi olculen sutunlara dagilir. 0 ile karistirilmamali.
+   */
+  score: number | null;
+  status: 'great' | 'good' | 'warning' | 'critical' | 'unmeasured';
+  /** score null ise nedeni (Turkce, kullaniciya gosterilir) */
+  unmeasuredReason?: string;
   /**
    * unverified: denetim dosyayi OKUYAMADI (engel / sunucu hatasi) ya da sinyal
    * henuz OLCULMEDI (Otorite: sameAs taranmadi) — "yok" degil, olculemedi.
@@ -134,6 +162,38 @@ export interface GeoPillar {
    * girer (okuma engeli bir erisim sorunudur); Otorite sutununda girmez.
    */
   checks: Array<{ id: string; name: string; ok: boolean; detail: string; unverified?: boolean }>;
+}
+
+/** Olculemeyen sutun: puan null, kontrol satiri yok, neden acik */
+function unmeasuredPillar(id: string, name: string, weight: number, reason: string): GeoPillar {
+  return { id, name, weight, score: null, status: 'unmeasured', unmeasuredReason: reason, checks: [] };
+}
+
+/**
+ * Genel skor = YALNIZ olculen sutunlarin agirlikli ortalamasi (agirliklar olculen
+ * sutunlar uzerinden yeniden normalize edilir). Hicbir sutun olculemediyse null.
+ * Tum sutunlar olculuyse eski formulun aynisi.
+ */
+export function weightedOverall(pillars: Array<Pick<GeoPillar, 'weight' | 'score'>>): {
+  overallScore: number | null; measuredWeight: number; totalWeight: number;
+} {
+  const totalWeight = pillars.reduce((a, p) => a + p.weight, 0);
+  let measuredWeight = 0;
+  let sum = 0;
+  for (const p of pillars) {
+    if (p.score === null) continue;
+    measuredWeight += p.weight;
+    sum += p.score * p.weight;
+  }
+  return {
+    overallScore: measuredWeight === 0 ? null : Math.round(sum / measuredWeight),
+    measuredWeight,
+    totalWeight,
+  };
+}
+
+export function gradeOf(overall: number): GeoGrade {
+  return overall >= 90 ? 'A+' : overall >= 80 ? 'A' : overall >= 70 ? 'B' : overall >= 60 ? 'C' : overall >= 50 ? 'D' : 'F';
 }
 
 /**
@@ -146,6 +206,12 @@ export interface GeoPillar {
  *  4. Otorite (ana sayfa Organization sameAs — Agent Readiness taramasindan —, rakip listesi, GSC baglantisi)
  *  5. Tazelik (yayin sikligi, son guncellenme, content pivot durumu)
  *  6. Multi-Modal (hero gorsel kapsami)
+ *
+ * OLCULEMEYEN SUTUN (score null, unmeasuredReason): 2, 5, 6 yalniz RanksUp'in
+ * yayinladigi makalelere bakar — RanksUp'tan yayin yoksa olculemez. 3, tazelik
+ * penceresinde (AI_CITATION_FRESH_DAYS) olcum yoksa olculemez. Olculemeyen sutun
+ * genel skora girmez; agirliklar olculen sutunlar uzerinden yeniden dagitilir
+ * (weightedOverall). Hicbiri olculemezse genel skor ve harf notu null.
  *
  * Urunden kaldirilan modullere (sosyal yayin, TTS ses, podcast RSS — commit
  * 0db5a1c) bagli kontroller puandan cikarildi: hicbir musteri artik onlari
@@ -169,27 +235,35 @@ export class GeoScoreCardService {
     ]);
 
     const pillars = [crawler, structured, citation, authority, freshness, multiModal];
-    const totalWeight = pillars.reduce((a, p) => a + p.weight, 0);
-    const overall = Math.round(
-      pillars.reduce((a, p) => a + p.score * p.weight, 0) / totalWeight,
-    );
+    const { overallScore, measuredWeight, totalWeight } = weightedOverall(pillars);
+    const grade = overallScore === null ? null : gradeOf(overallScore);
 
-    const grade = overall >= 90 ? 'A+' : overall >= 80 ? 'A' : overall >= 70 ? 'B' : overall >= 60 ? 'C' : overall >= 50 ? 'D' : 'F';
-
-    // Recommendations — en zayif pillar'lardan
+    // Tavsiyeler — olculen en zayif sutunlardan. Olculemeyen sutun icin
+    // "0/0 makale" gibi bir tavsiye yazilmaz; en fazla bir notr not.
+    // Siralama kopyada: donen sutun sirasi sabit kalir (eskiden yerinde
+    // siralanip puana gore donuyordu).
     const recommendations: string[] = [];
-    for (const p of pillars.sort((a, b) => a.score - b.score).slice(0, 3)) {
+    const measured = pillars.filter((p): p is GeoPillar & { score: number } => p.score !== null);
+    for (const p of [...measured].sort((a, b) => a.score - b.score).slice(0, 3)) {
       const failed = p.checks.filter((c) => !c.ok);
       for (const c of failed.slice(0, 2)) {
         recommendations.push(`[${p.name}] ${c.name}: ${c.detail}`);
       }
     }
+    const unmeasured = pillars.filter((p) => p.score === null);
+    if (unmeasured.length > 0) {
+      recommendations.push(
+        `Puana katılmadı (ölçülmedi): ${unmeasured.map((p) => p.name).join(', ')} — nedeni sütun ayrıntısında.`,
+      );
+    }
 
     return {
-      overallScore: overall,
+      overallScore,
       grade,
       pillars,
       recommendations,
+      measuredWeight,
+      totalWeight,
       generatedAt: new Date().toISOString(),
     };
   }
@@ -285,6 +359,10 @@ export class GeoScoreCardService {
     });
     const checks: GeoPillar['checks'] = [];
 
+    if (articles.length === 0) {
+      return unmeasuredPillar('structured-data', 'Yapısal Veri', 3, NO_RANKSUP_ARTICLES_REASON);
+    }
+
     const withSchema = articles.filter((a: any) => a.schemaMarkup);
     const totalArticles = articles.length;
 
@@ -376,12 +454,9 @@ export class GeoScoreCardService {
     }
 
     if (checks.length === 0) {
-      // Hic olcum yok: puan 0 kalir (sutun agirligi degismez) ama neden acik
-      checks.push({
-        id: 'cite-none', name: 'AI ölçümü',
-        ok: false,
-        detail: `Son ${AI_CITATION_FRESH_DAYS} günde hiçbir AI asistanından ölçüm alınmadı.`,
-      });
+      // Pencerede hic olcum yok: gorunurluk 0 degil, OLCULMEDI. Sutun genel
+      // skora girmez (agirligi olculen sutunlara dagilir); neden kullaniciya acik.
+      return unmeasuredPillar('ai-citation', 'AI Citation', 3, NO_FRESH_CITATION_REASON);
     }
 
     const score = Math.round((checks.filter(c => c.ok).length / checks.length) * 100);
@@ -448,7 +523,10 @@ export class GeoScoreCardService {
     const last30 = new Date(Date.now() - 30 * 86400000);
     const last7 = new Date(Date.now() - 7 * 86400000);
 
-    const [recentArticles, lastWeek] = await Promise.all([
+    const [totalPublished, recentArticles, lastWeek] = await Promise.all([
+      this.prisma.article.count({
+        where: { siteId, status: 'PUBLISHED' as any },
+      }),
       this.prisma.article.count({
         where: { siteId, status: 'PUBLISHED' as any, publishedAt: { gte: last30 } },
       }),
@@ -456,6 +534,12 @@ export class GeoScoreCardService {
         where: { siteId, status: 'PUBLISHED' as any, publishedAt: { gte: last7 } },
       }),
     ]);
+
+    // RanksUp'tan hic yayin yoksa yayin sikligi olculemez ("eskimis icerik
+    // yok" da bos kumede anlamsiz gecis olurdu)
+    if (totalPublished === 0) {
+      return unmeasuredPillar('freshness', 'Tazelik', 2, NO_RANKSUP_ARTICLES_REASON);
+    }
 
     const checks: GeoPillar['checks'] = [];
     checks.push({
@@ -530,6 +614,10 @@ export class GeoScoreCardService {
       take: 50,
     });
 
+    if (articles.length === 0) {
+      return unmeasuredPillar('multi-modal', 'Multi-Modal', 1, NO_RANKSUP_ARTICLES_REASON);
+    }
+
     // Image coverage — GERCEK hero sayilir. Eskiden frontmatter.hero_image
     // bakiliyordu; yazar sablonu oraya her makalede "placeholder-hero.webp"
     // yazdigi icin yer tutucu da "hero var" sayiliyordu (sisik olcum).
@@ -538,8 +626,8 @@ export class GeoScoreCardService {
     const withHero = articles.filter((a) => realHero(a.heroImageUrl) || realHero(a.frontmatter?.hero_image)).length;
     checks.push({
       id: 'hero-image', name: 'Hero görsel',
-      ok: articles.length === 0 ? false : withHero / articles.length >= 0.7,
-      detail: articles.length === 0 ? 'Henüz yayınlanmış makale yok' : `${withHero}/${articles.length} makalede hero görsel`,
+      ok: withHero / articles.length >= 0.7,
+      detail: `${withHero}/${articles.length} makalede hero görsel`,
     });
 
     const score = Math.round((checks.filter(c => c.ok).length / checks.length) * 100);

@@ -77,7 +77,9 @@ import { pageUpdated } from '@/lib/page-updated';
  *    6 asistanin (OLCULEN_ASISTANLAR) son 7 gunu, asistan basina ortalama >= 30
  *    gecer, 7 gunde olcumu olmayan asistan sayilmaz; Otorite sameAs (>= 2 profil)
  *    + rakip (>= 3) + GSC; Tazelik 30 gunde >= 4, 7 gunde >= 1, 90+ gunluk
- *    guncellenmemis < 10; Multi-Modal yalniz hero gorsel (>= %70). TTS ses ve
+ *    guncellenmemis < 10; Multi-Modal yalniz hero gorsel (>= %70). Olculemeyen
+ *    sutun (RanksUp'tan yayin yoksa Yapisal Veri/Tazelik/Multi-Modal; 9 gunde AI
+ *    olcumu yoksa AI Citation) puan null, ortalamaya girmez. TTS ses ve
  *    podcast RSS urunden cikti (0db5a1c), skora girmez. public-docs.spec.ts
  *    asistan adlarini servisle karsilastirir.
  */
@@ -156,7 +158,7 @@ const FAQS_TR = [
   },
   {
     q: 'GEO Score nedir, nasıl hesaplanır?',
-    a: '6 başlığın ağırlıklı ortalamasıdır; her başlığın puanı geçilen kontrollerin oranıdır. (1) AI tarayıcı erişimi — robots.txt, llms.txt, sitemap.xml ve RanksUp\'ın ürettiği llms-full.txt; (2) Yapısal veri — RanksUp ile yayınlanan makalelerde şema kapsamı (en az %80), en az 5 farklı şema tipi, Speakable ve FAQPage; (3) AI atıfları — ölçülen AI asistanlarının (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) son 9 gündeki ölçümleri: ortalaması 30 ve üstü olan asistan geçer, son 9 günde ölçüm alınamayan asistan hesaba katılmaz (haftalık ölçüm hakkıyla sütun boşa düşmesin diye pencere 9 gündür); (4) Otorite — sosyal profil (sameAs) bağlantıları, en az 3 tanımlı rakip ve Search Console bağlantısı; (5) Tazelik — son 30 günde en az 4, son 7 günde en az 1 yayın ve 90 günden uzun süredir güncellenmeyen makalenin 10\'dan az olması; (6) Çoklu ortam — yayınlanan makalelerin en az %70\'inde kapak görseli. İlk üç başlığın ağırlığı en yüksektir. Sonuç A+ ile F arasında bir harf notudur.',
+    a: '6 başlığın ağırlıklı ortalamasıdır; her başlığın puanı geçilen kontrollerin oranıdır. (1) AI tarayıcı erişimi — robots.txt, llms.txt, sitemap.xml ve RanksUp\'ın ürettiği llms-full.txt; (2) Yapısal veri — RanksUp ile yayınlanan makalelerde şema kapsamı (en az %80), en az 5 farklı şema tipi, Speakable ve FAQPage; (3) AI atıfları — ölçülen AI asistanlarının (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) son 9 gündeki ölçümleri: ortalaması 30 ve üstü olan asistan geçer, son 9 günde ölçüm alınamayan asistan hesaba katılmaz (haftalık ölçüm hakkıyla sütun boşa düşmesin diye pencere 9 gündür); (4) Otorite — sosyal profil (sameAs) bağlantıları, en az 3 tanımlı rakip ve Search Console bağlantısı; (5) Tazelik — son 30 günde en az 4, son 7 günde en az 1 yayın ve 90 günden uzun süredir güncellenmeyen makalenin 10\'dan az olması; (6) Çoklu ortam — yayınlanan makalelerin en az %70\'inde kapak görseli. İlk üç başlığın ağırlığı en yüksektir. Ölçülemeyen başlık 0 sayılmaz, "ölçülmedi" görünür ve ortalamaya katılmaz: RanksUp ile yayınlanmış makale yoksa (2), (5) ve (6); son 9 günde AI ölçümü yoksa (3). Ağırlıklar ölçülen başlıklar arasında yeniden dağıtılır. Sonuç A+ ile F arasında bir harf notudur.',
   },
   {
     q: 'Otopilot tam olarak ne yapıyor?',
@@ -247,7 +249,7 @@ const FAQS_EN = [
   },
   {
     q: 'What is GEO Score, how is it calculated?',
-    a: 'A weighted average of 6 pillars; each pillar scores the share of its checks that pass. (1) AI crawler access — robots.txt, llms.txt, sitemap.xml and the llms-full.txt RanksUp generates; (2) Structured data — on articles published through RanksUp: schema coverage (at least 80%), at least 5 distinct schema types, Speakable and FAQPage; (3) AI citations — the measurements of the last 9 days for each measured AI assistant (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek): an assistant passes at 30 or above, and an assistant with no measurement in the last 9 days is left out (the window is 9 days so the pillar does not lapse between weekly measurements); (4) Authority — social profile (sameAs) links, at least 3 defined competitors and a Search Console connection; (5) Freshness — at least 4 articles in the last 30 days, at least 1 in the last 7 days, and fewer than 10 articles left without an update for over 90 days; (6) Multi-modal — a cover image on at least 70% of published articles. The first three pillars carry the highest weight. The result is a letter grade from A+ to F.',
+    a: 'A weighted average of 6 pillars; each pillar scores the share of its checks that pass. (1) AI crawler access — robots.txt, llms.txt, sitemap.xml and the llms-full.txt RanksUp generates; (2) Structured data — on articles published through RanksUp: schema coverage (at least 80%), at least 5 distinct schema types, Speakable and FAQPage; (3) AI citations — the measurements of the last 9 days for each measured AI assistant (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek): an assistant passes at 30 or above, and an assistant with no measurement in the last 9 days is left out (the window is 9 days so the pillar does not lapse between weekly measurements); (4) Authority — social profile (sameAs) links, at least 3 defined competitors and a Search Console connection; (5) Freshness — at least 4 articles in the last 30 days, at least 1 in the last 7 days, and fewer than 10 articles left without an update for over 90 days; (6) Multi-modal — a cover image on at least 70% of published articles. The first three pillars carry the highest weight. A pillar that cannot be measured does not count as 0: it shows as "not measured" and is left out of the average — (2), (5) and (6) when no article has been published through RanksUp, (3) when there is no AI measurement in the last 9 days. The weights are spread over the measured pillars. The result is a letter grade from A+ to F.',
   },
   {
     q: 'What exactly does Autopilot do?',
