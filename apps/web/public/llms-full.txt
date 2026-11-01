@@ -4,7 +4,7 @@
 
 Bu dosya https://ranksup.ai/llms.txt dosyasının ayrıntılı sürümüdür. Yalnızca bugün üründe çalışan özellikleri anlatır; fiyat ve plan sınırları ürünün plan tanımıyla aynıdır.
 
-Son güncelleme: 30 Ekim 2026 · RanksUp Ekibi
+Son güncelleme: 2 Kasım 2026 · RanksUp Ekibi
 
 Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/ranksup.md
 

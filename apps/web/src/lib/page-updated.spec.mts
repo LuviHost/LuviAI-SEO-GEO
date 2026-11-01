@@ -25,12 +25,16 @@ const TR_AY: Record<string, string> = {
   Temmuz: '07', Ağustos: '08', Eylül: '09', Ekim: '10', Kasım: '11', Aralık: '12',
 };
 
+// Tarihler Turkiye gunune gore yazilir (yasal sayfalar "Son güncelleme: 2 Kasım 2026"); UTC
+// ile 00:00-03:00 arasi TR'de yeni gunun tarihi "gelecek" sayiliyordu. TR = UTC+3, yaz saati yok.
+const trBugun = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
+
 describe('sitemap', () => {
   const entries = sitemap();
 
   it('her URL gercek bir tarih tasiyor (YYYY-MM-DD), gelecekte degil, bugune sabitlenmemis', () => {
     expect(entries.length).toBe(PUBLIC_PAGES.length);
-    const bugun = new Date().toISOString().slice(0, 10);
+    const bugun = trBugun();
     for (const e of entries) {
       expect(typeof e.lastModified, e.url).toBe('string');
       const d = e.lastModified as string;
@@ -111,7 +115,7 @@ describe('gorunur tarih ve JSON-LD ayni kaynaktan', () => {
 
 describe('ajan belgelerinin "Son güncelleme" satiri', () => {
   it('llms.txt, llms-full.txt ve agent-setup.txt tam gun tarihi tasiyor ("Ekim 2026" degil), gelecekte degil', () => {
-    const bugun = new Date().toISOString().slice(0, 10);
+    const bugun = trBugun();
     for (const f of ['llms.txt', 'llms-full.txt', 'agent-setup.txt']) {
       const doc = read(join(SRC, '../public', f));
       const m = /^Son güncelleme: (\d{1,2}) (\S+) (\d{4})/m.exec(doc);
