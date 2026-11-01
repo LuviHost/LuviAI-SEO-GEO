@@ -32,8 +32,12 @@ import { escapeRegex } from '../common/text-normalize.js';
  *         olculemedi sayilir (citation-score.ts) — kayitli skorlar
  *         scripts/backfill-snapshot-unbranded.ts + backfill-citation-runs.ts ile
  *         yeniden hesaplanir
+ * 5 = Grok (xAI Responses API + web_search) ve DeepSeek (Anthropic uyumlu uc +
+ *     web_search) da web aramali olculuyor (Kasim 2026). Onceden ikisi yalniz
+ *     egitim bilgisiyle cevapliyor, genc siteler yapisal olarak 0 aliyordu; 6
+ *     asistanin ortalamasi (manset) da bu yuzden degisir → 4 ile 5 kiyaslanmaz.
  */
-export const CITATION_MATCH_VERSION = 4;
+export const CITATION_MATCH_VERSION = 5;
 
 /** Iki etiketli kayit edilebilir sonekler (kurate — PSL'nin bizi ilgilendiren kismi) */
 const MULTI_PART_SUFFIXES = new Set([

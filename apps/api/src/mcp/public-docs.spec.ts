@@ -1584,16 +1584,22 @@ describe('Rehber (/rehber) = ürün', () => {
     expect(cta).toContain(`${TRIAL_DAYS} gün ücretsiz dene · Kart gerekmez`);
   });
 
-  it('ölçülen asistanlar plans.ts listesiyle ayni; web araması yalnız aramalı sağlayıcılarda', () => {
+  it('ölçülen asistanlar plans.ts listesiyle ayni; altı asistanın hepsi web aramalı (Kasım 2026)', () => {
     const liste = BASE_PLANS.flatMap((p) => p.features_tr).find((m) => m.startsWith('ChatGPT · '))!.split(' · ');
     const metin = `${liste.slice(0, -1).join(', ')} ve ${liste.at(-1)}`;
     expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain(metin);
     const citation = read(path.resolve(HERE, '../audit/ai-citation.service.ts'));
-    // Aramali: Claude web_search araci, Gemini googleSearch, ChatGPT web_search, Perplexity sonar
+    // Aramali: Claude web_search araci, Gemini googleSearch, ChatGPT web_search, Perplexity sonar,
+    // Grok xAI Responses + web_search, DeepSeek Anthropic uyumlu uc + web_search_20250305
     expect(citation).toContain("name: 'web_search'");
     expect(citation).toContain('googleSearch: {}');
     expect(citation).toContain("model: 'sonar'");
-    expect(citation).toMatch(/aramasiz saglayicilar \(Grok, DeepSeek/);
-    expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain('Grok ve DeepSeek ölçümünde web araması yoktur');
+    expect(citation).toContain("'https://api.x.ai/v1/responses'");
+    expect(citation).toContain("type: 'web_search_20250305'");
+    expect(citation).not.toMatch(/api\.x\.ai\/v1\/chat\/completions|api\.deepseek\.com\/chat\/completions/);
+    // Eski "aramasiz" iddiasi hicbir musteri metninde kalmamali
+    expect(dosya('chatgpt-markam-gorunuyor-mu')).not.toContain('web araması yoktur');
+    expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain('Altı asistanın hepsi ölçümde web’de arama yaparak cevap verir');
+    expect(dosya('yapay-zeka-gorunurluk-araclari')).not.toContain('Grok ve DeepSeek ölçümünde web araması yoktur');
   });
 });

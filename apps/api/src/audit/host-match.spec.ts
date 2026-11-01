@@ -65,6 +65,6 @@ describe('hostMentionIndex', () => {
   });
 
   it('olcum surumu 4: jenerik marka korumasi anilma olcumunu degistirdi', () => {
-    expect(CITATION_MATCH_VERSION).toBe(4);
+    expect(CITATION_MATCH_VERSION).toBe(5);
   });
 });

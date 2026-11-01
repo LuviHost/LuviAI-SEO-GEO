@@ -172,8 +172,11 @@ export class AiCitationService {
     gemini:     parseFloat(process.env.AI_BUDGET_GEMINI_USD     ?? '15'),
     openai:     parseFloat(process.env.AI_BUDGET_OPENAI_USD     ?? '15'),
     perplexity: parseFloat(process.env.AI_BUDGET_PERPLEXITY_USD ?? '5'),
-    xai:        parseFloat(process.env.AI_BUDGET_GROK_USD       ?? '3'),
-    deepseek:   parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD   ?? '3'),
+    // Kasim 2026: Grok ve DeepSeek de web aramali olculuyor (CITATION_MATCH_VERSION 5);
+    // probe basi tavan 0.0003/0.0006 → 0.10/0.05 USD. Varsayilanlar gunde
+    // ~300 probe'a izin verir; kismak icin env ile dusur.
+    xai:        parseFloat(process.env.AI_BUDGET_GROK_USD       ?? '30'),
+    deepseek:   parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD   ?? '15'),
     meta:       parseFloat(process.env.AI_BUDGET_META_USD       ?? '3'),
   };
 
@@ -190,7 +193,9 @@ export class AiCitationService {
     anthropic: process.env.ANTHROPIC_CITATION_MODEL ?? 'claude-opus-5-5',
     gemini:    process.env.GEMINI_CITATION_MODEL    ?? 'gemini-2.5-flash',
     openai:    process.env.OPENAI_CITATION_MODEL    ?? 'gpt-4o-mini',
-    deepseek:  process.env.DEEPSEEK_CITATION_MODEL  ?? 'deepseek-chat',
+    // Web aramali olcum (Kasim 2026): saglayicilarin resmi arama orneklerindeki modeller
+    xai:       process.env.XAI_CITATION_MODEL       ?? 'grok-4.7',
+    deepseek:  process.env.DEEPSEEK_CITATION_MODEL  ?? 'deepseek-v4-pro',
     meta:      process.env.GROQ_LLAMA_MODEL         ?? 'llama-3.3-70b-versatile',
   };
 
@@ -1283,13 +1288,105 @@ export class AiCitationService {
     return probes;
   }
 
+  /**
+   * Grok — xAI Responses API + web_search (Kasim 2026, CITATION_MATCH_VERSION 5).
+   *
+   * NEDEN: Grok uygulamasi (grok.com, X) cevaplarken web'i ve X'i ariyor; API'yi
+   * eskisi gibi chat/completions ile aramasiz sormak yalniz egitim bilgisini
+   * olcuyordu ve genc siteler yapisal olarak 0 aliyordu. xAI'da arama araci
+   * yalniz Responses API'de (docs.x.ai → Tools → Web Search). Cevap bicimi
+   * OpenAI ile ayni: kaynaklar output_text.annotations icinde url_citation
+   * (docs.x.ai → Tools → Citations), bu yuzden openaiSources ortak.
+   * Ust duzeydeki `citations` (aracin topladigi TUM adresler) alinti SAYILMAZ —
+   * Claude'daki kural: yalniz arama sonuclarinda gorunmek, model okudu ama
+   * onermedi demektir. tool_choice zorlanmaz (dokumanda yok); arama talimatla istenir.
+   */
   private async probeXai(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
-    return this.probeChatCompletions('Grok', 'https://api.x.ai/v1/chat/completions', 'grok-4-fast-non-reasoning', key, host, brand, queries, systemPrompt, competitors);
+    const probes: CitationProbe[] = [];
+    for (const q of queries) {
+      try {
+        const data = await withProbeRetry(() => this.postJson('https://api.x.ai/v1/responses', key, {
+          model: this.MODELS.xai,
+          instructions: `${systemPrompt} Cevaplamadan once mutlaka web aramasi yap ve guncel kaynaklara dayan.`,
+          input: q,
+          tools: [{ type: 'web_search' }],
+          max_output_tokens: 1500,
+        }));
+        const parts = (Array.isArray(data?.output) ? data.output : [])
+          .filter((o: any) => o?.type === 'message')
+          .flatMap((o: any) => (Array.isArray(o.content) ? o.content : []))
+          .filter((p: any) => p?.type === 'output_text');
+        const text = parts.map((p: any) => p.text ?? '').join('\n');
+        if (!text.trim()) {
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (status=${safeReasonToken(data?.status)})` });
+          continue;
+        }
+        const cited = openaiSources(parts);
+        const sources = cited.map((c) => c.url as string);
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host, cited));
+      } catch (err: any) {
+        if (err instanceof ProviderConfigError) throw err;
+        this.log.warn(`Grok probe failed (${q}): ${safeErrorText(err)}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
+      }
+    }
+    return probes;
   }
 
-  /** deepseek-chat = deepseek-flash'in dusunmesiz modu; dogrudan 'deepseek-flash' reasoning'e girip butceyi yiyor */
+  /**
+   * DeepSeek — Anthropic uyumlu uc + web_search (Kasim 2026, CITATION_MATCH_VERSION 5).
+   *
+   * NEDEN: DeepSeek uygulamasi "Search" ile web'i ariyor; chat/completions
+   * ucunda arama araci yok. DeepSeek'in Anthropic uyumlu ucu
+   * (api.deepseek.com/anthropic) web_search_20250305 sunucu aracini
+   * destekliyor (api-docs.deepseek.com → Anthropic API; ornek modeli
+   * deepseek-v4-pro). O ucta metin `citations` alani YOK SAYILIYOR — alinti
+   * yalniz cevap metninde site adresi/adi gecmesiyle olculur (arama
+   * sonuclarinda gorunmek alinti sayilmaz; Claude ile ayni kural).
+   * Arama hatasi Claude'daki gibi yeniden denenir, olmazsa HATA satiri.
+   */
   private async probeDeepseek(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
-    return this.probeChatCompletions('DeepSeek', 'https://api.deepseek.com/chat/completions', this.MODELS.deepseek, key, host, brand, queries, systemPrompt, competitors);
+    const client = new Anthropic({ apiKey: key, baseURL: 'https://api.deepseek.com/anthropic', maxRetries: 3, timeout: 120_000 });
+    const probes: CitationProbe[] = [];
+    for (const q of queries) {
+      try {
+        let resp!: Anthropic.Message;
+        let aramaHatasi: string | null = null;
+        for (let deneme = 1; deneme <= this.ARAMA_DENEME; deneme++) {
+          resp = await client.messages.create({
+            model: this.MODELS.deepseek,
+            max_tokens: 3000,
+            system: `${systemPrompt} Cevaplamadan once mutlaka web aramasi yap ve guncel kaynaklara dayan.`,
+            messages: [{ role: 'user', content: q }],
+            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
+          } as any) as Anthropic.Message;
+          aramaHatasi = anthropicSearchFailure(resp.content);
+          if (!aramaHatasi) break;
+          this.log.warn(`DeepSeek web aramasi hata verdi (${q}) deneme ${deneme}/${this.ARAMA_DENEME}: ${aramaHatasi}`);
+          if (deneme < this.ARAMA_DENEME) await new Promise((r) => setTimeout(r, this.ARAMA_BEKLEME_MS * deneme));
+        }
+        if (aramaHatasi) {
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: arama hatasi (error_code=${aramaHatasi})` });
+          continue;
+        }
+        const text = resp.content
+          .filter((b: any) => b.type === 'text')
+          .map((b: any) => b.text)
+          .join(' ');
+        if (!text.trim()) {
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (stop_reason=${safeReasonToken((resp as any).stop_reason)})` });
+          continue;
+        }
+        // withSources CAGRILMAZ: bu uc alinti listesi dondurmuyor; `sources: []`
+        // "arandi, alinti yok" demek olurdu (citation-sources.ts SOURCES_VERSION notu).
+        probes.push(this.buildProbe(q, text, host, brand, competitors));
+      } catch (err: any) {
+        if (this.isFatal(err)) throw new ProviderConfigError(err.message);
+        this.log.warn(`DeepSeek probe failed (${q}): ${safeErrorText(err)}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
+      }
+    }
+    return probes;
   }
 
   /**
@@ -1304,7 +1401,7 @@ export class AiCitationService {
     return this.probeChatCompletions('Meta/Llama', 'https://api.groq.com/openai/v1/chat/completions', this.MODELS.meta, key, host, brand, queries, systemPrompt, competitors);
   }
 
-  /** OpenAI uyumlu chat/completions ucu olan aramasiz saglayicilar (Grok, DeepSeek, Llama) */
+  /** OpenAI uyumlu chat/completions ucu olan aramasiz saglayici (Llama). Grok ve DeepSeek Kasim 2026'dan beri aramali (probeXai, probeDeepseek). */
   private async probeChatCompletions(
     label: string, url: string, model: string,
     key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[],

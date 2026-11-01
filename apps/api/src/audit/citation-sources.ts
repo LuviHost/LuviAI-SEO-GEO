@@ -29,7 +29,7 @@ import { registrableDomain } from './host-match.js';
  * Kaynak kaydi surumu — probe'a `sourcesVersion` olarak damgalanir.
  * Alan YOKSA kayit kaynaklar yakalanmadan once yazilmistir (eski satir).
  * Damga var + `sources` yok = saglayici kaynak listesi dondurmuyor
- * (Grok/DeepSeek/Llama — aramasiz). Damga var + `sources: []` = arama
+ * (Llama aramasiz; DeepSeek arar ama alinti listesi vermez). Damga var + `sources: []` = arama
  * yapildi, alintilanan kaynak yok.
  */
 export const SOURCES_VERSION = 1;
