@@ -171,7 +171,8 @@ export interface MusteriRaporu {
   seo: Olculebilir<RaporSeo>;
   geo: Olculebilir<RaporGeo>;
   ai: RaporAi;
-  botlar: Olculebilir<{ son7: number; son30: number; botlar: Array<{ ad: string; ziyaret: number }> }>;
+  /** IP'si dogrulanmis bot ziyareti; dogrulanamayan30 = taklit olabilecek istek (varsa) */
+  botlar: Olculebilir<{ son7: number; son30: number; dogrulanamayan30?: number; botlar: Array<{ ad: string; ziyaret: number }> }>;
   icerik: { yayinda: number; takvimde: number };
   aksiyonlar: RaporAksiyon[];
   yontem: string[];

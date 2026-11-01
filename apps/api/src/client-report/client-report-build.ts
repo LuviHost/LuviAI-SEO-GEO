@@ -61,7 +61,11 @@ export interface RaporGirdisi {
   aiKosum: { runAt: Date | string; providers: unknown } | null;
   /** AiKpisService.getKpis — son 7 gun, markasiz sorular */
   kpi: { mentionRate: number | null; shareOfVoice: number | null; unbrandedCount: number } | null;
-  botlar: { takipVar: boolean; son7: number; son30: number; botlar: Array<{ ad: string; ziyaret: number }> };
+  /**
+   * son7/son30/botlar: IP'si DOGRULANMIS bot ziyareti (bot-verification.ts).
+   * dogrulanamayan30: kendini bot olarak tanitan ama IP'si saglayiciya ait olmayan istek (taklit olabilir).
+   */
+  botlar: { takipVar: boolean; son7: number; son30: number; dogrulanamayan30?: number; botlar: Array<{ ad: string; ziyaret: number }> };
   icerik: { yayinda: number; takvimde: number };
   aksiyonPlani: RaporAksiyonPlaniGirdisi[];
   rakipler: { tanimli: string[]; sesPayi: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }> };
@@ -715,7 +719,10 @@ export function buildClientReport(g: RaporGirdisi, now: Date): MusteriRaporu {
   const geo = geoDerle(g);
   const ai = aiDerle(g);
   const botlar: MusteriRaporu['botlar'] = g.botlar.takipVar
-    ? { olculemedi: false, son7: g.botlar.son7, son30: g.botlar.son30, botlar: g.botlar.botlar }
+    ? {
+      olculemedi: false, son7: g.botlar.son7, son30: g.botlar.son30, botlar: g.botlar.botlar,
+      ...(g.botlar.dogrulanamayan30 ? { dogrulanamayan30: g.botlar.dogrulanamayan30 } : {}),
+    }
     : olculemedi('AI bot ziyaretleri ölçülmüyor: siteye RanksUp takip kodu kurulmamış.');
   const aksiyonlar = aksiyonlariDerle(g, ai);
 

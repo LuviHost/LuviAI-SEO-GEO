@@ -24,7 +24,7 @@ vi.mock('../prisma/prisma.service.js', () => ({ PrismaService: class {} }));
 vi.mock('../notifications/notifications.service.js', () => ({ NotificationsService: class {} }));
 vi.mock('./webhook-notifier.service.js', () => ({ WebhookNotifierService: class {} }));
 
-const { CrawlerErrorAlarmService, trustedStatusRow, hataDokumu, kovasiz3xx } = await import('./crawler-error-alarm.service.js');
+const { CrawlerErrorAlarmService, trustedStatusRow, hataDokumu, kovasiz3xx, withoutUnverified } = await import('./crawler-error-alarm.service.js');
 const { CrawlerAnalyticsService } = await import('./crawler-analytics.service.js');
 const { LiveCrawlerService } = await import('./live-crawler.service.js');
 const { computeIngestSignature } = await import('./ingest-auth.js');
@@ -365,6 +365,31 @@ describe('R22 — metin 4xx ve 5xx\'i ayri ve gercek sayilarla yazar', () => {
     expect(n.body).toContain('durum kodu ölçülen 32 isteğin 22 tanesinde hata aldı (12 tanesi 5xx, 10 tanesi 4xx)');
     expect(t.webhook.notify.mock.calls[0][0].message).toContain('(12 tanesi 5xx, 10 tanesi 4xx)');
     expect(n.body).not.toContain('22 tanesinde 5xx');
+  });
+
+  it('IP dogrulamasi: taklit (unverified) 5xx patlamasi alarm URETMEZ; dogrulanmis hatalar uretir', async () => {
+    // GPTBot: 200 istek, 190'i kaziyici (WAF 503 ile kesiyor), 10 dogrulanmis istek 200 aliyor
+    const taklit = kur([
+      satir('GPTBot', 200, 10, 0, 190, { unverifiedHits: 190, unverified5xx: 190 }),
+      satir('ClaudeBot', 30, 30, 0, 0),
+    ]);
+    await expect(taklit.svc.scanAndAlert()).resolves.toEqual({ sites: 1, alerts: 0 });
+    expect(taklit.notifications.create).not.toHaveBeenCalled();
+    // Ayni satirda dogrulanmis istekler de 503 aliyorsa alarm gider, sayi taklitleri icermez
+    const gercek = kur([
+      satir('GPTBot', 220, 0, 0, 210, { unverifiedHits: 190, unverified5xx: 190 }),
+      satir('ClaudeBot', 30, 30, 0, 0),
+    ]);
+    await expect(gercek.svc.scanAndAlert()).resolves.toEqual({ sites: 1, alerts: 1 });
+    expect(gercek.notifications.create.mock.calls[0][0].body).toContain('durum kodu ölçülen 20 isteğin 20 tanesinde 5xx aldı');
+    // Ham istek sorgusu da taklitleri disarida birakir
+    const where = gercek.prisma.crawlerHitEvent.groupBy.mock.calls[0]?.[0]?.where;
+    if (where) expect(where.verify).toEqual({ not: 'unverified' });
+  });
+
+  it('withoutUnverified: eski satir (alan yok) degismez', () => {
+    const r = satir('GPTBot', 50, 40, 5, 5) as any;
+    expect(withoutUnverified(r)).toMatchObject({ hits: 50, status2xx: 40, status4xx: 5, status5xx: 5 });
   });
 
   it('hataDokumu: tek sinif kendi etiketiyle, iki sinif ayri sayilarla (esitlikte de)', () => {

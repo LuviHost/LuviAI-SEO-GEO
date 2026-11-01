@@ -140,21 +140,23 @@ describe('GEO bolumu', () => {
  * oldugu icin rapor "gun × bot" sayisini ziyaret diye gosteriyordu.
  */
 describe('GEO bolumu — AI bot ve AI referrer sayilari', () => {
-  type Satir = { siteId: string; date: Date; hits: number };
-  /** Gercek Prisma gibi davranan sahte tablo: count satir sayar, aggregate hits toplar (where uygulanir) */
+  type Satir = { siteId: string; date: Date; hits: number; verifiedHits?: number; unverifiedHits?: number };
+  /** Gercek Prisma gibi davranan sahte tablo: count satir sayar, aggregate istenen alanlari toplar (where uygulanir) */
   const tablo = (satirlar: Satir[]) => {
     const suz = (where: any) => satirlar.filter((r) =>
       r.siteId === where.siteId && r.date >= where.date.gte && r.date <= where.date.lte);
     return {
       count: async ({ where }: any) => suz(where).length,
       aggregate: async ({ where, _sum }: any) => {
-        expect(_sum).toEqual({ hits: true });
+        expect(_sum.hits).toBe(true);
         const s = suz(where);
-        return { _sum: { hits: s.length ? s.reduce((a, r) => a + r.hits, 0) : null } };
+        const out: Record<string, number | null> = {};
+        for (const k of Object.keys(_sum)) out[k] = s.length ? s.reduce((a, r) => a + (Number((r as any)[k]) || 0), 0) : null;
+        return { _sum: out };
       },
     };
   };
-  const g = (gun: string, hits: number, siteId = 's1'): Satir => ({ siteId, date: new Date(gun), hits });
+  const g = (gun: string, hits: number, siteId = 's1', verifiedHits = 0, unverifiedHits = 0): Satir => ({ siteId, date: new Date(gun), hits, verifiedHits, unverifiedHits });
   const temel = {
     aiCitationSnapshot: { findMany: async () => [snap('2026-05-01', 'anthropic', 40), snap('2026-08-01', 'anthropic', 50)] },
     audit: { findMany: async () => [] },
@@ -170,6 +172,15 @@ describe('GEO bolumu — AI bot ve AI referrer sayilari', () => {
     expect(r.aiBotZiyareti, 'eski hata: satir sayisi (4)').toBe(1230);
     // Dondurulmus rapor yeni etiketi yalniz bu damgayla gosterir
     expect(r.aiSayimYontemi).toBe('hits_toplami');
+  });
+
+  it('bot ziyareti IP dogrulamasiyla ayrisir: manset dogrulanmis, taklit olabilecekler ayri', async () => {
+    const bot = tablo([g('2026-07-01', 500, 's1', 20, 450), g('2026-07-02', 100, 's1', 5, 0)]);
+    const r = await cagir(servis({ ...temel, aiCrawlerHit: bot, aiReferrerHit: tablo([]) }), 'geoBolumu', 's1', DONEM);
+    expect(r.aiBotZiyareti).toBe(600);
+    expect(r.aiBotDogrulanmis).toBe(25);
+    expect(r.aiBotDogrulanamayan).toBe(450);
+    expect(r.aiBotDogrulamaYontemi).toBe('ip_dogrulama_v1');
   });
 
   it('donem disi ve baska sitenin satirlari sayilmaz; kayit yoksa 0', async () => {

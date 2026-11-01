@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Bot, Upload, RefreshCw, Sparkle } from 'lucide-react';
+import { Bot, Upload, RefreshCw, Sparkle, ShieldCheck, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
+import { buildBotRows, ingestNotices, normalizeCounts, sourceLabel, unknownText, unverifiedText } from '@/lib/crawler-verification';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -79,11 +81,15 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
     return <div className="text-sm text-muted-foreground p-6 text-center">Crawler analytics yükleniyor…</div>;
   }
 
+  // totalHits = UA'si bot olan TUM istekler; manset IP'si dogrulanmis ziyaret
+  // (api crawler-analytics getHistory verification, bot-verification.ts)
   const totalHits = data.totalHits ?? 0;
-  const byCategory = data.byCategory ?? {};
-  const byBot = data.byBot ?? {};
+  const verification = normalizeCounts(data.verification, totalHits);
+  const byCategory = data.byCategoryVerified ?? {};
   const firstSeen: Record<string, string> = data.firstSeen ?? {};
-  const sortedBots = Object.entries(byBot).sort((a, b) => (b[1] as number) - (a[1] as number));
+  const botRows = buildBotRows(data.byBot, data.byBotVerification, data.registry);
+  const notices = ingestNotices(data.ingestHealth);
+  const lastEventAt: string | null = data.ingestHealth?.lastEventAt ?? null;
 
   // 7 gün içinde ilk görülen bot'lar (alarm bandı için)
   const NEW_THRESHOLD_DAYS = 7;
@@ -152,28 +158,72 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
               </div>
             )}
 
-            {/* Toplam ozet */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <div className="rounded-md border p-3 text-center">
-                <p className="text-2xl font-bold">{totalHits.toLocaleString('tr-TR')}</p>
-                <p className="text-[11px] text-muted-foreground">Toplam İstek</p>
+            {/* Kaynak sagligi: eski kod IP gondermiyor / 429 ile dusen istek */}
+            {notices.codeUpdate && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/[0.06] p-3 flex items-start gap-2.5 text-xs">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p>
+                  {notices.codeUpdate}{' '}
+                  <Link href={`/sites/${siteId}/crawler-live`} className="font-semibold underline underline-offset-2">Kurulum kodunu aç</Link>
+                </p>
               </div>
-              {Object.entries(byCategory).map(([cat, count]) => (
-                <div key={cat} className="rounded-md border p-3 text-center">
-                  <div className={`h-1.5 w-full rounded-full ${CATEGORY_COLOR[cat] ?? 'bg-muted'} mb-2`} />
-                  <p className="text-2xl font-bold">{(count as number).toLocaleString('tr-TR')}</p>
-                  <p className="text-[10px] text-muted-foreground capitalize">{cat.replace('-', ' ')}</p>
-                </div>
-              ))}
+            )}
+            {notices.throttled && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/[0.06] p-3 flex items-start gap-2.5 text-xs">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p>{notices.throttled}</p>
+              </div>
+            )}
+
+            {/* Manset: dogrulanmis ziyaret; taklit olabilecekler ve dogrulanamayanlar ayri */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="rounded-md border border-emerald-500/40 p-3">
+                <p className="text-label text-muted-foreground inline-flex items-center gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Doğrulanmış bot ziyareti
+                </p>
+                <p className="text-2xl font-bold mt-1">{verification.verified.toLocaleString('tr-TR')}</p>
+                <p className="text-label text-muted-foreground mt-0.5">IP adresi sağlayıcının resmi listesinde (son 30 gün)</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-label text-muted-foreground inline-flex items-center gap-1">
+                  <ShieldAlert className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" /> Taklit olabilir
+                </p>
+                <p className="text-2xl font-bold mt-1">{verification.unverified.toLocaleString('tr-TR')}</p>
+                <p className="text-label text-muted-foreground mt-0.5">Kendini AI botu olarak tanıtıyor, IP adresi sağlayıcıya ait değil</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-label text-muted-foreground">Doğrulanamadı</p>
+                <p className="text-2xl font-bold mt-1">{verification.unknown.toLocaleString('tr-TR')}</p>
+                <p className="text-label text-muted-foreground mt-0.5">
+                  IP bilgisi yok (eski kurulum kodu ya da eski kayıt) veya bot resmi liste yayımlamıyor
+                </p>
+              </div>
             </div>
+            <p className="text-label text-muted-foreground">
+              Toplam {totalHits.toLocaleString('tr-TR')} istek AI botu kullanıcı ajanı taşıyordu; yalnızca IP adresi doğrulananlar
+              gerçek bot ziyareti sayılır.
+              {lastEventAt && <> Son kayıt: {new Date(lastEventAt).toLocaleString('tr-TR')} ({sourceLabel(data.ingestHealth?.lastEventSource)}).</>}
+            </p>
+
+            {verification.verified > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {Object.entries(byCategory).map(([cat, count]) => (
+                  <div key={cat} className="rounded-md border p-3 text-center">
+                    <div className={`h-1.5 w-full rounded-full ${CATEGORY_COLOR[cat] ?? 'bg-muted'} mb-2`} />
+                    <p className="text-2xl font-bold">{(count as number).toLocaleString('tr-TR')}</p>
+                    <p className="text-label text-muted-foreground capitalize">{cat.replace('-', ' ')} · doğrulanmış</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Clarity-style: Bot purpose split + Pages crawled coverage */}
             {(data.purposeSplit || data.coverage) && (
               <div className="grid md:grid-cols-2 gap-2">
-                {/* Purpose split bar */}
-                {data.purposeSplit && (
+                {/* Purpose split bar — dogrulanmis ziyaretlerden (taklit UA dagilimi bozmasin) */}
+                {data.purposeSplit && verification.verified > 0 && (
                   <div className="rounded-md border p-3">
-                    <p className="text-xs font-semibold mb-2">Bot Amaç Dağılımı</p>
+                    <p className="text-xs font-semibold mb-2">Bot Amaç Dağılımı <span className="font-normal text-muted-foreground">(doğrulanmış ziyaretler)</span></p>
                     <div className="flex h-2 rounded-full overflow-hidden bg-muted mb-2">
                       <div className="bg-blue-500" style={{ width: `${data.purposeSplit.aiSearchPct}%` }} title={`AI Search %${data.purposeSplit.aiSearchPct}`} />
                       <div className="bg-purple-500" style={{ width: `${data.purposeSplit.trainingPct}%` }} title={`Training %${data.purposeSplit.trainingPct}`} />
@@ -240,13 +290,13 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
                 <p className="text-xs font-semibold">Bot Dağılımı (son 30 gün)</p>
               </div>
               <div className="divide-y text-xs max-h-[400px] overflow-y-auto">
-                {sortedBots.map(([bot, hits]) => {
-                  const info = data.registry?.[bot];
-                  const pct = totalHits > 0 ? ((hits as number) / totalHits) * 100 : 0;
-                  const recent = isNew(bot);
+                {botRows.map((row) => {
+                  // Cubuk dogrulanmis ziyaretin paydasi; taklit hacmi buyuk bot ustte cikmaz
+                  const pct = verification.verified > 0 ? (row.verified / verification.verified) * 100 : 0;
+                  const recent = isNew(row.bot);
                   return (
                     <div
-                      key={bot}
+                      key={row.bot}
                       className={cn(
                         'px-3 py-2 transition-colors',
                         recent && 'bg-emerald-500/[0.05]',
@@ -254,19 +304,29 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
                     >
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className={`h-2 w-2 rounded-full shrink-0 ${CATEGORY_COLOR[info?.category] ?? 'bg-muted'}`} />
-                          <span className="font-medium truncate">{info?.label ?? bot}</span>
+                          <span className={`h-2 w-2 rounded-full shrink-0 ${(row.category && CATEGORY_COLOR[row.category]) || 'bg-muted'}`} />
+                          <span className="font-medium truncate">{row.label}</span>
                           {recent && (
                             <span className="inline-flex items-center gap-0.5 text-label font-medium px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
                               <Sparkle className="h-2.5 w-2.5" /> Yeni
                             </span>
                           )}
                         </div>
-                        <span className="font-mono text-[11px] shrink-0">{(hits as number).toLocaleString('tr-TR')} ({pct.toFixed(1)}%)</span>
+                        <span className="font-mono text-label shrink-0" title="Doğrulanmış ziyaret">
+                          {row.verified.toLocaleString('tr-TR')} doğrulanmış
+                        </span>
                       </div>
                       <div className="h-1 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full ${CATEGORY_COLOR[info?.category] ?? 'bg-muted-foreground'}`} style={{ width: `${pct}%` }} />
+                        <div className={`h-full ${(row.category && CATEGORY_COLOR[row.category]) || 'bg-muted-foreground'}`} style={{ width: `${pct}%` }} />
                       </div>
+                      {row.unverified > 0 && (
+                        <p className="text-label text-amber-700 dark:text-amber-400 mt-1">{unverifiedText(row.bot, row.unverified)}</p>
+                      )}
+                      {row.unknown > 0 && (
+                        <p className="text-label text-muted-foreground mt-0.5">
+                          {unknownText(row.unknown, { hasMethod: row.hasMethod, needsCodeUpdate: !!data.ingestHealth?.needsCodeUpdate })}
+                        </p>
+                      )}
                     </div>
                   );
                 })}

@@ -61,6 +61,7 @@ import { AiKpisService } from './ai-kpis.service.js';
 import { ProductRadarService } from './product-radar.service.js';
 import { CommunityAgentService } from './community-agent.service.js';
 import { LiveCrawlerService } from './live-crawler.service.js';
+import { BotVerifier, sharedBotVerifier } from './bot-verifier.service.js';
 import { AuditCron } from './audit.cron.js';
 
 @Module({
@@ -120,6 +121,8 @@ import { AuditCron } from './audit.cron.js';
     ProductRadarService,
     CommunityAgentService,
     LiveCrawlerService,
+    // Surec basina tek liste onbellegi: ara katman ve log yuklemesi de ayni ornegi kullanir
+    { provide: BotVerifier, useFactory: () => sharedBotVerifier() },
     CrawlerErrorAlarmService,
   ],
   exports: [

@@ -125,9 +125,16 @@ export interface AiKpis {
     matchedCells: number;
   };
 
-  aiCrawlerHits: KpiValue;    // adet — AI bot istekleri
+  /**
+   * adet — DOGRULANMIS AI bot ziyaretleri (IP saglayicinin resmi listesinde;
+   * bot-verification.ts). UA'si bot olan ama dogrulanamayan istekler burada YOK,
+   * ayrimi aiCrawlerVerification'da.
+   */
+  aiCrawlerHits: KpiValue;
+  /** Son 7 gun: dogrulanmis / dogrulanamayan (taklit olabilir) / dogrulanamadi (eski Worker, yontem yok) */
+  aiCrawlerVerification: { verified: number; unverified: number; unknown: number };
   aiReferrerHits: KpiValue;   // adet — ChatGPT/Perplexity'den gelen insan trafigi
-  citeFetches: KpiValue;      // adet — canli cite sinyali (ChatGPT-User vb. on-demand fetch)
+  citeFetches: KpiValue;      // adet — canli cite sinyali (ChatGPT-User vb. on-demand fetch), YALNIZ dogrulanmis
   /** blocked/unreachable taramada score null + reason (bkz. latestReadinessKpi) */
   agentReadiness: ReadinessKpi;
   generatedAt: string;
@@ -158,15 +165,15 @@ export class AiKpisService {
       }),
       this.prisma.aiCrawlerHit.findMany({
         where: { siteId, date: { gte: d14 } },
-        select: { date: true, hits: true },
+        select: { date: true, hits: true, verifiedHits: true, unverifiedHits: true },
       }),
       this.prisma.aiReferrerHit.findMany({
         where: { siteId, date: { gte: d14 } },
         select: { date: true, hits: true },
       }),
-      // Canli cite sinyalleri — ham event tablosundan (istek bazli)
+      // Canli cite sinyalleri — ham event tablosundan (istek bazli), YALNIZ IP'si dogrulanmis
       this.prisma.crawlerHitEvent.findMany({
-        where: { siteId, isCiteFetch: true, ts: { gte: d14 } },
+        where: { siteId, isCiteFetch: true, verify: 'verified', ts: { gte: d14 } },
         select: { ts: true },
       }),
       latestReadinessKpi(this.prisma, siteId),
@@ -245,8 +252,12 @@ export class AiKpisService {
     // ── Crawler / referrer hit toplamlari
     const sumHits = (rows: Array<{ date: Date; hits: number }>, from: Date, to?: Date) =>
       rows.filter((r) => r.date >= from && (!to || r.date < to)).reduce((a, r) => a + r.hits, 0);
-    const crawlerNow = sumHits(crawlerHits, d7);
-    const crawlerPrev = sumHits(crawlerHits, d14, d7);
+    // Manset DOGRULANMIS ziyaret: taklit UA'lar sayiyi sisirmesin (bot-verification.ts)
+    const verifiedRows = crawlerHits.map((r) => ({ date: r.date, hits: Number((r as any).verifiedHits) || 0 }));
+    const crawlerNow = sumHits(verifiedRows, d7);
+    const crawlerPrev = sumHits(verifiedRows, d14, d7);
+    const claimedNow = sumHits(crawlerHits, d7);
+    const unverifiedNow = sumHits(crawlerHits.map((r) => ({ date: r.date, hits: Number((r as any).unverifiedHits) || 0 })), d7);
     const refNow = sumHits(referrerHits, d7);
     const refPrev = sumHits(referrerHits, d14, d7);
 
@@ -308,7 +319,12 @@ export class AiKpisService {
       aiCrawlerHits: {
         value: crawlerNow,
         deltaPct: crawlerPrev > 0 ? Math.round(((crawlerNow - crawlerPrev) / crawlerPrev) * 1000) / 10 : null,
-        series: hitSeries(crawlerHits),
+        series: hitSeries(verifiedRows),
+      },
+      aiCrawlerVerification: {
+        verified: crawlerNow,
+        unverified: unverifiedNow,
+        unknown: Math.max(0, claimedNow - crawlerNow - unverifiedNow),
       },
       aiReferrerHits: {
         value: refNow,
