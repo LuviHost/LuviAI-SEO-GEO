@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Prisma } from '@prisma/client';
 import { QuotaService } from '../billing/quota.service.js';
 import { ArticlesService } from './articles.service.js';
@@ -28,6 +28,18 @@ type ArticleRow = { id: string; siteId: string; topic: string; status: string; a
 type JobRow = { id: string; bullJobId: string; userId: string; payload: any };
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
+
+// Kodun kendi okudugu "simdi" de test ayina sabitlenir. NEDEN: veri Ekim 2026'ya
+// yazili; gercek saat Kasim'a gecince QuotaService ay donmus sayip hakki
+// sifirliyor, testler 1 Kasim'da takvim yuzunden kirildi. Yalniz Date sahte —
+// setTimeout gercek kalir (tick ona dayaniyor).
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 const chargeAtOf = (v: any) => v?.allowanceCharge?.at;
 
 function db(opts: { user?: Partial<UserRow>; articles?: ArticleRow[]; jobs?: JobRow[] } = {}) {

@@ -18,7 +18,11 @@ function fakeQueue() {
 }
 
 function service(queue: any): AuditService {
-  const prisma = { site: { findUniqueOrThrow: async ({ where }: any) => ({ id: where.id, userId: 'user_1', url: 'https://ornek.com' }) } } as never;
+  const prisma = {
+    site: { findUniqueOrThrow: async ({ where }: any) => ({ id: where.id, userId: 'user_1', url: 'https://ornek.com' }) },
+    // Calisan kullanici taramasi yok — tekrar korumasi devreye girmez
+    job: { findMany: async () => [] },
+  } as never;
   const n = null as never;
   return new AuditService(prisma, n, n, n, n, n, queue);
 }
