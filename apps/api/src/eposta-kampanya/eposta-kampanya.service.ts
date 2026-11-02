@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { EpostaHedefDurum, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -8,6 +8,7 @@ import {
   ACIK_DURUMLAR, KAPALI_DURUMLAR, bizimMesaj, firmaAnahtari, mailjetJsonOku, type IceAktarSatir, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani,
   trAyBasi, trGun, trGunBasi, turKotasi,
 } from './eposta-kurallar.js';
+import { retImzaGecerli, retSirri, sogukPaket } from './soguk-gonderim.js';
 
 const KV_ACIK = 'eposta-kampanya:acik';
 const KV_DURAKLAT = 'eposta-kampanya:duraklatildi';
@@ -257,6 +258,91 @@ export class EpostaKampanyaService {
       if (!tekil.has(k)) tekil.set(k, { firma: r.firma.trim(), web: '', sektor: r.kampanya === 'ISBIRLIGI' ? 'ajans' : r.sektor || 'diger' });
     }
     return { adet: tekil.size, csv: toCsv([...tekil.values()], ['firma', 'web', 'sektor']) };
+  }
+
+  // ─── Soguk gonderim araci (Mailjet disi) ──────────────────────────────
+
+  /**
+   * SIRADA (IYS'ye yuklenmis) satirlari soguk gonderim aracina aktar. isaretle=true → satirlar DIS_ARAC olur;
+   * Mailjet turu bir daha almaz (ayni adrese iki kanaldan gitmez). Sablon/kimlik eksikse hicbir satir isaretlenmez.
+   */
+  async sogukDisaAktar(o: { sektor?: string; limit?: number; isaretle?: boolean }): Promise<{ adet: number; csv: string; sablonlar: string; kampanya: string | null }> {
+    const sir = retSirri();
+    if (!sir) throw new BadRequestException('Ret linki için EPOSTA_RET_SECRET (ya da NEXTAUTH_SECRET) tanımlı değil');
+    const kimlik = kimlikEnv();
+    const limit = Math.min(Math.max(Math.floor(Number(o.limit) || 200), 1), 2000);
+    // NEDEN gonderiliyor isareti haric: Mailjet turunun o an sahiplendigi satir iki kanaldan gitmesin
+    const bosta: Prisma.EpostaHedefWhereInput = { durum: 'SIRADA', OR: [{ sonOlay: null }, { NOT: { sonOlay: { startsWith: GONDERILIYOR } } }] };
+    const where: Prisma.EpostaHedefWhereInput = { ...bosta };
+    if (o.sektor) where.sektor = o.sektor;
+    const hedefler = await this.prisma.epostaHedef.findMany({
+      where,
+      orderBy: [{ iysYuklendiAt: 'asc' }, { createdAt: 'asc' }],
+      take: limit,
+      select: { id: true, email: true, firma: true, marka: true, sektor: true, varyant: true, web: true },
+    });
+    const base = process.env.API_PUBLIC_URL || 'https://api.ranksup.ai';
+    // NEDEN once paket: sablon hatasi (eksik kimlik/ret) varsa isaretleme yapilmadan hata doner
+    let paket: { csv: string; sablonlar: string };
+    try {
+      paket = sogukPaket(hedefler, kimlik, sir, base);
+    } catch (e: any) {
+      throw new BadRequestException(`Şablon hazır değil: ${e?.message ?? e}`);
+    }
+    if (!o.isaretle || !hedefler.length) return { adet: hedefler.length, ...paket, kampanya: null };
+    const kampanya = `soguk-${trGun(new Date())}`;
+    const ids = hedefler.map((h) => h.id);
+    await this.prisma.epostaHedef.updateMany({
+      where: { id: { in: ids }, ...bosta },
+      data: { durum: 'DIS_ARAC', kampanya, sonOlay: 'dis-arac', sonOlayAt: new Date() },
+    });
+    // NEDEN yeniden oku: okuma ile isaretleme arasinda RET/HARIC yapilan ya da Mailjet turunun aldigi satir dosyaya girmesin
+    const isaretli = new Set((await this.prisma.epostaHedef.findMany({ where: { id: { in: ids }, durum: 'DIS_ARAC', kampanya }, select: { id: true } })).map((r) => r.id));
+    const giden = hedefler.filter((h) => isaretli.has(h.id));
+    return { adet: giden.length, ...sogukPaket(giden, kimlik, sir, base), kampanya };
+  }
+
+  /**
+   * Imzali ret linki (soguk gonderim e-postalarindaki {{ret_url}}). Imza gecerliyse adres RET olur (BOUNCE/SPAM
+   * korunur); tabloda olmayan adres icin de "cikarildiniz" denir — adres var mi yok mu disari sizmaz.
+   */
+  retImzaGecerli(email: unknown, t: unknown): boolean {
+    return retImzaGecerli(email, t, retSirri());
+  }
+
+  async retIsle(email: unknown, t: unknown): Promise<boolean> {
+    if (!this.retImzaGecerli(email, t)) return false;
+    await this.prisma.epostaHedef.updateMany({
+      where: { email: String(email).trim().toLowerCase(), durum: { notIn: ['RET', 'BOUNCE', 'SPAM'] } },
+      data: { durum: 'RET', sonOlay: 'ret-baglanti', sonOlayAt: new Date() },
+    });
+    return true;
+  }
+
+  /**
+   * Pazarlama e-postasina ACIKCA onay vermis ve cift onayi tamamlamis aboneler (Mailjet'e yuklenebilir liste).
+   * Kanit sutunlari: onay ani, cift onay ani, formun kaynagi. Iptal/geri donen haric.
+   */
+  async pazarlamaOnayliCsv(): Promise<{ adet: number; csv: string }> {
+    const rows = await this.prisma.publicCitationSubscriber.findMany({
+      where: { marketingConsentAt: { not: null }, confirmedAt: { not: null }, status: { notIn: ['UNSUBSCRIBED', 'BOUNCED', 'PENDING_OPTIN'] } },
+      orderBy: { marketingConsentAt: 'asc' },
+      select: { email: true, domain: true, locale: true, marketingConsentAt: true, marketingConsentSource: true, confirmedAt: true },
+    });
+    const tekil = new Map<string, Record<string, string>>();
+    for (const r of rows) {
+      // NEDEN: yeniden abonelikte confirmedAt eski kalir; onay, KENDISINDEN SONRA tamamlanan cift onayla kanitlanir
+      if (tekil.has(r.email) || r.confirmedAt! < r.marketingConsentAt!) continue;
+      tekil.set(r.email, {
+        email: r.email,
+        alan_adi: r.domain,
+        dil: r.locale,
+        onay_ani: r.marketingConsentAt!.toISOString(),
+        cift_onay_ani: r.confirmedAt!.toISOString(),
+        kaynak: r.marketingConsentSource ?? '',
+      });
+    }
+    return { adet: tekil.size, csv: toCsv([...tekil.values()], ['email', 'alan_adi', 'dil', 'onay_ani', 'cift_onay_ani', 'kaynak']) };
   }
 
   // ─── Gonderim turu ─────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ function sahtePrisma(hedefler: any[]) {
   const alan = (h: any, k: string, v: any): boolean => {
     if (v && typeof v === 'object' && !(v instanceof Date)) {
       if ('in' in v && !v.in.includes(h[k])) return false;
+      if ('notIn' in v && v.notIn.includes(h[k])) return false;
       if ('gte' in v && !(h[k] && h[k] >= v.gte)) return false;
       if ('lt' in v && !(h[k] && h[k] < v.lt)) return false;
       if ('startsWith' in v && !(typeof h[k] === 'string' && h[k].startsWith(v.startsWith))) return false;
@@ -50,7 +51,7 @@ const hedef = (i: number, durum = 'SIRADA') => ({
 
 const ENV = {
   MAILJET_API_KEY: 'k', MAILJET_SECRET: 's', MAILJET_FROM_EMAIL: 'emir@ranksup.ai', MAILJET_GONDEREN_ADRES: 'Osmangazi/Bursa',
-  MAILJET_KIMLIK: 'Emirhan Burgazlı · VKN 1 · Osmangazi V.D.',
+  MAILJET_KIMLIK: 'Emirhan Burgazlı · VKN 1 · Osmangazi V.D.', NEXTAUTH_SECRET: 'test',
 };
 const eski: Record<string, string | undefined> = {};
 
@@ -200,5 +201,40 @@ describe('kilit ve sahiplenme', () => {
     await svc.setAcik(true);
     await svc.tick();
     expect(p.hedefler[0].messageId).toBe('1152921510123456789');
+  });
+});
+
+describe('soguk gonderim araci', () => {
+  it('disa aktarim: yalniz SIRADA + bosta satirlar; isaretlenenler DIS_ARAC olur, Mailjet turu artik almaz', async () => {
+    const h = [hedef(1), hedef(2), hedef(3, 'YENI'), { ...hedef(4), sonOlay: 'gonderiliyor:x' }];
+    const svc = new EpostaKampanyaService(sahtePrisma(h) as never);
+    const r = await svc.sogukDisaAktar({ isaretle: true, limit: 10 });
+    expect(r.adet).toBe(2);
+    expect(r.csv).toContain('info@firma1.com.tr');
+    expect(r.csv).not.toContain('firma3');
+    expect(r.csv).not.toContain('firma4');
+    expect(r.sablonlar).toContain('{{ret_url}}');
+    expect(h.slice(0, 2).map((x) => x.durum)).toEqual(['DIS_ARAC', 'DIS_ARAC']);
+    expect(h[0].kampanya).toMatch(/^soguk-\d{4}-\d{2}-\d{2}$/);
+    expect(h[3].durum).toBe('SIRADA');
+  });
+
+  it('isaretlemeden onizleme durum degistirmez', async () => {
+    const h = [hedef(1)];
+    const svc = new EpostaKampanyaService(sahtePrisma(h) as never);
+    expect((await svc.sogukDisaAktar({})).adet).toBe(1);
+    expect(h[0].durum).toBe('SIRADA');
+  });
+
+  it('ret: gecerli imza RET yazar (BOUNCE korunur), gecersiz imza hicbir sey yazmaz', async () => {
+    const { retImzasi } = await import('./soguk-gonderim.js');
+    const h = [{ ...hedef(1), durum: 'DIS_ARAC' }, { ...hedef(2), durum: 'BOUNCE' }];
+    const svc = new EpostaKampanyaService(sahtePrisma(h) as never);
+    expect(await svc.retIsle(h[0].email, 'yanlis')).toBe(false);
+    expect(h[0].durum).toBe('DIS_ARAC');
+    expect(await svc.retIsle(h[0].email.toUpperCase(), retImzasi(h[0].email, 'test'))).toBe(true);
+    expect(h[0].durum).toBe('RET');
+    expect(await svc.retIsle(h[1].email, retImzasi(h[1].email, 'test'))).toBe(true);
+    expect(h[1].durum).toBe('BOUNCE');
   });
 });

@@ -320,6 +320,27 @@ describe('abonelik — hos geldin e-postasi', () => {
   });
 });
 
+describe('abonelik — ayri pazarlama onayi', () => {
+  it('kutu isaretliyse an + kaynak yazilir ve cift onay e-postasi bu izni acikca soyler', async () => {
+    const t = kurAbonelik();
+    await t.svc.subscribe({ email: 'kisi@ornek.com', domain: 'ornek.com', locale: 'tr', marketingConsent: true, marketingConsentSource: 'checker-v1' });
+    const yazilan = (t.prisma.publicCitationSubscriber.upsert.mock.calls[0] as any[])[0];
+    expect(yazilan.create.marketingConsentAt).toBeInstanceOf(Date);
+    expect(yazilan.update.marketingConsentAt).toBeInstanceOf(Date);
+    expect(yazilan.create.marketingConsentSource).toBe('checker-v1');
+    expect(gonderilen(t.email).html).toContain('ürün haberleri ve kampanya e-postalarını');
+  });
+
+  it('kutu bossa onay yazilmaz; yeniden abonelikte eski onay silinir (son beyan gecerli)', async () => {
+    const t = kurAbonelik({ mevcut: { status: 'UNSUBSCRIBED', unsubscribeToken: 'u', marketingConsentAt: new Date() } });
+    await t.svc.subscribe({ email: 'kisi@ornek.com', domain: 'ornek.com', locale: 'tr' });
+    const yazilan = (t.prisma.publicCitationSubscriber.upsert.mock.calls[0] as any[])[0];
+    expect(yazilan.create.marketingConsentAt).toBeNull();
+    expect(yazilan.update.marketingConsentAt).toBeNull();
+    expect(gonderilen(t.email).html).not.toContain('ürün haberleri');
+  });
+});
+
 describe('abonelik — marka ve nis istemciden degil kontrol kaydindan', () => {
   it('istemcinin gonderdigi marka/nis kayda ve e-postaya yazilmaz', async () => {
     const t = kurAbonelik();

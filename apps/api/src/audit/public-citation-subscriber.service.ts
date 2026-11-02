@@ -57,6 +57,13 @@ export interface SubscribeInput {
   niche?: string;
   customNiche?: string;
   locale?: string;
+  /**
+   * Ayri, varsayilan bos "pazarlama e-postasi" kutusu (rapor onayindan bagimsiz). true degilse onay KAYDEDILMEZ;
+   * kutusuz yeniden abonelik onceki onayi da siler (son beyan gecerli).
+   */
+  marketingConsent?: boolean;
+  /** Onayin alindigi form surumu; marketingConsent ile birlikte saklanir */
+  marketingConsentSource?: string;
 }
 
 export interface SubscribeLimits {
@@ -138,6 +145,9 @@ export class PublicCitationSubscriberService {
     const locale = (input.locale === 'en' ? 'en' : 'tr');
     const niche = lastCheck.niche ?? undefined;
     const customNiche = lastCheck.customNiche ?? undefined;
+    const pazarlama = input.marketingConsent === true
+      ? { marketingConsentAt: new Date(), marketingConsentSource: (input.marketingConsentSource || 'checker-v1').slice(0, 40) }
+      : { marketingConsentAt: null, marketingConsentSource: null };
 
     const sub = await this.prisma.publicCitationSubscriber.upsert({
       where: { email_domain: { email, domain } },
@@ -150,6 +160,7 @@ export class PublicCitationSubscriberService {
         confirmToken,
         unsubscribeToken,
         consentAt: new Date(),
+        ...pazarlama,
         locale,
       },
       update: {
@@ -158,6 +169,7 @@ export class PublicCitationSubscriberService {
         customNiche,
         confirmToken,
         consentAt: new Date(),
+        ...pazarlama,
         status: 'PENDING_OPTIN',
         locale,
         // YENI abonelik = yeni 15/30/60/90 gun dongusu (hos geldin e-postasi
@@ -208,7 +220,8 @@ export class PublicCitationSubscriberService {
     if (!sub) throw new NotFoundException('Gecersiz unsubscribe linki');
     await this.prisma.publicCitationSubscriber.update({
       where: { id: sub.id },
-      data: { status: 'UNSUBSCRIBED', nextRetestAt: null },
+      // Abonelikten cikan pazarlama onayini da geri cekmis sayilir
+      data: { status: 'UNSUBSCRIBED', nextRetestAt: null, marketingConsentAt: null, marketingConsentSource: null },
     });
     return { ok: true, domain: sub.domain };
   }
@@ -351,7 +364,7 @@ export class PublicCitationSubscriberService {
   // ──────────────────────────────────────────────
   //  EMAIL HELPERS
   // ──────────────────────────────────────────────
-  private async sendWelcomeEmail(sub: { id: string; email: string; domain: string; brand: string; confirmToken: string | null; unsubscribeToken: string; locale: string }) {
+  private async sendWelcomeEmail(sub: { id: string; email: string; domain: string; brand: string; confirmToken: string | null; unsubscribeToken: string; locale: string; marketingConsentAt?: Date | null }) {
     const baseUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
     const confirmUrl = `${baseUrl}/api/public/citation-check/confirm?token=${sub.confirmToken}`;
     const unsubscribeUrl = `${baseUrl}/api/public/citation-check/unsubscribe?token=${sub.unsubscribeToken}`;
@@ -361,7 +374,7 @@ export class PublicCitationSubscriberService {
       ? `${sub.brand} için AI Visibility takibiniz başlamak üzere`
       : `Confirm your ${sub.brand} AI Visibility tracking`;
 
-    const html = this.welcomeEmailHtml({ brand: sub.brand, domain: sub.domain, confirmUrl, unsubscribeUrl, locale: sub.locale });
+    const html = this.welcomeEmailHtml({ brand: sub.brand, domain: sub.domain, confirmUrl, unsubscribeUrl, locale: sub.locale, pazarlama: !!sub.marketingConsentAt });
 
     await this.email.sendRaw({
       to: sub.email,
@@ -424,7 +437,7 @@ export class PublicCitationSubscriberService {
    * istenen HTML (sahte link) gonderilebilirdi. Asistan listesi plans.ts ile ayni (6; Llama yalniz
    * GROQ_LLAMA_MODEL tanimliyken olculuyor — ai-citation.service.ts).
    */
-  private welcomeEmailHtml(p: { brand: string; domain: string; confirmUrl: string; unsubscribeUrl: string; locale: string }): string {
+  private welcomeEmailHtml(p: { brand: string; domain: string; confirmUrl: string; unsubscribeUrl: string; locale: string; pazarlama?: boolean }): string {
     const tr = p.locale === 'tr';
     const brand = kacisla(p.brand);
     const domain = kacisla(p.domain);
@@ -444,6 +457,12 @@ export class PublicCitationSubscriberService {
         ? `<strong>${domain}</strong> alan adının 6 AI asistanındaki (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) görünürlüğünü 15, 30, 60 ve 90 gün sonra otomatik olarak yeniden test edip her seferinde size rapor göndereceğiz.`
         : `We'll automatically retest <strong>${domain}</strong> on 6 AI assistants (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) at 15, 30, 60 and 90 days, and email you each report.`}
     </p>
+    ${p.pazarlama
+      // NEDEN: cift onay, onaylanan konuyu acikca soylemeli (Mailjet AUP); pazarlama kutusu isaretliyse o da onaylanir
+      ? `<p style="margin:0 0 16px;color:#4a4a4a">${tr
+        ? 'Formda ayrıca <strong>RanksUp ürün haberleri ve kampanya e-postalarını</strong> almayı seçtiniz. Onayınız bu izni de kapsar; her e-postadaki bağlantıyla istediğiniz zaman çıkabilirsiniz.'
+        : 'You also chose to receive <strong>RanksUp product news and promotional emails</strong>. Confirming covers this too; you can opt out anytime from any email.'}</p>`
+      : ''}
     <p style="margin:0 0 24px;color:#4a4a4a">${tr ? 'Başlamak için aşağıdaki butona tıklayın:' : 'Click the button below to confirm:'}</p>
     <div style="text-align:center;margin:32px 0">
       <a href="${p.confirmUrl}" style="display:inline-block;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;font-size:15px">${tr ? 'Aboneliği Onayla' : 'Confirm Subscription'}</a>

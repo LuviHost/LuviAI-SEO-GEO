@@ -655,7 +655,7 @@ export interface LinkedinTickResult {
 
 // ─── Kurumsal e-posta kampanyasi (admin) ─────────────────────────────────────
 
-export type EpostaHedefDurum = 'YENI' | 'IYS_DOSYADA' | 'SIRADA' | 'GONDERILDI' | 'HATA' | 'BOUNCE' | 'RET' | 'SPAM' | 'HARIC';
+export type EpostaHedefDurum = 'YENI' | 'IYS_DOSYADA' | 'SIRADA' | 'GONDERILDI' | 'HATA' | 'BOUNCE' | 'RET' | 'SPAM' | 'HARIC' | 'DIS_ARAC';
 
 export interface EpostaHedef {
   id: string;
@@ -1924,6 +1924,9 @@ export const api = {
   epostaHedefGuncelle: (id: string, d: { durum?: 'HARIC' | 'RET'; not?: string | null }) =>
     request<{ ok: true }>(`/eposta/hedef/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(d) }),
   epostaLinkedinFirmalar: () => request<{ adet: number; csv: string }>('/eposta/linkedin-firmalar'),
+  epostaSogukDisaAktar: (o: { sektor?: string; limit?: number; isaretle?: boolean }) =>
+    request<{ adet: number; csv: string; sablonlar: string; kampanya: string | null }>('/eposta/soguk-disa-aktar', { method: 'POST', body: JSON.stringify(o) }),
+  epostaPazarlamaOnayli: () => request<{ adet: number; csv: string }>('/eposta/pazarlama-onayli'),
   epostaWebhookKur: (zorla = false) =>
     request<{ kurulan: string[]; hatalar: string[]; cakisan: Array<{ tur: string; url: string }> }>('/eposta/webhook-kur', { method: 'POST', body: JSON.stringify({ zorla }) }),
   epostaTick: () => request<{ gonderildi: number; hata: number; neden: string }>('/eposta/tick', { method: 'POST' }),

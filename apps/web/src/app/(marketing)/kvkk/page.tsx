@@ -238,8 +238,9 @@ export default function KvkkPage() {
                 Düzenlenmesi Hakkında Kanun md. 6/2 uyarınca tacir ve esnafa yönelik ticari elektronik ileti istisnası.
               </li>
               <li>
-                <strong className="text-foreground">Aktarım:</strong> e-postalar, e-posta gönderim hizmeti sağlayıcısı
-                Mailjet üzerinden iletilir; veriler yalnızca gönderim amacıyla bu sağlayıcıya aktarılır. LinkedIn
+                <strong className="text-foreground">Aktarım:</strong> e-postalar, RanksUp adına kullanılan posta kutularından
+                gönderim yapan bir e-posta gönderim aracı ya da Mailjet üzerinden iletilir; veriler yalnızca gönderim amacıyla
+                bu sağlayıcılara aktarılır. LinkedIn
                 iletişimi LinkedIn platformu üzerinden yürütülür: bağlantı istekleri ve mesajlar, günlük ve haftalık
                 gönderim sınırları olan bir otomasyon aracıyla RanksUp adına kullanılan bir LinkedIn hesabından
                 gönderilir; cevap verdiğinizde yazışmayı bir kişi devralır ve otomatik ileti gönderilmez. Kurumunuz için
@@ -261,6 +262,22 @@ export default function KvkkPage() {
                 cevap olarak ret bildirebilirsiniz.
               </li>
             </ul>
+          </section>
+
+          {/* Pazarlama izni (02.11.2026): ucretsiz test sonucundaki ayri, varsayilan bos kutu
+              (checker-overlay OptinCard, PublicCitationSubscriber.marketingConsentAt/Source). Rapor
+              aboneliginden bagimsiz; cift onayla tamamlanir, abonelik iptali izni de geri ceker. */}
+          <section id="pazarlama-izni" className="scroll-mt-24">
+            <h2 className="text-xl font-bold mb-2">Pazarlama E-postası İzni</h2>
+            <p className="text-muted-foreground">
+              Ücretsiz AI görünürlük testinin sonucunda, rapor e-postalarından ayrı ve varsayılan olarak işaretsiz bir kutu
+              ile RanksUp ürün haberleri, ipuçları ve kampanya e-postaları almayı seçebilirsiniz. Kutuyu işaretlerseniz
+              e-posta adresiniz, izni verdiğiniz an ve formun sürümü kaydedilir; izin, size gönderilen onay e-postasındaki
+              bağlantıya tıkladığınızda tamamlanır (6563 sayılı Kanun md. 6/1, KVKK md. 5/1 açık rıza). Bu e-postalar
+              e-posta gönderim hizmeti sağlayıcısı aracılığıyla iletilir. İzninizi her e-postadaki ret bağlantısıyla ya da{' '}
+              <a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a> adresine yazarak
+              istediğiniz zaman geri alabilirsiniz; rapor aboneliğinden çıkmanız da bu izni geri çeker.
+            </p>
           </section>
         </div>
       </div>

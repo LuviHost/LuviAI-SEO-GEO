@@ -374,11 +374,19 @@ export function htmlSablon(sektor: string, k: EpostaKimlik): string {
  */
 export function metinSablon(sektor: string, k: EpostaKimlik): string {
   const meta = SEKTOR_META[sektor] ?? SEKTOR_META.finans;
+  return metinBlogu(meta.mdBaslik, k);
+}
+
+/**
+ * kurumsal-mail-sablonlari.md'de "## [n. ]<baslik>" altindaki ilk ``` blogu, Mailjet sozdizimiyle.
+ * metinSablon ve takip mesajlari (soguk gonderim disa aktarimi: "Takip 1", "Takip 2") ortak kullanir.
+ */
+export function metinBlogu(baslik: string, k: EpostaKimlik): string {
   if (!fs.existsSync(MD_FILE)) throw new Error(`Duz metin sablon dosyasi yok: ${MD_FILE}`);
   const md = fs.readFileSync(MD_FILE, 'utf8');
-  const bas = md.search(new RegExp('^## (\\d+\\. )?' + escapeRe(meta.mdBaslik), 'm'));
+  const bas = md.search(new RegExp('^## (\\d+\\. )?' + escapeRe(baslik), 'm'));
   const blok = bas >= 0 ? md.slice(bas).match(/```\n([\s\S]*?)\n```/)?.[1] : null;
-  if (!blok) throw new Error(`"${meta.mdBaslik}" duz metin blogu ${path.relative(REPO_ROOT, MD_FILE)} icinde bulunamadi`);
+  if (!blok) throw new Error(`"${baslik}" duz metin blogu ${path.relative(REPO_ROOT, MD_FILE)} icinde bulunamadi`);
   return mailjetSozdizimi(blok, k);
 }
 
