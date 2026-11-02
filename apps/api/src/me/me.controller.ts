@@ -35,7 +35,7 @@ export class MeController {
       // Ozellik haklari SUNUCUDA hesaplanir. Web'in FEATURE_MIN_PLAN tablosunun
       // bir kopyasini tutmasi gerekmesin — bu oturumda tekrar tekrar duzelttigimiz
       // "iki tablo birbirinden kayiyor" hatasinin ayni sinifi.
-      entitlements: entitlementsFor(user.plan),
+      entitlements: entitlementsFor(user.plan, user.role),
     };
   }
 

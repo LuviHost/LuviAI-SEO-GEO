@@ -229,6 +229,21 @@ describe('entitlements — web icin ozellik haklari', () => {
     expect(e.required.productRadar.label).toBe('Ürün Radarı');
   });
 
+  it('ADMIN her ozelligi acik gorur (sunucu kapilariyla ayni kural), plan alani gercek plan', async () => {
+    const { entitlementsFor } = await import('./entitlements.js');
+    const { ownerHasPlanFeature } = await import('./plan-site-filter.js');
+    for (const p of ALL_PLANS) {
+      const e = entitlementsFor(p.toUpperCase(), 'ADMIN');
+      expect(e.plan).toBe(p);
+      for (const f of ALL_FEATURES) {
+        expect(e.features[f], `${p}/${f}`).toBe(true);
+        expect(ownerHasPlanFeature({ plan: p.toUpperCase(), role: 'ADMIN' }, f)).toBe(true);
+      }
+    }
+    // ADMIN olmayan rol plana gore kalir
+    expect(entitlementsFor('STARTER', 'USER').features.liveCrawler).toBe(false);
+  });
+
   it('bilinmeyen/bos plan guvenli tarafa duser (hicbir ozellik acilmaz)', async () => {
     const { entitlementsFor } = await import('./entitlements.js');
     for (const girdi of ['', 'YOKBOYLEPLAN', undefined as any]) {
