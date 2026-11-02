@@ -739,7 +739,8 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
             value={crawler ?? '—'}
             delta={typeof kpis?.aiCrawlerHits?.deltaPct === 'number' && kpis.aiCrawlerHits.deltaPct !== 0 ? kpis.aiCrawlerHits.deltaPct : undefined}
             deltaSuffix="%"
-            hint={crawler === null ? 'Veri yok' : 'Son 7 gün'}
+            // aiCrawlerHits yalniz IP'si dogrulanmis ziyaret (api ai-kpis, bot-verification.ts)
+            hint={crawler === null ? 'Veri yok' : 'Doğrulanmış · son 7 gün'}
           />
         </KpiTile>
         <KpiTile href={href('articles')}>

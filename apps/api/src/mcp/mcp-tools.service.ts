@@ -538,7 +538,7 @@ export class McpToolsService {
         name: 'get_ai_kpis',
         scope: 'audit:read',
         title: 'AI KPI ozeti',
-        description: 'Mention rate, citation rate, sentiment, share of voice, AI crawler ziyaretleri — 7 gunluk degerler ve deltalar. deltaPct null ise kıyas yapılamadı (önceki dönem verisi yok ya da comparability alanındaki gibi ölçülen sorular/ölçüm yöntemi değişti) — "değişim yok" anlamına gelmez. agentReadiness.measured false ise AXO skoru ölçülemedi (neden reason alanında).',
+        description: 'Mention rate, citation rate, sentiment, share of voice, AI crawler ziyaretleri — 7 gunluk degerler ve deltalar. aiCrawlerHits ve citeFetches yalniz IP\'si saglayicinin resmi listesiyle DOGRULANMIS bot ziyaretleridir; kendini bot olarak tanitan ama dogrulanamayan (taklit olabilir) ve dogrulanamayan (eski Worker kodu IP gondermiyor / yontem yok) istekler aiCrawlerVerification alaninda ayri. deltaPct null ise kıyas yapılamadı (önceki dönem verisi yok ya da comparability alanındaki gibi ölçülen sorular/ölçüm yöntemi değişti) — "değişim yok" anlamına gelmez. agentReadiness.measured false ise AXO skoru ölçülemedi (neden reason alanında).',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
@@ -866,7 +866,8 @@ export class McpToolsService {
         name: 'get_analytics_summary',
         scope: 'analytics:read',
         title: 'GSC analytics ozeti',
-        description: 'Son GSC gunluk snapshot\'lari: tiklama, gosterim, CTR, pozisyon (son 14 gun).',
+        // Gun toplamlari GSC'nin gun agregasidir (Search Console grafigiyle ayni; ilk-N sayfa toplami DEGIL)
+        description: 'Son 14 GSC gunluk snapshot\'i: tiklama, gosterim, CTR, pozisyon. Her gun Search Console\'un o gunku site toplamidir (anonim sorgular dahil, pozisyon gosterim-agirlikli). GSC verisi ~2 gun gecikmeli; son kayit bugunden 2-3 gun eskidir.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);

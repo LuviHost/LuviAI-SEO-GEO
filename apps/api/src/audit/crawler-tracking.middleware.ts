@@ -3,6 +3,8 @@ import type { RouteInfo } from '@nestjs/common/interfaces/middleware/middleware-
 import type { Request, Response, NextFunction } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { clientIp } from '../common/client-ip.js';
+import { sharedBotVerifier } from './bot-verifier.service.js';
+import type { BotVerdict } from './bot-verification.js';
 
 /**
  * Kullanici ajani (UA) → kanonik bot adi.
@@ -166,7 +168,13 @@ interface PendingGroup {
   day: string;
   bot: string;
   hits: number;
+  /** IP dogrulamasi (bot-verification.ts) — kalan hits 'dogrulanamadi' */
+  verified: number;
+  unverified: number;
 }
+
+/** Beacon isabetinin IP siniflandirmasi — senkron (istek bekletilmez), yalniz eldeki listelerle */
+export type BeaconClassifier = (bot: string, ip: string) => BotVerdict;
 
 /** Sayacin DB'ye dokundugu yuzey — testte sahtelenir */
 export interface BeaconDb {
@@ -244,6 +252,7 @@ export class CrawlerBeaconCounter {
     private readonly db: BeaconDb,
     private readonly limits: BeaconLimits = BEACON_LIMITS,
     private readonly now: () => number = () => Date.now(),
+    private readonly classify: BeaconClassifier | null = null,
   ) {
     this.ipCounter = new WindowCounter(HOUR_MS, limits.maxKeys);
     this.ipSiteCounter = new WindowCounter(HOUR_MS, limits.maxKeys);
@@ -272,17 +281,25 @@ export class CrawlerBeaconCounter {
     const buffer = this.knownSites.has(site) ? this.pending : this.pendingUnresolved;
     const day = new Date(now).toISOString().slice(0, 10);
     const key = JSON.stringify([site, day, bot]);
-    const group = buffer.get(key);
-    if (group) {
-      group.hits++;
-    } else {
+    let verdict: BotVerdict = 'unknown';
+    try {
+      verdict = this.classify ? this.classify(bot, ip) : 'unknown';
+    } catch {
+      verdict = 'unknown';
+    }
+    let group = buffer.get(key);
+    if (!group) {
       if (buffer.size >= this.limits.maxPendingGroups) {
         this.bufferFull++;
         this.flush().catch(() => undefined);
         return 'buffer_full';
       }
-      buffer.set(key, { siteId: site, day, bot, hits: 1 });
+      group = { siteId: site, day, bot, hits: 0, verified: 0, unverified: 0 };
+      buffer.set(key, group);
     }
+    group.hits++;
+    if (verdict === 'verified') group.verified++;
+    else if (verdict === 'unverified') group.unverified++;
     if (this.pending.size + this.pendingUnresolved.size >= this.limits.flushAtGroups) this.flush().catch(() => undefined);
     return 'buffered';
   }
@@ -321,13 +338,24 @@ export class CrawlerBeaconCounter {
       const accepted = this.takeSiteDay(g.siteId, g.day, g.hits);
       if (accepted <= 0) { dropped++; continue; }
       const date = new Date(`${g.day}T00:00:00.000Z`);
+      // Tavan payi kismen kabul ettiyse dogrulama sayaclari da kabul edilenle sinirli
+      const verified = Math.min(g.verified, accepted);
+      const unverified = Math.min(g.unverified, accepted - verified);
       try {
         await this.db.aiCrawlerHit.upsert({
           where: { siteId_date_bot: { siteId: g.siteId, date, bot: g.bot } },
-          // Yalniz istek sayisi: durum sayaclari, bayt ve adres listesi
-          // guvenilir kaynaklarin (imzali ingest, log yuklemesi) alanidir.
-          update: { hits: { increment: accepted } },
-          create: { siteId: g.siteId, date, bot: g.bot, hits: accepted, uniqueUrls: 0, topUrls: [] },
+          // Yalniz istek sayisi (+ IP dogrulama kirilimi): durum sayaclari, bayt ve
+          // adres listesi guvenilir kaynaklarin (imzali ingest, log yuklemesi) alanidir.
+          update: {
+            hits: { increment: accepted },
+            ...(verified > 0 ? { verifiedHits: { increment: verified } } : {}),
+            ...(unverified > 0 ? { unverifiedHits: { increment: unverified } } : {}),
+          },
+          create: {
+            siteId: g.siteId, date, bot: g.bot, hits: accepted, uniqueUrls: 0, topUrls: [],
+            ...(verified > 0 ? { verifiedHits: verified } : {}),
+            ...(unverified > 0 ? { unverifiedHits: unverified } : {}),
+          },
         });
         written++;
       } catch (err: any) {
@@ -448,7 +476,13 @@ export class CrawlerTrackingMiddleware implements NestMiddleware {
   private static flushTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly prisma: PrismaService) {
-    CrawlerTrackingMiddleware.counter ??= new CrawlerBeaconCounter(prisma as unknown as BeaconDb);
+    // Bot IP'si surec ortak dogrulayicisinin eldeki listeleriyle siniflandirilir (ters DNS yok, istek beklemez)
+    CrawlerTrackingMiddleware.counter ??= new CrawlerBeaconCounter(
+      prisma as unknown as BeaconDb,
+      BEACON_LIMITS,
+      () => Date.now(),
+      (bot, ip) => sharedBotVerifier().classifySync({ bot, ip }).verdict,
+    );
     if (!CrawlerTrackingMiddleware.flushTimer) {
       const timer = setInterval(() => {
         CrawlerTrackingMiddleware.counter?.flush().catch(() => undefined);

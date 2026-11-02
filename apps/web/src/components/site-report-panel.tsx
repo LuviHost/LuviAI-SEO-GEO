@@ -16,6 +16,7 @@ import { FilterChip } from '@/components/ui/filter-chip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CHART } from '@/lib/chart-colors';
 import { formatNum, formatPct, formatPos } from '@/lib/format';
+import { formatGscRange } from '@/lib/gsc-coverage';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 
 type Range = 'week' | 'month' | 'year';
@@ -137,6 +138,14 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
           accent="muted"
         />
       </div>
+      {/* GSC toplami donemin yalniz bir kismindan geliyorsa soylenir (reports.service.ts coverage) */}
+      {data.search.coverage && !data.search.coverage.complete && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          {data.search.coverage.from && data.search.coverage.to
+            ? `GSC verisi: ${formatGscRange(data.search.coverage.from, data.search.coverage.to)} — dönemin ${data.search.coverage.requestedDays} gününün ${data.search.coverage.coveredDays} günü kayıtlı. Google verisi yaklaşık 2 gün gecikmeli gelir.`
+            : 'Bu dönem için kayıtlı GSC verisi yok.'}
+        </p>
+      )}
 
       {/* Skorlar */}
       {erisim && <CrawlAccessNotice access={erisim} staleScoreAt={sonBasarili?.ranAt ?? data.audit.ranAt ?? null} />}

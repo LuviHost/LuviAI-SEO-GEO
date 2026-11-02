@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { safeFetchText, type SafeTextResult } from '../common/safe-fetch.js';
 import { detectBlock } from '../common/block-detect.js';
 import { CRAWLER_EVENT_RETENTION_DAYS } from './crawler-event-retention.js';
+import { BotVerifier, sharedBotVerifier } from './bot-verifier.service.js';
+import { hasVerifyMethod, type BotVerdict } from './bot-verification.js';
+import { readIngestHealth } from './ingest-health.js';
 
 /** Sitemap duz metin ama devasa olabilir — belge basina 8 MB tavan */
 const SITEMAP_MAX_BYTES = 8 * 1024 * 1024;
@@ -169,6 +172,13 @@ export interface CrawlerSummary {
   status4xx: number;
   status5xx: number;
   bytesServed: number;
+  /** IP'si saglayicinin resmi listesinde (bot-verification.ts) */
+  verifiedHits: number;
+  /** Dogrulama calisti, IP saglayiciya ait degil — taklit olabilir */
+  unverifiedHits: number;
+  unverified2xx: number;
+  unverified4xx: number;
+  unverified5xx: number;
 }
 
 /**
@@ -201,9 +211,17 @@ export function isSuccessfulCrawlStatus(status: number): boolean {
 }
 
 /** AiCrawlerHit satirinin log yuklemesinin dokundugu sayac alanlari */
-export type CrawlerHitCounters = Pick<CrawlerSummary, 'hits' | 'uniqueUrls' | 'status2xx' | 'status4xx' | 'status5xx' | 'bytesServed'>;
+export type CrawlerHitCounters = Pick<
+  CrawlerSummary,
+  'hits' | 'uniqueUrls' | 'status2xx' | 'status4xx' | 'status5xx' | 'bytesServed'
+  | 'verifiedHits' | 'unverifiedHits' | 'unverified2xx' | 'unverified4xx' | 'unverified5xx'
+>;
 
-const LOG_COUNTER_FIELDS = ['hits', 'uniqueUrls', 'status2xx', 'status4xx', 'status5xx', 'bytesServed'] as const;
+/** Dogrulama sayaclari da ayni "eksik kadar artir" (max) kuralina tabi */
+const LOG_COUNTER_FIELDS = [
+  'hits', 'uniqueUrls', 'status2xx', 'status4xx', 'status5xx', 'bytesServed',
+  'verifiedHits', 'unverifiedHits', 'unverified2xx', 'unverified4xx', 'unverified5xx',
+] as const;
 
 /**
  * Log yuklemesinin mevcut gunluk satira YIKICI OLMAYAN birlestirmesi — saf.
@@ -225,8 +243,8 @@ const LOG_COUNTER_FIELDS = ['hits', 'uniqueUrls', 'status2xx', 'status4xx', 'sta
  * topUrls: adres basina en buyuk sayi, ilk 10 (ayni max kurali).
  */
 export function mergeLogIntoDailyHit(
-  existing: (CrawlerHitCounters & { topUrls?: unknown }) | null,
-  log: CrawlerHitCounters & { topUrls: Array<{ url: string; count: number }> },
+  existing: (Partial<CrawlerHitCounters> & { topUrls?: unknown }) | null,
+  log: Partial<CrawlerHitCounters> & Pick<CrawlerHitCounters, 'hits'> & { topUrls: Array<{ url: string; count: number }> },
 ): { increments: CrawlerHitCounters; topUrls: Array<{ url: string; count: number }> } {
   const increments = {} as CrawlerHitCounters;
   for (const f of LOG_COUNTER_FIELDS) {
@@ -271,6 +289,12 @@ const BOT_REGISTRY: Record<string, { match: RegExp; category: CrawlerSummary['ca
   'Claude-Web': { match: /Claude-Web/i, category: 'ai-search', label: 'Claude.ai' },
   'PerplexityBot': { match: /PerplexityBot/i, category: 'ai-search', label: 'Perplexity' },
   'Perplexity-User': { match: /Perplexity-User/i, category: 'ai-search', label: 'Perplexity (user)' },
+  // Canli ingest (live-crawler LIVE_BOT_REGISTRY) bu adlarla yaziyordu ama burada etiket/kategori yoktu
+  'Claude-User': { match: /Claude-User/i, category: 'ai-search', label: 'Claude (user)' },
+  'Claude-SearchBot': { match: /Claude-SearchBot/i, category: 'ai-search', label: 'Claude Search' },
+  'MistralAI-User': { match: /MistralAI-User/i, category: 'ai-search', label: 'Mistral Le Chat (user)' },
+  'Meta-ExternalFetcher': { match: /Meta-ExternalFetcher/i, category: 'ai-search', label: 'Meta AI (user)' },
+  'GoogleOther': { match: /GoogleOther/i, category: 'training', label: 'GoogleOther' },
   'Googlebot': { match: /Googlebot[^-]/i, category: 'classic-search', label: 'Googlebot' },
   'Bingbot': { match: /Bingbot/i, category: 'classic-search', label: 'Bingbot (Copilot)' },
   'Applebot': { match: /Applebot[^-]/i, category: 'classic-search', label: 'Applebot' },
@@ -305,7 +329,45 @@ const BOT_REGISTRY: Record<string, { match: RegExp; category: CrawlerSummary['ca
 export class CrawlerAnalyticsService {
   private readonly log = new Logger(CrawlerAnalyticsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly verifier: BotVerifier;
+
+  constructor(private readonly prisma: PrismaService, verifier?: BotVerifier) {
+    // Nest DI verir (audit.module); dogrudan `new` ile kuran testler surec ortak dogrulayicisini kullanir
+    this.verifier = verifier ?? sharedBotVerifier();
+  }
+
+  /** Log satirindaki bot UA'sinin kanonik adi (BOT_REGISTRY), yoksa null */
+  private matchBot(ua: string): { name: string; category: CrawlerSummary['category'] } | null {
+    for (const [name, info] of Object.entries(BOT_REGISTRY)) {
+      if (info.match.test(ua)) return { name, category: info.category };
+    }
+    return null;
+  }
+
+  /**
+   * Log satirlarinin IP dogrulamasi — satirin ilk alani ($remote_addr). Site
+   * Cloudflare arkasindaysa bu Cloudflare adresidir: gercek istemci bilinmez,
+   * satir 'unknown' (proxy-ip) kalir. Hata yuklemeyi dusurmez.
+   */
+  private async classifyEntries(entries: CrawlerLogEntry[]): Promise<Array<BotVerdict | undefined>> {
+    const idx: number[] = [];
+    const inputs: Array<{ bot: string; ip: string }> = [];
+    entries.forEach((e, i) => {
+      const m = this.matchBot(e.userAgent);
+      if (!m) return;
+      idx.push(i);
+      inputs.push({ bot: m.name, ip: e.ip });
+    });
+    const out: Array<BotVerdict | undefined> = new Array(entries.length).fill(undefined);
+    if (inputs.length === 0) return out;
+    try {
+      const res = await this.verifier.classifyMany(inputs);
+      res.forEach((r, j) => { out[idx[j]!] = r.verdict; });
+    } catch (err: any) {
+      this.log.warn(`Log satirlari dogrulanamadi: ${err?.message ?? err}`);
+    }
+    return out;
+  }
 
   /** site.url → sitemap sayfa anahtarlari ya da okunamama nedeni */
   private readonly sitemapCache = new Map<string, { at: number; result: SitemapPages }>();
@@ -342,22 +404,15 @@ export class CrawlerAnalyticsService {
   /**
    * Log entries'i bot bazinda gruplayip ozet cikarir.
    */
-  summarize(entries: CrawlerLogEntry[]): Map<string, CrawlerSummary> {
+  summarize(entries: CrawlerLogEntry[], verdicts?: Array<BotVerdict | undefined>): Map<string, CrawlerSummary> {
     const summary = new Map<string, CrawlerSummary>();
 
-    for (const entry of entries) {
-      const ua = entry.userAgent;
-      let matchedBot: string | null = null;
-      let category: CrawlerSummary['category'] = 'unknown';
-
-      for (const [name, info] of Object.entries(BOT_REGISTRY)) {
-        if (info.match.test(ua)) {
-          matchedBot = name;
-          category = info.category;
-          break;
-        }
-      }
-      if (!matchedBot) continue; // sadece bot trafigi
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]!;
+      const m = this.matchBot(entry.userAgent);
+      if (!m) continue; // sadece bot trafigi
+      const matchedBot = m.name;
+      const category = m.category;
 
       let s = summary.get(matchedBot);
       if (!s) {
@@ -371,6 +426,11 @@ export class CrawlerAnalyticsService {
           status4xx: 0,
           status5xx: 0,
           bytesServed: 0,
+          verifiedHits: 0,
+          unverifiedHits: 0,
+          unverified2xx: 0,
+          unverified4xx: 0,
+          unverified5xx: 0,
         };
         summary.set(matchedBot, s);
       }
@@ -378,9 +438,18 @@ export class CrawlerAnalyticsService {
       s.hits++;
       s.bytesServed += entry.bytes;
       // 304 basarili kovada; diger 3xx yalniz hits'te (isSuccessfulCrawlStatus)
-      if (isSuccessfulCrawlStatus(entry.status)) s.status2xx++;
-      else if (entry.status >= 400 && entry.status < 500) s.status4xx++;
-      else if (entry.status >= 500) s.status5xx++;
+      const bucket = isSuccessfulCrawlStatus(entry.status) ? '2' : entry.status >= 400 && entry.status < 500 ? '4' : entry.status >= 500 ? '5' : null;
+      if (bucket === '2') s.status2xx++;
+      else if (bucket === '4') s.status4xx++;
+      else if (bucket === '5') s.status5xx++;
+      const v = verdicts?.[i];
+      if (v === 'verified') s.verifiedHits++;
+      else if (v === 'unverified') {
+        s.unverifiedHits++;
+        if (bucket === '2') s.unverified2xx++;
+        else if (bucket === '4') s.unverified4xx++;
+        else if (bucket === '5') s.unverified5xx++;
+      }
     }
 
     // Top URLs hesapla
@@ -415,19 +484,21 @@ export class CrawlerAnalyticsService {
     const entries = this.parseApacheLog(logContent);
     if (entries.length === 0) return { entries: 0, bots: 0, saved: 0 };
 
-    // Tarih bazli grupla
-    const byDate = new Map<string, CrawlerLogEntry[]>();
-    for (const e of entries) {
+    // IP dogrulamasi (satirin ilk alani) — sonra tarih bazli grupla
+    const verdicts = await this.classifyEntries(entries);
+    const byDate = new Map<string, { entries: CrawlerLogEntry[]; verdicts: Array<BotVerdict | undefined> }>();
+    entries.forEach((e, i) => {
       const d = e.timestamp.toISOString().slice(0, 10);
-      const list = byDate.get(d) ?? [];
-      list.push(e);
-      byDate.set(d, list);
-    }
+      const g = byDate.get(d) ?? { entries: [], verdicts: [] };
+      g.entries.push(e);
+      g.verdicts.push(verdicts[i]);
+      byDate.set(d, g);
+    });
 
     let saved = 0;
     let totalBots = 0;
-    for (const [dateStr, dayEntries] of byDate) {
-      const summary = this.summarize(dayEntries);
+    for (const [dateStr, day] of byDate) {
+      const summary = this.summarize(day.entries, day.verdicts);
       totalBots = Math.max(totalBots, summary.size);
       const date = new Date(dateStr);
 
@@ -447,6 +518,11 @@ export class CrawlerAnalyticsService {
               status4xx: { increment: merged.increments.status4xx },
               status5xx: { increment: merged.increments.status5xx },
               bytesServed: { increment: merged.increments.bytesServed },
+              verifiedHits: { increment: merged.increments.verifiedHits },
+              unverifiedHits: { increment: merged.increments.unverifiedHits },
+              unverified2xx: { increment: merged.increments.unverified2xx },
+              unverified4xx: { increment: merged.increments.unverified4xx },
+              unverified5xx: { increment: merged.increments.unverified5xx },
             },
             create: {
               siteId,
@@ -459,6 +535,11 @@ export class CrawlerAnalyticsService {
               status4xx: s.status4xx,
               status5xx: s.status5xx,
               bytesServed: s.bytesServed,
+              verifiedHits: s.verifiedHits,
+              unverifiedHits: s.unverifiedHits,
+              unverified2xx: s.unverified2xx,
+              unverified4xx: s.unverified4xx,
+              unverified5xx: s.unverified5xx,
             },
           });
           saved++;
@@ -490,10 +571,11 @@ export class CrawlerAnalyticsService {
       orderBy: { date: 'asc' },
     });
 
-    // Bu site icin her bot'un TUM zamanlardaki ilk kayit tarihi (firstSeen alarmi icin)
+    // Bu site icin her bot'un TUM zamanlardaki ilk DOGRULANMIS ziyaret tarihi (firstSeen
+    // "yeni AI bot ziyareti" alarmi icin). Taklit UA'li ilk istek "GPTBot ilk kez geldi" dedirtemez.
     const firstSeenRows = await this.prisma.aiCrawlerHit.groupBy({
       by: ['bot'],
-      where: { siteId, bot: realBots },
+      where: { siteId, bot: realBots, verifiedHits: { gt: 0 } },
       _min: { date: true },
     });
     const firstSeen: Record<string, string> = {};
@@ -510,6 +592,10 @@ export class CrawlerAnalyticsService {
     };
     const byBot: Record<string, number> = {};
     const byDate: Record<string, Record<string, number>> = {};
+    // Dogrulama kirilimi — MANSET dogrulanmis ziyaret (bot-verification.ts)
+    const byCategoryVerified: Record<string, number> = { 'ai-search': 0, 'training': 0, 'classic-search': 0, 'social': 0 };
+    const byBotVerification: Record<string, { verified: number; unverified: number; unknown: number; hasMethod: boolean }> = {};
+    const verification = { verified: 0, unverified: 0, unknown: 0 };
 
     for (const h of hits) {
       const info = BOT_REGISTRY[h.bot];
@@ -518,27 +604,49 @@ export class CrawlerAnalyticsService {
       const d = h.date.toISOString().slice(0, 10);
       byDate[d] = byDate[d] ?? {};
       byDate[d][h.bot] = (byDate[d][h.bot] ?? 0) + h.hits;
+
+      const ver = Math.max(0, Number((h as any).verifiedHits) || 0);
+      const unv = Math.max(0, Number((h as any).unverifiedHits) || 0);
+      const unk = Math.max(0, (h.hits ?? 0) - ver - unv);
+      const b = byBotVerification[h.bot] ?? { verified: 0, unverified: 0, unknown: 0, hasMethod: hasVerifyMethod(h.bot) };
+      b.verified += ver;
+      b.unverified += unv;
+      b.unknown += unk;
+      byBotVerification[h.bot] = b;
+      verification.verified += ver;
+      verification.unverified += unv;
+      verification.unknown += unk;
+      if (info) byCategoryVerified[info.category] = (byCategoryVerified[info.category] ?? 0) + ver;
     }
 
     // Clarity-style metrikler:
     // 1) AI search purpose split — "AI Search %X vs general %Y"
+    // Amac dagilimi DOGRULANMIS ziyaretlerden: taklit UA'lar (02.11.2026 vakasinda
+    // isteklerin cogu) dagilimi kaziyicinin sectigi UA'lara gore bozuyordu.
     const totalHits = hits.reduce((a, h) => a + h.hits, 0);
-    const aiSearchHits = byCategory['ai-search'] ?? 0;
-    const trainingHits = byCategory['training'] ?? 0;
+    const verifiedTotal = verification.verified;
+    const pctOf = (n: number) => (verifiedTotal > 0 ? Math.round((n / verifiedTotal) * 1000) / 10 : 0);
     const purposeSplit = {
-      aiSearchPct: totalHits > 0 ? Math.round((aiSearchHits / totalHits) * 1000) / 10 : 0,
-      trainingPct: totalHits > 0 ? Math.round((trainingHits / totalHits) * 1000) / 10 : 0,
-      classicSearchPct: totalHits > 0 ? Math.round(((byCategory['classic-search'] ?? 0) / totalHits) * 1000) / 10 : 0,
-      otherPct: totalHits > 0 ? Math.round(((byCategory['social'] ?? 0) / totalHits) * 1000) / 10 : 0,
+      basis: 'verified' as const,
+      aiSearchPct: pctOf(byCategoryVerified['ai-search'] ?? 0),
+      trainingPct: pctOf(byCategoryVerified['training'] ?? 0),
+      classicSearchPct: pctOf(byCategoryVerified['classic-search'] ?? 0),
+      otherPct: pctOf(byCategoryVerified['social'] ?? 0),
     };
 
     // 2) Sayfa tarama kapsami — |ziyaret edilen ∩ sitemap| / |sitemap|
     const coverage = await this.computeCoverage(siteId, hits, since, days);
+    const ingestHealth = await readIngestHealth(this.prisma as any, siteId);
 
     return {
       days,
       since: since.toISOString(),
+      /** UA'si bot olan TUM istekler (geri uyum); manset `verification.verified` */
       totalHits,
+      verification,
+      byBotVerification,
+      byCategoryVerified,
+      ingestHealth,
       byCategory,
       byBot,
       byDate,

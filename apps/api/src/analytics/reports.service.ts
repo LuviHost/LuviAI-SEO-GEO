@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { aiCitationsOlculdu, compareAuditRows, type AuditKarsilastirma } from '../audit/audit.service.js';
 import { OVERALL_SCORE_WEIGHTS } from '../audit/audit-checks.service.js';
@@ -9,6 +9,8 @@ import {
 } from '../sites/crawl-access.js';
 import { resolveSiteBrand } from '../audit/brand-in-query.js';
 import { splitQueriesByBrand, brandHostFromUrl, type OrganicQueryRow, type OrganicBrandSplit } from './organic-brand-split.js';
+import { GscLiveService } from './gsc-live.service.js';
+import { daysInclusive, fetchAllRows, isoDay, snapshotCoverage, toMetric, type Coverage } from './gsc-aggregate.js';
 
 export type ReportRange = 'week' | 'month' | 'year' | 'custom';
 
@@ -80,9 +82,20 @@ export interface ReportOverview {
     /**
      * Markali / markasiz organik ayrimi (organic-brand-split.ts). Markali
      * sorgu hafiza, markasiz sorgu kesif olcer — "tiklamalarin %X'i adini
-     * bilmeyenlerden". Marka cozulemediyse null. Orneklem: gunluk ilk 100 sorgu.
+     * bilmeyenlerden". Marka cozulemediyse null. Kaynak `searchDetailSource`.
      */
     brandSplit: OrganicBrandSplit | null;
+    /**
+     * topQueries/topPages/brandSplit nereden: 'gsc' = donemin GSC agregasi
+     * (tum sorgular), 'sample' = gunluk ilk-N listelerin toplami (GSC'ye
+     * ulasilamadiginda). Eski raporlarda alan yok.
+     */
+    searchDetailSource?: 'gsc' | 'sample';
+    /**
+     * Saklanan gunlerin donemi ne kadar kapsadigi. Toplam 30 gunluk donemde
+     * yalniz 15 gunden geliyorsa rapor bunu soyler. Eski raporlarda alan yok.
+     */
+    coverage?: Coverage;
   };
   ai: {
     /**
@@ -481,7 +494,42 @@ export function csvHucre(v: string | number | null | undefined): string {
 export class ReportsService {
   private readonly log = new Logger(ReportsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly live?: GscLiveService,
+  ) {}
+
+  /**
+   * Donemin en cok tiklanan sorgu/sayfalari ve marka ayrimi GSC'nin DONEM
+   * agregasindan. Gunluk ilk-100 listeleri toplamak bir sorgunun listeye
+   * girmedigi gunleri sifir sayar ve donem toplamini eksik gosterir.
+   * Site bagli degilse / GSC hata verirse null — cagiran ornekleme duser.
+   */
+  private async liveSearchDetails(siteId: string, from: string, to: string, brand: string, host: string | null) {
+    const live = this.live;
+    if (!live) return null;
+    try {
+      const h = await live.handle(siteId);
+      if (!h) return null;
+      return await live.cache.get(live.key(h, siteId, 'report', from, to, brand, host ?? ''), async () => {
+        const q = await live.queryTotals(h, from, to);
+        const pageRes = await fetchAllRows(
+          h.api, h.siteUrl, { startDate: from, endDate: to, dimensions: ['page'] }, { maxRows: 10, timeoutMs: GscLiveService.REQUEST_TIMEOUT_MS },
+        );
+        const topQueries = [...q.rows]
+          .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+          .slice(0, 10)
+          .map((r) => ({ query: r.query, clicks: r.clicks, impressions: r.impressions, ctr: r.ctr, position: r.position }));
+        const topPages = pageRes.rows
+          .filter((r) => r.keys?.[0])
+          .map((r) => ({ page: r.keys![0], ...toMetric(r) }));
+        return { topQueries, topPages, brandSplit: brand ? splitQueriesByBrand(q.rows, brand, host) : null };
+      });
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] rapor GSC detayi alinamadi: ${String(err?.message ?? err).slice(0, 200)}`);
+      return null;
+    }
+  }
 
   async overview(siteId: string, opts: ReportRange | ReportOpts = 'month'): Promise<ReportOverview> {
     // Eski cagrilar `overview(siteId, 'month')` seklinde; bozmadan genisletiyoruz.
@@ -568,21 +616,37 @@ export class ReportsService {
     // itiraf ediyordu: "son snapshot'tan al"). Sonuc: aylik raporda "donemin
     // en cok tiklanan sorgulari" basligi altinda SON GUNUN sorgulari
     // gosteriliyordu. Baslik ile sayi ayni seyi soylemiyordu.
-    const topQueries = detaylariTopla(snapshots, 'queryDetails', 'query');
-    const topPages = detaylariTopla(snapshots, 'pageDetails', 'page');
+    //
+    // SIMDI once GSC'nin donem agregasi (liveSearchDetails); ulasilamazsa
+    // gunluk ilk-N listelerin toplamina (orneklem) duser.
+    const brandSite = await this.prisma.site.findUnique({ where: { id: siteId }, select: { name: true, url: true } });
+    const brand = brandSite ? resolveSiteBrand(brandSite.name, brandSite.url) : '';
+    // Overview ile ayni: jenerik turetilmis markada yalniz alan adi markali
+    const brandHost = brandHostFromUrl(brandSite?.url);
+    const fromIso = isoDay(rangeStart);
+    const toIso = isoDay(rangeEnd);
+    const liveDetails = await this.liveSearchDetails(siteId, fromIso, toIso, brand, brandHost);
+    const searchDetailSource: 'gsc' | 'sample' = liveDetails ? 'gsc' : 'sample';
+    const topQueries = liveDetails?.topQueries ?? detaylariTopla(snapshots, 'queryDetails', 'query');
+    const topPages = liveDetails?.topPages ?? detaylariTopla(snapshots, 'pageDetails', 'page');
 
     // Markali / markasiz organik ayrimi — overview ile AYNI yardimci
     // (organic-brand-split.ts). Raporda "tiklamalarin %X'i adini bilmeyenlerden".
-    const brandSite = await this.prisma.site.findUnique({ where: { id: siteId }, select: { name: true, url: true } });
-    const brand = brandSite ? resolveSiteBrand(brandSite.name, brandSite.url) : '';
-    const brandSplit = brand
-      ? splitQueriesByBrand(
-          snapshots.flatMap((s) => (Array.isArray(s.queryDetails) ? (s.queryDetails as unknown as OrganicQueryRow[]) : [])),
-          brand,
-          // Overview ile ayni: jenerik turetilmis markada yalniz alan adi markali
-          brandHostFromUrl(brandSite?.url),
-        )
-      : null;
+    const brandSplit = liveDetails
+      ? liveDetails.brandSplit
+      : brand
+        ? splitQueriesByBrand(
+            snapshots.flatMap((s) => (Array.isArray(s.queryDetails) ? (s.queryDetails as unknown as OrganicQueryRow[]) : [])),
+            brand,
+            brandHost,
+          )
+        : null;
+    const coverage = snapshotCoverage(
+      snapshots.map((s) => isoDay(s.date)),
+      fromIso,
+      toIso,
+      daysInclusive(fromIso, toIso),
+    );
 
     // ── AI citation + audit ────────────────────────────────────
     // Donem sonundan SONRAKI tarama gecmis bir donemin raporuna girmesin
@@ -698,6 +762,8 @@ export class ReportsService {
         topQueries,
         topPages,
         brandSplit,
+        searchDetailSource,
+        coverage,
       },
       ai: {
         citationScore: citationDurumu.skor,

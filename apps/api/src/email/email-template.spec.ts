@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { EmailService, type EmailTemplate } from './email.service.js';
+import { EmailService, gscGunAraligi, type EmailTemplate } from './email.service.js';
 import {
   duzen, dugme, olcuSatiri, kacisla, kahramanOlcu, karsilastirmaCubugu, sutunGrafik, MARKA,
 } from './email-layout.js';
@@ -246,5 +246,11 @@ describe('haftalik rapor — grafikli', () => {
   it('gunluk seri varsa sutun grafik ciziliyor', () => {
     const { html } = render('weekly_report', { totalClicks: 100, clicksSeries: [1, 5, 3, 8, 4, 6, 2] });
     expect(html).toContain('Günlük tıklama');
+  });
+
+  it('GSC gecikmesi: hangi gunlerin sayildigi yaziliyor', () => {
+    const { html } = render('weekly_report', { totalClicks: 100, dataFrom: '2026-10-24', dataTo: '2026-10-30' });
+    expect(html).toContain('Search Console verisi: 24–30 Ekim');
+    expect(gscGunAraligi('2026-09-28', '2026-10-04')).toBe('28 Eylül – 4 Ekim');
   });
 });

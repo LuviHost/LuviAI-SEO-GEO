@@ -40,19 +40,11 @@ export class AnalyticsCron {
       try {
         // KAYAN PENCERE — tek gun degil.
         // GSC verisi ~2 gun gecikmeli gelir ve yayinlandiktan sonra birkac
-        // gun daha REVIZE EDILIR. Tek gun cekince hem gecikmeyi kaciriyorduk
-        // hem de bir gecelik aksama (deploy, restart, hata) o gunu kalici
-        // olarak bos birakiyordu. T-3'ten T-7'ye kadar her calismada tekrar
-        // cekiyoruz: revizyonlar oturuyor, gecmis bosluklar kendiliginden
-        // kapaniyor. captureSnapshot upsert oldugu icin tekrar cekmek guvenli.
-        for (let back = 3; back <= 7; back++) {
-          const d = new Date();
-          d.setUTCDate(d.getUTCDate() - back);
-          d.setUTCHours(0, 0, 0, 0);
-          await this.analytics.captureSnapshot(site.id, d, { silent: true });
-          // Rate limit yememek icin sorgular arasi kisa ara
-          await new Promise(r => setTimeout(r, 400));
-        }
+        // gun daha REVIZE EDILIR. Her gece son 90 gunun TOPLAMLARI tek
+        // istekle yeniden yazilir (revizyonlar oturur, bosluklar ve yeni
+        // baglanan sitenin gecmisi kendiliginden dolar); T-3..T-7 icin gun gun
+        // detay cekilir. Upsert oldugu icin tekrar cekmek guvenli.
+        await this.analytics.refreshRecent(site.id);
         success++;
         await new Promise(r => setTimeout(r, 2000));
       } catch (err: any) {

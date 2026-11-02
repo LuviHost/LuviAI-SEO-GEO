@@ -356,3 +356,52 @@ describe('POST /api/tracker/events — throttle override', () => {
     expect(sawTooMany, 'ingest ucu tamamen limitsiz — imzasiz istekle CPU tuketilebilir').toBe(true);
   }, 30_000);
 });
+
+describe('POST /api/tracker/events — imzali istekler site bazli sayilir (IP tavanina takilmaz)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    ({ app } = await createIngestApp());
+  });
+
+  afterAll(async () => {
+    delete process.env.INGEST_SITE_RATE_LIMIT;
+    await app?.close();
+  });
+
+  /*
+   * Vaka (02.11.2026): Worker'lar paylasimli Cloudflare cikis IP'lerinden yollar;
+   * IP basina tavan (uretimde 300/dk) patlamada gercek bot isabetlerini 429 ile
+   * dusuruyordu (Cloudflare'e gore ~3,5 kat eksik sayim). Artik ayni IP'den gelen
+   * dogru imzali istekler IP tavaninin (testte 50) USTUNE cikabilir; tavan site
+   * basinadir ve dolunca 429 + Retry-After doner (Worker bekleyip yeniden dener).
+   */
+  it('ayni IP\'den IP tavanini asan imzali istekler kabul edilir; site tavani dolunca 429 + Retry-After', async () => {
+    const SITE_LIMIT = TEST_LIMIT + 10;
+    process.env.INGEST_SITE_RATE_LIMIT = String(SITE_LIMIT);
+    const rawBody = JSON.stringify({
+      site: SITE_ID,
+      source: 'worker',
+      events: [{ ua: 'GPTBot/1.2', path: '/', status: 200, ip: '132.196.86.5' }],
+    });
+    // Dakika siniri test ortasina denk gelirse kova sifirlanir: 429'a kadar gonder,
+    // ilk 429'dan once en az SITE_LIMIT (> IP tavani) basari gorulmeli.
+    let ok = 0;
+    let over: request.Response | null = null;
+    for (let i = 0; i < SITE_LIMIT * 2 + 2 && !over; i++) {
+      const res = await signedPost(app, rawBody);
+      if (res.status === 429) over = res;
+      else {
+        expect(res.status, `istek ${i + 1}`).toBe(201);
+        ok++;
+      }
+    }
+    expect(ok).toBeGreaterThanOrEqual(SITE_LIMIT);
+    expect(over?.status).toBe(429);
+    expect(Number(over!.headers['retry-after'])).toBeGreaterThan(0);
+
+    // Imzasiz istek hala IP kovasinda: site tavani dolu olsa da 401 (imza once), IP kovasi ayri
+    const unsigned = await request(app.getHttpServer()).post(ROUTE).set('Content-Type', 'application/json').send(rawBody);
+    expect(unsigned.status).toBe(401);
+  }, 60_000);
+});

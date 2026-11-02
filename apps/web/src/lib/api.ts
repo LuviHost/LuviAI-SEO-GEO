@@ -2037,8 +2037,9 @@ export const api = {
   // yanitindaki fx alaninda), cagiran yoktu.
 
   // Analytics
-  getAnalyticsOverview: (siteId: string, days = 30) =>
-    request<any>(`/sites/${siteId}/analytics/overview?days=${days}`),
+  /** brandSplit=false: marka payi istenmez (API canli GSC sorgusu atmaz) */
+  getAnalyticsOverview: (siteId: string, days = 30, opts: { brandSplit?: boolean } = {}) =>
+    request<any>(`/sites/${siteId}/analytics/overview?days=${days}${opts.brandSplit === false ? '&brand=0' : ''}`),
 
   getTopArticles: (siteId: string, limit = 10) =>
     request<any[]>(`/sites/${siteId}/analytics/top-articles?limit=${limit}`),
@@ -2407,10 +2408,21 @@ export const api = {
       workerConnected: boolean;
       lastEventAt: string | null;
       lastEventSource: string | null;
+      /** UA'si bot olan TUM istekler; manset verification.verified (IP ile dogrulanmis) */
       total: number;
-      byBot: Array<{ bot: string; hits: number }>;
-      events: Array<{ id: string; ts: string; bot: string; path: string; status: number; isCiteFetch: boolean; source: string }>;
+      verification?: { verified: number; unverified: number; unknown: number };
+      byBot: Array<{ bot: string; hits: number; verified?: number; unverified?: number; unknown?: number }>;
+      events: Array<{
+        id: string; ts: string; bot: string; path: string; status: number; isCiteFetch: boolean; source: string;
+        verify?: 'verified' | 'unverified' | 'unknown'; verifyReason?: string | null;
+      }>;
+      /** Yalniz IP'si dogrulanmis cite fetch'ler */
       citeFetches24h: Array<{ ts: string; bot: string; path: string }>;
+      citeFetchCounts24h?: { verified: number; unverified: number; unknown: number };
+      ingestHealth?: {
+        lastEventAt: string | null; lastEventSource: string | null; throttled7d: number; lastThrottledAt: string | null;
+        events24h: number; noIp24h: number; needsCodeUpdate: boolean;
+      };
     }>(`/sites/${siteId}/audit/live-crawler?minutes=${minutes}&limit=${limit}`),
 
   // ingestSecret snippet'lerin icine gomulu gelir; ekranda "bu kod gizli" uyarisi
