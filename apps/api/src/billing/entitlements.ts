@@ -25,14 +25,18 @@ export interface Entitlements {
  * `required` alani da bilerek burada uretiliyor: "Ajans planina dahildir"
  * cumlesindeki plan adi da plans.ts'ten gelsin ki plan yeniden adlandirilinca
  * (Baslangic -> Buyume ornegindeki gibi) arayuz kendiliginde duzelsin.
+ *
+ * ADMIN: sunucu kapilari (PlanFeatureGuard, ownerHasPlanFeature) ADMIN'i muaf
+ * tutuyor; haklar yalniz plana bakinca panel admin'e calisan ozelligi kilitli
+ * gosteriyordu. Ayni kural burada: ADMIN'de her ozellik acik, `plan` gercek plan.
  */
-export function entitlementsFor(rawPlan: string): Entitlements {
+export function entitlementsFor(rawPlan: string, role?: string | null): Entitlements {
   const plan = (rawPlan ?? 'trial').toLowerCase() as PlanId;
   const features = {} as Record<PlanFeature, boolean>;
   const required = {} as Entitlements['required'];
 
   for (const key of Object.keys(FEATURE_MIN_PLAN) as PlanFeature[]) {
-    features[key] = planHasFeature(plan, key);
+    features[key] = role === 'ADMIN' || planHasFeature(plan, key);
     const min = FEATURE_MIN_PLAN[key];
     required[key] = {
       plan: min,
