@@ -167,9 +167,17 @@ describe('POST citation-check/subscribe — kotuye kullanim katmanlari', () => {
     expect(form.get('remoteip')).toBe('203.0.113.7');
     // Nis istemciden servise gecmez; adres basina normal sinir
     expect(t.subscribers.subscribe).toHaveBeenCalledWith(
-      { email: 'kisi@ornek.com', domain: 'ornek.com', brand: 'Ornek', locale: 'tr' },
+      { email: 'kisi@ornek.com', domain: 'ornek.com', brand: 'Ornek', locale: 'tr', marketingConsent: false, marketingConsentSource: 'checker-v1' },
       { welcomePerEmail: SUBSCRIBE_WELCOME_PER_EMAIL },
     );
+  });
+
+  it('pazarlama kutusu yalniz acikca true gelirse servise gecer', async () => {
+    const t = kurAbone({ secret: 'gizli', turnstileBasarili: true });
+    await t.ctrl.subscribe(t.istek(TARAYICI), t.govde({ turnstileToken: 'tok-1', marketingConsent: true }));
+    await t.ctrl.subscribe(t.istek(TARAYICI), t.govde({ turnstileToken: 'tok-2', marketingConsent: 'true' as any }));
+    expect(t.subscribers.subscribe.mock.calls[0][0]).toMatchObject({ marketingConsent: true, marketingConsentSource: 'checker-v1' });
+    expect(t.subscribers.subscribe.mock.calls[1][0]).toMatchObject({ marketingConsent: false });
   });
 
   it('gecersiz token 403 (mobil istemci token gonderdiyse o da dogrulanir)', async () => {

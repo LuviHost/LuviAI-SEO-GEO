@@ -34,6 +34,7 @@ const DURUM: Record<EpostaHedefDurum, { label: string; cls: string }> = {
   RET: { label: 'Ret', cls: 'bg-muted text-muted-foreground' },
   SPAM: { label: 'Spam şikâyeti', cls: 'bg-danger/15 text-danger' },
   HARIC: { label: 'Hariç', cls: 'bg-muted text-muted-foreground' },
+  DIS_ARAC: { label: 'Dış araçta', cls: 'bg-info/15 text-info' },
 };
 
 const SEKTOR: Record<string, string> = {
@@ -52,8 +53,8 @@ const LINKEDIN: Record<string, string> = {
 const tarih = (s: string | null) =>
   s ? new Date(s).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' }) : '—';
 
-function indir(ad: string, icerik: string) {
-  const url = URL.createObjectURL(new Blob([icerik], { type: 'text/csv;charset=utf-8' }));
+function indir(ad: string, icerik: string, tur = 'text/csv') {
+  const url = URL.createObjectURL(new Blob([icerik], { type: `${tur};charset=utf-8` }));
   const a = document.createElement('a');
   a.href = url;
   a.download = ad;
@@ -75,6 +76,8 @@ export default function EpostaKampanyaPage() {
   const [sayfa, setSayfa] = useState(1);
   const [mesgul, setMesgul] = useState<string | null>(null);
   const dosyaRef = useRef<HTMLInputElement>(null);
+  const [sogukSektor, setSogukSektor] = useState('');
+  const [sogukAdet, setSogukAdet] = useState(200);
 
   useEffect(() => {
     const t = setTimeout(() => setQGecikmeli(q), 300);
@@ -271,8 +274,61 @@ export default function EpostaKampanyaPage() {
 
       <Card>
         <CardContent className="space-y-3 p-4">
+          <div className="flex items-center gap-2 font-medium"><Send className="h-4 w-4 text-brand" />Soğuk gönderim aracına aktar</div>
+          <p className="text-sm text-muted-foreground">
+            Mailjet toplanmış listeye gönderime izin vermiyor. Sıradaki (İYS&apos;ye yüklenmiş) adresler; kendi posta kutularınızdan gönderen bir araca
+            (Instantly, Smartlead, Lemlist) CSV olarak aktarılır. Şablon dosyası ilk e-posta + 2 takip metnini içerir; her satırda RanksUp ret bağlantısı
+            (<code>{'{{ret_url}}'}</code>) var, tıklayan burada &ldquo;Ret&rdquo; olur. İşaretlenen adresler &ldquo;Dış araçta&rdquo; durumuna geçer ve Mailjet turu onları almaz.
+          </p>
           <div className="flex flex-wrap items-center gap-2">
-            {(['', 'SIRADA', 'GONDERILDI', 'YENI', 'IYS_DOSYADA', 'HATA', 'BOUNCE', 'RET', 'SPAM', 'HARIC'] as const).map((d) => (
+            <select value={sogukSektor} onChange={(e) => setSogukSektor(e.target.value)} className="h-8 rounded-md border bg-background px-2 text-sm">
+              <option value="">Tüm sektörler</option>
+              {Object.entries(SEKTOR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <input
+              type="number"
+              min={1}
+              max={2000}
+              value={sogukAdet}
+              onChange={(e) => setSogukAdet(Math.min(2000, Math.max(1, Number(e.target.value) || 1)))}
+              className="h-8 w-24 rounded-md border bg-background px-2 text-sm"
+              aria-label="Adet"
+            />
+            <Button variant="outline" size="sm" disabled={!!mesgul || sirada === 0} onClick={() => is('soguk-onizle', async () => {
+              const r = await api.epostaSogukDisaAktar({ sektor: sogukSektor || undefined, limit: sogukAdet });
+              indir('ranksup-soguk-sablonlar.txt', r.sablonlar, 'text/plain');
+              toast.info(`${r.adet} adres aktarılabilir · şablon dosyası indirildi (durum değişmedi)`);
+            })}>
+              <Eye className="mr-1.5 h-3.5 w-3.5" />Şablonları önizle
+            </Button>
+            <Button size="sm" disabled={!!mesgul || sirada === 0} onClick={() => is('soguk', async () => {
+              if (!window.confirm(`En fazla ${sogukAdet} sıradaki adres dış araca aktarılacak ve "Dış araçta" olarak işaretlenecek. Mailjet bu adreslere artık göndermez. Devam?`)) return;
+              const r = await api.epostaSogukDisaAktar({ sektor: sogukSektor || undefined, limit: sogukAdet, isaretle: true });
+              if (!r.adet) { toast.info('Aktarılacak adres yok'); return; }
+              indir(`ranksup-${r.kampanya}.csv`, r.csv);
+              indir(`ranksup-${r.kampanya}-sablonlar.txt`, r.sablonlar, 'text/plain');
+              toast.success(`${r.adet} adres aktarıldı (${r.kampanya})`);
+            })}>
+              <Download className="mr-1.5 h-3.5 w-3.5" />Dışa aktar ve işaretle ({sirada} sırada)
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+            <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('bulten', async () => {
+              const r = await api.epostaPazarlamaOnayli();
+              indir('ranksup-pazarlama-onayli.csv', r.csv);
+              toast.success(`${r.adet} onaylı abone`);
+            })}>
+              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />Pazarlama onaylı aboneleri indir
+            </Button>
+            <span className="text-xs text-muted-foreground">Sitedeki ayrı pazarlama kutusunu işaretleyip çift onayı tamamlayanlar; Mailjet&apos;e yalnız bu liste yüklenir.</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {(['', 'SIRADA', 'DIS_ARAC', 'GONDERILDI', 'YENI', 'IYS_DOSYADA', 'HATA', 'BOUNCE', 'RET', 'SPAM', 'HARIC'] as const).map((d) => (
               <button
                 key={d || 'tum'}
                 type="button"

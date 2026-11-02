@@ -595,3 +595,34 @@ veriyle, tek dalgadan hüküm verilmez.
 | Bot "yapılacak yok" | hafta içi 09-18 TR dışı, kuyruk boş, günlük limit dolu ya da bayrak kapalı |
 | Bot sürekli `PAUSED` | durum kartındaki neden: oturum düştüyse §5.1; "limit" ise bir gün bekle; captcha ise Mac'te elle çöz, çerezleri yeniden aktar; kabul oranı düşükse not metnini gözden geçir |
 | DMARC raporu gelmiyor | `dmarc@ranksup.ai` yönlendirmesi Namecheap'te var mı; `_dmarc.go` TXT `dig` ile |
+
+## 8. Soğuk gönderim aracı (02.11.2026) — Mailjet'in yerine
+
+**Neden:** Mailjet (ve Brevo, Mailchimp, SendGrid) yalnız açık onay vermiş alıcıya gönderime izin verir; toplanmış kurumsal
+listeyi gönderdiğimiz hesap 02.11.2026'da kapatıldı. Mailjet bundan sonra yalnız sitedeki ayrı pazarlama kutusunu
+işaretleyen abonelere kullanılır (`/admin/eposta` → "Pazarlama onaylı aboneleri indir").
+
+**Kurulum (bir kez, ~1 saat + 2-3 hafta ısınma):**
+1. **Ayrı alan adı** al (ör. `ranksup-tr.com`). `ranksup.ai` soğuk gönderimde HİÇ kullanılmaz — şikâyet/kara liste olursa
+   müşteri e-postaları (şifre, rapor, fatura) etkilenmesin.
+2. Bu alan adında Google Workspace ya da Microsoft 365 ile **2-3 posta kutusu** aç (gerçek ad, profil fotoğrafı).
+   SPF + DKIM + DMARC (`p=none` ile başla) kayıtlarını gir. Alan adını `ranksup.ai`'ye 301 yönlendir.
+3. **Araç:** Instantly / Smartlead / Lemlist — kutuları bağla, **ısınmayı** aç (2-3 hafta; ilk hafta kutu başına günde
+   10-20, sonra en fazla 30-50). Açılma ve tıklama takibini KAPAT (teslim oranını düşürür; özel izleme alan adı gerekir).
+4. Aracın "abonelikten çık" bağlantısını açık bırak; ayrıca şablonlardaki `{{ret_url}}` RanksUp ret bağlantısıdır.
+
+**Her dalga:**
+1. Yeni adresler önce İYS adımından geçer (panel: İYS dosyası → İYS'ye yükle → "Yükledim") → `SIRADA`.
+2. Panel → "Soğuk gönderim aracına aktar": sektör + adet → **Dışa aktar ve işaretle**. İki dosya iner:
+   `ranksup-soguk-YYYY-AA-GG.csv` (sütunlar = araç değişkenleri) ve `…-sablonlar.txt` (ilk e-posta + 2 takip).
+   Satırlar `DIS_ARAC` olur; Mailjet turu onları bir daha almaz.
+3. Araçta yeni kampanya: CSV'yi yükle, sektör başına şablonu yapıştır (konu `{{konu}}`), adımlar: 0. gün ilk e-posta,
+   4. gün Takip 1, 9. gün Takip 2 — "yanıt verince dur" açık.
+4. **Ret:** `{{ret_url}}` tıklanınca satır panelde `RET` olur. Araçtaki ret listesini ve "ret" yanıtlarını haftada bir
+   panelde elle `RET` yap. Her `RET` 3 iş günü içinde İYS'ye ret olarak bildirilir.
+5. **Fren:** geri dönme > %3 ya da spam şikâyeti > %0,1 → araçta kampanyayı durdur, listeyi gözden geçir.
+
+**Ret bağlantısı nasıl çalışır:** `GET /api/eposta/ret?e=…&t=…` yalnız onay sayfası gösterir; ret, sayfadaki düğmeyle
+(POST) yazılır. NEDEN: kurumsal posta güvenlik tarayıcıları (Safe Links, Mimecast) maildeki her bağlantıyı kendiliğinden açar;
+GET ret yazsaydı kimse tıklamadan adresler düşerdi. İmza `EPOSTA_RET_SECRET` (yoksa `NEXTAUTH_SECRET`) ile; sır
+değişirse gönderilmiş maillerdeki bağlantılar geçersiz olur.

@@ -37,6 +37,8 @@ interface SubscribeBody {
   customNiche?: string;
   locale?: string;
   consent: boolean;
+  /** Ayri pazarlama e-postasi kutusu (istege bagli, varsayilan bos) */
+  marketingConsent?: boolean;
   /**
    * Cloudflare Turnstile token — TURNSTILE_SECRET tanimliysa zorunlu (mobil
    * uygulama istisnasi: subscribe() notu). Token tek kullanimliktir; check()
@@ -317,6 +319,9 @@ export class PublicCitationController {
         domain: body.domain,
         brand: body.brand,
         locale: body.locale,
+        marketingConsent: body.marketingConsent === true,
+        // Mobil uygulama bu kutuyu gostermiyor; isaretli gelirse kaynak ayri yazilir
+        marketingConsentSource: isMobileAppClient(ua) ? 'mobile-v1' : 'checker-v1',
       },
       { welcomePerEmail: mobileWithoutToken ? SUBSCRIBE_WELCOME_PER_EMAIL_STRICT : SUBSCRIBE_WELCOME_PER_EMAIL },
     );

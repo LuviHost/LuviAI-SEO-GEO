@@ -233,6 +233,8 @@ function OptinCard({
 }) {
   const [email, setEmail] = useState('');
   const [consent, setConsent] = useState(false);
+  /** Ayri pazarlama izni — varsayilan bos, gonderimi engellemez */
+  const [marketing, setMarketing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -257,6 +259,7 @@ function OptinCard({
           brand: result.brand,
           locale,
           consent,
+          marketingConsent: marketing,
           turnstileToken,
         }),
       });
@@ -292,6 +295,10 @@ function OptinCard({
           <label className="flex items-start gap-2 text-xs text-white/95 cursor-pointer leading-snug">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 shrink-0" required />
             <span>{c.optinConsent}</span>
+          </label>
+          <label className="flex items-start gap-2 text-xs text-white/95 cursor-pointer leading-snug">
+            <input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} className="mt-0.5 shrink-0" />
+            <span>{c.optinMarketing}</span>
           </label>
           <button
             type="submit"

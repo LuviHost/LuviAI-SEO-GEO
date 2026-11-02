@@ -39,6 +39,8 @@ export const CHECKER_COPY = {
     optinBody: '15, 30, 60 ve 90. günlerde 6 AI motorunda otomatik yeniden test yapıp sana raporu e-postayla gönderelim. Markanın AI cevaplarındaki değişimini izle.',
     optinPlaceholder: 'sen@ornek.com',
     optinConsent: 'Bu e-postaları almayı kabul ediyorum (KVKK uyumlu, istediğin zaman iptal)',
+    // NEDEN ayri kutu: pazarlama izni rapor onayindan ayri ve varsayilan bos olmali (Mailjet AUP, 6563 md. 6/1)
+    optinMarketing: "İsteğe bağlı: RanksUp'tan ürün haberleri, ipuçları ve kampanya e-postaları da almak istiyorum (istediğin zaman çıkabilirsin)",
     optinBtn: '90 günlük takibi başlat',
     optinSending: 'Gönderiliyor…',
     optinSuccess: 'Onay e-postası gönderildi — gelen kutunu kontrol et',
@@ -91,6 +93,7 @@ export const CHECKER_COPY = {
     optinBody: "We'll automatically retest your domain on 6 AI engines at 15, 30, 60 and 90 days and email you the report. Track how your AI visibility evolves.",
     optinPlaceholder: 'you@example.com',
     optinConsent: 'I agree to receive these emails (GDPR-compliant, unsubscribe anytime)',
+    optinMarketing: 'Optional: I also want RanksUp product news, tips and promotional emails (unsubscribe anytime)',
     optinBtn: 'Start 90-day tracking',
     optinSending: 'Sending…',
     optinSuccess: 'Confirmation email sent — check your inbox',

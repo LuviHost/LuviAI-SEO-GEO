@@ -2135,6 +2135,15 @@ model PublicCitationSubscriber {
    */
   consentAt        DateTime?
   /**
+   * Pazarlama e-postasi onayi (02.11.2026) — rapor onayindan AYRI, varsayilan bos kutu (Mailjet AUP + 6563 md. 6/1).
+   * Kutu isaretlenmeden yapilan abonelikte null'a doner. Kanit: bu an + confirmedAt (cift onay) + kaynak.
+   */
+  marketingConsentAt DateTime?
+  /**
+   * Onayin alindigi form ve metin surumu (ornek: "checker-v1")
+   */
+  marketingConsentSource String? @db.VarChar(40)
+  /**
    * Double-opt-in token (welcome email confirm link)
    */
   confirmToken     String?   @unique
@@ -3272,6 +3281,7 @@ enum EpostaHedefDurum {
   RET         // ret linki / "istemiyorum" — bir daha gonderilmez, 3 is gunu icinde IYS'ye ret bildirilir
   SPAM        // spam sikayeti — bir daha gonderilmez
   HARIC       // elle haric tutuldu
+  DIS_ARAC    // soguk gonderim aracina (Mailjet disi) aktarildi — Mailjet turu almaz; ret {{ret_url}} ile RET'e doner
 }
 
 /// Kurumsal ROL kutusu (info@, pazarlama@) — kisi verisi DEGIL; 07-kurumsal-adres firmanin kendi sitesinden bulur.

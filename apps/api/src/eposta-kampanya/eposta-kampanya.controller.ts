@@ -1,8 +1,9 @@
-import { Body, Controller, ForbiddenException, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
-import type { Request } from 'express';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Param, Post, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator.js';
 import { EpostaKampanyaService } from './eposta-kampanya.service.js';
+import { retSayfasi } from './soguk-gonderim.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -69,6 +70,41 @@ export class EpostaKampanyaController {
   linkedinFirmalar(@Req() req: Request) {
     assertAdmin(req);
     return this.svc.linkedinFirmalarCsv();
+  }
+
+  /** Soguk gonderim araci icin CSV + sablon metni; isaretle=true → satirlar DIS_ARAC (Mailjet turu almaz) */
+  @Post('soguk-disa-aktar')
+  sogukDisaAktar(@Req() req: Request, @Body() body: { sektor?: string; limit?: number; isaretle?: boolean }) {
+    assertAdmin(req);
+    return this.svc.sogukDisaAktar({ sektor: body?.sektor || undefined, limit: body?.limit, isaretle: body?.isaretle === true });
+  }
+
+  /** Pazarlama e-postasina acik + cift onayli aboneler (Mailjet'e yuklenebilir liste) */
+  @Get('pazarlama-onayli')
+  pazarlamaOnayli(@Req() req: Request) {
+    assertAdmin(req);
+    return this.svc.pazarlamaOnayliCsv();
+  }
+
+  /**
+   * Imzali ret linki — soguk gonderim e-postalarindaki {{ret_url}}.
+   * GET yalniz onay sayfasi gosterir, RET yazmaz. NEDEN: kurumsal posta guvenlik tarayicilari (Safe Links, Mimecast)
+   * gelen maildeki her linki kendiliginden acar; GET ret yazsaydi kimse tiklamadan adresler RET'e duserdi.
+   * POST: sayfadaki dugme ya da RFC 8058 tek tik ret. Kimlik istemez; imza yeter.
+   */
+  @Public()
+  @Get('ret')
+  retGet(@Query('e') e: string, @Query('t') t: string, @Res() res: Response) {
+    const gecerli = this.svc.retImzaGecerli(e, t);
+    res.status(gecerli ? 200 : 400).type('html').setHeader('Cache-Control', 'no-store').send(retSayfasi(gecerli ? 'onay' : 'gecersiz'));
+  }
+
+  @Public()
+  @Post('ret')
+  @HttpCode(200)
+  async retPost(@Query('e') e: string, @Query('t') t: string, @Res() res: Response) {
+    const ok = await this.svc.retIsle(e, t);
+    res.status(ok ? 200 : 400).type('html').setHeader('Cache-Control', 'no-store').send(retSayfasi(ok ? 'tamam' : 'gecersiz'));
   }
 
   @Post('webhook-kur')
