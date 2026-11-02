@@ -206,7 +206,7 @@ describe('kilit ve sahiplenme', () => {
 
 describe('soguk gonderim araci', () => {
   it('disa aktarim: yalniz SIRADA + bosta satirlar; isaretlenenler DIS_ARAC olur, Mailjet turu artik almaz', async () => {
-    const h = [hedef(1), hedef(2), hedef(3, 'YENI'), { ...hedef(4), sonOlay: 'gonderiliyor:x' }];
+    const h: any[] = [hedef(1), hedef(2), hedef(3, 'YENI'), { ...hedef(4), sonOlay: 'gonderiliyor:x' }];
     const svc = new EpostaKampanyaService(sahtePrisma(h) as never);
     const r = await svc.sogukDisaAktar({ isaretle: true, limit: 10 });
     expect(r.adet).toBe(2);

@@ -176,8 +176,8 @@ describe('POST citation-check/subscribe — kotuye kullanim katmanlari', () => {
     const t = kurAbone({ secret: 'gizli', turnstileBasarili: true });
     await t.ctrl.subscribe(t.istek(TARAYICI), t.govde({ turnstileToken: 'tok-1', marketingConsent: true }));
     await t.ctrl.subscribe(t.istek(TARAYICI), t.govde({ turnstileToken: 'tok-2', marketingConsent: 'true' as any }));
-    expect(t.subscribers.subscribe.mock.calls[0][0]).toMatchObject({ marketingConsent: true, marketingConsentSource: 'checker-v1' });
-    expect(t.subscribers.subscribe.mock.calls[1][0]).toMatchObject({ marketingConsent: false });
+    expect((t.subscribers.subscribe.mock.calls as unknown as unknown[][])[0][0]).toMatchObject({ marketingConsent: true, marketingConsentSource: 'checker-v1' });
+    expect((t.subscribers.subscribe.mock.calls as unknown as unknown[][])[1][0]).toMatchObject({ marketingConsent: false });
   });
 
   it('gecersiz token 403 (mobil istemci token gonderdiyse o da dogrulanir)', async () => {
