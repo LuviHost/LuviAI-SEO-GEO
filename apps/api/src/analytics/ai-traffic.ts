@@ -27,7 +27,30 @@ export function aiTrafficDays(raw: unknown): number {
   return (AI_TRAFFIC_DAYS as readonly number[]).includes(n) ? n : 28;
 }
 
+/** 28 / 90 gun ya da 'ay' (takvim ayi basindan bugune — "bu ay kac AI ziyareti geldi") */
+export type AiTrafficPeriod = 28 | 90 | 'ay';
+
+export function aiTrafficPeriod(raw: unknown): AiTrafficPeriod {
+  return raw === 'ay' ? 'ay' : (aiTrafficDays(raw) as 28 | 90);
+}
+
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * Donemin penceresi. 28/90: aiTrafficRange (dun dahil). 'ay': ayin 1'i → BUGUN
+ * (UTC) — ay ici soruda bugun de sayilmali; ayin 1'inde "dune kadar" bos donerdi.
+ * GA4 istegi 'ay'da mutlak baslangic + 'today' (gunler mulkun saat diliminde).
+ */
+export function aiTrafficWindow(now: Date, period: AiTrafficPeriod): {
+  days: number;
+  range: { startDate: string; endDate: string };
+  gaRange: { startDate: string; endDate: string };
+} {
+  if (period !== 'ay') return { days: period, range: aiTrafficRange(now, period), gaRange: gaDateRange(period) };
+  const start = isoDay(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
+  const range = { startDate: start, endDate: isoDay(now) };
+  return { days: rangeDays(range).length, range, gaRange: { startDate: start, endDate: 'today' } };
+}
 
 /**
  * Pencere: dun dahil son N tam gun (UTC). Bugun yarim gun oldugu ve GA4
@@ -85,8 +108,8 @@ export function gaDateRange(days: number): { startDate: string; endDate: string 
   return { startDate: `${days}daysAgo`, endDate: 'yesterday' };
 }
 
-export function buildAiTrafficRequests(days: number, opts: { withRevenue: boolean }) {
-  const dateRanges = [gaDateRange(days)];
+export function buildAiTrafficRequests(days: number | { startDate: string; endDate: string }, opts: { withRevenue: boolean }) {
+  const dateRanges = [typeof days === 'number' ? gaDateRange(days) : days];
   const metrics = [
     { name: 'sessions' },
     { name: 'engagedSessions' },
@@ -174,7 +197,10 @@ export function gaDate(raw: string): string {
  * gununde biten ardisik N gundur — UTC penceresiyle bir gun kayan mulkte gun
  * dusmez, sonda bos gun kalmaz. GA4 hic tarih dondurmediyse UTC pencere.
  */
-function dailyAxis(input: { range: { startDate: string; endDate: string }; days?: number; dailyRows: readonly GaRow[]; totalRows: readonly GaRow[] }): string[] {
+function dailyAxis(input: { range: { startDate: string; endDate: string }; days?: number; fixedAxis?: boolean; dailyRows: readonly GaRow[]; totalRows: readonly GaRow[] }): string[] {
+  // 'ay' donemi: eksen ayin 1'inden bugune sabit (GA4 bugunu henuz islemediyse
+  // son N gune kaydirmak onceki ayin son gununu eksene sokardi)
+  if (input.fixedAxis) return rangeDays(input.range);
   const n = input.days ?? rangeDays(input.range).length;
   const gaDays = [...input.totalRows, ...input.dailyRows]
     .map((r) => gaDate(dim(r, 0)))
@@ -195,6 +221,8 @@ export function mapAiTraffic(input: {
   thresholded?: boolean;
   /** Pencere uzunlugu — GA4 gunleri mulk saat diliminde; seri son N gune kirpilir */
   days?: number;
+  /** true: gunluk eksen tam olarak `range` (takvim ayi) */
+  fixedAxis?: boolean;
 }): AiTrafficGa {
   const byKey = new Map<string, AiTrafficMetrics>();
   const byDay = new Map<string, Record<string, number>>();
@@ -347,4 +375,52 @@ export function mapTrackerHits(
       .slice(0, MAX_TRACKER_PAGES)
       .map(([url, count]) => ({ url, count })),
   };
+}
+
+// ── AI bot istegi / AI ziyareti orani (Clarity "scrape-to-referral") ──
+
+export interface AiBotHitRow {
+  bot: string;
+  hits: number;
+  verifiedHits?: number | null;
+  unverifiedHits?: number | null;
+}
+
+export interface AiBotRatio {
+  /** IP'si saglayicinin resmi listesinde olan AI bot istekleri (egitim + AI arama) */
+  verified: number;
+  /** AI botu UA'si tasiyan ama IP'si tutmayan (taklit olabilir) — orana KATILMAZ */
+  unverified: number;
+  /** IP bilgisi olmadan gelen (eski izleme kodu, log yukleme) — orana KATILMAZ */
+  unknown: number;
+  /** Paydadaki AI ziyareti: GA4 bagliysa GA4 oturumu, degilse izleme kodu ziyareti */
+  referrals: number;
+  referralSource: 'ga4' | 'tracker' | null;
+  /** verified / referrals; ziyaret ya da dogrulanmis istek yoksa null */
+  ratio: number | null;
+}
+
+/**
+ * Clarity ayni orani UA'ya guvenerek hesapliyor; 04.11.2026'da kobipratik'te
+ * "AI bot" isteklerinin cogu ayni 6 bulut IP'sinden gelen taklitti ve Clarity
+ * orani ~6 kat sisikti. Burada pay YALNIZ dogrulanmis istek.
+ * Klasik arama (Googlebot, Bingbot) ve sosyal onizleme AI botu sayilmaz (isAiBot).
+ */
+export function aiBotRatio(
+  rows: readonly AiBotHitRow[],
+  isAiBot: (bot: string) => boolean,
+  referrals: { ga: number | null; tracker: number },
+): AiBotRatio {
+  let verified = 0, unverified = 0, unknown = 0;
+  for (const r of rows) {
+    if (!isAiBot(r.bot)) continue;
+    const ver = Math.max(0, num(r.verifiedHits));
+    const unv = Math.max(0, num(r.unverifiedHits));
+    verified += ver;
+    unverified += unv;
+    unknown += Math.max(0, num(r.hits) - ver - unv);
+  }
+  const referralSource = referrals.ga !== null ? 'ga4' : referrals.tracker > 0 ? 'tracker' : null;
+  const n = referralSource === 'ga4' ? referrals.ga! : referrals.tracker;
+  return { verified, unverified, unknown, referrals: n, referralSource, ratio: n > 0 && verified > 0 ? verified / n : null };
 }

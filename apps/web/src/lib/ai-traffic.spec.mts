@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GA_REASON_TEXT, MEASUREMENT_NOTE, barPct, hasSeries, isHttpUrl, pageLabel, shareText, shortDay } from './ai-traffic';
+import { GA_REASON_TEXT, MEASUREMENT_NOTE, PERIOD_OPTIONS, barPct, botRatioNotes, ratioText, hasSeries, isHttpUrl, pageLabel, shareText, shortDay } from './ai-traffic';
 
 describe('GA4 nedenleri sunucuyla aynı', () => {
   it('api AiTrafficGaReason birleşimindeki her nedenin metni var', () => {
@@ -64,5 +64,28 @@ describe('ölçüm notu', () => {
     expect(t).toMatch(/utm_source=chatgpt\.com/);
     expect(t).toMatch(/çerez onayı/);
     expect(t).toMatch(/toplanmaz/);
+  });
+});
+
+describe('bot isteği / ziyaret oranı', () => {
+  it('ratioText: tam sayı ya da bir ondalık, geçersizde tire', () => {
+    expect(ratioText(340)).toBe('340 : 1');
+    expect(ratioText(2.46)).toBe('2,5 : 1');
+    expect(ratioText(1234.4)).toBe('1.234 : 1');
+    expect(ratioText(null)).toBe('—');
+    expect(ratioText(0)).toBe('—');
+  });
+
+  it('notlar: dışarıda kalan taklit ve doğrulanamayan istekler sayısıyla yazılır', () => {
+    const n = botRatioNotes({ verified: 10, unverified: 1500, unknown: 0, referrals: 2, referralSource: 'tracker', ratio: 5 });
+    expect(n[0]).toMatch(/^1\.500 istek .*taklit olabilir/);
+    expect(n.some((t) => /izleme kodundan/.test(t))).toBe(true);
+    expect(botRatioNotes({ verified: 1, unverified: 0, unknown: 0, referrals: 1, referralSource: 'ga4', ratio: 1 })).toEqual([]);
+  });
+
+  it("dönem seçenekleri sunucunun kabul ettikleriyle aynı (28, 90, 'ay')", () => {
+    const api = readFileSync(new URL('../../../api/src/analytics/ai-traffic.ts', import.meta.url), 'utf8');
+    expect(api).toMatch(/export type AiTrafficPeriod = 28 \| 90 \| 'ay';/);
+    expect(PERIOD_OPTIONS.map((o) => o.value).sort()).toEqual([28, 90, 'ay'].sort());
   });
 });

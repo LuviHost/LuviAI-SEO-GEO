@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  aiSessionSourceRegex, aiTrafficDays, aiTrafficRange, buildAiTrafficRequests, gaDate, mapAiTraffic, mapTrackerHits,
+  aiBotRatio, aiSessionSourceRegex, aiTrafficDays, aiTrafficPeriod, aiTrafficWindow, aiTrafficRange, buildAiTrafficRequests, gaDate, mapAiTraffic, mapTrackerHits,
   rangeDays, isOwnSiteUrl, MAX_LANDING_PAGES,
 } from './ai-traffic.js';
 import { AI_SOURCES, analyticsSourceDomains, classifySessionSource } from '../audit/ai-source.js';
@@ -210,5 +210,36 @@ describe('mapTrackerHits — RanksUp izleme kodu', () => {
     expect(t.topPages.map((p) => p.url)).toEqual(['https://www.o.com/fiyat', 'https://blog.o.com/yazi', 'http://o.com/']);
     expect(mapTrackerHits([{ date: '2026-10-21', referrer: 'chatgpt', hits: 1, topUrls: [{ url: 'https://o.com/', count: 1 }] }], range, null).topPages).toEqual([]);
     expect(isOwnSiteUrl('ftp://o.com/x', 'o.com')).toBe(false);
+  });
+});
+
+describe('donem: bu ay', () => {
+  it("yalniz 'ay' dizesi ay donemi; digerleri 28/90 kurali", () => {
+    expect(aiTrafficPeriod('ay')).toBe('ay');
+    expect(aiTrafficPeriod('90')).toBe(90);
+    expect(aiTrafficPeriod(['ay'])).toBe(28);
+    expect(aiTrafficPeriod('AY')).toBe(28);
+  });
+
+  it("ayin 1'inde pencere bos degil: bugun dahil tek gun", () => {
+    const w = aiTrafficWindow(new Date('2026-11-01T09:00:00Z'), 'ay');
+    expect(w).toEqual({ days: 1, range: { startDate: '2026-11-01', endDate: '2026-11-01' }, gaRange: { startDate: '2026-11-01', endDate: 'today' } });
+    expect(aiTrafficWindow(new Date('2026-11-04T09:00:00Z'), 28).gaRange).toEqual({ startDate: '28daysAgo', endDate: 'yesterday' });
+  });
+
+  it('istek govdesi mutlak aralik alir', () => {
+    expect(buildAiTrafficRequests({ startDate: '2026-11-01', endDate: 'today' }, { withRevenue: false }).pages.dateRanges).toEqual([{ startDate: '2026-11-01', endDate: 'today' }]);
+  });
+});
+
+describe('aiBotRatio', () => {
+  const isAi = (b: string) => b !== 'Googlebot';
+  it('IP bilgisi olmayan satirlar "dogrulanamadi"ya duser, orana girmez', () => {
+    expect(aiBotRatio([{ bot: 'GPTBot', hits: 30, verifiedHits: null, unverifiedHits: null }], isAi, { ga: 3, tracker: 0 }))
+      .toEqual({ verified: 0, unverified: 0, unknown: 30, referrals: 3, referralSource: 'ga4', ratio: null });
+  });
+  it('GA4 bagli ama 0 oturum: payda GA4 (izleme koduna kacmaz), oran null', () => {
+    expect(aiBotRatio([{ bot: 'GPTBot', hits: 9, verifiedHits: 9, unverifiedHits: 0 }], isAi, { ga: 0, tracker: 5 }))
+      .toMatchObject({ referralSource: 'ga4', referrals: 0, ratio: null });
   });
 });

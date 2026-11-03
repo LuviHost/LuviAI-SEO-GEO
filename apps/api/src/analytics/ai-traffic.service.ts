@@ -5,13 +5,17 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { GaOAuthService } from '../auth/ga-oauth.service.js';
 import { AI_SOURCES, analyticsSourceDomains } from '../audit/ai-source.js';
 import { hostOf } from '../audit/source-domain-types.js';
+import { ROBOTS_ONLY_TOKENS, isAiBot } from '../audit/crawler-analytics.service.js';
 import {
-  aiTrafficDays,
-  aiTrafficRange,
+  aiBotRatio,
+  aiTrafficPeriod,
+  aiTrafficWindow,
   buildAiTrafficRequests,
   mapAiTraffic,
   mapTrackerHits,
+  type AiBotRatio,
   type AiTrafficGa,
+  type AiTrafficPeriod,
   type GaRow,
   type TrackerSeries,
 } from './ai-traffic.js';
@@ -66,6 +70,7 @@ export function isInvalidArgument(err: any): boolean {
 }
 
 export interface AiTrafficResponse {
+  period: AiTrafficPeriod;
   days: number;
   dateRange: { startDate: string; endDate: string };
   /** GA4 bagli degilse ya da okunamadiysa null — neden `reason`da */
@@ -73,6 +78,8 @@ export interface AiTrafficResponse {
   reason?: AiTrafficGaReason;
   /** RanksUp izleme kodu (ai_referrer_hits) — GA4'ten bagimsiz, her zaman doner */
   tracker: TrackerSeries;
+  /** Ayni pencerede dogrulanmis AI bot istegi / AI ziyareti (ai_crawler_hits) */
+  bots: AiBotRatio;
   measurement: {
     assistants: Array<{ key: string; label: string }>;
     /** GA4 sessionSource filtresine giren alan adlari (ai-source.ts) */
@@ -102,22 +109,25 @@ export class AiTrafficService {
   ) {}
 
   async get(siteId: string, daysRaw?: unknown, now = new Date()): Promise<AiTrafficResponse> {
-    const days = aiTrafficDays(daysRaw);
-    const range = aiTrafficRange(now, days);
-    const [site, trackerRows] = await Promise.all([
+    const period = aiTrafficPeriod(daysRaw);
+    const { days, range, gaRange } = aiTrafficWindow(now, period);
+    const dayWhere = { gte: new Date(`${range.startDate}T00:00:00Z`), lte: new Date(`${range.endDate}T00:00:00Z`) };
+    const [site, trackerRows, botRows] = await Promise.all([
       this.prisma.site.findUnique({ where: { id: siteId }, select: { url: true, gaPropertyId: true, gaRefreshToken: true } }),
       this.prisma.aiReferrerHit.findMany({
-        where: {
-          siteId,
-          date: { gte: new Date(`${range.startDate}T00:00:00Z`), lte: new Date(`${range.endDate}T00:00:00Z`) },
-        },
+        where: { siteId, date: dayWhere },
         select: { date: true, referrer: true, hits: true, topUrls: true },
         orderBy: { date: 'asc' },
+      }),
+      this.prisma.aiCrawlerHit.findMany({
+        where: { siteId, date: dayWhere, bot: { notIn: [...ROBOTS_ONLY_TOKENS] } },
+        select: { bot: true, hits: true, verifiedHits: true, unverifiedHits: true },
       }),
     ]);
     // Adresler yalniz sitenin kendi host'undaysa doner (isOwnSiteUrl)
     const tracker = mapTrackerHits(trackerRows, range, hostOf(site?.url ?? null));
     const base = {
+      period,
       days,
       dateRange: range,
       tracker,
@@ -126,38 +136,51 @@ export class AiTrafficService {
         gaSourceDomains: analyticsSourceDomains(),
       },
     };
-    if (!site?.gaPropertyId || !site?.gaRefreshToken) return { ...base, ga: null, reason: 'not_connected' };
+    // Bot sayimi her istekte taze (DB); payda GA4 varsa GA4 oturumu, yoksa izleme kodu
+    const done = (ga: GaData | null, reason?: AiTrafficGaReason): AiTrafficResponse => ({
+      ...base,
+      ga,
+      ...(reason ? { reason } : {}),
+      bots: aiBotRatio(botRows, isAiBot, { ga: ga ? ga.totals.sessions : null, tracker: tracker.totalHits }),
+    });
+    if (!site?.gaPropertyId || !site?.gaRefreshToken) return done(null, 'not_connected');
 
     // Mulk ya da baglanti degisirse (GA yeniden baglama → yeni refresh token)
     // eski sonuc / eski hata donmesin
     const fingerprint = aiTrafficFingerprint(range.endDate, site.gaPropertyId, site.gaRefreshToken);
-    const cacheKey = `ai-traffic:v1:${siteId}:${days}`;
+    const cacheKey = `ai-traffic:v1:${siteId}:${period}`;
     const cached = await this.readCache(cacheKey, fingerprint);
-    if (cached?.data) return { ...base, ga: cached.data };
-    if (cached?.error) return { ...base, ga: null, reason: cached.error };
+    if (cached?.data) return done(cached.data);
+    if (cached?.error) return done(null, cached.error);
 
     const client = await this.gaOAuth.getAuthenticatedClient(siteId);
-    if (!client) return { ...base, ga: null, reason: 'not_connected' };
+    if (!client) return done(null, 'not_connected');
 
     try {
-      const ga = await this.fetchGa(client, site.gaPropertyId, range, days);
+      const ga = await this.fetchGa(client, site.gaPropertyId, range, days, period === 'ay' ? gaRange : days);
       const data = { ...ga, generatedAt: new Date().toISOString() };
       await this.writeCache(cacheKey, { fingerprint, data }, CACHE_TTL_MS);
-      return { ...base, ga: data };
+      return done(data);
     } catch (err: any) {
       const reason = gaErrorReason(err);
       this.log.warn(`[${siteId}] GA AI trafigi hata (${reason}): ${String(err?.message ?? err).slice(0, 200)}`);
       await this.writeCache(cacheKey, { fingerprint, error: reason }, ERROR_CACHE_TTL_MS);
-      return { ...base, ga: null, reason };
+      return done(null, reason);
     }
   }
 
-  private async fetchGa(client: unknown, propertyId: string, range: { startDate: string; endDate: string }, days: number): Promise<AiTrafficGa> {
+  private async fetchGa(
+    client: unknown,
+    propertyId: string,
+    range: { startDate: string; endDate: string },
+    days: number,
+    gaWindow: number | { startDate: string; endDate: string },
+  ): Promise<AiTrafficGa> {
     const data = google.analyticsdata({ version: 'v1beta', auth: client as any });
     const property = `properties/${propertyId}`;
     const run = (requestBody: unknown) => data.properties.runReport({ property, requestBody } as any);
 
-    const withRev = buildAiTrafficRequests(days, { withRevenue: true });
+    const withRev = buildAiTrafficRequests(gaWindow, { withRevenue: true });
     const [pagesRes, totalRes] = await Promise.all([run(withRev.pages), run(withRev.total)]);
 
     // Gelir: totalRevenue mulkte gecersizse (400 INVALID_ARGUMENT) gelirsiz tekrar.
@@ -170,13 +193,14 @@ export class AiTrafficService {
     } catch (err: any) {
       if (!isInvalidArgument(err)) throw err;
       withRevenue = false;
-      dailyRes = await run(buildAiTrafficRequests(days, { withRevenue: false }).daily);
+      dailyRes = await run(buildAiTrafficRequests(gaWindow, { withRevenue: false }).daily);
     }
 
     const thresholded = [dailyRes, pagesRes, totalRes].some((r: any) => r?.data?.metadata?.subjectToThresholding === true);
     return mapAiTraffic({
       range,
       days,
+      fixedAxis: typeof gaWindow !== 'number',
       thresholded,
       dailyRows: ((dailyRes as any)?.data?.rows ?? []) as GaRow[],
       pageRows: ((pagesRes as any)?.data?.rows ?? []) as GaRow[],

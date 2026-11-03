@@ -34,12 +34,26 @@ export interface AiTrafficTracker {
   topPages: Array<{ url: string; count: number }>;
 }
 
+export type AiTrafficPeriod = 28 | 90 | 'ay';
+
+/** Doğrulanmış AI bot isteği / AI ziyareti (sunucu: aiBotRatio) */
+export interface AiBotRatio {
+  verified: number;
+  unverified: number;
+  unknown: number;
+  referrals: number;
+  referralSource: 'ga4' | 'tracker' | null;
+  ratio: number | null;
+}
+
 export interface AiTrafficResponse {
+  period: AiTrafficPeriod;
   days: number;
   dateRange: { startDate: string; endDate: string };
   ga: AiTrafficGa | null;
   reason?: AiTrafficReason;
   tracker: AiTrafficTracker;
+  bots: AiBotRatio;
   measurement: { assistants: Array<{ key: string; label: string }>; gaSourceDomains: string[] };
 }
 
@@ -116,4 +130,32 @@ export function shortDay(iso: string): string {
 /** Seride en az bir sıfır olmayan gün var mı (boş grafik çizilmesin) */
 export function hasSeries(daily: ReadonlyArray<{ total: number }> | null | undefined): boolean {
   return !!daily?.some((d) => d.total > 0);
+}
+
+/** Dönem seçenekleri (sıra panelde görünen sıra) */
+export const PERIOD_OPTIONS: ReadonlyArray<{ value: AiTrafficPeriod; label: string }> = [
+  { value: 28, label: '28 gün' },
+  { value: 90, label: '90 gün' },
+  { value: 'ay', label: 'Bu ay' },
+];
+
+/** Oran: 340 → "340 : 1"; 10'dan küçükse bir ondalık ("2,5 : 1") */
+export function ratioText(ratio: number | null | undefined): string {
+  if (typeof ratio !== 'number' || !Number.isFinite(ratio) || ratio <= 0) return '—';
+  const n = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: ratio < 10 ? 1 : 0 }).format(ratio);
+  return `${n} : 1`;
+}
+
+/**
+ * Oran kartının altındaki notlar. Clarity aynı oranı bot adına (kullanıcı ajanı)
+ * güvenerek hesaplıyor; taklit istekler oranı şişirir. Burada yalnız IP'si
+ * doğrulanan istekler sayılır — dışarıda kalanlar açıkça yazılır.
+ */
+export function botRatioNotes(b: AiBotRatio): string[] {
+  const out: string[] = [];
+  const nf = (n: number) => new Intl.NumberFormat('tr-TR').format(n);
+  if (b.unverified > 0) out.push(`${nf(b.unverified)} istek AI botu adı taşıdığı hâlde IP adresi botun sağlayıcısına ait değildi (taklit olabilir); orana katılmadı.`);
+  if (b.unknown > 0) out.push(`${nf(b.unknown)} istek IP bilgisi olmadan geldiği için doğrulanamadı (eski izleme kodu ya da log yükleme); orana katılmadı. İzleme kodunu güncellemek bunu çözer.`);
+  if (b.referralSource === 'tracker') out.push('GA4 bağlı olmadığı için ziyaret sayısı RanksUp izleme kodundan.');
+  return out;
 }

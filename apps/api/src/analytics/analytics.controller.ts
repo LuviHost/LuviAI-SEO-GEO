@@ -145,7 +145,7 @@ export class AnalyticsController {
   }
 
   /**
-   * GET /sites/:siteId/analytics/ai-traffic?days=28|90 — AI asistanlarindan gelen
+   * GET /sites/:siteId/analytics/ai-traffic?days=28|90|ay — AI asistanlarindan gelen
    * ziyaretler: GA4 (sessionSource = AI alan adi; bagli degilse ga: null +
    * reason) ve RanksUp izleme kodu serisi (her zaman). Plan kapisi YOK —
    * search-opportunities gibi kendi verisinin okunmasi.

@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Activity, Bot, ExternalLink, Info, MousePointerClick, Percent, Target as TargetIcon } from 'lucide-react';
+import { Activity, Bot, ExternalLink, Info, MousePointerClick, Percent, ShieldCheck, Target as TargetIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNum, formatPct } from '@/lib/format';
 import { siteHref } from '@/lib/site-routes';
 import { CHART } from '@/lib/chart-colors';
 import {
-  GA_REASON_TEXT, MEASUREMENT_NOTE, THRESHOLD_NOTE, barPct, hasSeries, isHttpUrl, pageLabel, shareText, shortDay,
-  type AiTrafficGa, type AiTrafficResponse, type AiTrafficTracker,
+  GA_REASON_TEXT, MEASUREMENT_NOTE, PERIOD_OPTIONS, THRESHOLD_NOTE, barPct, botRatioNotes, hasSeries, isHttpUrl, pageLabel, ratioText, shareText, shortDay,
+  type AiBotRatio, type AiTrafficGa, type AiTrafficPeriod, type AiTrafficResponse, type AiTrafficTracker,
 } from '@/lib/ai-traffic';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -205,8 +205,41 @@ function TrackerSection({ tracker, siteId }: { tracker: AiTrafficTracker; siteId
   );
 }
 
+/**
+ * Doğrulanmış AI bot isteği / AI ziyareti — Clarity'nin "scrape-to-referral" oranı,
+ * ama pay yalnız IP'si doğrulanan istekler (taklit kullanıcı ajanları dışarıda).
+ */
+function BotRatioSection({ bots, siteId }: { bots: AiBotRatio; siteId: string }) {
+  const notes = botRatioNotes(bots);
+  const visitLabel = bots.referralSource === 'tracker' ? 'AI ziyareti (izleme kodu)' : 'AI ziyareti (GA4)';
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <MetricCard
+          icon={Percent}
+          label="Bot isteği / ziyaret"
+          value={ratioText(bots.ratio)}
+          hint={bots.ratio !== null ? 'Her AI ziyaretine düşen doğrulanmış AI bot isteği' : bots.verified === 0 ? 'Bu dönemde doğrulanmış AI bot isteği yok' : 'Bu dönemde AI ziyareti yok'}
+        />
+        <MetricCard icon={ShieldCheck} label="Doğrulanmış AI bot isteği" value={bots.verified} accent="muted" />
+        <MetricCard icon={MousePointerClick} label={visitLabel} value={bots.referrals} accent="muted" />
+      </div>
+      {notes.length > 0 && (
+        <ul className="space-y-1 text-label text-muted-foreground">
+          {notes.map((t) => <li key={t}>{t}</li>)}
+        </ul>
+      )}
+      <p className="text-label text-muted-foreground">
+        Bot başına ayrıntı:{' '}
+        <Link href={siteHref(siteId, 'visibility') as any} className="font-medium text-foreground underline underline-offset-2">Görünürlük</Link>
+        {' '}sayfasındaki AI Crawler Trafiği.
+      </p>
+    </div>
+  );
+}
+
 export function AiTrafficCard({ siteId }: { siteId: string }) {
-  const [days, setDays] = useState<28 | 90>(28);
+  const [days, setDays] = useState<AiTrafficPeriod>(28);
   const [data, setData] = useState<AiTrafficResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -241,8 +274,8 @@ export function AiTrafficCard({ siteId }: { siteId: string }) {
           }
           actions={
             <div className="flex gap-1.5" role="group" aria-label="Dönem">
-              {([28, 90] as const).map((d) => (
-                <FilterChip key={d} selected={days === d} onClick={() => setDays(d)}>{d} gün</FilterChip>
+              {PERIOD_OPTIONS.map((o) => (
+                <FilterChip key={o.value} selected={days === o.value} onClick={() => setDays(o.value)}>{o.label}</FilterChip>
               ))}
             </div>
           }
@@ -275,6 +308,13 @@ export function AiTrafficCard({ siteId }: { siteId: string }) {
                 <h4 id="ai-trafik-izleme" className="text-sm font-semibold">RanksUp izleme kodu</h4>
                 <TrackerSection tracker={data.tracker} siteId={siteId} />
               </section>
+
+              {data.bots && (
+                <section aria-labelledby="ai-trafik-bot" className="space-y-3 border-t pt-5">
+                  <h4 id="ai-trafik-bot" className="text-sm font-semibold">AI botları okuyor, kaçı ziyaretçiye dönüşüyor?</h4>
+                  <BotRatioSection bots={data.bots} siteId={siteId} />
+                </section>
+              )}
 
               <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-3 text-label text-muted-foreground">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
