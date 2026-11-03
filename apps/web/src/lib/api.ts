@@ -1620,7 +1620,7 @@ export const api = {
     request<CitedSourcesResponse>(`/sites/${siteId}/audit/cited-sources?days=${days}`),
 
   /** AI asistanlarindan gelen trafik: GA4 (bagliysa) + RanksUp izleme kodu — 28 ya da 90 gun */
-  getAiTraffic: (siteId: string, days: 28 | 90 = 28) =>
+  getAiTraffic: (siteId: string, days: 28 | 90 | 'ay' = 28) =>
     request<AiTrafficResponse>(`/sites/${siteId}/analytics/ai-traffic?days=${days}`),
 
   getWidgetEmbedUrl: (siteId: string) => {

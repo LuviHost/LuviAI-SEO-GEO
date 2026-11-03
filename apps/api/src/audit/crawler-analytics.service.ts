@@ -313,6 +313,12 @@ const BOT_REGISTRY: Record<string, { match: RegExp; category: CrawlerSummary['ca
   'LinkedInBot': { match: /LinkedInBot/i, category: 'social', label: 'LinkedIn' },
 };
 
+/** AI botu mu (egitim ya da AI arama)? Klasik arama ve sosyal onizleme degil — AI trafigi orani (analytics/ai-traffic) */
+export function isAiBot(bot: string): boolean {
+  const c = BOT_REGISTRY[bot]?.category;
+  return c === 'ai-search' || c === 'training';
+}
+
 /**
  * Crawler Analytics — sunucu log dosyasini parse edip AI bot trafigini olcer.
  * Apache combined log format veya nginx default format'i destekler.

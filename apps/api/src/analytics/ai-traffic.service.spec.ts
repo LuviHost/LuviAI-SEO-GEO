@@ -15,11 +15,12 @@ const { aiSessionSourceRegex } = await import('./ai-traffic.js');
 const NOW = new Date('2026-10-24T10:00:00Z');
 const CONNECTED = { url: 'https://www.ornek.com', gaPropertyId: '123', gaRefreshToken: 'enc' };
 
-function setup(opts: { site?: any; cache?: any; hits?: any[]; client?: any } = {}) {
+function setup(opts: { site?: any; cache?: any; hits?: any[]; client?: any; bots?: any[] } = {}) {
   const kv = new Map<string, any>(opts.cache ? [[opts.cache.key, opts.cache.row]] : []);
   const prisma = {
     site: { findUnique: vi.fn(async () => (opts.site === undefined ? CONNECTED : opts.site)) },
     aiReferrerHit: { findMany: vi.fn(async () => opts.hits ?? []) },
+    aiCrawlerHit: { findMany: vi.fn(async () => opts.bots ?? []) },
     kvStore: {
       findUnique: vi.fn(async ({ where }: any) => kv.get(where.key) ?? null),
       upsert: vi.fn(async ({ where, create }: any) => { kv.set(where.key, create); return create; }),
@@ -172,5 +173,48 @@ describe('AiTrafficService.get', () => {
     const r = await setup({ client: null }).svc.get('s1', '28', NOW);
     expect(r).toMatchObject({ ga: null, reason: 'not_connected' });
     expect(runReport).not.toHaveBeenCalled();
+  });
+});
+
+describe('AiTrafficService.get — bu ay + dogrulanmis bot orani', () => {
+  beforeEach(() => { runReport.mockReset(); });
+
+  it("'ay': ayin 1'inden bugune; GA4 mutlak baslangic + today, eksen sabit, ayri onbellek anahtari", async () => {
+    gaReplies();
+    const { svc, kv } = setup();
+    const r = await svc.get('s1', 'ay', NOW);
+    expect(r.period).toBe('ay');
+    expect(r.dateRange).toEqual({ startDate: '2026-10-01', endDate: '2026-10-24' });
+    expect(r.days).toBe(24);
+    for (const [arg] of runReport.mock.calls) expect(arg.requestBody.dateRanges).toEqual([{ startDate: '2026-10-01', endDate: 'today' }]);
+    expect(r.ga?.daily.map((d) => d.date)[0]).toBe('2026-10-01');
+    expect(r.ga?.daily).toHaveLength(24);
+    expect(kv.has('ai-traffic:v1:s1:ay')).toBe(true);
+  });
+
+  it('oran: pay yalniz dogrulanmis AI bot istegi; taklit ve klasik arama disarida; payda GA4 oturumu', async () => {
+    gaReplies();
+    const { svc, prisma } = setup({
+      bots: [
+        { bot: 'ClaudeBot', hits: 100, verifiedHits: 20, unverifiedHits: 70 },
+        { bot: 'PerplexityBot', hits: 50, verifiedHits: 0, unverifiedHits: 50 },
+        { bot: 'Googlebot', hits: 500, verifiedHits: 500, unverifiedHits: 0 },
+        { bot: 'OAI-SearchBot', hits: 15, verifiedHits: 15, unverifiedHits: 0 },
+      ],
+    });
+    const r = await svc.get('s1', '28', NOW);
+    expect(r.bots).toEqual({ verified: 35, unverified: 120, unknown: 10, referrals: 7, referralSource: 'ga4', ratio: 5 });
+    const where = (prisma.aiCrawlerHit.findMany as any).mock.calls[0][0].where;
+    expect(where.bot).toEqual({ notIn: ['Google-Extended'] });
+    expect(where.date).toEqual({ gte: new Date('2026-09-26T00:00:00Z'), lte: new Date('2026-10-23T00:00:00Z') });
+  });
+
+  it('GA4 yoksa payda izleme kodu ziyareti; ziyaret yoksa oran null', async () => {
+    const off = { gaPropertyId: null, gaRefreshToken: null };
+    const bots = [{ bot: 'GPTBot', hits: 40, verifiedHits: 40, unverifiedHits: 0 }];
+    const a = await setup({ site: off, bots, hits: [{ date: new Date('2026-10-20T00:00:00Z'), referrer: 'chatgpt', hits: 4, topUrls: [] }] }).svc.get('s1', '28', NOW);
+    expect(a.bots).toMatchObject({ verified: 40, referrals: 4, referralSource: 'tracker', ratio: 10 });
+    const b = await setup({ site: off, bots }).svc.get('s1', '28', NOW);
+    expect(b.bots).toMatchObject({ referrals: 0, referralSource: null, ratio: null });
   });
 });
