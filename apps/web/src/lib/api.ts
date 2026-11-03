@@ -681,6 +681,9 @@ export interface EpostaHedef {
 }
 
 export interface EpostaOverview {
+  /** gonderim kanali: Mailjet API ya da kendi SMTP sunucumuz (EPOSTA_KANAL=smtp) */
+  kanal: 'smtp' | 'mailjet';
+  gonderen: string | null;
   acik: boolean;
   duraklatma: string | null;
   pencerede: boolean;

@@ -9,10 +9,17 @@ import {
   trAyBasi, trGun, trGunBasi, turKotasi,
 } from './eposta-kurallar.js';
 import { retImzaGecerli, retSirri, sogukPaket } from './soguk-gonderim.js';
+import {
+  type SmtpAyar, bizimKimlikler, dsnAyikla, dsnMi, kaliciRet, kanal, mesajKimligi, smtpAyar, smtpMesaj, smtpSorunlari, yanitTuru,
+} from './smtp-kanal.js';
+import nodemailer from 'nodemailer';
+import { ImapFlow } from 'imapflow';
 
 const KV_ACIK = 'eposta-kampanya:acik';
 const KV_DURAKLAT = 'eposta-kampanya:duraklatildi';
 const KV_KILIT = 'eposta-kampanya:kilit';
+/** IMAP okuma imleci: "<uidValidity>:<son uid>" — gelen kutusu her turda bastan taranmasin, okunmamis isaretine dokunulmasin */
+const KV_IMAP = 'eposta-kampanya:imap-imlec';
 /**
  * Yazma-oncesi isaret: "gonderiliyor:<tur belirteci>". Satirlar POST'tan ONCE bu isaretle SAHIPLENILIR (kosullu
  * updateMany), yalniz kendi isaretini tasiyan satirlar gonderilir ve sonuc yalniz o isaret hala duruyorsa yazilir.
@@ -28,6 +35,12 @@ const KILIT_SURE_MS = 10 * 60 * 1000;
 const POST_ZAMAN_ASIMI_MS = 45_000;
 
 export type TickSonuc = { gonderildi: number; hata: number; neden: string };
+
+/** SMTP gonderici (test icin degistirilebilir) — nodemailer transport'unun kullandigimiz kismi */
+export type SmtpGonderici = { sendMail(m: Record<string, unknown>): Promise<unknown>; close(): void };
+/** IMAP okuyucu (test icin degistirilebilir) */
+export type GelenMesaj = { uid: number; kimden: string; konu: string; ham: string };
+export type GelenOkuyucu = (a: SmtpAyar, sonrasi: string | null) => Promise<{ imlec: string; mesajlar: GelenMesaj[] }>;
 
 /**
  * Kurumsal e-posta kampanyasi — sunucu tarafi (27.10.2026). Hedefler `eposta_hedefleri` tablosunda; worker
@@ -47,7 +60,32 @@ export class EpostaKampanyaService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  private get gunlukKota(): number { return Number(process.env.EPOSTA_GUNLUK_KOTA) || 200; }
+  /** SMTP baglantisi ve gelen kutusu okuyucu — testler sahte verir */
+  smtpFabrika: (a: SmtpAyar) => SmtpGonderici = (a) =>
+    nodemailer.createTransport({ host: a.host, port: a.port, secure: a.secure, auth: { user: a.user, pass: a.pass } }) as unknown as SmtpGonderici;
+  gelenOku: GelenOkuyucu = imapOku;
+
+  private get kanal(): 'smtp' | 'mailjet' { return kanal(); }
+  /** NEDEN SMTP'de dusuk: yeni alan adi + paylasimli sunucu IP'si; hacim yavas artmali (isinma) */
+  private get gunlukKota(): number {
+    if (this.kanal === 'smtp') return Number(process.env.EPOSTA_SMTP_GUNLUK) || 30;
+    return Number(process.env.EPOSTA_GUNLUK_KOTA) || 200;
+  }
+  private get turBasi(): number { return this.kanal === 'smtp' ? Number(process.env.EPOSTA_SMTP_TUR) || 10 : TUR_BASI; }
+  /** SMTP'de iki mesaj arasi bekleme (ms) — saniyede onlarca mail ayni IP'den spam gibi gorunur */
+  private get smtpAralik(): number { const v = Number(process.env.EPOSTA_SMTP_ARALIK_MS); return Number.isFinite(v) && v >= 0 && process.env.EPOSTA_SMTP_ARALIK_MS !== undefined ? v : 20_000; }
+
+  /** Gonderimden once eksik ayarlar (kanala gore). Bos dizi = hazir. */
+  hazirlikSorunlari(sektorler: Iterable<string> = ['ajans', 'diger', 'finans']): string[] {
+    if (this.kanal === 'smtp') {
+      const a = smtpAyar();
+      const s = smtpSorunlari(a);
+      if (!retSirri()) s.push('Ret linki için EPOSTA_RET_SECRET (ya da NEXTAUTH_SECRET) yok');
+      return [...s, ...kimlikSorunlari({ ...kimlikEnv(), fromEmail: a.from, replyTo: a.from }, sektorler).filter((x) => !x.startsWith('MAILJET_FROM_EMAIL'))];
+    }
+    return this.mailjetHazir ? kimlikSorunlari(kimlikEnv(), sektorler) : ['MAILJET_API_KEY / MAILJET_SECRET sunucu .env dosyasında yok'];
+  }
+
   private get aylikKota(): number { return Number(process.env.EPOSTA_AYLIK_KOTA) || 6000; }
   private get mailjetHazir(): boolean { return !!process.env.MAILJET_API_KEY && !!process.env.MAILJET_SECRET; }
 
@@ -120,8 +158,10 @@ export class EpostaKampanyaService {
     // LinkedIn kanali: ayni firma (adin ilk iki anlamli kelimesi) icin bot kuyrugundaki en ileri durum
     const linkedin = await this.linkedinDurumlari(liste.map((h) => h.marka || h.firma));
 
-    const sorunlar = this.mailjetHazir ? kimlikSorunlari(kimlikEnv(), ['ajans', 'diger', 'finans']) : ['MAILJET_API_KEY / MAILJET_SECRET sunucu .env dosyasında yok'];
+    const sorunlar = this.hazirlikSorunlari();
     return {
+      kanal: this.kanal,
+      gonderen: this.kanal === 'smtp' ? smtpAyar().from || null : process.env.MAILJET_FROM_EMAIL || null,
       acik,
       duraklatma,
       pencerede: gonderimPenceresinde(simdi),
@@ -378,7 +418,11 @@ export class EpostaKampanyaService {
     if (durak) return bos(`Duraklatıldı: ${durak}`);
     const simdi = new Date();
     if (!opts.zorla && !gonderimPenceresinde(simdi)) return bos('Gönderim penceresi dışında (hafta içi 10-17)');
-    if (!this.mailjetHazir) { await this.duraklat('Mailjet anahtarı yok'); return bos('Mailjet anahtarı yok'); }
+    if (this.kanal === 'mailjet' && !this.mailjetHazir) { await this.duraklat('Mailjet anahtarı yok'); return bos('Mailjet anahtarı yok'); }
+    if (this.kanal === 'smtp') {
+      const s = smtpSorunlari(smtpAyar());
+      if (s.length) { await this.duraklat(`SMTP ayarı: ${s.join(' · ')}`); return bos(`SMTP ayarı eksik: ${s.join(' · ')}`); }
+    }
 
     const belirtec = await this.kilitAl();
     if (!belirtec) return bos('Başka bir tur çalışıyor');
@@ -397,6 +441,14 @@ export class EpostaKampanyaService {
       }
       if (asililar.length) this.log.warn(`${asililar.length} hedef belirsiz durumda HATA'ya alindi`);
 
+      if (this.kanal === 'smtp') {
+        // NEDEN once gelen kutusu: Mailjet webhook'u yok; geri donmeler okunmadan fren hesabi kor kalir
+        try {
+          await this.gelenKutusuTara();
+        } catch (e: any) {
+          return bos(`Gelen kutusu okunamadı (${e?.message ?? e}) — geri dönmeler görülmeden gönderilmez, sonraki turda tekrar`);
+        }
+      }
       const fren = frenNedeni(await this.son7Gun(new Date(simdi.getTime() - 7 * 86_400_000)));
       if (fren) { await this.duraklat(fren); return bos(fren); }
 
@@ -404,7 +456,7 @@ export class EpostaKampanyaService {
         this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: trGunBasi(simdi) } } }),
         this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: trAyBasi(simdi) } } }),
       ]);
-      const adet = turKotasi({ bugunGonderilen: bugun, ayGonderilen: ay, gunluk: this.gunlukKota, aylik: this.aylikKota, turBasi: TUR_BASI });
+      const adet = turKotasi({ bugunGonderilen: bugun, ayGonderilen: ay, gunluk: this.gunlukKota, aylik: this.aylikKota, turBasi: this.turBasi });
       if (adet === 0) return bos(`Kota doldu (bugün ${bugun}/${this.gunlukKota}, ay ${ay}/${this.aylikKota})`);
 
       const uygun = { durum: 'SIRADA' as const, OR: [{ sonOlay: null }, { NOT: { sonOlay: { startsWith: GONDERILIYOR } } }] };
@@ -422,6 +474,8 @@ export class EpostaKampanyaService {
       const hedefler = await this.prisma.epostaHedef.findMany({ where: { sonOlay: isaret, durum: 'SIRADA' }, orderBy: { iysYuklendiAt: 'asc' } });
       if (hedefler.length === 0) return bos('Sahiplenilecek adres kalmadı');
       const isaretiKaldir = () => this.prisma.epostaHedef.updateMany({ where: { sonOlay: isaret }, data: { sonOlay: null, sonOlayAt: null } });
+
+      if (this.kanal === 'smtp') return await this.smtpTuru(hedefler, isaret, kampanya, isaretiKaldir);
 
       // Metin + yasal denetim: kimlik eksik, hitap kurulamadi ya da footer/ret linki yoksa HIC gonderme, duraklat
       const kimlik = kimlikEnv();
@@ -490,6 +544,120 @@ export class EpostaKampanyaService {
     } finally {
       await this.kilitBirak(belirtec);
     }
+  }
+
+  /**
+   * SMTP turu: mesajlar TEK TEK, aralikli gider; her sonuc hemen yazilir (surec kesilirse yalniz o an gonderilen
+   * satir isaretli kalir → sonraki tur "belirsiz" yapar, tekrar gondermez).
+   *  - basari → GONDERILDI (messageId = Message-ID yerel kismi; yanit/geri donme bununla eslesir)
+   *  - alici reddi (RCPT TO 5xx) → BOUNCE
+   *  - diger hata (baglanti, kimlik dogrulama, zaman asimi) → o satir HATA "belirsiz", kalanlarin isareti kalkar, DURAKLAT
+   */
+  private async smtpTuru(
+    hedefler: Array<{ id: string; email: string; firma: string; marka: string | null; sektor: string; varyant: string; web: string | null }>,
+    isaret: string,
+    kampanya: string,
+    isaretiKaldir: () => Promise<unknown>,
+  ): Promise<TickSonuc> {
+    const bos = (neden: string): TickSonuc => ({ gonderildi: 0, hata: 0, neden });
+    const a = smtpAyar();
+    const sir = retSirri();
+    const kimlik = kimlikEnv();
+    const base = process.env.API_PUBLIC_URL || 'https://api.ranksup.ai';
+    let mesajlar: Array<{ h: (typeof hedefler)[number]; kimlik: string; m: ReturnType<typeof smtpMesaj> }>;
+    try {
+      if (!sir) throw new Error('ret linki sırrı yok');
+      const sorunlar = kimlikSorunlari({ ...kimlik, fromEmail: a.from, replyTo: a.from }, hedefler.map((h) => h.sektor));
+      if (sorunlar.length) throw new Error(sorunlar.join(' · '));
+      mesajlar = hedefler.map((h) => {
+        const id = mesajKimligi();
+        return { h, kimlik: id, m: smtpMesaj(h, kimlik, a, sir, base, id) };
+      });
+    } catch (e: any) {
+      await isaretiKaldir();
+      const n = `Gönderici kimliği/şablon: ${e?.message ?? e}`;
+      await this.duraklat(n);
+      return bos(n);
+    }
+
+    const t = this.smtpFabrika(a);
+    let ok = 0, hata = 0;
+    try {
+      for (let i = 0; i < mesajlar.length; i++) {
+        const { h, kimlik: id, m } = mesajlar[i];
+        if (i > 0 && this.smtpAralik > 0) await new Promise((r) => setTimeout(r, this.smtpAralik));
+        const kosul = { id: h.id, sonOlay: isaret };
+        try {
+          await t.sendMail({ ...m, envelope: { from: a.from, to: m.to } });
+          ok++;
+          const zaman = new Date();
+          await this.prisma.epostaHedef.updateMany({ where: kosul, data: { durum: 'GONDERILDI', gonderildiAt: zaman, messageId: id, sonOlay: 'sent', sonOlayAt: zaman, hata: null } });
+        } catch (e: any) {
+          const zaman = new Date();
+          const neden = `${e?.responseCode ?? e?.code ?? ''} ${e?.response ?? e?.message ?? e}`.trim().slice(0, 1000);
+          if (kaliciRet(e) && String(e?.command ?? '').toUpperCase().startsWith('RCPT')) {
+            hata++;
+            await this.prisma.epostaHedef.updateMany({ where: kosul, data: { durum: 'BOUNCE', gonderildiAt: zaman, sonOlay: 'bounce', sonOlayAt: zaman, hata: neden } });
+            continue;
+          }
+          // Kesin olmayan hata: bu satir gitmis olabilir → bir daha gonderilmez; kalanlar sonraki tura birakilir
+          await this.prisma.epostaHedef.updateMany({
+            where: kosul,
+            data: { durum: 'HATA', gonderildiAt: zaman, sonOlay: 'belirsiz', sonOlayAt: zaman, hata: `Belirsiz (SMTP): ${neden}` },
+          });
+          await isaretiKaldir();
+          const n = `SMTP hatası: ${neden} — ${ok} gönderildi, kalanlar sırada; ayarı kontrol edip "Devam" deyin`;
+          await this.duraklat(n);
+          return { gonderildi: ok, hata: hata + 1, neden: n };
+        }
+      }
+    } finally {
+      try { t.close(); } catch { /* yok */ }
+    }
+    this.log.log(`E-posta turu (SMTP): ${ok} gonderildi, ${hata} geri dondu (kampanya ${kampanya})`);
+    return { gonderildi: ok, hata, neden: `${ok} gönderildi${hata ? `, ${hata} geri döndü` : ''}` };
+  }
+
+  /**
+   * Gonderen kutunun gelen kutusu: geri donme raporlari (DSN) → BOUNCE; bizim mesajimiza yanit → "ret" ise RET,
+   * degilse sonOlay='yanit' (panelde gorunur, satir kapanmaz). Okunmamis isaretine DOKUNULMAZ (kutuyu insan da okur);
+   * imlec KV'de. Donus: islenen satir sayisi.
+   */
+  async gelenKutusuTara(): Promise<{ bounce: number; ret: number; yanit: number }> {
+    const say = { bounce: 0, ret: 0, yanit: 0 };
+    const { imlec, mesajlar } = await this.gelenOku(smtpAyar(), await this.kv(KV_IMAP));
+    for (const g of mesajlar) {
+      const ustBitis = g.ham.search(/\r?\n\r?\n/);
+      const ust = ustBitis > 0 ? g.ham.slice(0, ustBitis) : g.ham;
+      const govde = ustBitis > 0 ? g.ham.slice(ustBitis) : '';
+      const baslik = (ad: string) => new RegExp(`^${ad}:\\s*((?:.*)(?:\\r?\\n[ \\t].*)*)`, 'im').exec(ust)?.[1]?.replace(/\r?\n[ \t]+/g, ' ').trim() ?? '';
+      if (dsnMi({ contentType: baslik('Content-Type'), from: g.kimden, subject: g.konu })) {
+        for (const d of dsnAyikla(g.ham)) {
+          if (!d.kalici) continue;
+          const r = await this.prisma.epostaHedef.updateMany({
+            where: { email: d.alici, durum: { notIn: ['RET', 'BOUNCE', 'SPAM', 'HARIC'] } },
+            data: { durum: 'BOUNCE', sonOlay: 'bounce', sonOlayAt: new Date(), hata: `Geri döndü (${d.durum})` },
+          });
+          say.bounce += r.count;
+        }
+        continue;
+      }
+      const kimlikler = bizimKimlikler(baslik('In-Reply-To'), baslik('References'));
+      let h = kimlikler.length ? await this.prisma.epostaHedef.findFirst({ where: { messageId: { in: kimlikler } } }) : null;
+      if (!h && g.kimden) h = await this.prisma.epostaHedef.findUnique({ where: { email: g.kimden.toLowerCase() } });
+      if (!h || !h.gonderildiAt) continue;
+      if (yanitTuru(g.konu, govde) === 'ret') {
+        if ((KAPALI_DURUMLAR as readonly string[]).includes(h.durum)) continue;
+        await this.prisma.epostaHedef.update({ where: { id: h.id }, data: { durum: 'RET', sonOlay: 'ret-yanit', sonOlayAt: new Date() } });
+        say.ret++;
+      } else {
+        await this.prisma.epostaHedef.update({ where: { id: h.id }, data: { sonOlay: 'yanit', sonOlayAt: new Date() } });
+        say.yanit++;
+      }
+    }
+    await this.kvYaz(KV_IMAP, imlec);
+    if (say.bounce || say.ret || say.yanit) this.log.log(`Gelen kutusu: ${say.bounce} geri dönme, ${say.ret} ret, ${say.yanit} yanıt`);
+    return say;
   }
 
   private async mailjetPost(body: unknown): Promise<{ status: number; govde: any }> {
@@ -600,5 +768,43 @@ export class EpostaKampanyaService {
       if (res.ok) kurulan.push(tur); else hatalar.push(`${tur}: HTTP ${res.status}`);
     }
     return { kurulan, hatalar, cakisan: [] };
+  }
+}
+
+/**
+ * Gelen kutusunu imlecten sonrasi icin okur (en fazla 200 mesaj, mesaj basina en fazla 256 KB ham metin).
+ * NEDEN uid imleci: okunmamis bayragina dokunmadan her mesaj bir kez islenir; UIDVALIDITY degisirse bastan (son 14 gun).
+ */
+async function imapOku(a: SmtpAyar, sonrasi: string | null): Promise<{ imlec: string; mesajlar: GelenMesaj[] }> {
+  const c = new ImapFlow({ host: a.imapHost, port: a.imapPort, secure: true, auth: { user: a.user, pass: a.pass }, logger: false });
+  await c.connect();
+  try {
+    const kilit = await c.getMailboxLock('INBOX');
+    try {
+      const kutu = c.mailbox && typeof c.mailbox === 'object' ? c.mailbox : null;
+      const gecerlilik = String(kutu?.uidValidity ?? '0');
+      const [v, u] = (sonrasi ?? '').split(':');
+      const son = v === gecerlilik ? Number(u) || 0 : 0;
+      const ara = son > 0 ? { uid: `${son + 1}:*` } : { since: new Date(Date.now() - 14 * 86_400_000) };
+      const uids = ((await c.search(ara, { uid: true })) || []).filter((x) => x > son).sort((x, y) => x - y).slice(0, 200);
+      const mesajlar: GelenMesaj[] = [];
+      let enBuyuk = son;
+      if (uids.length) {
+        for await (const m of c.fetch(uids, { uid: true, envelope: true, source: { maxLength: 256 * 1024 } }, { uid: true })) {
+          enBuyuk = Math.max(enBuyuk, m.uid);
+          mesajlar.push({
+            uid: m.uid,
+            kimden: m.envelope?.from?.[0]?.address?.toLowerCase() ?? '',
+            konu: m.envelope?.subject ?? '',
+            ham: m.source ? m.source.toString('utf8') : '',
+          });
+        }
+      }
+      return { imlec: `${gecerlilik}:${enBuyuk}`, mesajlar };
+    } finally {
+      kilit.release();
+    }
+  } finally {
+    await c.logout().catch(() => undefined);
   }
 }

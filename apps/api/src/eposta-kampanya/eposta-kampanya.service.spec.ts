@@ -37,6 +37,7 @@ function sahtePrisma(hedefler: any[]) {
       count: async ({ where }: any = {}) => hedefler.filter((h) => eslesir(h, where)).length,
       findMany: async ({ where, take }: any = {}) => hedefler.filter((h) => eslesir(h, where)).slice(0, take ?? 1e9),
       findUnique: async ({ where }: any) => hedefler.find((h) => h.email === where.email) ?? null,
+      findFirst: async ({ where }: any) => hedefler.find((h) => eslesir(h, where)) ?? null,
       updateMany: async ({ where, data }: any) => { const m = hedefler.filter((h) => eslesir(h, where)); m.forEach((h) => Object.assign(h, data)); return { count: m.length }; },
       update: async ({ where, data }: any) => { const h = hedefler.find((x) => x.id === where.id); Object.assign(h, data); return h; },
     },
@@ -236,5 +237,111 @@ describe('soguk gonderim araci', () => {
     expect(h[0].durum).toBe('RET');
     expect(await svc.retIsle(h[1].email, retImzasi(h[1].email, 'test'))).toBe(true);
     expect(h[1].durum).toBe('BOUNCE');
+  });
+});
+
+describe('SMTP kanali', () => {
+  const SMTP_ENV = {
+    EPOSTA_KANAL: 'smtp', EPOSTA_SMTP_HOST: 'mail.getranksup.com', EPOSTA_SMTP_USER: 'emir@getranksup.com', EPOSTA_SMTP_PASS: 'x',
+    EPOSTA_SMTP_ARALIK_MS: '0',
+  };
+  const eskiSmtp: Record<string, string | undefined> = {};
+  beforeEach(() => { for (const [k, v] of Object.entries(SMTP_ENV)) { eskiSmtp[k] = process.env[k]; process.env[k] = v; } });
+  afterEach(() => { for (const k of Object.keys(SMTP_ENV)) { if (eskiSmtp[k] === undefined) delete process.env[k]; else process.env[k] = eskiSmtp[k]; } });
+
+  const kur = (hedefler: any[], gelen: any[] = [], gonder?: (m: any) => Promise<unknown>) => {
+    const p = sahtePrisma(hedefler);
+    const svc = new EpostaKampanyaService(p as any);
+    const gonderilen: any[] = [];
+    svc.smtpFabrika = () => ({ sendMail: async (m: any) => { gonderilen.push(m); return gonder ? gonder(m) : { messageId: m.messageId }; }, close: () => undefined });
+    const okuma = vi.fn(async () => ({ imlec: '1:9', mesajlar: gelen }));
+    svc.gelenOku = okuma;
+    return { p, svc, gonderilen, okuma };
+  };
+
+  it('Mailjet cagrilmaz; tek tek gider, Message-ID saklanir, tur basina en fazla 10', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { p, svc, gonderilen, okuma } = kur(Array.from({ length: 12 }, (_, i) => hedef(i + 1)));
+    await svc.setAcik(true);
+    const r = await svc.tick();
+    expect(r).toMatchObject({ gonderildi: 10, hata: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(okuma).toHaveBeenCalledTimes(1);
+    expect(gonderilen).toHaveLength(10);
+    expect(gonderilen[0]).toMatchObject({ to: 'info@firma1.com.tr', from: { address: 'emir@getranksup.com' } });
+    expect(gonderilen[0].text).toContain('Merhaba Firma1 ekibi,');
+    const id = p.hedefler[0].messageId;
+    expect(id).toMatch(/^rs[0-9a-f]{24}$/);
+    expect(gonderilen[0].messageId).toBe(`<${id}@getranksup.com>`);
+    expect(p.hedefler.filter((h: any) => h.durum === 'GONDERILDI')).toHaveLength(10);
+    expect(p.hedefler[11]).toMatchObject({ durum: 'SIRADA', sonOlay: null });
+  });
+
+  it('gelen kutusu: geri donme BOUNCE, bizim mesaja yanit "yanit", "ret" yaniti RET — gonderimden once', async () => {
+    const gonderilmis = (i: number, mid: string) => ({ ...hedef(i, 'GONDERILDI'), messageId: mid, gonderildiAt: new Date('2026-10-26T08:00:00Z') });
+    const k1 = 'rs' + '1'.repeat(24), k2 = 'rs' + '2'.repeat(24);
+    const dsn = 'Content-Type: multipart/report; report-type=delivery-status; boundary="b"\r\n\r\n--b\r\n\r\nFinal-Recipient: rfc822; info@firma7.com.tr\r\nAction: failed\r\nStatus: 5.1.1\r\n--b--';
+    const { p, svc } = kur(
+      [gonderilmis(7, 'rsx'), gonderilmis(8, k1), gonderilmis(9, k2), hedef(1)],
+      [
+        { uid: 3, kimden: 'mailer-daemon@sv1.luvihost.com', konu: 'Mail delivery failed', ham: dsn },
+        { uid: 4, kimden: 'ali@firma8.com.tr', konu: 'Re: teklif', ham: `In-Reply-To: <${k1}@getranksup.com>\r\n\r\nMerhaba, görüşelim.` },
+        { uid: 5, kimden: 'veli@firma9.com.tr', konu: 'Re: teklif', ham: `References: <${k2}@getranksup.com>\r\n\r\nLütfen listeden çıkarın.` },
+      ],
+    );
+    await svc.setAcik(true);
+    await svc.tick();
+    expect(p.hedefler[0].durum).toBe('BOUNCE');
+    expect(p.hedefler[1]).toMatchObject({ durum: 'GONDERILDI', sonOlay: 'yanit' });
+    expect(p.hedefler[2].durum).toBe('RET');
+    expect(p.hedefler[3].durum).toBe('GONDERILDI');
+    expect(await svc['kv']('eposta-kampanya:imap-imlec')).toBe('1:9');
+  });
+
+  it('baglanti hatasinda: o satir belirsiz HATA, kalanlar sirada kalir, gonderim durur', async () => {
+    let n = 0;
+    const { p, svc } = kur([hedef(1), hedef(2), hedef(3)], [], async () => { if (++n === 2) throw Object.assign(new Error('Connection closed'), { code: 'ECONNECTION' }); return {}; });
+    await svc.setAcik(true);
+    const r = await svc.tick();
+    expect(r).toMatchObject({ gonderildi: 1, hata: 1 });
+    expect(p.hedefler[0].durum).toBe('GONDERILDI');
+    expect(p.hedefler[1]).toMatchObject({ durum: 'HATA', sonOlay: 'belirsiz' });
+    expect(p.hedefler[2]).toMatchObject({ durum: 'SIRADA', sonOlay: null });
+    expect((await svc.tick()).neden).toMatch(/Duraklatıldı/);
+  });
+
+  it('alici reddi (RCPT 550) BOUNCE olur, tur devam eder', async () => {
+    const { p, svc } = kur([hedef(1), hedef(2)], [], async (m) => {
+      if (m.to === 'info@firma1.com.tr') throw Object.assign(new Error('550 no such user'), { responseCode: 550, command: 'RCPT TO' });
+      return {};
+    });
+    await svc.setAcik(true);
+    const r = await svc.tick();
+    expect(r).toMatchObject({ gonderildi: 1, hata: 1 });
+    expect(p.hedefler[0].durum).toBe('BOUNCE');
+    expect(p.hedefler[1].durum).toBe('GONDERILDI');
+  });
+
+  it('gelen kutusu okunamazsa gondermez (geri donmeler gorulmeden fren kor kalir)', async () => {
+    const { p, svc, gonderilen } = kur([hedef(1)]);
+    svc.gelenOku = async () => { throw new Error('IMAP auth'); };
+    await svc.setAcik(true);
+    expect((await svc.tick()).neden).toMatch(/Gelen kutusu okunamadı/);
+    expect(gonderilen).toHaveLength(0);
+    expect(p.hedefler[0]).toMatchObject({ durum: 'SIRADA', sonOlay: null });
+  });
+
+  it('ranksup.ai adresinden soguk gonderim yapilmaz', async () => {
+    process.env.EPOSTA_SMTP_FROM = 'emir@ranksup.ai';
+    try {
+      const { svc, gonderilen } = kur([hedef(1)]);
+      await svc.setAcik(true);
+      expect((await svc.tick()).neden).toMatch(/ranksup\.ai/);
+      expect(gonderilen).toHaveLength(0);
+      expect(svc.hazirlikSorunlari().join()).toMatch(/ranksup\.ai/);
+    } finally {
+      delete process.env.EPOSTA_SMTP_FROM;
+    }
   });
 });
