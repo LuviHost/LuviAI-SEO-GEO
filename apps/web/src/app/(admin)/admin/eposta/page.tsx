@@ -120,7 +120,7 @@ export default function EpostaKampanyaPage() {
     <div className="space-y-6">
       <PageHeader
         title="E-posta Kampanyası"
-        description="Firmaların kendi sitesindeki kurumsal adreslere (info@, pazarlama@) Mailjet ile günlük gönderim. Kişi adresi yok."
+        description={`Firmaların kendi sitesindeki kurumsal adreslere (info@, pazarlama@) ${o.kanal === 'smtp' ? `kendi posta sunucumuzdan${o.gonderen ? ` (${o.gonderen})` : ''}` : 'Mailjet ile'} günlük gönderim. Kişi adresi yok.`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => void yukle()}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Yenile</Button>
@@ -406,6 +406,7 @@ function Satir({ h, mesgul, is }: { h: EpostaHedef; mesgul: boolean; is: (ad: st
       <td className="py-2 pr-3">
         <Badge className={cn('font-normal', d.cls)} title={h.hata ?? undefined}>{d.label}</Badge>
         {h.hata && <div className="mt-1 max-w-xs truncate text-xs text-danger" title={h.hata}>{h.hata}</div>}
+        {h.sonOlay === 'yanit' && <div className="mt-1 text-xs font-medium text-success">Yanıt geldi — gelen kutusuna bakın</div>}
       </td>
       <td className="py-2 pr-3 text-xs">{tarih(h.gonderildiAt)}</td>
       <td className="py-2 pr-3 text-xs">

@@ -626,3 +626,45 @@ işaretleyen abonelere kullanılır (`/admin/eposta` → "Pazarlama onaylı abon
 (POST) yazılır. NEDEN: kurumsal posta güvenlik tarayıcıları (Safe Links, Mimecast) maildeki her bağlantıyı kendiliğinden açar;
 GET ret yazsaydı kimse tıklamadan adresler düşerdi. İmza `EPOSTA_RET_SECRET` (yoksa `NEXTAUTH_SECRET`) ile; sır
 değişirse gönderilmiş maillerdeki bağlantılar geçersiz olur.
+
+## 9. Kendi sunucumuzdan gönderim — SMTP kanalı (03.11.2026, ücretsiz yol)
+
+**Neden:** §8'deki Workspace + Instantly düzeni ayda ~58 $. Bunun yerine panel, ayrı bir alan adının **cPanel
+kutusundan** (sv1.luvihost.com) kendisi gönderir; ek gider yalnız alan adı (~10 $/yıl). Kota, İYS kapısı, ret linki,
+bounce freni aynen geçerli. `ranksup.ai` (ve alt alan adları) bu kanalda **reddedilir** — müşteri e-postalarının itibarı
+ayrı kalsın.
+
+**Mailjet'ten farkı:** açılma/tıklama takibi yok (soğukta zaten kapalı olmalı). Geri dönmeler ve yanıtlar gönderen kutunun
+**gelen kutusundan IMAP ile** okunur (her turdan önce): teslim edilemedi raporu → `BOUNCE`; bizim mesaja yanıt → panelde
+"Yanıt geldi" (yanıtın ilk satırlarında "listeden çıkarın / ret / istemiyoruz" varsa → `RET`). Gelen kutusu okunamazsa
+o tur gönderim yapılmaz. Okunmamış işaretlerine dokunulmaz; kutuyu webmail'den normal okursunuz.
+
+**Kurulum:**
+1. Alan adını al (ör. `getranksup.com`), DNS Cloudflare'de kalsın.
+2. WHM/cPanel'de alan adını ekle (yeni hesap ya da addon), **gerçek adla tek kutu** aç (ör. `emir@getranksup.com`).
+3. Cloudflare DNS (`mail.` kaydı **gri bulut** — proxy SMTP taşımaz):
+   - `A mail` → `87.76.142.101` · `MX @` → `mail.getranksup.com` (10)
+   - `TXT @` → `v=spf1 +ip4:87.76.142.101 ~all`
+   - `TXT default._domainkey` → cPanel › Email Deliverability'deki DKIM değeri (oradaki "Install" düğmesine basma, DNS cPanel'de değil)
+   - `TXT _dmarc` → `v=DMARC1; p=none; rua=mailto:<kutu adresi>`
+   - Alan adı web'de `ranksup.ai`'ye 301 yönlensin (Cloudflare Redirect Rule).
+4. **PTR:** `87.76.142.101` için ters kayıt `sv1.luvihost.com` olmalı (şu an yok) — yoksa Gmail/Outlook teslimi zayıf.
+   Sunucu IP'si başka müşterilerle paylaşılıyorsa: WHM › Exim'de bu alan adına ayrı çıkış IP'si (`/etc/mailips`) verilebilir.
+5. `apps/api/.env` **ve** `apps/worker/.env` (worker kendi .env'ini okur):
+   ```
+   EPOSTA_KANAL=smtp
+   EPOSTA_SMTP_HOST=mail.getranksup.com
+   EPOSTA_SMTP_PORT=465
+   EPOSTA_SMTP_USER=emir@getranksup.com
+   EPOSTA_SMTP_PASS=<kutu şifresi>
+   EPOSTA_SMTP_FROM_NAME=Emir · RanksUp
+   EPOSTA_SMTP_GUNLUK=10        # ısınma: 1. hafta 10, 2. hafta 20, sonra 30-40
+   ```
+   İsteğe bağlı: `EPOSTA_SMTP_FROM` (varsayılan kullanıcı adı), `EPOSTA_SMTP_TUR` (tur başına, varsayılan 10),
+   `EPOSTA_SMTP_ARALIK_MS` (iki mesaj arası, varsayılan 20000), `EPOSTA_IMAP_HOST/PORT` (varsayılan SMTP sunucusu / 993).
+   Kimlik satırı `MAILJET_GONDEREN_ADRES` + `MAILJET_KIMLIK` ile aynen kullanılır.
+6. `pm2 restart luviai-api luviai-worker --update-env` → `/admin/eposta` "eksik ayar" kutusu boşsa hazır →
+   "Otomatik gönderimi aç". İlk gün kendi Gmail adresini bir satır olarak ekleyip spam'e düşüp düşmediğine bak.
+
+**Fren:** son 7 günde geri dönme > %3 → durur. Spam şikâyetini bu kanalda göremeyiz (Gmail şikâyet akışı yok) — hacmi
+düşük tut, yanıtları her gün oku.
