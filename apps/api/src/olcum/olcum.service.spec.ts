@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SafeTextOptions, SafeTextResult } from '../common/safe-fetch.js';
-import { OlcumService, rakipHedefleri } from './olcum.service.js';
+import { OlcumService, rakipHedefleri, rakipListesi } from './olcum.service.js';
 
 function yanit(url: string, text: string, status = 200, contentType = 'text/html'): SafeTextResult {
   return { status, ok: status >= 200 && status < 300, url, redirected: false, contentType, headers: { 'content-type': contentType }, text, truncated: false, binary: false };
@@ -29,6 +29,14 @@ describe('rakipHedefleri', () => {
       { ad: 'rakipb.com', url: 'https://rakipb.com/', rakip: true },
     ]);
     expect(rakipHedefleri(null, 'https://ornek.com')).toEqual([]);
+  });
+
+  it('varsayilan sinir 10: elle sona eklenen rakipler de taranir', () => {
+    const liste = Array.from({ length: 12 }, (_, i) => ({ name: `R${i}`, url: `https://r${i}.com` }));
+    const r = rakipHedefleri(liste, 'https://ornek.com');
+    expect(r).toHaveLength(10);
+    expect(r.at(-1)?.ad).toBe('R9');
+    expect(rakipListesi(liste, 'https://ornek.com').slice(10).map((x) => x.ad)).toEqual(['R10', 'R11']);
   });
 });
 
