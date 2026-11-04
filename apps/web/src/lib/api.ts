@@ -681,9 +681,13 @@ export interface EpostaHedef {
 }
 
 export interface EpostaOverview {
-  /** gonderim kanali: Mailjet API ya da kendi SMTP sunucumuz (EPOSTA_KANAL=smtp) */
-  kanal: 'smtp' | 'mailjet';
+  /** gonderim kanali: Mailjet API, kendi SMTP sunucumuz (EPOSTA_KANAL=smtp) ya da Resend (EPOSTA_KANAL=resend) */
+  kanal: 'smtp' | 'resend' | 'mailjet';
   gonderen: string | null;
+  /** yanitlar/geri donmeler gelen kutusundan okunuyor mu (SMTP her zaman; Resend'de EPOSTA_IMAP_* verilirse) */
+  gelenKutusu?: boolean;
+  /** Resend kanalinda Resend › Webhooks'a girilecek adres */
+  webhookAdresi?: string | null;
   acik: boolean;
   duraklatma: string | null;
   pencerede: boolean;

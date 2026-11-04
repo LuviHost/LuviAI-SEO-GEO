@@ -45,6 +45,12 @@ const SEKTOR: Record<string, string> = {
   diger: 'Genel',
 };
 
+const KANAL_METNI: Record<EpostaOverview['kanal'], string> = {
+  mailjet: 'Mailjet ile',
+  smtp: 'kendi posta sunucumuzdan',
+  resend: 'Resend ile',
+};
+
 const LINKEDIN: Record<string, string> = {
   QUEUED: 'Kuyrukta', REQUESTED: 'İstek gitti', ACCEPTED: 'Kabul etti', MESSAGED: 'Mesaj gitti',
   REPLIED: 'Cevap verdi', SKIPPED: 'Atlandı', FAILED: 'Hata',
@@ -120,7 +126,7 @@ export default function EpostaKampanyaPage() {
     <div className="space-y-6">
       <PageHeader
         title="E-posta Kampanyası"
-        description={`Firmaların kendi sitesindeki kurumsal adreslere (info@, pazarlama@) ${o.kanal === 'smtp' ? `kendi posta sunucumuzdan${o.gonderen ? ` (${o.gonderen})` : ''}` : 'Mailjet ile'} günlük gönderim. Kişi adresi yok.`}
+        description={`Firmaların kendi sitesindeki kurumsal adreslere (info@, pazarlama@) ${KANAL_METNI[o.kanal]}${o.kanal !== 'mailjet' && o.gonderen ? ` (${o.gonderen})` : ''} günlük gönderim. Kişi adresi yok.`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => void yukle()}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Yenile</Button>
@@ -254,7 +260,7 @@ export default function EpostaKampanyaPage() {
               <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('li', async () => { const r = await api.epostaLinkedinFirmalar(); indir('linkedin-firmalar.csv', r.csv); toast.success(`${r.adet} firma`); })}>
                 <Linkedin className="mr-1.5 h-3.5 w-3.5" />LinkedIn firmalarını indir
               </Button>
-              <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('wh', async () => {
+              {o.kanal === 'mailjet' && <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('wh', async () => {
                 let r = await api.epostaWebhookKur();
                 if (r.cakisan.length) {
                   const liste = r.cakisan.map((c) => `${c.tur}: ${c.url}`).join('\n');
@@ -265,9 +271,17 @@ export default function EpostaKampanyaPage() {
                 else toast.success(`Mailjet olay akışı kuruldu: ${r.kurulan.join(', ')}`);
               })}>
                 <Webhook className="mr-1.5 h-3.5 w-3.5" />Mailjet olay akışını kur
-              </Button>
+              </Button>}
             </div>
-            <p className="text-xs text-muted-foreground">Olay akışı açılma, tıklama, geri dönme ve ret bilgisini anında buraya getirir; bir kez kurmak yeterli.</p>
+            {o.kanal === 'resend' ? (
+              <p className="text-xs text-muted-foreground">
+                Geri dönme ve spam şikâyeti Resend webhook&apos;uyla gelir: Resend › Webhooks › Add webhook, adres{' '}
+                <code className="break-all">{o.webhookAdresi}</code>, olaylar delivered, bounced, complained, suppressed, failed. İmza sırrı sunucu
+                ayarına (EPOSTA_RESEND_WEBHOOK_SECRET) yazılır.{o.gelenKutusu ? '' : ' Yanıtlar okunmuyor (EPOSTA_IMAP_* yok): "ret" yazan yanıtları satırdan elle Ret yapın.'}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Olay akışı açılma, tıklama, geri dönme ve ret bilgisini anında buraya getirir; bir kez kurmak yeterli.</p>
+            )}
           </CardContent>
         </Card>
       </div>

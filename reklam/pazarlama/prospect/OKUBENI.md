@@ -650,7 +650,7 @@ o tur gönderim yapılmaz. Okunmamış işaretlerine dokunulmaz; kutuyu webmail'
    - Alan adı web'de `ranksup.ai`'ye 301 yönlensin (Cloudflare Redirect Rule).
 4. **PTR:** `87.76.142.101` için ters kayıt `sv1.luvihost.com` olmalı (şu an yok) — yoksa Gmail/Outlook teslimi zayıf.
    Sunucu IP'si başka müşterilerle paylaşılıyorsa: WHM › Exim'de bu alan adına ayrı çıkış IP'si (`/etc/mailips`) verilebilir.
-5. `apps/api/.env` **ve** `apps/worker/.env` (worker kendi .env'ini okur):
+5. Kök `/var/www/luviai/.env` (pm2 `ecosystem.config.cjs` bunu API, worker ve web'e yükler; `apps/*/.env` kökte olmayan değişkenler için yedektir):
    ```
    EPOSTA_KANAL=smtp
    EPOSTA_SMTP_HOST=mail.getranksup.com
@@ -663,8 +663,35 @@ o tur gönderim yapılmaz. Okunmamış işaretlerine dokunulmaz; kutuyu webmail'
    İsteğe bağlı: `EPOSTA_SMTP_FROM` (varsayılan kullanıcı adı), `EPOSTA_SMTP_TUR` (tur başına, varsayılan 10),
    `EPOSTA_SMTP_ARALIK_MS` (iki mesaj arası, varsayılan 20000), `EPOSTA_IMAP_HOST/PORT` (varsayılan SMTP sunucusu / 993).
    Kimlik satırı `MAILJET_GONDEREN_ADRES` + `MAILJET_KIMLIK` ile aynen kullanılır.
-6. `pm2 restart luviai-api luviai-worker --update-env` → `/admin/eposta` "eksik ayar" kutusu boşsa hazır →
+6. `pm2 restart ecosystem.config.cjs --update-env` → `/admin/eposta` "eksik ayar" kutusu boşsa hazır →
    "Otomatik gönderimi aç". İlk gün kendi Gmail adresini bir satır olarak ekleyip spam'e düşüp düşmediğine bak.
 
 **Fren:** son 7 günde geri dönme > %3 → durur. Spam şikâyetini bu kanalda göremeyiz (Gmail şikâyet akışı yok) — hacmi
 düşük tut, yanıtları her gün oku.
+
+## 10. Resend kanalı (04.11.2026, sahip kararı)
+
+**Karar ve risk:** Kampanya, sistem e-postalarıyla (admin giriş kodu, müşteri bildirimleri) **aynı Resend hesabından** ve
+`ranksup.ai`'den gider. Resend kullanım politikası soğuk gönderimi ("cold outreach, purchased lists, or scraped contact
+data") yasaklıyor; geri dönme/şikâyet eşiği aşılırsa hesap **uyarısız** kapanabilir ve o zaman sistem e-postaları da durur.
+Sahip bu riski bilerek seçti. Bu yüzden kanal daha sıkı: günde 40 (`EPOSTA_RESEND_GUNLUK`), tur başına 10, **ilk spam
+şikâyetinde durur**, webhook sırrı olmadan hiç göndermez. Ücretsiz Resend planı günde 100 e-postadır ve bu sınır sistem
+e-postalarıyla **ortaktır** — kampanya kotası bunu yememeli.
+
+**Kurulum:**
+1. Resend › Webhooks › Add webhook: adres `/admin/eposta` sayfasında yazar (`https://api.ranksup.ai/api/eposta/webhooks/resend`),
+   olaylar `email.delivered`, `email.bounced`, `email.complained`, `email.suppressed`, `email.failed`. Oluşunca imza sırrını (`whsec_…`) kopyala.
+2. Kök `.env`:
+   ```
+   EPOSTA_KANAL=resend
+   EPOSTA_RESEND_WEBHOOK_SECRET=<whsec_…>
+   ```
+   İsteğe bağlı: `EPOSTA_RESEND_FROM` (varsayılan `MAILJET_FROM_EMAIL`; noreply olamaz), `EPOSTA_RESEND_FROM_NAME`,
+   `EPOSTA_RESEND_REPLY_TO`, `EPOSTA_RESEND_API_KEY` (verilmezse `RESEND_API_KEY`), `EPOSTA_RESEND_GUNLUK`, `EPOSTA_RESEND_TUR`.
+   Yanıtları (ret yanıtları dahil) otomatik okumak için Reply-To kutusunun IMAP bilgisi: `EPOSTA_IMAP_HOST`, `EPOSTA_IMAP_USER`,
+   `EPOSTA_IMAP_PASS` (yoksa "ret" yazan yanıtı satırdan elle **Ret** yap — İYS'ye 3 iş günü içinde bildirilir).
+3. `pm2 restart ecosystem.config.cjs --update-env` → `/admin/eposta` "eksik ayar" kutusu boşsa hazır. İlk tur: kendi
+   adresini bir satır olarak ekleyip "Şimdi bir tur gönder"; Resend › Emails'te görün, webhook olayı panelde satıra işlesin.
+
+**Metin:** SMTP kanalıyla aynı düz metin (imzalı ret linki + `List-Unsubscribe` tek tık); HTML yok, açılma/tıklama takibi yok.
+
