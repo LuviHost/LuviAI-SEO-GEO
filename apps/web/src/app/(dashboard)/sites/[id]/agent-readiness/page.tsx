@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { CHART_SEMANTIC } from '@/lib/chart-colors';
 import {
   Bot, RefreshCw, Check, X, ChevronDown, Copy, Wrench, Loader2,
-  ShieldCheck, ShieldAlert, AlertTriangle, ListPlus, Info,
+  ShieldCheck, ShieldAlert, AlertTriangle, Info,
 } from 'lucide-react';
 import { SectionHeader } from '@/components/ui/section-header';
 import { AutoFixPreviewDialog } from './auto-fix-preview-dialog';
@@ -144,21 +144,6 @@ export default function AgentReadinessPage() {
       toast.error(err.message);
     } finally {
       setRunning(false);
-    }
-  };
-
-  const addToPlan = async (check: any) => {
-    try {
-      await api.addActionPlanItem(site.id, {
-        title: check.name,
-        description: check.blocked ? `${check.blocked.reason} ${check.blocked.hint}` : check.howTo,
-        source: 'agent_readiness',
-        sourceRef: check.id,
-        impact: check.impact === 'info' ? 'low' : check.impact,
-      });
-      toast.success('Aksiyon planına eklendi');
-    } catch (err: any) {
-      toast.error(err.message);
     }
   };
 
@@ -439,11 +424,6 @@ export default function AgentReadinessPage() {
                                 {check.agentPrompt && (
                                   <Button size="sm" variant="outline" onClick={() => copyText(check.agentPrompt, 'Agent prompt kopyalandı')}>
                                     <Copy className="h-3.5 w-3.5 mr-1.5" /> Agent Prompt Kopyala
-                                  </Button>
-                                )}
-                                {(state === 'fail' || state === 'blocked') && (
-                                  <Button size="sm" variant="outline" onClick={() => addToPlan(check)}>
-                                    <ListPlus className="h-3.5 w-3.5 mr-1.5" /> Aksiyon Planına Ekle
                                   </Button>
                                 )}
                               </div>
