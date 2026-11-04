@@ -90,6 +90,9 @@ describe('resendMesaj', () => {
     expect(m.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
     expect(m.tags).toEqual([{ name: 'kampanya', value: 'kurumsal-2026-11' }, { name: 'hedef', value: 'cm1abc' }]);
     expect(m.text).not.toMatch(/\{\{/);
+    // imzadaki site baglantisi firmaya ozel tiklama baglantisi olur; metne baska baglanti eklenmez
+    expect(m.text).toContain('Osmangazi/Bursa · Emirhan Burgazlı · VKN 1 · Osmangazi V.D. · https://ranksup.ai/e/cm1abc');
+    expect(m.text.match(/https:\/\/ranksup\.ai\/e\//g)).toHaveLength(1);
   });
 
   it('etiket degeri yalniz izinli karakterler', () => {

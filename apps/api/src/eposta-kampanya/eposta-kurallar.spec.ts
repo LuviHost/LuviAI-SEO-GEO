@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firmaAnahtari, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani, trAyBasi, trGun, trGunBasi, turKotasi } from './eposta-kurallar.js';
+import { eskiKanalDuraklatmasi, firmaAnahtari, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani, trAyBasi, trGun, tikGecerli, trGunBasi, turKotasi } from './eposta-kurallar.js';
 
 describe('zaman', () => {
   it('TR gunu UTC+3 ile hesaplanir', () => {
@@ -71,5 +71,30 @@ describe('firmaAnahtari', () => {
   it('hukuki ekleri atip ilk iki kelimeyle eslestirir', () => {
     expect(firmaAnahtari('PUNCH BBDO REKLAMCILIK VE İLETİŞİM HİZMETLERİ TİCARET A.Ş.')).toBe('punch bbdo');
     expect(firmaAnahtari('Punch BBDO')).toBe('punch bbdo');
+  });
+});
+
+describe('tikGecerli', () => {
+  const gonderim = new Date('2026-11-05T07:00:00Z');
+  const sonra = (sn: number) => new Date(gonderim.getTime() + sn * 1000);
+  const CHROME = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+
+  it('tarayicidan, teslimden 2 dk sonra gelen tiklama sayilir', () => {
+    expect(tikGecerli(CHROME, gonderim, sonra(300))).toBe(true);
+  });
+
+  it('guvenlik tarayicisi, on izleme, tarayici olmayan istemci ve hemen gelen istek sayilmaz', () => {
+    expect(tikGecerli(CHROME, gonderim, sonra(30))).toBe(false);
+    expect(tikGecerli('Mozilla/5.0 (compatible; Microsoft SafeLinks)', gonderim, sonra(900))).toBe(false);
+    expect(tikGecerli('python-requests/2.31', gonderim, sonra(900))).toBe(false);
+    expect(tikGecerli('', gonderim, sonra(900))).toBe(false);
+    expect(tikGecerli(CHROME, null, sonra(900))).toBe(false);
+  });
+
+  it('eski kanal duraklatmasi yalniz kanal Mailjet degilken ve neden Mailjet ise', () => {
+    expect(eskiKanalDuraklatmasi('Mailjet yetki hatası (HTTP 401)', 'resend')).toBe(true);
+    expect(eskiKanalDuraklatmasi('Mailjet yetki hatası (HTTP 401)', 'mailjet')).toBe(false);
+    expect(eskiKanalDuraklatmasi('Resend reddetti (HTTP 403)', 'resend')).toBe(false);
+    expect(eskiKanalDuraklatmasi(null, 'resend')).toBe(false);
   });
 });

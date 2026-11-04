@@ -107,6 +107,18 @@ export class EpostaKampanyaController {
     res.status(ok ? 200 : 400).type('html').setHeader('Cache-Control', 'no-store').send(retSayfasi(ok ? 'tamam' : 'gecersiz'));
   }
 
+  /**
+   * Firmaya ozel baglanti tiklamasi — web /e/[id] sunucu tarafindan cagirir (tarayicinin kullanici ajaniyla).
+   * Kimlik istemez: en kotu durumda sahte bir "tikladi" yazilir; adres ya da durum disari donmez.
+   */
+  @Public()
+  @Post('tik')
+  @HttpCode(200)
+  async tik(@Body() body: { id?: string; ua?: string }) {
+    await this.svc.tikIsle(body?.id, body?.ua);
+    return { ok: true };
+  }
+
   @Post('webhook-kur')
   webhookKur(@Req() req: Request, @Body() body: { zorla?: boolean }) {
     assertAdmin(req);

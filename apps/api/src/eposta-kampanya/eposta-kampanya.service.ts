@@ -5,10 +5,10 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { parseCsv, toCsv } from '../prospect/prospect-utils.js';
 import { kimlikEnv, kimlikSorunlari, mailjetMesaj, mesajDenetimi, type Alici } from '../prospect/eposta-sablon.js';
 import {
-  ACIK_DURUMLAR, KAPALI_DURUMLAR, bizimMesaj, firmaAnahtari, mailjetJsonOku, type IceAktarSatir, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani,
+  ACIK_DURUMLAR, KAPALI_DURUMLAR, bizimMesaj, eskiKanalDuraklatmasi, firmaAnahtari, mailjetJsonOku, type IceAktarSatir, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani, tikGecerli,
   trAyBasi, trGun, trGunBasi, turKotasi,
 } from './eposta-kurallar.js';
-import { retImzaGecerli, retSirri, sogukPaket } from './soguk-gonderim.js';
+import { retImzaGecerli, retSirri, sogukPaket, tikUrl } from './soguk-gonderim.js';
 import {
   type Kanal, type SmtpAyar, bizimKimlikler, dsnAyikla, dsnMi, kaliciRet, kanal, mesajKimligi, smtpAyar, smtpMesaj, smtpSorunlari, yanitTuru,
 } from './smtp-kanal.js';
@@ -139,6 +139,18 @@ export class EpostaKampanyaService {
     this.log.warn(`E-posta kampanyasi duraklatildi: ${neden}`);
   }
 
+  /** Duraklatma nedeni; baska kanaldan kalmis kayit (eskiKanalDuraklatmasi) silinir ve yok sayilir */
+  private async duraklatma(): Promise<string | null> {
+    const d = await this.kv(KV_DURAKLAT);
+    if (!eskiKanalDuraklatmasi(d, this.kanal)) return d;
+    await this.prisma.kvStore.deleteMany({ where: { key: KV_DURAKLAT } });
+    this.log.log(`Eski kanalin duraklatmasi kaldirildi (simdiki kanal ${this.kanal}): ${d}`);
+    return null;
+  }
+
+  /** E-postalardaki firmaya ozel baglantinin koku (web /e/[id]) */
+  private get site(): string { return process.env.EPOSTA_SITE_URL?.trim() || 'https://ranksup.ai'; }
+
   async devam(): Promise<{ ok: true }> {
     await this.prisma.kvStore.deleteMany({ where: { key: KV_DURAKLAT } });
     return { ok: true };
@@ -151,7 +163,7 @@ export class EpostaKampanyaService {
     const yedi = new Date(simdi.getTime() - 7 * 86_400_000);
     const [acik, duraklatma, gruplar, bugun, ay, acilan, tiklanan, partiler, son7] = await Promise.all([
       this.isAcik(),
-      this.kv(KV_DURAKLAT),
+      this.duraklatma(),
       this.prisma.epostaHedef.groupBy({ by: ['durum'], _count: { _all: true } }),
       this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: trGunBasi(simdi) } } }),
       this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: trAyBasi(simdi) } } }),
@@ -441,7 +453,7 @@ export class EpostaKampanyaService {
   async tick(opts: { zorla?: boolean } = {}): Promise<TickSonuc> {
     const bos = (neden: string): TickSonuc => ({ gonderildi: 0, hata: 0, neden });
     if (!(await this.isAcik())) return bos('Kapalı');
-    const durak = await this.kv(KV_DURAKLAT);
+    const durak = await this.duraklatma();
     if (durak) return bos(`Duraklatıldı: ${durak}`);
     const simdi = new Date();
     if (!opts.zorla && !gonderimPenceresinde(simdi)) return bos('Gönderim penceresi dışında (hafta içi 10-17)');
@@ -604,7 +616,7 @@ export class EpostaKampanyaService {
       if (sorunlar.length) throw new Error(sorunlar.join(' · '));
       mesajlar = hedefler.map((h) => {
         const id = mesajKimligi();
-        return { h, kimlik: id, m: smtpMesaj(h, kimlik, a, sir, base, id) };
+        return { h, kimlik: id, m: smtpMesaj(h, kimlik, a, sir, base, id, tikUrl(h.id, this.site)) };
       });
     } catch (e: any) {
       await isaretiKaldir();
@@ -675,7 +687,7 @@ export class EpostaKampanyaService {
       if (!sir) throw new Error('ret linki sırrı yok');
       const sorunlar = kimlikSorunlari({ ...kimlik, fromEmail: a.from, replyTo: a.replyTo }, hedefler.map((h) => h.sektor));
       if (sorunlar.length) throw new Error(sorunlar.join(' · '));
-      mesajlar = hedefler.map((h) => resendMesaj(h, kimlik, a, sir, base, kampanya));
+      mesajlar = hedefler.map((h) => resendMesaj(h, kimlik, a, sir, base, kampanya, this.site));
     } catch (e: any) {
       await isaretiKaldir();
       const n = `Gönderici kimliği/şablon: ${e?.message ?? e}`;
@@ -777,6 +789,24 @@ export class EpostaKampanyaService {
     if (o.hata) data.hata = o.hata;
     await this.prisma.epostaHedef.update({ where: { id: h.id }, data });
     return { gecerli: true, islendi: 1 };
+  }
+
+  /**
+   * Firmaya ozel baglantiya tiklama (web /e/[id] sunucu tarafindan cagirir). Yalniz gonderilmis satira ve gercek
+   * insan tiklamasina (tikGecerli) yazilir; ilk tiklama zamani korunur. Satir yoksa sessizce gecer (adres sizmaz).
+   */
+  async tikIsle(id: unknown, ua: unknown, simdi = new Date()): Promise<{ sayildi: boolean }> {
+    if (typeof id !== 'string' || !/^[a-z0-9]{10,40}$/i.test(id)) return { sayildi: false };
+    const h = await this.prisma.epostaHedef.findUnique({ where: { id }, select: { id: true, durum: true, gonderildiAt: true, tiklandiAt: true, acildiAt: true } });
+    if (!h || !tikGecerli(typeof ua === 'string' ? ua.slice(0, 500) : '', h.gonderildiAt, simdi)) return { sayildi: false };
+    // NEDEN kapali satirda sonOlay korunur: RET/BOUNCE nedeni ("ret-baglanti" vb.) tiklamayla ezilmesin
+    const kapali = (KAPALI_DURUMLAR as readonly string[]).includes(h.durum);
+    await this.prisma.epostaHedef.update({
+      where: { id: h.id },
+      // NEDEN acildiAt da: tiklayan acmistir; duz metinde acilma baska yoldan olculmez
+      data: { ...(kapali ? {} : { sonOlay: 'click', sonOlayAt: simdi }), ...(h.tiklandiAt ? {} : { tiklandiAt: simdi }), ...(h.acildiAt ? {} : { acildiAt: simdi }) },
+    });
+    return { sayildi: true };
   }
 
   /**

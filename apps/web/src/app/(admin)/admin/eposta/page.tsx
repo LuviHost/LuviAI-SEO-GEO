@@ -18,7 +18,8 @@ import {
 
 /**
  * Kurumsal e-posta kampanyasi — izleme ve fren. Gonderim mantigi apps/api/src/eposta-kampanya/; worker 30 dk'da bir
- * tur atar (hafta ici 10-17, tur basina 40, gunluk 200 / aylik 6.000).
+ * tur atar (hafta ici 10-17; tur ve gunluk kota kanala gore, sunucudan gelir).
+ * Duz metin kanallarda (Resend, SMTP) acilma olculmez; tiklama imzadaki firmaya ozel baglantidan (/e/[id]) gelir.
  *
  * Akis: 07-kurumsal-adres ciktisi (CSV) ice aktarilir → YENI → "IYS dosyasi olustur" → dosya IYS paneline yuklenir →
  * "IYS'ye yukledim" → SIRADA → gonderilir. NEDEN IYS adimi panelde: Yonetmelik md. 6/6; sistem yuklenmemis adrese gondermez.
@@ -121,6 +122,8 @@ export default function EpostaKampanyaPage() {
   const sirada = o.sayilar.SIRADA ?? 0;
   const { gonderilen, acilan, tiklanan, son7 } = o.metrik;
   const kapanan = (o.sayilar.BOUNCE ?? 0) + (o.sayilar.RET ?? 0) + (o.sayilar.SPAM ?? 0);
+  /** Resend/SMTP duz metin gonderir: acilma pikseli yok, yalniz tiklama */
+  const duzMetin = o.kanal !== 'mailjet';
 
   return (
     <div className="space-y-6">
@@ -166,7 +169,7 @@ export default function EpostaKampanyaPage() {
       )}
       {!o.acik && !o.duraklatma && (
         <StatusBanner tone="info" title="Otomatik gönderim kapalı">
-          Açınca hafta içi 10:00–17:00 arasında 30 dakikada bir en fazla 40 e-posta gider (günde {o.kota.gunluk}, ayda {o.kota.aylik}). Yalnız İYS&apos;ye yüklendiğini onayladığınız adresler gönderilir.
+          Açınca hafta içi 10:00–17:00 arasında 30 dakikada bir tur atılır (günde en fazla {o.kota.gunluk}, ayda {o.kota.aylik} e-posta). Yalnız İYS&apos;ye yüklendiğini onayladığınız adresler gönderilir.
         </StatusBanner>
       )}
       {o.acik && !o.pencerede && !o.duraklatma && (
@@ -176,7 +179,11 @@ export default function EpostaKampanyaPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Bugün gönderilen" value={o.kota.bugun} suffix={` / ${o.kota.gunluk}`} icon={Send} hint={`Bu ay ${o.kota.ay} / ${o.kota.aylik}`} />
         <MetricCard label="Toplam gönderilen" value={gonderilen} icon={Mail} hint={`${sirada} adres sırada`} />
-        <MetricCard label="Açılma" value={yuzde(acilan, gonderilen)} icon={Eye} accent="emerald" hint={`${acilan} firma açtı · ${tiklanan} tıkladı (${yuzde(tiklanan, gonderilen)})`} />
+        {duzMetin ? (
+          <MetricCard label="Tıklama" value={yuzde(tiklanan, gonderilen)} icon={MousePointerClick} accent="emerald" hint={`${tiklanan} firma imzadaki bağlantıya tıkladı · açılma ölçülmez (düz metin)`} />
+        ) : (
+          <MetricCard label="Açılma" value={yuzde(acilan, gonderilen)} icon={Eye} accent="emerald" hint={`${acilan} firma açtı · ${tiklanan} tıkladı (${yuzde(tiklanan, gonderilen)})`} />
+        )}
         <MetricCard
           label="Geri dönen / ret / spam"
           value={kapanan}
@@ -282,11 +289,21 @@ export default function EpostaKampanyaPage() {
             ) : (
               <p className="text-xs text-muted-foreground">Olay akışı açılma, tıklama, geri dönme ve ret bilgisini anında buraya getirir; bir kez kurmak yeterli.</p>
             )}
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+            <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('bulten', async () => {
+              const r = await api.epostaPazarlamaOnayli();
+              indir('ranksup-pazarlama-onayli.csv', r.csv);
+              toast.success(`${r.adet} onaylı abone`);
+            })}>
+              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />Pazarlama onaylı aboneleri indir
+            </Button>
+            <span className="text-xs text-muted-foreground">Sitedeki ayrı pazarlama kutusunu işaretleyip çift onayı tamamlayanlar (bülten listesi). Kurumsal kampanya bu listeden ayrıdır.</span>
+          </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      {o.kanal === 'mailjet' && <Card>
         <CardContent className="space-y-3 p-4">
           <div className="flex items-center gap-2 font-medium"><Send className="h-4 w-4 text-brand" />Soğuk gönderim aracına aktar</div>
           <p className="text-sm text-muted-foreground">
@@ -326,23 +343,13 @@ export default function EpostaKampanyaPage() {
               <Download className="mr-1.5 h-3.5 w-3.5" />Dışa aktar ve işaretle ({sirada} sırada)
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-            <Button variant="outline" size="sm" disabled={!!mesgul} onClick={() => is('bulten', async () => {
-              const r = await api.epostaPazarlamaOnayli();
-              indir('ranksup-pazarlama-onayli.csv', r.csv);
-              toast.success(`${r.adet} onaylı abone`);
-            })}>
-              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />Pazarlama onaylı aboneleri indir
-            </Button>
-            <span className="text-xs text-muted-foreground">Sitedeki ayrı pazarlama kutusunu işaretleyip çift onayı tamamlayanlar; Mailjet&apos;e yalnız bu liste yüklenir.</span>
-          </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       <Card>
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
-            {(['', 'SIRADA', 'DIS_ARAC', 'GONDERILDI', 'YENI', 'IYS_DOSYADA', 'HATA', 'BOUNCE', 'RET', 'SPAM', 'HARIC'] as const).map((d) => (
+            {(['', 'SIRADA', ...(o.kanal === 'mailjet' || (o.sayilar.DIS_ARAC ?? 0) > 0 ? (['DIS_ARAC'] as const) : []), 'GONDERILDI', 'YENI', 'IYS_DOSYADA', 'HATA', 'BOUNCE', 'RET', 'SPAM', 'HARIC'] as const).map((d) => (
               <button
                 key={d || 'tum'}
                 type="button"
@@ -377,13 +384,13 @@ export default function EpostaKampanyaPage() {
                   <th className="py-2 pr-3 font-medium">Adres</th>
                   <th className="py-2 pr-3 font-medium">Durum</th>
                   <th className="py-2 pr-3 font-medium">Gönderildi</th>
-                  <th className="py-2 pr-3 font-medium">Açtı / tıkladı</th>
+                  <th className="py-2 pr-3 font-medium">{duzMetin ? 'Tıkladı' : 'Açtı / tıkladı'}</th>
                   <th className="py-2 pr-3 font-medium">LinkedIn</th>
                   <th className="py-2 font-medium" />
                 </tr>
               </thead>
               <tbody>
-                {o.liste.map((h) => <Satir key={h.id} h={h} mesgul={!!mesgul} is={is} />)}
+                {o.liste.map((h) => <Satir key={h.id} h={h} mesgul={!!mesgul} is={is} duzMetin={duzMetin} />)}
                 {o.liste.length === 0 && (
                   <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">Bu filtrede adres yok.</td></tr>
                 )}
@@ -406,7 +413,7 @@ export default function EpostaKampanyaPage() {
   );
 }
 
-function Satir({ h, mesgul, is }: { h: EpostaHedef; mesgul: boolean; is: (ad: string, f: () => Promise<void>) => Promise<void> }) {
+function Satir({ h, mesgul, is, duzMetin }: { h: EpostaHedef; mesgul: boolean; is: (ad: string, f: () => Promise<void>) => Promise<void>; duzMetin: boolean }) {
   const d = DURUM[h.durum];
   const kapali = h.durum === 'HARIC' || h.durum === 'RET' || h.durum === 'BOUNCE' || h.durum === 'SPAM';
   return (
@@ -424,8 +431,14 @@ function Satir({ h, mesgul, is }: { h: EpostaHedef; mesgul: boolean; is: (ad: st
       </td>
       <td className="py-2 pr-3 text-xs">{tarih(h.gonderildiAt)}</td>
       <td className="py-2 pr-3 text-xs">
-        <span className={cn('inline-flex items-center gap-1', h.acildiAt ? 'text-success' : 'text-muted-foreground')}><Eye className="h-3.5 w-3.5" />{h.acildiAt ? tarih(h.acildiAt) : '—'}</span>
-        {h.tiklandiAt && <span className="ml-2 inline-flex items-center gap-1 text-success"><MousePointerClick className="h-3.5 w-3.5" />{tarih(h.tiklandiAt)}</span>}
+        {duzMetin ? (
+          <span className={cn('inline-flex items-center gap-1', h.tiklandiAt ? 'text-success' : 'text-muted-foreground')}><MousePointerClick className="h-3.5 w-3.5" />{h.tiklandiAt ? tarih(h.tiklandiAt) : '—'}</span>
+        ) : (
+          <>
+            <span className={cn('inline-flex items-center gap-1', h.acildiAt ? 'text-success' : 'text-muted-foreground')}><Eye className="h-3.5 w-3.5" />{h.acildiAt ? tarih(h.acildiAt) : '—'}</span>
+            {h.tiklandiAt && <span className="ml-2 inline-flex items-center gap-1 text-success"><MousePointerClick className="h-3.5 w-3.5" />{tarih(h.tiklandiAt)}</span>}
+          </>
+        )}
       </td>
       <td className="py-2 pr-3 text-xs">{h.linkedin ? `${LINKEDIN[h.linkedin.durum] ?? h.linkedin.durum} · ${h.linkedin.kisi} kişi` : '—'}</td>
       <td className="py-2 text-right">

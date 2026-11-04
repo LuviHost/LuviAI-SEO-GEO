@@ -15,7 +15,7 @@
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { EpostaKimlik } from '../prospect/eposta-sablon.js';
-import { type SogukHedef, retUrl, sogukSablonlar, sogukSatir } from './soguk-gonderim.js';
+import { type SogukHedef, retUrl, sogukSablonlar, sogukSatir, tikBaglantisiEkle, tikUrl } from './soguk-gonderim.js';
 import { doldur } from './smtp-kanal.js';
 
 export type ResendAyar = {
@@ -76,14 +76,16 @@ export function etiketDegeri(s: string): string {
  * Ilk e-postanin Resend /emails/batch ogesi. Duz metin; List-Unsubscribe: imzali https ret linki + mailto yedek,
  * List-Unsubscribe-Post (RFC 8058) → Gmail/Yahoo tek tik ret dugmesi /api/eposta/ret'e POST eder.
  */
-export function resendMesaj(h: SogukHedef & { id: string }, k: EpostaKimlik, a: ResendAyar, sir: string, base: string, kampanya: string): ResendMesaj {
+export function resendMesaj(
+  h: SogukHedef & { id: string }, k: EpostaKimlik, a: ResendAyar, sir: string, base: string, kampanya: string, site = 'https://ranksup.ai',
+): ResendMesaj {
   const satir = sogukSatir(h, sir, base);
   const [ilk] = sogukSablonlar(h.sektor, { ...k, fromEmail: a.from, replyTo: a.replyTo });
   return {
     from: adresli(a.fromName, a.from),
     to: [satir.email],
     subject: doldur(ilk.konu, satir),
-    text: doldur(ilk.govde, satir),
+    text: tikBaglantisiEkle(doldur(ilk.govde, satir), k, tikUrl(h.id, site)),
     reply_to: a.replyTo,
     headers: {
       'List-Unsubscribe': `<${retUrl(h.email, sir, base)}>, <mailto:${a.replyTo}?subject=ret>`,

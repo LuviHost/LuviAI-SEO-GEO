@@ -31,12 +31,12 @@ function sahtePrisma(hedefler: any[]) {
       findUnique: async ({ where }: any) => kv.get(where.key) ?? null,
       create: async ({ data }: any) => { if (kv.has(data.key)) throw new Error('P2002'); kv.set(data.key, { expiresAt: null, ...data }); },
       upsert: async ({ where, create, update }: any) => { kv.set(where.key, { ...(kv.get(where.key) ?? create), ...update, key: where.key }); },
-      deleteMany: async ({ where }: any) => { const r = kv.get(where.key); if (r && eslesir(r, { ...where, key: undefined })) kv.delete(where.key); },
+      deleteMany: async ({ where }: any) => { const { key, ...kalan } = where; const r = kv.get(key); if (r && eslesir(r, kalan)) kv.delete(key); },
     },
     epostaHedef: {
       count: async ({ where }: any = {}) => hedefler.filter((h) => eslesir(h, where)).length,
       findMany: async ({ where, take }: any = {}) => hedefler.filter((h) => eslesir(h, where)).slice(0, take ?? 1e9),
-      findUnique: async ({ where }: any) => hedefler.find((h) => h.email === where.email) ?? null,
+      findUnique: async ({ where }: any) => hedefler.find((h) => (where.id ? h.id === where.id : h.email === where.email)) ?? null,
       findFirst: async ({ where }: any) => hedefler.find((h) => eslesir(h, where)) ?? null,
       updateMany: async ({ where, data }: any) => { const m = hedefler.filter((h) => eslesir(h, where)); m.forEach((h) => Object.assign(h, data)); return { count: m.length }; },
       update: async ({ where, data }: any) => { const h = hedefler.find((x) => x.id === where.id); Object.assign(h, data); return h; },
@@ -446,5 +446,46 @@ describe('Resend kanali', () => {
 
     const sistem = JSON.stringify({ type: 'email.delivered', created_at: '2026-10-27T08:00:00Z', data: { email_id: 're-otp', to: ['emir@ranksup.ai'] } });
     expect(await svc.resendOlayIsle(Buffer.from(sistem), imzala(sistem))).toEqual({ gecerli: true, islendi: 0 });
+  });
+});
+
+describe('tiklama ve eski kanal duraklatmasi', () => {
+  const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+
+  it('gonderilmis satira insan tiklamasi yazilir (ilk zaman korunur); tarayici/erken istek ve bilinmeyen id yazilmaz', async () => {
+    const gonderildi = new Date('2026-10-27T07:00:00Z');
+    const p = sahtePrisma([{ ...hedef(1, 'GONDERILDI'), id: 'cmhedef00000000001', gonderildiAt: gonderildi }, { ...hedef(2, 'RET'), id: 'cmhedef00000000002', gonderildiAt: gonderildi, sonOlay: 'ret-baglanti' }]);
+    const svc = new EpostaKampanyaService(p as any);
+    expect(await svc.tikIsle('cmhedef00000000001', CHROME, new Date(gonderildi.getTime() + 30_000))).toEqual({ sayildi: false });
+    expect(await svc.tikIsle('cmhedef00000000001', 'Mozilla/5.0 (compatible; Microsoft SafeLinks)', new Date('2026-10-27T08:00:00Z'))).toEqual({ sayildi: false });
+    expect(p.hedefler[0].tiklandiAt).toBeNull();
+    const ilk = new Date('2026-10-27T08:00:00Z');
+    expect(await svc.tikIsle('cmhedef00000000001', CHROME, ilk)).toEqual({ sayildi: true });
+    await svc.tikIsle('cmhedef00000000001', CHROME, new Date('2026-10-27T09:00:00Z'));
+    expect(p.hedefler[0]).toMatchObject({ tiklandiAt: ilk, acildiAt: ilk, sonOlay: 'click' });
+    await svc.tikIsle('cmhedef00000000002', CHROME, ilk);
+    expect(p.hedefler[1]).toMatchObject({ durum: 'RET', sonOlay: 'ret-baglanti', tiklandiAt: ilk });
+    expect(await svc.tikIsle('yok', CHROME, ilk)).toEqual({ sayildi: false });
+  });
+
+  it('Resend kanalinda eski Mailjet duraklatmasi kendiliginden kalkar, tur gonderir', async () => {
+    const env = { EPOSTA_KANAL: 'resend', RESEND_API_KEY: 're_test', EPOSTA_RESEND_WEBHOOK_SECRET: 'whsec_' + Buffer.from('x').toString('base64') };
+    const eskiE: Record<string, string | undefined> = {};
+    for (const [k, v] of Object.entries(env)) { eskiE[k] = process.env[k]; process.env[k] = v; }
+    try {
+      vi.stubGlobal('fetch', vi.fn(async (_u: string, init: any) => ({ status: 200, text: async () => JSON.stringify({ data: JSON.parse(init.body).map((_: unknown, i: number) => ({ id: `re-${i}` })) }) })));
+      const p = sahtePrisma([hedef(1)]);
+      const svc = new EpostaKampanyaService(p as any);
+      await svc.setAcik(true);
+      await svc.duraklat('Mailjet yetki hatası (HTTP 401)');
+      const r = await svc.tick();
+      expect(r).toMatchObject({ gonderildi: 1 });
+      expect(await svc['kv']('eposta-kampanya:duraklatildi')).toBeNull();
+      // Resend'in kendi duraklatmasi ise korunur
+      await svc.duraklat('Resend reddetti (HTTP 403)');
+      expect((await svc.tick()).neden).toMatch(/Duraklatıldı: Resend/);
+    } finally {
+      for (const k of Object.keys(env)) { if (eskiE[k] === undefined) delete process.env[k]; else process.env[k] = eskiE[k]; }
+    }
   });
 });

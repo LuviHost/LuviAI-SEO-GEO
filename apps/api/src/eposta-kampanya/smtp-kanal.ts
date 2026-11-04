@@ -13,7 +13,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import type { EpostaKimlik } from '../prospect/eposta-sablon.js';
-import { type SogukHedef, retUrl, sogukSablonlar, sogukSatir } from './soguk-gonderim.js';
+import { type SogukHedef, retUrl, sogukSablonlar, sogukSatir, tikBaglantisiEkle } from './soguk-gonderim.js';
 
 export type SmtpAyar = {
   host: string;
@@ -92,7 +92,7 @@ export type SmtpMesaj = {
  * List-Unsubscribe: imzali https ret linki + mailto yedek; List-Unsubscribe-Post (RFC 8058) → Gmail/Yahoo tek tik ret
  * dugmesi linke POST eder, /api/eposta/ret POST'u ret yazar.
  */
-export function smtpMesaj(h: SogukHedef, k: EpostaKimlik, a: SmtpAyar, sir: string, base: string, kimlik = mesajKimligi()): SmtpMesaj {
+export function smtpMesaj(h: SogukHedef, k: EpostaKimlik, a: SmtpAyar, sir: string, base: string, kimlik = mesajKimligi(), tik?: string): SmtpMesaj {
   const satir = sogukSatir(h, sir, base);
   const [ilk] = sogukSablonlar(h.sektor, { ...k, fromEmail: a.from, replyTo: a.from });
   const domain = a.from.split('@')[1];
@@ -100,7 +100,7 @@ export function smtpMesaj(h: SogukHedef, k: EpostaKimlik, a: SmtpAyar, sir: stri
     from: { name: a.fromName, address: a.from },
     to: satir.email,
     subject: doldur(ilk.konu, satir),
-    text: doldur(ilk.govde, satir),
+    text: tik ? tikBaglantisiEkle(doldur(ilk.govde, satir), k, tik) : doldur(ilk.govde, satir),
     messageId: `<${kimlik}@${domain}>`,
     headers: {
       'List-Unsubscribe': `<${retUrl(h.email, sir, base)}>, <mailto:${a.from}?subject=ret>`,

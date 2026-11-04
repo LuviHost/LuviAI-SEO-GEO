@@ -69,6 +69,30 @@ export function frenNedeni(f: FrenGirdi, o: { ilkSikayetteDur?: boolean } = {}):
   return null;
 }
 
+/** Gonderimden sonra bu sureden once gelen tiklama guvenlik tarayicisidir (Safe Links, Mimecast vb. gelen maili hemen acar) */
+export const TIK_TARAYICI_SURE_MS = 2 * 60 * 1000;
+
+/**
+ * Tiklama gercek bir insandan mi? NEDEN: kurumsal posta guvenlik tarayicilari maildeki her baglantiyi kendiliginden
+ * acar; saymasak "tikladi" sutunu herkesi tiklamis gosterir. Tarayici olmayan istemci (Mozilla yok), bilinen tarayici/
+ * on izleme adi ya da teslimden hemen sonraki istek sayilmaz. Kesin degil: insan tiklamasini kacirmak, sahte
+ * tiklama yazmaktan iyidir.
+ */
+export function tikGecerli(ua: string | null | undefined, gonderildiAt: Date | null | undefined, simdi = new Date()): boolean {
+  const u = String(ua ?? '');
+  if (!gonderildiAt || !/Mozilla\//.test(u)) return false;
+  if (/bot|crawl|spider|preview|scan|safelinks|proofpoint|mimecast|barracuda|forcepoint|python|curl|wget|headless|phantom|outlook-ios-linkpreview|googleimageproxy/i.test(u)) return false;
+  return simdi.getTime() - gonderildiAt.getTime() >= TIK_TARAYICI_SURE_MS;
+}
+
+/**
+ * Duraklatma kaydi baska bir kanaldan mi kaldi? NEDEN: kanal Mailjet'ten degisince eski "Mailjet yetki hatasi"
+ * duraklatmasi yeni kanali da durduruyor ve panelde yaniltici bir Mailjet hatasi gosteriyordu (04.11).
+ */
+export function eskiKanalDuraklatmasi(neden: string | null, kanal: string): boolean {
+  return !!neden && kanal !== 'mailjet' && /^Mailjet/i.test(neden);
+}
+
 /** Mailjet olay → hedef guncellemesi (durum degisikligi + zaman alanlari) */
 export type OlayGuncelleme = {
   durum?: 'BOUNCE' | 'RET' | 'SPAM' | 'HATA';
