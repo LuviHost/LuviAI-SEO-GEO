@@ -19,8 +19,17 @@ import {
   paymentMessage,
   paymentOutcome,
   paymentTestMode,
+  type PaymentInvoice,
   type PaymentOutcome,
 } from '@/lib/payment-status';
+import {
+  CONSENT_CHANGE_EVENT,
+  CONSENT_STORAGE_KEY,
+  browserConsentStorage,
+  readConsent,
+  type TagWindow,
+} from '@/lib/consent';
+import { sendPurchaseEvent } from '@/lib/purchase-event';
 
 const STORAGE_KEY = 'luviai-onboarding-v2';
 
@@ -49,6 +58,8 @@ export default function SuccessPage() {
   // null: ilk okuma bekleniyor
   const [outcome, setOutcome] = useState<PaymentOutcome | null>(null);
   const [testMode, setTestMode] = useState(false);
+  // Onaylanmis odeme: GA4 purchase olayi icin (lib/purchase-event.ts)
+  const [paid, setPaid] = useState<{ invoice: PaymentInvoice; planName: string; testMode: boolean } | null>(null);
   // "Tekrar kontrol et" yeni bir bekleme turu baslatir
   const [round, setRound] = useState(0);
 
@@ -126,6 +137,9 @@ export default function SuccessPage() {
       }
       // Sonuc kesinlesti: bu siparis numarasi bir dahaki ziyarette yeniden aranmasin
       const settled = next.kind === 'failed' || (next.kind === 'active' && next.paymentConfirmed);
+      if (next.kind === 'active' && next.paymentConfirmed && invoice) {
+        setPaid({ invoice, planName: next.planName, testMode: paymentTestMode(current) });
+      }
       if (settled && invoice) {
         try {
           if (localStorage.getItem(PENDING_MERCHANT_OID_KEY) === invoice.merchantOid) {
@@ -140,6 +154,42 @@ export default function SuccessPage() {
       if (timer) clearTimeout(timer);
     };
   }, [authStatus, userId, round]);
+
+  // GA4 purchase: onay sayfadayken sonradan verilirse de bir kez (SignupEvent ile ayni desen:
+  // bant once CONSENT_CHANGE_EVENT yayar, sonra GTM'i yukler → deneme bir sonraki tura)
+  useEffect(() => {
+    if (!paid) return;
+    let done = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      if (done) return;
+      done = sendPurchaseEvent(
+        {
+          consent: readConsent(browserConsentStorage, Date.now()),
+          dataLayer: (window as unknown as TagWindow).dataLayer,
+          testMode: paid.testMode,
+          storage: () => window.localStorage,
+        },
+        paid.invoice,
+        paid.planName,
+      );
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(attempt, 0);
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key === CONSENT_STORAGE_KEY) schedule();
+    };
+    schedule();
+    window.addEventListener(CONSENT_CHANGE_EVENT, schedule);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener(CONSENT_CHANGE_EVENT, schedule);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [paid]);
 
   const active = outcome?.kind === 'active';
 

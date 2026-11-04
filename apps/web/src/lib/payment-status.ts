@@ -89,6 +89,10 @@ export interface PaymentInvoice {
   /** PENDING | PAID | FAILED | REFUNDED */
   status: string;
   createdAt: number;
+  /** Fatura tutari (Prisma Decimal JSON'da metin gelir); okunamazsa yok — GA4 purchase degeri */
+  amount?: number;
+  /** ISO 4217 (varsayilan TRY) */
+  currency?: string;
 }
 
 /**
@@ -107,7 +111,12 @@ export function findPaymentInvoice(raw: unknown, candidates: ReadonlyArray<strin
     const i = item as Record<string, unknown>;
     if (typeof i.paytrTransactionId !== 'string' || !wanted.has(i.paytrTransactionId) || typeof i.status !== 'string') continue;
     const created = typeof i.createdAt === 'string' ? Date.parse(i.createdAt) : Number.NaN;
-    const found = { merchantOid: i.paytrTransactionId, status: i.status, createdAt: Number.isFinite(created) ? created : 0 };
+    const amount = typeof i.amount === 'string' || typeof i.amount === 'number' ? Number(i.amount) : Number.NaN;
+    const found: PaymentInvoice = {
+      merchantOid: i.paytrTransactionId, status: i.status, createdAt: Number.isFinite(created) ? created : 0,
+      ...(Number.isFinite(amount) && amount > 0 ? { amount } : {}),
+      ...(typeof i.currency === 'string' && /^[A-Z]{3}$/.test(i.currency) ? { currency: i.currency } : {}),
+    };
     if (!best || found.createdAt > best.createdAt) best = found;
   }
   return best;

@@ -30,6 +30,7 @@ import {
   Network,
   Plug,
   Radar,
+  ScanSearch,
   Send,
   Settings,
   ShieldCheck,
@@ -89,6 +90,7 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   { route: 'images', label: 'Görsel Alt Metinleri', icon: ImageIcon, group: 'health', hint: 'Eksik alt metne görerek öneri + onay', keywords: ['alt', 'görsel', 'resim', 'image', 'erişilebilirlik', 'google görseller'] },
   { route: 'stuckPages', label: 'Takılı Sayfalar', icon: Wrench, group: 'health', feature: 'stuckPages', hint: 'İlk sayfada olup ilk 3’e giremeyenler', keywords: ['stuck', 'takılı', 'sayfa', 'pozisyon', 'kurtar'] },
   { route: 'competitors', label: 'Rakipler', icon: Network, group: 'health', hint: 'Rakip karşılaştırması', keywords: ['competitor', 'rakip'] },
+  { route: 'olcum', label: 'Ölçüm Altyapısı', icon: ScanSearch, group: 'health', hint: 'Analitik, reklam pikselleri ve dönüşümler — siz ve rakipler', keywords: ['ölçüm', 'analitik', 'piksel', 'pixel', 'gtm', 'ga4', 'dönüşüm', 'reklam', 'meta', 'google ads', 'rakip'] },
 
   // ── AI gorunurluk ──
   { route: 'visibility', label: 'AI Görünürlük', icon: Sparkles, group: 'ai', hint: 'AI asistanlarda atıf takibi', keywords: ['ai', 'citation', 'atıf', 'görünürlük', 'chatgpt', 'gemini'] },
