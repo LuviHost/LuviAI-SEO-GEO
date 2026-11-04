@@ -68,6 +68,21 @@ export function imzaSatiri(k: EpostaKimlik): string {
 
 export type SogukSablon = { ad: string; konu: string; govde: string };
 
+/** Firmaya ozel tiklama baglantisi: ranksup.ai/e/<hedef id> (web /e/[id] kaydeder, siteye yonlendirir) */
+export function tikUrl(id: string, site: string): string {
+  return `${site.replace(/\/+$/, '')}/e/${encodeURIComponent(id)}`;
+}
+
+/**
+ * Imza satirindaki "· ranksup.ai" → firmaya ozel tiklama baglantisi. NEDEN imza: metindeki tek site baglantisi
+ * orasi; metne yeni bir cagri eklenmez (09.09 ton karari). Satir bulunamazsa (sablon degisti) metin aynen doner —
+ * takipsiz gider, bozuk metin gitmez.
+ */
+export function tikBaglantisiEkle(govde: string, k: EpostaKimlik, url: string): string {
+  const eski = `${imzaSatiri(k)} · ranksup.ai`;
+  return govde.includes(eski) ? govde.replace(eski, `${imzaSatiri(k)} · ${url}`) : govde;
+}
+
 /**
  * Sektor govdesi + 2 takip, arac sozdizimiyle. Takip bloklarinda md. 5/1 kimlik satiri yok (kisa imza) → sona eklenir.
  * Hata firlatir: hitap kurulamazsa, ret linki ya da imza eksikse (eksik metin disa aktarilmaz).
