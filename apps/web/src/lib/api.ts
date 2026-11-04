@@ -10,6 +10,7 @@ import type { ArticleVideo, VideoBrandPreview, VideoQuota, VideoRequestBody } fr
 import type { MusteriRaporu, PaylasilanRapor, PaylasimOzeti } from './musteri-raporu';
 import type { CitedSourcesResponse, SourceType } from './cited-sources';
 import type { AiTrafficResponse } from './ai-traffic';
+import type { OlcumSonucu } from './olcum';
 import type { GeoScoreCardData } from './geo-score-card';
 import { readApiErrorCode, trialErrorAction, TRIAL_ERROR_EVENT } from './trial-errors';
 
@@ -2332,6 +2333,16 @@ export const api = {
         campaign: { name: string; asaCampaignId: string };
       }>;
     }>(`/sites/${siteId}/aso/asa/performance?daysBack=${daysBack}`),
+
+  // ──────────────────────────────────────────────────────────
+  //  OLCUM ALTYAPISI (site + rakipler: analitik, reklam pikselleri, donusumler)
+  // ──────────────────────────────────────────────────────────
+  /** Son tarama; hic taranmadiysa null */
+  getOlcum: (siteId: string) => request<OlcumSonucu | null>(`/sites/${siteId}/olcum`),
+
+  /** Arka planda baslatir; zaten suruyorsa ya da 10 dk icinde taranmissa baslatildi:false + mevcut sonuc */
+  runOlcum: (siteId: string) =>
+    request<{ baslatildi: boolean; sonuc: OlcumSonucu | null }>(`/sites/${siteId}/olcum/tara`, { method: 'POST' }),
 
   // ──────────────────────────────────────────────────────────
   //  AGENT READINESS (AXO)

@@ -44,6 +44,7 @@ import { ClientReportModule } from './client-report/client-report.module.js';
 import { VideosModule } from './videos/videos.module.js';
 import { EpostaKampanyaModule } from './eposta-kampanya/eposta-kampanya.module.js';
 import { GbpModule } from './gbp/gbp.module.js';
+import { OlcumModule } from './olcum/olcum.module.js';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { GbpModule } from './gbp/gbp.module.js';
     VideosModule,
     EpostaKampanyaModule,
     GbpModule,
+    OlcumModule,
   ],
   // Guard SIRASI onemli — kayit sirasinda calisirlar.
   //

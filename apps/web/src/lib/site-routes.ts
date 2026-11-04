@@ -19,6 +19,7 @@ export const SITE_ROUTES = {
   agentReadiness: '/agent-readiness',
   productRadar: '/product-radar',
   competitors: '/competitors',
+  olcum: '/olcum',
   snippet: '/snippet',
   images: '/images',
   stuckPages: '/stuck-pages',
