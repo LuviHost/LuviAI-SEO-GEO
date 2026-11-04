@@ -26,7 +26,14 @@ export type OlcumHedef = {
   bulgular?: OlcumBulgusu[];
   taranan?: { script: number; gtm: number; kesildi: boolean };
 };
-export type OlcumSonucu = { durum: 'calisiyor' | 'tamam'; baslangic: string; bitis?: string; hedefler: OlcumHedef[] };
+export type OlcumSonucu = {
+  durum: 'calisiyor' | 'tamam';
+  baslangic: string;
+  bitis?: string;
+  hedefler: OlcumHedef[];
+  /** Rakipler sayfasinda 10'dan fazla rakip varsa taranmayanlar */
+  atlananRakipler?: string[];
+};
 
 /** Olay platformlarinin panel adi (datalayer: GTM'e itilen ozel olay) */
 export const PLATFORM_KISA: Record<string, string> = {

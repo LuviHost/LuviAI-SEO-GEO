@@ -13,7 +13,7 @@ import {
 
 /**
  * Olcum altyapisi taramasi — I/O katmani (tespit saf olcum-tespit.ts).
- * Musterinin sitesi + Brain.competitors'taki rakipler (en fazla RAKIP_SINIRI) icin:
+ * Musterinin sitesi + Rakipler sayfasindaki liste (Brain.competitors, sirayla en fazla RAKIP_SINIRI) icin:
  * ana sayfa → ayni kokenli JS paketleri → sayfada/pakette gecen GTM kapsayicilari (gtm.js).
  *
  * NEDEN arka planda: site basina onlarca istek; Cloudflare 100 sn'de istegi keser (499).
@@ -23,7 +23,11 @@ import {
  * NEDEN tablo degil KV: gecmis gerekmiyor, son sonuc yeter; sema/migration degismez.
  */
 
-export const RAKIP_SINIRI = 5;
+/**
+ * NEDEN 10: 5 iken elle eklenen rakipler (listenin sonuna eklenir) taranmiyordu — en yakin rakipler
+ * disarida kaliyordu (05.11). Fazlasi atlanir ve panelde adlariyla yazilir.
+ */
+export const RAKIP_SINIRI = 10;
 const SCRIPT_SINIRI = 25;
 const GTM_SINIRI = 3;
 const SAYFA_BAYT = 2 * 1024 * 1024;
@@ -31,7 +35,7 @@ const SCRIPT_BAYT = 2 * 1024 * 1024;
 const GTM_BAYT = 3 * 1024 * 1024;
 const SITE_BAYT_BUTCESI = 12 * 1024 * 1024;
 /** Tum tarama icin ust sure: asilirsa kalan siteler "olculemedi (sure doldu)" olur */
-const TARAMA_SURESI_MS = 4 * 60_000;
+const TARAMA_SURESI_MS = 8 * 60_000;
 /** Ayni site icin yeniden tarama araligi (dis sitelere gereksiz yuk olmasin) */
 export const YENIDEN_TARAMA_MS = 10 * 60_000;
 const SONUC_TTL_MS = 90 * 24 * 60 * 60_000;
@@ -57,6 +61,8 @@ export type OlcumSonucu = {
   baslangic: string;
   bitis?: string;
   hedefler: HedefSonucu[];
+  /** RAKIP_SINIRI'ni asan rakipler (taranmadi) */
+  atlananRakipler?: string[];
 };
 
 type Hedef = { ad: string; url: string; rakip: boolean };
@@ -65,6 +71,11 @@ const anahtar = (siteId: string) => `olcum:v1:${siteId}`;
 
 /** Brain.competitors → taranabilir rakip adresleri (IP/port/ic ag kurali site adresiyle ayni) */
 export function rakipHedefleri(raw: unknown, siteUrl: string, sinir = RAKIP_SINIRI): Hedef[] {
+  return rakipListesi(raw, siteUrl).slice(0, sinir);
+}
+
+/** Tekilsiz, gecerli tum rakipler (sirasi Rakipler sayfasindaki gibi) */
+export function rakipListesi(raw: unknown, siteUrl: string): Hedef[] {
   if (!Array.isArray(raw)) return [];
   const kendi = hostOf(siteUrl);
   const gorulen = new Set<string>(kendi ? [kendi] : []);
@@ -83,7 +94,6 @@ export function rakipHedefleri(raw: unknown, siteUrl: string, sinir = RAKIP_SINI
     if (gorulen.has(host)) continue;
     gorulen.add(host);
     out.push({ ad: typeof r.name === 'string' && r.name.trim() ? r.name.trim().slice(0, 80) : host, url: `${u.protocol}//${u.host}/`, rakip: true });
-    if (out.length >= sinir) break;
   }
   return out;
 }
@@ -133,11 +143,16 @@ export class OlcumService {
     if (this.suren.has(siteId) || (mevcut?.durum === 'calisiyor')) return { baslatildi: false, sonuc: mevcut };
     if (mevcut?.bitis && Date.now() - Date.parse(mevcut.bitis) < YENIDEN_TARAMA_MS) return { baslatildi: false, sonuc: mevcut };
 
+    const rakipler = rakipListesi(site.brain?.competitors, site.url);
     const hedefler: Hedef[] = [
       { ad: site.name || hostOf(site.url) || site.url, url: site.url, rakip: false },
-      ...rakipHedefleri(site.brain?.competitors, site.url),
+      ...rakipler.slice(0, RAKIP_SINIRI),
     ];
-    const baslangic: OlcumSonucu = { durum: 'calisiyor', baslangic: new Date().toISOString(), hedefler: [] };
+    const atlanan = rakipler.slice(RAKIP_SINIRI).map((r) => r.ad);
+    const baslangic: OlcumSonucu = {
+      durum: 'calisiyor', baslangic: new Date().toISOString(), hedefler: [],
+      ...(atlanan.length ? { atlananRakipler: atlanan } : {}),
+    };
     this.suren.add(siteId);
     await this.yaz(siteId, baslangic);
     void this.calistir(siteId, hedefler, baslangic)

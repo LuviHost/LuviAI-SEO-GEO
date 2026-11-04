@@ -192,6 +192,14 @@ export default function OlcumPage() {
           </StatusBanner>
         )}
 
+        {data?.atlananRakipler?.length ? (
+          <StatusBanner tone="info" title={`İlk 10 rakip tarandı, ${data.atlananRakipler.length} rakip taranmadı`}>
+            Taranmayanlar: {data.atlananRakipler.join(', ')}. Sıra{' '}
+            <Link href={siteHref(site.id, 'competitors')} className="text-brand underline underline-offset-2">Rakipler</Link>{' '}
+            sayfasındaki sıradır; ilgisiz olanları oradan kaldırabilirsiniz.
+          </StatusBanner>
+        ) : null}
+
         {!calisiyor && data && rakipSayisi === 0 && (
           <StatusBanner tone="info" title="Rakip karşılaştırması için rakip ekleyin">
             Rakip listeniz boş ya da adres içermiyor.{' '}
