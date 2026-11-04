@@ -131,6 +131,25 @@ export class EpostaKampanyaController {
    * Kimlik: ?t=<belirtec> (webhookKur kurar).
    * Mailjet 200 almazsa yeniden dener; gecersiz belirtecte 200 + islenmedi doner ki yanlis istek tekrar tekrar gelmesin.
    */
+  /**
+   * Resend webhook (EPOSTA_KANAL=resend): delivered/bounced/complained/suppressed/failed. Kimlik: Svix imzasi
+   * (EPOSTA_RESEND_WEBHOOK_SECRET), HAM govde uzerinden. Gecersiz imzada 401 — Resend yeniden dener ve panelinde
+   * basarisiz teslim gorunur (sir yanlis yazildiysa fark edilsin). Ayni hesabin sistem e-postalarinin olaylari da
+   * gelir; tabloda eslesmeyen olay yok sayilir.
+   */
+  @SkipThrottle()
+  @Public()
+  @Post('webhooks/resend')
+  @HttpCode(200)
+  async resendWebhook(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const h = (ad: string) => { const v = req.headers[ad]; return Array.isArray(v) ? v[0] : v; };
+    const r = await this.svc.resendOlayIsle((req as Request & { rawBody?: Buffer }).rawBody, {
+      id: h('svix-id'), timestamp: h('svix-timestamp'), signature: h('svix-signature'),
+    });
+    if (!r.gecerli) res.status(401);
+    return { ok: r.gecerli, islendi: r.islendi };
+  }
+
   @SkipThrottle()
   @Public()
   @Post('webhooks/mailjet')

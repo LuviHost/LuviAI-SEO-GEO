@@ -29,9 +29,12 @@ export type SmtpAyar = {
   imapPort: number;
 };
 
-/** EPOSTA_KANAL=smtp ise SMTP; aksi halde Mailjet (eski davranis) */
-export function kanal(env: Record<string, string | undefined> = process.env): 'smtp' | 'mailjet' {
-  return env.EPOSTA_KANAL?.trim().toLowerCase() === 'smtp' ? 'smtp' : 'mailjet';
+export type Kanal = 'smtp' | 'resend' | 'mailjet';
+
+/** EPOSTA_KANAL=smtp → SMTP, =resend → Resend (resend-kanal.ts); aksi halde Mailjet (eski davranis) */
+export function kanal(env: Record<string, string | undefined> = process.env): Kanal {
+  const k = env.EPOSTA_KANAL?.trim().toLowerCase();
+  return k === 'smtp' || k === 'resend' ? k : 'mailjet';
 }
 
 export function smtpAyar(env: Record<string, string | undefined> = process.env): SmtpAyar {

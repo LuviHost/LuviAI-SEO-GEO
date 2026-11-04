@@ -345,3 +345,106 @@ describe('SMTP kanali', () => {
     }
   });
 });
+
+describe('Resend kanali', () => {
+  const SIR = 'whsec_' + Buffer.from('gizli-anahtar').toString('base64');
+  const RESEND_ENV = { EPOSTA_KANAL: 'resend', RESEND_API_KEY: 're_test', EPOSTA_RESEND_WEBHOOK_SECRET: SIR };
+  const eskiR: Record<string, string | undefined> = {};
+  beforeEach(() => { for (const [k, v] of Object.entries(RESEND_ENV)) { eskiR[k] = process.env[k]; process.env[k] = v; } });
+  afterEach(() => { for (const k of Object.keys(RESEND_ENV)) { if (eskiR[k] === undefined) delete process.env[k]; else process.env[k] = eskiR[k]; } });
+
+  const cevap = (status: number, govde: unknown) => ({ status, text: async () => JSON.stringify(govde) });
+
+  it('tek batch istegi, Idempotency-Key, Resend kimligi saklanir; tur basina 10, Mailjet cagrilmaz', async () => {
+    const fetchMock = vi.fn(async (_u: string, init: any) => cevap(200, { data: JSON.parse(init.body).map((_: unknown, i: number) => ({ id: `re-${i}` })) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const p = sahtePrisma(Array.from({ length: 12 }, (_, i) => hedef(i + 1)));
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    const r = await svc.tick();
+    expect(r).toMatchObject({ gonderildi: 10, hata: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://api.resend.com/emails/batch');
+    expect(init.headers.authorization).toBe('Bearer re_test');
+    expect(init.headers['idempotency-key']).toMatch(/^gonderiliyor:/);
+    const govde = JSON.parse(init.body);
+    expect(govde).toHaveLength(10);
+    expect(govde[0]).toMatchObject({ to: ['info@firma1.com.tr'], reply_to: 'emir@ranksup.ai' });
+    expect(govde[0].from).toContain('<emir@ranksup.ai>');
+    expect(p.hedefler[0]).toMatchObject({ durum: 'GONDERILDI', messageId: 're-0' });
+    expect(p.hedefler[11]).toMatchObject({ durum: 'SIRADA', sonOlay: null });
+  });
+
+  it('yetki/dogrulama hatasi: hicbiri gitmedi → isaret kalkar, duraklar; 429 duraklatmaz', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => cevap(403, { name: 'validation_error', message: 'The ranksup.ai domain is not verified' })));
+    const p = sahtePrisma([hedef(1)]);
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    expect((await svc.tick()).neden).toMatch(/Resend reddetti \(HTTP 403\): The ranksup\.ai domain is not verified/);
+    expect(p.hedefler[0]).toMatchObject({ durum: 'SIRADA', sonOlay: null });
+    expect((await svc.tick()).neden).toMatch(/Duraklatıldı/);
+
+    vi.stubGlobal('fetch', vi.fn(async () => cevap(429, { name: 'daily_quota_exceeded', message: 'quota' })));
+    const p2 = sahtePrisma([hedef(1)]);
+    const svc2 = new EpostaKampanyaService(p2 as any);
+    await svc2.setAcik(true);
+    expect((await svc2.tick()).neden).toMatch(/429/);
+    expect(await svc2['kv']('eposta-kampanya:duraklatildi')).toBeNull();
+    expect(p2.hedefler[0]).toMatchObject({ durum: 'SIRADA', sonOlay: null });
+  });
+
+  it('ag hatasi: gitmis olabilir → isaret kalir (tekrar gonderilmez), duraklar', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('socket hang up'); }));
+    const p = sahtePrisma([hedef(1)]);
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    expect((await svc.tick()).neden).toMatch(/belirsiz/);
+    expect(p.hedefler[0].sonOlay).toMatch(/^gonderiliyor:/);
+  });
+
+  it('webhook sirri yoksa gondermez (geri donmeler gorulmeden fren kor kalir)', async () => {
+    delete process.env.EPOSTA_RESEND_WEBHOOK_SECRET;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const svc = new EpostaKampanyaService(sahtePrisma([hedef(1)]) as any);
+    await svc.setAcik(true);
+    expect((await svc.tick()).neden).toMatch(/WEBHOOK_SECRET/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('ilk spam sikayetinde durur (Resend esigi %0,08)', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const yeni = new Date('2026-10-26T08:00:00Z');
+    const p = sahtePrisma([{ ...hedef(1, 'SPAM'), gonderildiAt: yeni }, hedef(2)]);
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    expect((await svc.tick()).neden).toMatch(/spam şikâyeti/);
+    expect(p.hedefler[1].durum).toBe('SIRADA');
+  });
+
+  it('webhook: imza dogrulanir; geri donme BOUNCE, teslim belirsizi GONDERILDI yapar, sistem e-postasi yok sayilir', async () => {
+    const { createHmac } = await import('node:crypto');
+    const imzala = (govde: string, id = 'msg1') => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      return { id, timestamp: ts, signature: `v1,${createHmac('sha256', Buffer.from('gizli-anahtar')).update(`${id}.${ts}.${govde}`).digest('base64')}` };
+    };
+    const p = sahtePrisma([
+      { ...hedef(1, 'GONDERILDI'), messageId: 're-1', gonderildiAt: new Date() },
+      { ...hedef(2, 'HATA'), messageId: 're-2', gonderildiAt: new Date(), hata: 'Belirsiz' },
+    ]);
+    const svc = new EpostaKampanyaService(p as any);
+    const bounce = JSON.stringify({ type: 'email.bounced', created_at: '2026-10-27T08:00:00Z', data: { email_id: 're-1', to: ['info@firma1.com.tr'], bounce: { type: 'Permanent', message: '550' } } });
+    expect(await svc.resendOlayIsle(Buffer.from(bounce), { ...imzala(bounce), signature: 'v1,yanlis' })).toEqual({ gecerli: false, islendi: 0 });
+    expect(p.hedefler[0].durum).toBe('GONDERILDI');
+    expect(await svc.resendOlayIsle(Buffer.from(bounce), imzala(bounce))).toEqual({ gecerli: true, islendi: 1 });
+    expect(p.hedefler[0]).toMatchObject({ durum: 'BOUNCE', sonOlay: 'bounce' });
+
+    const teslim = JSON.stringify({ type: 'email.delivered', created_at: '2026-10-27T08:00:00Z', data: { email_id: 're-2', to: ['info@firma2.com.tr'] } });
+    await svc.resendOlayIsle(Buffer.from(teslim), imzala(teslim));
+    expect(p.hedefler[1]).toMatchObject({ durum: 'GONDERILDI', hata: null });
+
+    const sistem = JSON.stringify({ type: 'email.delivered', created_at: '2026-10-27T08:00:00Z', data: { email_id: 're-otp', to: ['emir@ranksup.ai'] } });
+    expect(await svc.resendOlayIsle(Buffer.from(sistem), imzala(sistem))).toEqual({ gecerli: true, islendi: 0 });
+  });
+});

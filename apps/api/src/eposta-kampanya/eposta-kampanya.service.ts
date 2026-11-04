@@ -10,8 +10,9 @@ import {
 } from './eposta-kurallar.js';
 import { retImzaGecerli, retSirri, sogukPaket } from './soguk-gonderim.js';
 import {
-  type SmtpAyar, bizimKimlikler, dsnAyikla, dsnMi, kaliciRet, kanal, mesajKimligi, smtpAyar, smtpMesaj, smtpSorunlari, yanitTuru,
+  type Kanal, type SmtpAyar, bizimKimlikler, dsnAyikla, dsnMi, kaliciRet, kanal, mesajKimligi, smtpAyar, smtpMesaj, smtpSorunlari, yanitTuru,
 } from './smtp-kanal.js';
+import { type ResendMesaj, resendAyar, resendMesaj, resendOlayEsle, resendSorunlari, svixDogrula } from './resend-kanal.js';
 import nodemailer from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 
@@ -29,6 +30,7 @@ const GONDERILIYOR = 'gonderiliyor';
 /** sonOlay sutun genisligi (schema.prisma VarChar(64)) — isaret buna sigmali, yoksa MySQL strict modda guncelleme duser */
 export const SON_OLAY_MAX = 64;
 const MAILJET = 'https://api.mailjet.com';
+const RESEND = 'https://api.resend.com';
 /** Saatlik/yarim saatlik tur basina en fazla — gunluk kota gune yayilsin, tek seferde 200 gitmesin */
 const TUR_BASI = 40;
 const KILIT_SURE_MS = 10 * 60 * 1000;
@@ -65,13 +67,29 @@ export class EpostaKampanyaService {
     nodemailer.createTransport({ host: a.host, port: a.port, secure: a.secure, auth: { user: a.user, pass: a.pass } }) as unknown as SmtpGonderici;
   gelenOku: GelenOkuyucu = imapOku;
 
-  private get kanal(): 'smtp' | 'mailjet' { return kanal(); }
-  /** NEDEN SMTP'de dusuk: yeni alan adi + paylasimli sunucu IP'si; hacim yavas artmali (isinma) */
+  private get kanal(): Kanal { return kanal(); }
+  /**
+   * NEDEN SMTP'de dusuk: yeni alan adi + paylasimli sunucu IP'si; hacim yavas artmali (isinma).
+   * NEDEN Resend'de dusuk: ayni hesap sistem e-postalarini da tasiyor (ucretsiz plan gunde 100, ortak) ve hesap
+   * soguk gonderim yuzunden kapanirsa admin girisi/musteri postalari durur.
+   */
   private get gunlukKota(): number {
     if (this.kanal === 'smtp') return Number(process.env.EPOSTA_SMTP_GUNLUK) || 30;
+    if (this.kanal === 'resend') return Number(process.env.EPOSTA_RESEND_GUNLUK) || 40;
     return Number(process.env.EPOSTA_GUNLUK_KOTA) || 200;
   }
-  private get turBasi(): number { return this.kanal === 'smtp' ? Number(process.env.EPOSTA_SMTP_TUR) || 10 : TUR_BASI; }
+  private get turBasi(): number {
+    if (this.kanal === 'smtp') return Number(process.env.EPOSTA_SMTP_TUR) || 10;
+    if (this.kanal === 'resend') return Number(process.env.EPOSTA_RESEND_TUR) || 10;
+    return TUR_BASI;
+  }
+  /** Resend kanalinda yanitlarin okunacagi kutu (Reply-To) — verilmezse gelen kutusu okunmaz, yanitlar elle izlenir */
+  private get resendImap(): SmtpAyar | null {
+    const e = process.env;
+    const user = e.EPOSTA_IMAP_USER?.trim(), pass = e.EPOSTA_IMAP_PASS, host = e.EPOSTA_IMAP_HOST?.trim();
+    if (!user || !pass || !host) return null;
+    return { ...smtpAyar(), user, pass, imapHost: host, imapPort: Number(e.EPOSTA_IMAP_PORT) || 993 };
+  }
   /** SMTP'de iki mesaj arasi bekleme (ms) — saniyede onlarca mail ayni IP'den spam gibi gorunur */
   private get smtpAralik(): number { const v = Number(process.env.EPOSTA_SMTP_ARALIK_MS); return Number.isFinite(v) && v >= 0 && process.env.EPOSTA_SMTP_ARALIK_MS !== undefined ? v : 20_000; }
 
@@ -82,6 +100,12 @@ export class EpostaKampanyaService {
       const s = smtpSorunlari(a);
       if (!retSirri()) s.push('Ret linki için EPOSTA_RET_SECRET (ya da NEXTAUTH_SECRET) yok');
       return [...s, ...kimlikSorunlari({ ...kimlikEnv(), fromEmail: a.from, replyTo: a.from }, sektorler).filter((x) => !x.startsWith('MAILJET_FROM_EMAIL'))];
+    }
+    if (this.kanal === 'resend') {
+      const a = resendAyar();
+      const s = resendSorunlari(a);
+      if (!retSirri()) s.push('Ret linki için EPOSTA_RET_SECRET (ya da NEXTAUTH_SECRET) yok');
+      return [...s, ...kimlikSorunlari({ ...kimlikEnv(), fromEmail: a.from, replyTo: a.replyTo }, sektorler).filter((x) => !x.startsWith('MAILJET_FROM_EMAIL'))];
     }
     return this.mailjetHazir ? kimlikSorunlari(kimlikEnv(), sektorler) : ['MAILJET_API_KEY / MAILJET_SECRET sunucu .env dosyasında yok'];
   }
@@ -161,7 +185,10 @@ export class EpostaKampanyaService {
     const sorunlar = this.hazirlikSorunlari();
     return {
       kanal: this.kanal,
-      gonderen: this.kanal === 'smtp' ? smtpAyar().from || null : process.env.MAILJET_FROM_EMAIL || null,
+      gonderen: this.kanal === 'smtp' ? smtpAyar().from || null : this.kanal === 'resend' ? resendAyar().from || null : process.env.MAILJET_FROM_EMAIL || null,
+      gelenKutusu: this.kanal === 'smtp' || (this.kanal === 'resend' && !!this.resendImap),
+      // Resend panelinde webhook olustururken girilecek adres (olaylar: delivered, bounced, complained, suppressed, failed)
+      webhookAdresi: this.kanal === 'resend' ? `${(process.env.API_PUBLIC_URL || 'https://api.ranksup.ai').replace(/\/+$/, '')}/api/eposta/webhooks/resend` : null,
       acik,
       duraklatma,
       pencerede: gonderimPenceresinde(simdi),
@@ -423,6 +450,10 @@ export class EpostaKampanyaService {
       const s = smtpSorunlari(smtpAyar());
       if (s.length) { await this.duraklat(`SMTP ayarı: ${s.join(' · ')}`); return bos(`SMTP ayarı eksik: ${s.join(' · ')}`); }
     }
+    if (this.kanal === 'resend') {
+      const s = resendSorunlari(resendAyar());
+      if (s.length) { await this.duraklat(`Resend ayarı: ${s.join(' · ')}`); return bos(`Resend ayarı eksik: ${s.join(' · ')}`); }
+    }
 
     const belirtec = await this.kilitAl();
     if (!belirtec) return bos('Başka bir tur çalışıyor');
@@ -441,15 +472,16 @@ export class EpostaKampanyaService {
       }
       if (asililar.length) this.log.warn(`${asililar.length} hedef belirsiz durumda HATA'ya alindi`);
 
-      if (this.kanal === 'smtp') {
-        // NEDEN once gelen kutusu: Mailjet webhook'u yok; geri donmeler okunmadan fren hesabi kor kalir
+      const imap = this.kanal === 'smtp' ? smtpAyar() : this.kanal === 'resend' ? this.resendImap : null;
+      if (imap) {
+        // NEDEN once gelen kutusu: SMTP'de webhook yok, geri donmeler okunmadan fren kor kalir; Resend'de ret yanitlari
         try {
-          await this.gelenKutusuTara();
+          await this.gelenKutusuTara(imap);
         } catch (e: any) {
-          return bos(`Gelen kutusu okunamadı (${e?.message ?? e}) — geri dönmeler görülmeden gönderilmez, sonraki turda tekrar`);
+          return bos(`Gelen kutusu okunamadı (${e?.message ?? e}) — geri dönmeler/ret yanıtları görülmeden gönderilmez, sonraki turda tekrar`);
         }
       }
-      const fren = frenNedeni(await this.son7Gun(new Date(simdi.getTime() - 7 * 86_400_000)));
+      const fren = frenNedeni(await this.son7Gun(new Date(simdi.getTime() - 7 * 86_400_000)), { ilkSikayetteDur: this.kanal === 'resend' });
       if (fren) { await this.duraklat(fren); return bos(fren); }
 
       const [bugun, ay] = await Promise.all([
@@ -476,6 +508,7 @@ export class EpostaKampanyaService {
       const isaretiKaldir = () => this.prisma.epostaHedef.updateMany({ where: { sonOlay: isaret }, data: { sonOlay: null, sonOlayAt: null } });
 
       if (this.kanal === 'smtp') return await this.smtpTuru(hedefler, isaret, kampanya, isaretiKaldir);
+      if (this.kanal === 'resend') return await this.resendTuru(hedefler, isaret, kampanya, isaretiKaldir);
 
       // Metin + yasal denetim: kimlik eksik, hitap kurulamadi ya da footer/ret linki yoksa HIC gonderme, duraklat
       const kimlik = kimlikEnv();
@@ -619,13 +652,141 @@ export class EpostaKampanyaService {
   }
 
   /**
+   * Resend turu: tek /emails/batch istegi (en fazla 100; tur 10). Batch butunuyle kabul ya da ret edilir.
+   *  - 200 + her oge icin id → GONDERILDI (messageId = Resend email id; webhook olaylari bununla eslesir)
+   *  - 401/403 (anahtar, alan adi dogrulanmamis) ve 400/422 (dogrulama) → hicbiri gitmedi: isaret kalkar, DURAKLAT
+   *  - 429 (hiz/kota) → isaret kalkar, sonraki tur tekrar dener
+   *  - ag hatasi / 5xx / beklenmeyen govde → gitmis olabilir: isaret kalir (sonraki tur "belirsiz" yapar), DURAKLAT
+   * Idempotency-Key = tur isareti: ayni tur istegi tekrar edilirse Resend ikinci kez gondermez.
+   */
+  private async resendTuru(
+    hedefler: Array<{ id: string; email: string; firma: string; marka: string | null; sektor: string; varyant: string; web: string | null }>,
+    isaret: string,
+    kampanya: string,
+    isaretiKaldir: () => Promise<unknown>,
+  ): Promise<TickSonuc> {
+    const bos = (neden: string): TickSonuc => ({ gonderildi: 0, hata: 0, neden });
+    const a = resendAyar();
+    const sir = retSirri();
+    const kimlik = kimlikEnv();
+    const base = process.env.API_PUBLIC_URL || 'https://api.ranksup.ai';
+    let mesajlar: ResendMesaj[];
+    try {
+      if (!sir) throw new Error('ret linki sırrı yok');
+      const sorunlar = kimlikSorunlari({ ...kimlik, fromEmail: a.from, replyTo: a.replyTo }, hedefler.map((h) => h.sektor));
+      if (sorunlar.length) throw new Error(sorunlar.join(' · '));
+      mesajlar = hedefler.map((h) => resendMesaj(h, kimlik, a, sir, base, kampanya));
+    } catch (e: any) {
+      await isaretiKaldir();
+      const n = `Gönderici kimliği/şablon: ${e?.message ?? e}`;
+      await this.duraklat(n);
+      return bos(n);
+    }
+
+    let yanit: { status: number; govde: any };
+    try {
+      yanit = await this.resendPost('/emails/batch', mesajlar, a.apiKey, isaret);
+    } catch (e: any) {
+      const n = `Resend'e ulaşılamadı (${e?.message ?? e}); ${hedefler.length} adres belirsiz — Resend › Emails ekranından kontrol edip "Devam" deyin`;
+      await this.duraklat(n);
+      return bos(n);
+    }
+    const mesaj = String(yanit.govde?.message ?? yanit.govde?.name ?? '').slice(0, 300);
+    if (yanit.status === 429) {
+      await isaretiKaldir();
+      return bos(`Resend hız/kota sınırı (429)${mesaj ? `: ${mesaj}` : ''} — sonraki turda tekrar`);
+    }
+    if ([400, 401, 403, 422].includes(yanit.status)) {
+      await isaretiKaldir();
+      const n = `Resend reddetti (HTTP ${yanit.status})${mesaj ? `: ${mesaj}` : ''}`;
+      await this.duraklat(n);
+      return bos(n);
+    }
+    const sonuc = Array.isArray(yanit.govde?.data) ? yanit.govde.data : null;
+    if (yanit.status !== 200 || !sonuc || sonuc.length !== hedefler.length) {
+      const n = `Resend yanıtı beklenmedik (HTTP ${yanit.status}); ${hedefler.length} adres belirsiz — Resend › Emails ekranından kontrol`;
+      await this.duraklat(n);
+      return bos(n);
+    }
+    let ok = 0, hata = 0;
+    const zaman = new Date();
+    for (let i = 0; i < hedefler.length; i++) {
+      const id = typeof sonuc[i]?.id === 'string' ? sonuc[i].id : '';
+      const kosul = { id: hedefler[i].id, sonOlay: isaret };
+      if (id) {
+        ok++;
+        await this.prisma.epostaHedef.updateMany({ where: kosul, data: { durum: 'GONDERILDI', gonderildiAt: zaman, messageId: id.slice(0, 40), sonOlay: 'sent', sonOlayAt: zaman, hata: null } });
+      } else {
+        // Batch kabul edildi ama bu ogenin kimligi yok: gitmis olabilir → tekrar gonderilmez
+        hata++;
+        await this.prisma.epostaHedef.updateMany({ where: kosul, data: { durum: 'HATA', gonderildiAt: zaman, sonOlay: 'belirsiz', sonOlayAt: zaman, hata: 'Belirsiz (Resend): yanıtta e-posta kimliği yok' } });
+      }
+    }
+    this.log.log(`E-posta turu (Resend): ${ok} gonderildi, ${hata} belirsiz (kampanya ${kampanya})`);
+    return { gonderildi: ok, hata, neden: `${ok} gönderildi${hata ? `, ${hata} belirsiz` : ''}` };
+  }
+
+  private async resendPost(yol: string, body: unknown, anahtar: string, idempotency: string): Promise<{ status: number; govde: any }> {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), POST_ZAMAN_ASIMI_MS);
+    try {
+      const res = await fetch(`${RESEND}${yol}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${anahtar}`, 'content-type': 'application/json', 'idempotency-key': idempotency },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      const text = await res.text();
+      let govde: any = null;
+      try { govde = text ? JSON.parse(text) : null; } catch { govde = null; }
+      return { status: res.status, govde };
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  /**
+   * Resend webhook (Svix imzali). Imza ham govde uzerinden dogrulanir; gecersizse false (controller 401 doner, Resend
+   * yeniden dener — sir yanlis yazildiysa panelde gorulur). Eslesme: Resend email id (messageId); bulunamazsa geri
+   * donme/sikayet/bastirma icin alici adresi (muhafazakar yon: o adrese bir daha yazilmaz).
+   */
+  async resendOlayIsle(ham: Buffer | string | undefined, basliklar: { id?: string; timestamp?: string; signature?: string }): Promise<{ gecerli: boolean; islendi: number }> {
+    const sir = resendAyar().webhookSecret;
+    if (!ham || !svixDogrula(sir, basliklar, ham)) return { gecerli: false, islendi: 0 };
+    let govde: unknown;
+    try { govde = JSON.parse(typeof ham === 'string' ? ham : ham.toString('utf8')); } catch { return { gecerli: true, islendi: 0 }; }
+    const o = resendOlayEsle(govde);
+    if (!o) return { gecerli: true, islendi: 0 };
+    let h = o.emailId ? await this.prisma.epostaHedef.findFirst({ where: { messageId: o.emailId } }) : null;
+    const bizim = !!h;
+    if (!h && o.durum && o.durum !== 'HATA' && o.alici) h = await this.prisma.epostaHedef.findUnique({ where: { email: o.alici } });
+    if (!h) return { gecerli: true, islendi: 0 }; // sistem e-postasi (ayni hesap) — kampanyanin degil
+    const kapali = (KAPALI_DURUMLAR as readonly string[]).includes(h.durum);
+    const data: Prisma.EpostaHedefUpdateInput = { sonOlay: o.sonOlay, sonOlayAt: o.zaman };
+    if (bizim && o.teslim && !kapali && (h.durum === 'SIRADA' || h.durum === 'HATA')) {
+      data.durum = 'GONDERILDI';
+      if (!h.gonderildiAt) data.gonderildiAt = o.zaman;
+      data.hata = null;
+    }
+    if (bizim && o.acildi && !h.acildiAt) data.acildiAt = o.zaman;
+    if (bizim && o.tiklandi && !h.tiklandiAt) data.tiklandiAt = o.zaman;
+    if (o.durum && !kapali) {
+      data.durum = o.durum;
+      if (!h.gonderildiAt && bizim) data.gonderildiAt = o.zaman;
+    }
+    if (o.hata) data.hata = o.hata;
+    await this.prisma.epostaHedef.update({ where: { id: h.id }, data });
+    return { gecerli: true, islendi: 1 };
+  }
+
+  /**
    * Gonderen kutunun gelen kutusu: geri donme raporlari (DSN) → BOUNCE; bizim mesajimiza yanit → "ret" ise RET,
    * degilse sonOlay='yanit' (panelde gorunur, satir kapanmaz). Okunmamis isaretine DOKUNULMAZ (kutuyu insan da okur);
    * imlec KV'de. Donus: islenen satir sayisi.
    */
-  async gelenKutusuTara(): Promise<{ bounce: number; ret: number; yanit: number }> {
+  async gelenKutusuTara(a: SmtpAyar = smtpAyar()): Promise<{ bounce: number; ret: number; yanit: number }> {
     const say = { bounce: 0, ret: 0, yanit: 0 };
-    const { imlec, mesajlar } = await this.gelenOku(smtpAyar(), await this.kv(KV_IMAP));
+    const { imlec, mesajlar } = await this.gelenOku(a, await this.kv(KV_IMAP));
     for (const g of mesajlar) {
       const ustBitis = g.ham.search(/\r?\n\r?\n/);
       const ust = ustBitis > 0 ? g.ham.slice(0, ustBitis) : g.ham;

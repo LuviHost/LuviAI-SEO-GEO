@@ -55,9 +55,13 @@ export interface FrenGirdi { gonderilen: number; bounce: number; spam: number }
  * ilk sikayette degil — tek sikayet 100 gonderimde %1 olur ve gurultudur; 500'de 1 = %0,2 esik).
  * Donus: durma nedeni ya da null. NEDEN: yuksek bounce/spam Mailjet hesabini ve ranksup.ai alan adi itibarini yakar.
  */
-export function frenNedeni(f: FrenGirdi): string | null {
+export function frenNedeni(f: FrenGirdi, o: { ilkSikayetteDur?: boolean } = {}): string | null {
   if (f.gonderilen >= 30 && f.bounce / f.gonderilen > 0.03) {
     return `Son 7 günde geri dönme %${((f.bounce / f.gonderilen) * 100).toFixed(1)} (> %3) — liste gözden geçirilmeden devam etmez`;
+  }
+  // NEDEN ilk sikayette: Resend esigi %0,08 — dusuk hacimde tek sikayet bile asar ve hesap (sistem e-postalari dahil) kapanabilir
+  if (o.ilkSikayetteDur && f.spam > 0) {
+    return `Son 7 günde ${f.spam} spam şikâyeti — Resend hesabı (sistem e-postaları dahil) riske girmesin diye durdu; metin ve hedef gözden geçirilmeli`;
   }
   if (f.gonderilen >= 50 && f.spam / f.gonderilen > 0.002) {
     return `Son 7 günde spam şikâyeti %${((f.spam / f.gonderilen) * 100).toFixed(2)} (> %0,2) — metin ve hedef gözden geçirilmeli`;
