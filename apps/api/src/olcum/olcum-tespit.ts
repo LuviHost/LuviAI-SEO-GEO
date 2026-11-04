@@ -152,7 +152,7 @@ export type OlcumRaporu = {
 };
 
 /** GTM'in kendi ic olaylari ve sayfa gorunumu donusum sayilmaz */
-const DONUSUM_DISI = /^(gtm\.|page_view$|pageview$|PageView$|page_viewed$|ViewContent$|user_engagement$|scroll$|session_start$|first_visit$|config$)/;
+const DONUSUM_DISI = /^(gtm\.|page_view$|pageview$|PageView$|page_viewed$|spa_page_view$|virtual_page_?view$|ViewContent$|user_engagement$|scroll$|session_start$|first_visit$|config$|originalLocation$|cookie_?consent\w*$|consent\w*$)/i;
 
 export function donusumOlayiMi(o: Pick<OlcumOlay, 'ad'>): boolean {
   return !DONUSUM_DISI.test(o.ad);

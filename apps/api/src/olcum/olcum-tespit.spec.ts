@@ -121,6 +121,8 @@ describe('yardimcilar', () => {
   it('donusumOlayiMi: sayfa gorunumu ve GTM ic olaylari degil', () => {
     expect(['PageView', 'page_view', 'gtm.js', 'page_viewed'].map((ad) => donusumOlayiMi({ ad }))).toEqual([false, false, false, false]);
     expect(donusumOlayiMi({ ad: 'generate_lead' })).toBe(true);
+    // cerez onayi ve SPA sayfa gorunumu teknik olaydir (05.11: musteri sitesinde 'donusum' diye sayiliyordu)
+    expect(['cookie_consent_update', 'consent_update', 'spa_page_view', 'originalLocation'].map((ad) => donusumOlayiMi({ ad }))).toEqual([false, false, false, false]);
   });
 });
 

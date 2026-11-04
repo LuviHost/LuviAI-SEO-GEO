@@ -9,7 +9,6 @@
 export const SITE_ROUTES = {
   overview: '',
   chat: '/chat',
-  actionPlan: '/action-plan',
   audit: '/audit',
   rankTracking: '/rank-tracking',
   aso: '/aso',

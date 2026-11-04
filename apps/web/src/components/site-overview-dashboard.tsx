@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Activity, AlertCircle, AlertTriangle, ArrowRight, Bot, CalendarClock, CheckCircle2, ClipboardList,
+  Activity, AlertCircle, AlertTriangle, ArrowRight, Bot, CalendarClock, CheckCircle2,
   Eye, FileText, Image as ImageIcon, Loader2, Lock, Pause, PenLine, Plug, PieChart, Power, Rocket,
   ScanSearch, Send, ShieldAlert, ShieldCheck, Sparkles, Wand2, Wrench, XCircle,
 } from 'lucide-react';
@@ -165,9 +165,6 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
           <h2 className="text-base font-semibold">Her şey yolunda</h2>
           <p className="text-sm text-muted-foreground">Şu an bekleyen bir adım yok. Otomatik akış çalışmaya devam ediyor.</p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href={href('actionPlan')}>Aksiyon planı <ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>
-        </Button>
       </Card>
     );
   }
@@ -183,9 +180,6 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
           Sıradaki adım
           {steps.length > 1 && <Badge variant="brand">{steps.length} iş</Badge>}
         </h2>
-        <Link href={href('actionPlan')} className="inline-flex items-center gap-1 text-label text-muted-foreground hover:text-brand">
-          <ClipboardList className="h-3.5 w-3.5" aria-hidden /> Tüm aksiyon planı
-        </Link>
       </div>
 
       {/* Birincil adim */}

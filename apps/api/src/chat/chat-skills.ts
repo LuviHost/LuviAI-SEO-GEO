@@ -52,8 +52,8 @@ export const CHAT_SKILLS: ChatSkill[] = [
     key: 'weekly-plan',
     name: 'Bu haftanın planı',
     tag: 'AGENT',
-    description: 'Önceliklendirilmiş, kanıta dayalı haftalık yapılacaklar listesi — Aksiyon Planına eklemeye hazır.',
-    accesses: ['Fırsatlar', 'Rakipler', 'Citations', 'Aksiyon Planı'],
+    description: 'Önceliklendirilmiş, kanıta dayalı haftalık yapılacaklar listesi.',
+    accesses: ['Fırsatlar', 'Rakipler', 'Citations'],
     // requiresTools BILEREK YOK. Bu skill iki kilitli okuma aracina baglanmisti
     // ve sonucu: haftalik plan cron'u STARTER sitelerinde ForbiddenException ile
     // dusuyor, plan/bildirim/e-posta hic uretilmiyordu. Diger dort skill'de
@@ -65,7 +65,6 @@ export const CHAT_SKILLS: ChatSkill[] = [
       '1) get_site_overview + get_ai_kpis (+ erişimin varsa get_agent_readiness) ile durumu topla.',
       '2) Erişimin varsa list_content_opportunities ile açık fırsatları al; get_prompt_coverage ile hangi dallarda kaybettiğimizi gör.',
       '3) En yüksek etkili 5-7 maddelik önceliklendirilmiş plan yaz — her maddede NEDEN (kanıt: hangi metrik/fırsat) ve tahmini etki.',
-      '4) Kullanıcıya planı Aksiyon Planına eklemeyi öner; onaylarsa add_action_plan_item ile ekle.',
     ].join('\n'),
   },
   {
@@ -132,7 +131,7 @@ export const CHAT_SKILLS: ChatSkill[] = [
       '2) get_prompt_coverage — hangi dal türlerinde (reviews/trust/comparison) zayıfız.',
       '3) get_product_radar (erişimin varsa) — bizim yerimize kimler öneriliyor.',
       '4) Her kayıp için: neden kaybediyoruz (hipotez) + hangi içerik/teknik iş düzeltir + (erişimin varsa) list_content_opportunities\'te karşılığı var mı.',
-      'Sonunda en kritik tek düzeltmeyi öner ve kullanıcı isterse add_action_plan_item ile plana ekle.',
+      'Sonunda en kritik tek düzeltmeyi öner.',
     ].join('\n'),
   },
   {

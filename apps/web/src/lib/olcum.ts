@@ -46,7 +46,7 @@ const TUR_SIRA: OlcumPlatformTur[] = ['analitik', 'reklam', 'etiket', 'pazarlama
 export const TUR_ADI: Record<OlcumPlatformTur, string> = { analitik: 'Analitik', reklam: 'Reklam', etiket: 'Etiket yönetimi', pazarlama: 'Pazarlama' };
 
 /** Sayfa gorunumu / GTM ic olaylari donusum sayilmaz (api olcum-tespit.ts donusumOlayiMi ile ayni) */
-const DONUSUM_DISI = /^(gtm\.|page_view$|pageview$|PageView$|page_viewed$|ViewContent$|user_engagement$|scroll$|session_start$|first_visit$|config$)/;
+const DONUSUM_DISI = /^(gtm\.|page_view$|pageview$|PageView$|page_viewed$|spa_page_view$|virtual_page_?view$|ViewContent$|user_engagement$|scroll$|session_start$|first_visit$|config$|originalLocation$|cookie_?consent\w*$|consent\w*$)/i;
 export const donusumOlaylari = (r: OlcumRaporu | undefined): OlcumOlay[] => (r?.olaylar ?? []).filter((o) => !DONUSUM_DISI.test(o.ad));
 
 export type KarsilastirmaSatiri = { kod: string; ad: string; tur: OlcumPlatformTur; hucreler: Array<boolean | null> };

@@ -16,7 +16,6 @@ import {
   BarChart3,
   Bot,
   Clapperboard,
-  ClipboardList,
   CreditCard,
   FileBarChart,
   FileText,
@@ -80,7 +79,6 @@ export const SITE_NAV_GROUPS: Array<{ id: SiteNavGroupId; label?: string }> = [
 export const SITE_NAV_ITEMS: SiteNavItem[] = [
   // ── Ust: her gun acilanlar ──
   { route: 'overview', label: 'Genel Bakış', icon: Home, group: 'main', exact: true, hint: 'Sıradaki adım ve özet', keywords: ['overview', 'dashboard', 'ana', 'özet'] },
-  { route: 'actionPlan', label: 'Aksiyon Planı', icon: ClipboardList, group: 'main', hint: 'Tüm modüllerden iş listesi', keywords: ['aksiyon', 'action', 'plan', 'todo', 'görev', 'yapılacak'] },
   { route: 'chat', label: 'Asistan', icon: MessageSquare, group: 'main', hint: 'Verinin üstünde konuşan asistan', keywords: ['chat', 'asistan', 'skill', 'sor', 'soru'] },
 
   // ── Saglik ──
