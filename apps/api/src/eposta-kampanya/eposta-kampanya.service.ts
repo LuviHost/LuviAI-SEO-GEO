@@ -529,7 +529,7 @@ export class EpostaKampanyaService {
         const sorunlar = kimlikSorunlari(kimlik, hedefler.map((h) => h.sektor));
         if (sorunlar.length) throw new Error(sorunlar.join(' · '));
         mesajlar = hedefler.map((h) => {
-          const alici: Alici = { email: h.email, ad: '', soyad: '', firma: h.firma, sektor: h.sektor, varyant: h.varyant, marka: h.marka ?? undefined };
+          const alici: Alici = { email: h.email, ad: '', soyad: '', firma: h.firma, sektor: h.sektor, varyant: h.varyant, marka: h.marka ?? undefined, web: h.web };
           const m = mailjetMesaj(alici, { kimlik, kampanya });
           const eksik = mesajDenetimi(m, kimlik);
           if (eksik.length) throw new Error(`${h.sektor} şablonu: ${eksik.join(', ')}`);

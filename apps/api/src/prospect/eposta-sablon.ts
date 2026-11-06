@@ -47,10 +47,48 @@ const FINANS_SORU: Array<[RegExp, string]> = [
   [/ödeme|odeme|e-para|elektronik para|\bpay|pos\b/, 'yurt dışından ödeme almak için hangi kuruluş'],
 ];
 
+/**
+ * 'eticaret-perakende-teknoloji' grubu (Sablon B) KARISIK: listede tuketici markalari (mobilya, kuyum,
+ * kafe) kadar B2B firmalar da var — yazilim, sistem entegratoru, elektronik ureticisi, tekstil fasoncusu.
+ * Sablon B "{{sektor_sorusu}} gibi alisveris sorularini..." der; B2B firmaya (orn. kurumsal BT
+ * entegratorune) "telefon almak icin hangi site guvenilir" gitmesi 11.2026'da yanit veren bir alicida
+ * fark edildi. NEDEN beyaz liste: ad/alan adindan "tuketiciye satiyor" ancak bu desenlerle guvenle
+ * anlasilir; eslesmeyen firma Sablon E'ye (genel, alisveris demeyen metin) gider. Yanlis pozitifin
+ * bedeli dusuk (genel metin herkese uyar), yanlis negatifin bedeli inandiricilik kaybi.
+ * Desenler katlanmis "firma web" metnine uygulanir (bkz. katla).
+ */
+const TUKETICI_SORU: Array<[RegExp, string]> = [
+  [/getmobil|garantili\.com|teknosa|vatan bilgisayar|mediamarkt/, 'telefon almak için hangi site güvenilir'],
+  [/p[ıi]rlanta|kuyum|m[üu]cevher|alt[ıi]nba[şs]/, 'nişan yüzüğü için hangi kuyumcu güvenilir'],
+  [/mobilya|mobili\b|sofa|koltuk|yatak|sandalye|furniture|\bhome\b|living|salotti/, 'koltuk takımı almak için hangi marka güvenilir'],
+  [/shoes|ayakkab[ıi]/, 'rahat ve kaliteli ayakkabı hangi markada'],
+  [/kozmetik|cosmetic|gratis|rossmann|flormar/, 'cilt bakım ürünlerini nereden almalıyım'],
+  [/kahve|espresso|\bcafe\b|\bkafe\b/, 'iyi kahve için hangi zinciri önerirsin'],
+  [/\bkfc\b|simit|d[üu]r[üu]m|nusr|iskender|burger/, 'hızlı ve lezzetli yemek için hangi zincir'],
+];
+
+/** Tuketici markasi oldugu ad/alan adindan anlasilan firma icin ornek soru; anlasilmiyorsa null */
+export function tuketiciSorusu(firma: string, web?: string | null): string | null {
+  const metin = katla(`${firma} ${web ?? ''}`);
+  for (const [re, soru] of TUKETICI_SORU) if (re.test(metin)) return soru;
+  return null;
+}
+
+/**
+ * Gonderimde kullanilacak sablon sektoru: Sablon B yalniz tuketici markasi oldugu anlasilan firmaya
+ * (ya da CSV'de ozel sektor_sorusu verilmisse) gider; digerleri 'diger' (Sablon E). Diger sektorler aynen.
+ */
+export function sablonSektoru(firma: string, sektor: string, web?: string | null, csvSoru?: string): string {
+  if (sektor !== 'eticaret-perakende-teknoloji') return sektor;
+  if (csvSoru && csvSoru.trim()) return sektor;
+  return tuketiciSorusu(firma, web) ? sektor : 'diger';
+}
+
 /** CSV'de sektor_sorusu sutunu VARSA o kazanir; yoksa firma adi/sektorden turetilir */
-export function sektorSorusu(firma: string, sektor: string, csvSoru?: string): string {
+export function sektorSorusu(firma: string, sektor: string, csvSoru?: string, web?: string | null): string {
   if (csvSoru && csvSoru.trim()) return csvSoru.trim();
   const meta = SEKTOR_META[sektor] ?? SEKTOR_META.finans;
+  if (sektor === 'eticaret-perakende-teknoloji') return tuketiciSorusu(firma, web) ?? meta.soru;
   if (sektor !== 'finans') return meta.soru;
   // NEDEN katla: 'tr-TR' kucultmesi "FAKTORING" → "faktorıng" yapip /faktoring/ desenini kaciriyordu
   const f = katla(firma);
@@ -390,7 +428,7 @@ export function metinBlogu(baslik: string, k: EpostaKimlik): string {
   return mailjetSozdizimi(blok, k);
 }
 
-export type Alici = { email: string; ad: string; soyad: string; firma: string; unvan?: string; sektor: string; varyant: string; sektor_sorusu?: string; marka?: string };
+export type Alici = { email: string; ad: string; soyad: string; firma: string; unvan?: string; sektor: string; varyant: string; sektor_sorusu?: string; marka?: string; web?: string | null };
 
 /**
  * Mailjet Send v3.1 mesaj nesnesi. Isimsiz (kurumsal kutu) alicida hitap "Merhaba {firma} ekibi,";
@@ -400,14 +438,15 @@ export function mailjetMesaj(to: Alici, opts: { kimlik: EpostaKimlik; kampanya: 
   const { kimlik: k, kampanya } = opts;
   const varyant = to.varyant === 'B' ? 'B' : 'A';
   const firma = to.marka?.trim() || firmaKisa(to.firma);
-  const soru = sektorSorusu(to.firma, to.sektor, to.sektor_sorusu);
-  const konu = konuSatiri(to.sektor, varyant, firma);
+  const sektor = sablonSektoru(to.firma, to.sektor, to.web, to.sektor_sorusu);
+  const soru = sektorSorusu(to.firma, sektor, to.sektor_sorusu, to.web);
+  const konu = konuSatiri(sektor, varyant, firma);
   const isimsiz = !to.ad?.trim();
-  let TextPart = metinSablon(to.sektor, k);
-  let HTMLPart = htmlSablon(to.sektor, k);
+  let TextPart = metinSablon(sektor, k);
+  let HTMLPart = htmlSablon(sektor, k);
   if (isimsiz) {
     const t = isimsizHitap(TextPart), h = isimsizHitap(HTMLPart);
-    if (!t || !h) throw new Error(`${to.sektor} sablonunda "Sayın {{ad}} {{soyad}}," hitap satiri yok — isimsiz alici icin hitap kurulamadi`);
+    if (!t || !h) throw new Error(`${sektor} sablonunda "Sayın {{ad}} {{soyad}}," hitap satiri yok — isimsiz alici icin hitap kurulamadi`);
     TextPart = t; HTMLPart = h;
   }
   return {
@@ -420,7 +459,7 @@ export function mailjetMesaj(to: Alici, opts: { kimlik: EpostaKimlik; kampanya: 
     TemplateLanguage: true,
     Variables: {
       ad: to.ad, soyad: to.soyad, firma, firma_tam: to.firma, firma_url: encodeURIComponent(firma),
-      unvan: to.unvan ?? '', sektor: to.sektor, sektor_sorusu: soru, varyant,
+      unvan: to.unvan ?? '', sektor, sektor_sorusu: soru, varyant,
     },
     CustomCampaign: kampanya,
     // NEDEN mesaj seviyesinde: DeduplicateCampaign v3.1'de Messages[] elemaninin ozelligidir; ayni kampanyada

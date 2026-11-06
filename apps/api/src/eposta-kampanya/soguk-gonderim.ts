@@ -12,7 +12,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { toCsv } from '../prospect/prospect-utils.js';
 import {
-  type EpostaKimlik, SEKTOR_META, firmaKisa, isimsizHitap, konuSatiri, metinBlogu, metinSablon, sektorSorusu,
+  type EpostaKimlik, SEKTOR_META, firmaKisa, isimsizHitap, konuSatiri, metinBlogu, metinSablon, sablonSektoru, sektorSorusu,
 } from '../prospect/eposta-sablon.js';
 
 /** Disa aktarim CSV sutunlari (aracta {{sutun}} olarak kullanilir) */
@@ -114,14 +114,16 @@ export type SogukHedef = { email: string; firma: string; marka: string | null; s
 export function sogukSatir(h: SogukHedef, sir: string, base: string): Record<(typeof SOGUK_SUTUNLAR)[number], string> {
   const firma = h.marka?.trim() || firmaKisa(h.firma);
   const varyant = h.varyant === 'B' ? 'B' : 'A';
+  // Sablon secimi (B2B firma Sablon B'nin alisveris metnini almaz) — bkz. sablonSektoru
+  const sektor = sablonSektoru(h.firma, h.sektor, h.web);
   return {
     email: normal(h.email),
     firma,
     firma_tam: h.firma,
-    sektor: h.sektor,
-    sektor_sorusu: sektorSorusu(h.firma, h.sektor),
+    sektor,
+    sektor_sorusu: sektorSorusu(h.firma, sektor, undefined, h.web),
     varyant,
-    konu: konuSatiri(h.sektor, varyant, firma),
+    konu: konuSatiri(sektor, varyant, firma),
     ret_url: retUrl(h.email, sir, base),
     web: h.web ?? '',
   };
@@ -130,7 +132,7 @@ export function sogukSatir(h: SogukHedef, sir: string, base: string): Record<(ty
 /** Disa aktarim paketi: CSV + sektor basina sablon metni (aracta bir kez yapistirilir) */
 export function sogukPaket(hedefler: SogukHedef[], k: EpostaKimlik, sir: string, base: string): { csv: string; sablonlar: string } {
   const csv = toCsv(hedefler.map((h) => sogukSatir(h, sir, base)), [...SOGUK_SUTUNLAR]);
-  const sektorler = [...new Set(hedefler.map((h) => h.sektor))].sort();
+  const sektorler = [...new Set(hedefler.map((h) => sablonSektoru(h.firma, h.sektor, h.web)))].sort();
   const parcalar = [
     'RanksUp — soğuk gönderim şablonları',
     'Değişkenler CSV sütunlarıdır: {{firma}}, {{konu}}, {{sektor_sorusu}}, {{ret_url}} …',
