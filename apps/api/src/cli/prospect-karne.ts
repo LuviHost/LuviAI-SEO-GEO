@@ -21,6 +21,10 @@
  *   --rakipler a.com,b.com bilinen rakip alan adlari: runPublicProbes'a `competitors` olarak
  *                          gider, cevaplarda ARANIR ve rakip payina GIRER; raporda ★ ile isaretlenir.
  *                          Alan adi olmayan deger (orn. "Garanti") dusurulur ve UYARI basilir.
+ *   --sorular-dosya yol    soru bankasi yerine bu dosyadaki sorular (satir basina bir soru,
+ *                          # yorum). NEDEN: banka uc tuketici sektorunu kapsar; B2B kuruma
+ *                          (orn. kurumsal BT entegratoru) alisveris sorusu yanlis karne uretir.
+ *                          Bu bayrakla --sektor serbest etikettir (karnede gorunur), dogrulanmaz.
  *   --limit N              en fazla N soru (ucuz test icin)
  *   --only a,b             yalnizca bu saglayicilar (anthropic,gemini,openai,perplexity,xai,deepseek,meta)
  *   --dry-run              LLM cagrisi ve dosya yazma YOK: sorular + maliyet tahmini + cikti yollari
@@ -63,7 +67,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { parseArgs, normalizeDomain, DATA_DIR, SEKTORLER } from '../prospect/prospect-utils.js';
-import { sorulariGetir, altsektorAnahtari, sektorDogrula, sektorAltAnahtarlari, ALT_SEKTOR_ANAHTARLARI } from '../prospect/karne-sorular.js';
+import { sorulariGetir, altsektorAnahtari, sektorDogrula, sektorAltAnahtarlari, ALT_SEKTOR_ANAHTARLARI, ozelSorulariOku, OZEL_SORU_SINIRI } from '../prospect/karne-sorular.js';
 import { karneOzeti, karneHtml, markaGecenSorular } from '../prospect/karne-html.js';
 import { MIN_BRAND_LEN } from '../audit/brand-in-query.js';
 // Saf modul (Nest/Prisma yok): servisin KULLANDIGI tablolarin kendisi — dry-run'da da guvenli.
@@ -101,6 +105,8 @@ Zorunlu:
 Secenekler:
   --altsektor <a>          ${ALT_SEKTOR_ANAHTARLARI.join(' | ')} (eslesmezse uyari + --yes sarti)
   --rakipler a.com,b.com   bilinen rakip alan adlari (cevapta aranir, rakip payina girer, ★ ile isaretlenir)
+  --sorular-dosya yol      soru bankasi yerine dosyadaki sorular (satir basina bir, # yorum, en fazla ${OZEL_SORU_SINIRI});
+                           bu durumda --sektor serbest etikettir, orn. "Kurumsal BT / sistem entegrasyonu"
   --limit N                en fazla N soru (test)
   --only a,b               yalnizca bu saglayicilar: ${SAGLAYICILAR.join(',')}
   --dry-run                LLM cagrisi yok, dosya yazilmaz; sorular + maliyet tahmini
@@ -178,8 +184,24 @@ async function main() {
   if (!brand) hatalar.push('--brand zorunlu');
   else if (brand.length < MIN_BRAND_LEN) hatalar.push(`--brand en az ${MIN_BRAND_LEN} karakter olmalı ("${brand}" cevapta ayırt edilemez)`);
   if (!host) hatalar.push('--host zorunlu ve geçerli bir alan adı olmalı');
+  const sorularDosya = typeof args['sorular-dosya'] === 'string' ? args['sorular-dosya'] : null;
+  let ozelSorular: string[] | null = null;
+  if (args['sorular-dosya'] === true) hatalar.push('--sorular-dosya bir dosya yolu ister');
+  if (sorularDosya) {
+    try {
+      ozelSorular = ozelSorulariOku(fs.readFileSync(sorularDosya, 'utf8'));
+      if (ozelSorular.length === 0) hatalar.push(`--sorular-dosya boş: ${sorularDosya}`);
+    } catch (e: any) {
+      hatalar.push(e?.code === 'ENOENT' ? `--sorular-dosya bulunamadı: ${sorularDosya}` : String(e?.message ?? e));
+    }
+  }
   let sektor = '';
-  try { sektor = sektorDogrula(sektorArg); } catch (e: any) { hatalar.push(e.message); }
+  if (sorularDosya) {
+    // Ozel soru setinde sektor yalniz karnedeki etikettir; soru secimine girmez.
+    sektor = sektorArg.trim() || 'Özel soru seti';
+  } else {
+    try { sektor = sektorDogrula(sektorArg); } catch (e: any) { hatalar.push(e.message); }
+  }
   const altsektor = typeof args.altsektor === 'string' ? args.altsektor : null;
   const rakipHam = String(args.rakipler ?? '').split(',').map((r) => r.trim()).filter(Boolean);
   const rakipler: string[] = [];
@@ -210,14 +232,14 @@ async function main() {
   }
 
   // ── Sorular ──
-  const altAnahtar = altsektorAnahtari(sektor, altsektor);
-  const altEslesmedi = !!altsektor && !altAnahtar;
+  const altAnahtar = ozelSorular ? null : altsektorAnahtari(sektor, altsektor);
+  const altEslesmedi = !ozelSorular && !!altsektor && !altAnahtar;
   if (altEslesmedi) {
     // NEDEN sert uyari: alan disi 10 genel soru (leasing sirketine "ogrenci
     // hesabi") yanlis "hic gorunmuyorsunuz" karnesi uretir; sessiz dusme yok.
     console.warn(`UYARI: --altsektor "${altsektor}" ${sektor} için hiçbir alt sektörle eşleşmedi; GENEL sorular kullanılacak.\n       Geçerli anahtarlar: ${sektorAltAnahtarlari(sektor).join(' | ')}. Alan dışı sorular yanlış "hiç görünmüyorsunuz" karnesi üretir.`);
   }
-  let sorular = sorulariGetir(sektor, altsektor);
+  let sorular = ozelSorular ? [...ozelSorular] : sorulariGetir(sektor, altsektor);
   // Guvenlik: marka adi bir soruya denk gelirse (ornek "Garanti") o soru
   // sorulmaz — skora girmeyecek bir cagri icin para harcanmaz. host ile:
   // runPublicProbes'un damgasiyla ayni (v4) kural; jenerik turetilmis markada
@@ -248,7 +270,7 @@ async function main() {
   const mevcut = [jsonYolu, htmlYolu, ...(args.pdf ? [pdfYolu] : [])].filter((y) => fs.existsSync(y));
 
   console.log(`Kurum      : ${brand} (${host})`);
-  console.log(`Sektör     : ${sektor}${altsektor ? ` · alt sektör: ${altsektor} → ${altAnahtar ?? 'EŞLEŞMEDİ (genel sorular)'}` : ''}`);
+  console.log(`Sektör     : ${sektor}${ozelSorular ? ` · özel soru seti: ${sorularDosya}` : altsektor ? ` · alt sektör: ${altsektor} → ${altAnahtar ?? 'EŞLEŞMEDİ (genel sorular)'}` : ''}`);
   if (rakipler.length) console.log(`Rakipler   : ${rakipler.join(', ')} (cevapta aranır, rakip payına girer)`);
   console.log(`Sorular    : ${sorular.length} markasız`);
   for (const [i, q] of sorular.entries()) console.log(`  ${String(i + 1).padStart(2)}. ${q}`);
