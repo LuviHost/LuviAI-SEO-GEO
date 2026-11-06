@@ -302,6 +302,24 @@ function resultTier(result: unknown): 'anon' | 'member' {
   return (result as { access?: { tier?: unknown } } | null | undefined)?.access?.tier === 'member' ? 'member' : 'anon';
 }
 
+/**
+ * Onbellekten verilecek kayit: kademesi TUTAN en yeni kayit (recent yeniden eskiye).
+ * 24 saatten tazeyse her kademede gecerli. Daha eskiyse yalniz anonim kademede ve
+ * gercekten olculmusse (>=1 LLM cagrisi) — hicbir saglayicinin calismadigi bos
+ * olcum sonsuza dek tekrar gosterilmez, yeniden olculur.
+ */
+export function pickReusableSnapshot<T extends { createdAt: Date; result: unknown }>(
+  recent: T[],
+  audience: 'anon' | 'member',
+  now: number,
+): T | undefined {
+  return recent.find((c) => {
+    if (resultTier(c.result) !== audience) return false;
+    if (now - c.createdAt.getTime() <= DAY_MS) return true;
+    return audience === 'anon' && Number((c.result as { totalLlmCalls?: unknown } | null)?.totalLlmCalls) > 0;
+  });
+}
+
 const queryKey = (q: string): string => q.trim().replace(/\s+/g, ' ').toLowerCase();
 
 /** Iki sonucun olculen soru kumesi ayni mi (sira onemsiz). */
@@ -756,6 +774,12 @@ export class PublicCitationService {
     //     ustelik kotasindan dusulmus olur.
     //
     // retest_cron ve sabit soru seti haric tutulur: amaci zaten TAZE olcum almak.
+    //
+    // ANONIM KADEMEDE SURE SINIRI YOK (sahip karari 06.11): uye olmadan ayni
+    // siteyi 100 gun sonra test eden de eski sonucu gorur, token harcanmaz.
+    // Arayuz tarihi gosterir ve guncel olcum icin hesap/plan'a yonlendirir.
+    // Uye kademesi (signup_baseline) 24 saat kuralinda kalir: kotasindan duser,
+    // taze olcum hakkidir.
     if (!fixed && (source === 'manual' || source === 'signup_baseline')) {
       const cutoff = new Date(Date.now() - this.CACHE_TTL_HOURS * 60 * 60 * 1000);
       // En yeniyi alip kademesine bakmak YETMEZ: bir uye domaini actiginda en
@@ -763,11 +787,11 @@ export class PublicCitationService {
       // kaciririp bastan tam olcum tetiklerdi. Son birkac kaydin icinden
       // kademesi TUTAN en yenisini sec.
       const recent = await this.prisma.publicCitationCheck.findMany({
-        where: { domain: host, createdAt: { gt: cutoff } },
+        where: audience === 'anon' ? { domain: host } : { domain: host, createdAt: { gt: cutoff } },
         orderBy: { createdAt: 'desc' },
-        take: 5,
+        take: 20,
       });
-      const cached = recent.find((c) => ((c.result as any)?.access?.tier ?? 'anon') === audience);
+      const cached = pickReusableSnapshot(recent, audience, Date.now());
       if (cached) {
         // Eski bicimli hata satiri (ham saglayici metni) anonim cevaba gitmesin;
         // eski kayittaki calismayan saglayici satiri ve HATA paydasi da

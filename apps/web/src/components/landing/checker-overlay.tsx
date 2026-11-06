@@ -124,7 +124,7 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
               </div>
             </div>
 
-            {result.fromCache && <p className="text-xs text-center text-muted-foreground -mt-2">{c.cachedAt}</p>}
+            {result.fromCache && <ReusedResultNotice result={result} locale={locale} c={c} onNavigate={onReset} />}
 
             {/* Kisisel ozet videosu — gercek sonuctan (skor + motor bazinda anilma) */}
             {summary && summary.engines.length > 0 && (
@@ -216,6 +216,50 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Onceki sonuc yeniden gosterildi (anonim testte ayni site tekrar olculmez).
+ * Tarihi soyler ve guncel olcum icin hesap/plan'a yonlendirir.
+ */
+function ReusedResultNotice({
+  result,
+  locale,
+  c,
+  onNavigate,
+}: {
+  result: CheckResult;
+  locale: Locale;
+  c: CheckerCopy;
+  onNavigate: () => void;
+}) {
+  const when = result.cachedAt ? new Date(result.cachedAt) : null;
+  const date = when && !Number.isNaN(when.getTime())
+    ? when.toLocaleDateString(locale === 'tr' ? 'tr-TR' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  const signupHref = `/signin?callbackUrl=${encodeURIComponent(`/unlock?domain=${encodeURIComponent(result.domain)}`)}`;
+  return (
+    <div className="rounded-2xl border border-brand-500/30 bg-brand-500/5 p-4 sm:p-5 space-y-3">
+      {date && <p className="font-semibold text-sm">{c.reusedTitle.replace('{date}', date)}</p>}
+      <p className="text-sm text-muted-foreground">{c.reusedBody}</p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Link
+          href={signupHref}
+          onClick={() => { trackCta('checker_reused_signup'); onNavigate(); }}
+          className="inline-flex justify-center bg-foreground text-background hover:opacity-90 font-bold text-sm px-4 py-2.5 rounded-lg transition-opacity"
+        >
+          {c.reusedCtaSignup}
+        </Link>
+        <Link
+          href="/pricing"
+          onClick={() => { trackCta('checker_reused_plans'); onNavigate(); }}
+          className="inline-flex justify-center border border-muted-foreground/30 text-foreground hover:border-muted-foreground/60 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors"
+        >
+          {c.reusedCtaPlans}
+        </Link>
+      </div>
+    </div>
   );
 }
 

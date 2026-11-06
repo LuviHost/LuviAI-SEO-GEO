@@ -27,7 +27,7 @@ vi.mock('../common/safe-fetch.js', async (importOriginal) => {
   };
 });
 
-import { PUBLIC_BUDGET_MESSAGE, PublicCitationService, publicDailyBudgetUsd, withMeasuredCounts } from './public-citation.service.js';
+import { PUBLIC_BUDGET_MESSAGE, PublicCitationService, pickReusableSnapshot, publicDailyBudgetUsd, withMeasuredCounts } from './public-citation.service.js';
 
 const ALTI = [
   ['anthropic', 'Anthropic Claude'], ['gemini', 'Google Gemini'], ['openai', 'OpenAI ChatGPT'],
@@ -335,5 +335,37 @@ describe('anonim test gunluk harcama tavani (varsayilan 10 USD, havuzdan ayri)',
     await t.svc.check('kobipratik.com', '5.6.7.8');
     expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
     expect(t.ai.addPublicAnonSpend).not.toHaveBeenCalled();
+  });
+});
+
+describe('anonim ziyaretci ayni siteyi gunler sonra test ederse eski sonuc doner', () => {
+  const GUN = 24 * 60 * 60 * 1000;
+  const anonKayit = (totalLlmCalls: number) => ({
+    domain: 'kobipratik.com', brand: 'Kobipratik', niche: 'finans',
+    access: { tier: 'anon', unlockedQueries: 1, totalQueries: 2, lockedQueries: 1 },
+    queries: [], competitorRanking: [], totalLlmCalls, fromCache: false,
+  });
+
+  it('100 gunluk anonim kayit: token harcanmaz, tarih doner, sorgu tarih filtresi icermez', async () => {
+    const eskiTarih = new Date(Date.now() - 100 * GUN);
+    const t = servis({ probeFor: (_p, q) => andi(q), cached: [{ id: 'eski', createdAt: eskiTarih, result: anonKayit(6) }] });
+    const r = await t.svc.check('kobipratik.com', '1.2.3.4');
+    expect(r).toMatchObject({ fromCache: true, cachedAt: eskiTarih });
+    expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
+    expect(t.prisma.publicCitationCheck.findMany.mock.calls[0][0].where).toEqual({ domain: 'kobipratik.com' });
+  });
+
+  it('pickReusableSnapshot: kademe tutmali; 24 saatten eski bos olcum ve uye kaydi tekrar verilmez', () => {
+    const now = Date.now();
+    const eski = new Date(now - 30 * GUN);
+    const taze = new Date(now - 2 * 60 * 60 * 1000);
+    const uye = { access: { tier: 'member' }, totalLlmCalls: 60 };
+    expect(pickReusableSnapshot([{ createdAt: eski, result: anonKayit(6) }], 'anon', now)).toBeDefined();
+    expect(pickReusableSnapshot([{ createdAt: eski, result: anonKayit(0) }], 'anon', now)).toBeUndefined();
+    expect(pickReusableSnapshot([{ createdAt: taze, result: anonKayit(0) }], 'anon', now)).toBeDefined();
+    expect(pickReusableSnapshot([{ createdAt: eski, result: uye }], 'member', now)).toBeUndefined();
+    expect(pickReusableSnapshot([{ createdAt: taze, result: uye }], 'anon', now)).toBeUndefined();
+    const ikisi = [{ createdAt: taze, result: uye }, { createdAt: eski, result: anonKayit(6) }];
+    expect(pickReusableSnapshot(ikisi, 'anon', now)?.createdAt).toBe(eski);
   });
 });
