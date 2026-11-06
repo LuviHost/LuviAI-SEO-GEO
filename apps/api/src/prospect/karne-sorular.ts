@@ -204,3 +204,37 @@ export function tumSorular(): string[] {
 }
 
 export const ALT_SEKTOR_ANAHTARLARI = Object.keys(OZEL) as AltSektorAnahtari[];
+
+/** Ozel soru dosyasinda izin verilen en fazla soru (maliyet: soru x asistan). */
+export const OZEL_SORU_SINIRI = 20;
+
+/**
+ * Ozel soru dosyasi (--sorular-dosya) metnini soru listesine cevirir.
+ *
+ * NEDEN: soru bankasi uc tuketici sektorunu kapsar; kurumsal BT entegratoru
+ * gibi B2B bir kuruma "telefon almak icin hangi magaza" sorulunca karne
+ * alan disi sorularla "hic gorunmuyorsunuz" der. Gorusme oncesi karnede
+ * sorular kurumun gercek alicisina gore elle yazilir.
+ *
+ * Kurallar: satir basina bir soru; bos satir ve # ile baslayan satir atlanir;
+ * bastaki "1." / "1)" / "-" / "*" numaralandirma kirpilir; ayni soru (bosluk
+ * ve buyuk/kucuk harf farki gozetmeden) bir kez sayilir. Sinir ustu hata.
+ */
+export function ozelSorulariOku(metin: string): string[] {
+  const gorulen = new Set<string>();
+  const out: string[] = [];
+  for (const ham of metin.split(/\r?\n/)) {
+    const satir = ham.trim();
+    if (!satir || satir.startsWith('#')) continue;
+    const soru = satir.replace(/^(?:\d+\s*[.)]|[-*•])\s*/, '').trim();
+    if (!soru) continue;
+    const anahtar = soru.replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR');
+    if (gorulen.has(anahtar)) continue;
+    gorulen.add(anahtar);
+    out.push(soru);
+  }
+  if (out.length > OZEL_SORU_SINIRI) {
+    throw new Error(`Özel soru dosyasında ${out.length} soru var; en fazla ${OZEL_SORU_SINIRI}.`);
+  }
+  return out;
+}
