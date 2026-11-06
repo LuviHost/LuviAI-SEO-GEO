@@ -80,7 +80,7 @@ export function resendMesaj(
   h: SogukHedef & { id: string }, k: EpostaKimlik, a: ResendAyar, sir: string, base: string, kampanya: string, site = 'https://ranksup.ai',
 ): ResendMesaj {
   const satir = sogukSatir(h, sir, base);
-  const [ilk] = sogukSablonlar(h.sektor, { ...k, fromEmail: a.from, replyTo: a.replyTo });
+  const [ilk] = sogukSablonlar(satir.sektor, { ...k, fromEmail: a.from, replyTo: a.replyTo });
   return {
     from: adresli(a.fromName, a.from),
     to: [satir.email],

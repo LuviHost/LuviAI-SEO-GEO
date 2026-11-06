@@ -94,7 +94,7 @@ export type SmtpMesaj = {
  */
 export function smtpMesaj(h: SogukHedef, k: EpostaKimlik, a: SmtpAyar, sir: string, base: string, kimlik = mesajKimligi(), tik?: string): SmtpMesaj {
   const satir = sogukSatir(h, sir, base);
-  const [ilk] = sogukSablonlar(h.sektor, { ...k, fromEmail: a.from, replyTo: a.from });
+  const [ilk] = sogukSablonlar(satir.sektor, { ...k, fromEmail: a.from, replyTo: a.from });
   const domain = a.from.split('@')[1];
   return {
     from: { name: a.fromName, address: a.from },
