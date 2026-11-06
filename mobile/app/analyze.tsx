@@ -134,7 +134,7 @@ function ResultCard({ result }: { result: AnalyzeResult }) {
         </View>
       </View>
       {result.fromCache && (
-        <Text style={{ ...type.micro, fontFamily: fonts.mono, letterSpacing: 0, color: R.inkFaint, marginTop: 10 }}>Sonuç önbellekten · 24 saat cache</Text>
+        <Text style={{ ...type.micro, fontFamily: fonts.mono, letterSpacing: 0, color: R.inkFaint, marginTop: 10 }}>{result.cachedAt ? `Bu site ${new Date(result.cachedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} tarihinde test edildi · ` : ''}Ücretsiz test her site için bir kez yapılır; güncel ölçüm için hesap aç.</Text>
       )}
 
       {/* Özet — Görünürlük sekmesiyle aynı skor */}
