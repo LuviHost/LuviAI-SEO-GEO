@@ -2,8 +2,9 @@ import type { RehberArticle } from './types';
 import { SRC } from './sources';
 
 /**
- * Urun bilgisi kodla dogrulandi (24.10.2026): llms_txt site denetiminin 14 genel skor
- * kontrolunden biri (api audit-checks.service.ts OVERALL_SCORE_WEIGHTS; web lib/compare-notes.ts).
+ * Urun bilgisi kodla dogrulandi (08.11.2026): llms_txt site denetiminin 14 kontrolunden
+ * biri ama genel skora GIRMEZ (bilgi; api audit-checks.service.ts OVERALL_SCORE_WEIGHTS'te
+ * yok, LLMS_METHOD_VERSION 3; web lib/compare-notes.ts). GEO skorunda da puan yok.
  */
 export const article: RehberArticle = {
   slug: 'llms-txt-nedir',
@@ -101,7 +102,7 @@ export const article: RehberArticle = {
         },
         {
           t: 'p',
-          text: 'Biz de [ranksup.ai/llms.txt](https://ranksup.ai/llms.txt) dosyasını yayımlıyoruz; ürünü ajanlara doğru anlatmak için. Ama bunu bir sıralama aracı olarak görmüyoruz. RanksUp’ın site denetimindeki 14 kontrolden biri llms.txt’dir; dosya yoksa bunu bir eksik olarak gösterir.',
+          text: 'Biz de [ranksup.ai/llms.txt](https://ranksup.ai/llms.txt) dosyasını yayımlıyoruz; ürünü ajanlara doğru anlatmak için. Ama bunu bir sıralama aracı olarak görmüyoruz. RanksUp’ın site denetimi llms.txt’i yalnız bilgi olarak gösterir: dosyanın olup olmaması site skorunu ve GEO skorunu değiştirmez.',
         },
       ],
     },

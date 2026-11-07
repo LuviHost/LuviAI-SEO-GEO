@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { collectTypedNodes, schemaTypesOf } from "./schema-org-types.js";
 
 /**
  * Icerik sayfasinin "alintilanabilirlik" sinyalleri (GEO yontemi v4). Saf.
@@ -101,4 +102,48 @@ export function contentSignals($: cheerio.CheerioAPI): ContentSignals {
 /** HTML metinden dogrudan (testler ve makale kapisi icin). */
 export function contentSignalsFromHtml(html: string): ContentSignals {
   return contentSignals(cheerio.load(html));
+}
+
+/*
+ * GEO yontemi v5 (08.11.2026 kanit denetimi) — isaretleme ODULLERI kalkti:
+ *  - Yapisal veri: Ahrefs'in kontrollu testinde schema eklemenin AI alintisina
+ *    olculebilir etkisi cikmadi; Google FAQ zengin sonuclarini Mayis 2026'da
+ *    kaldirdi. "3 farkli tip = 100" cesitlilik odulu yerine yalniz GECERLI
+ *    JSON-LD'nin varligi olculur (makine okunur kimlik/icerik bilgisi temel
+ *    hijyen); sinyalin agirligi 18 → 8 (geo-runner.service.ts).
+ *  - SSS: FAQPage / Question isaretlemesine verilen 40 puan kalkti; puan
+ *    yalniz sayfada GORUNEN soru-cevaptan gelir.
+ */
+
+/**
+ * Sayfada en az bir GECERLI JSON-LD blogu var mi: JSON olarak ayristirilabilen
+ * ve @type tasiyan en az bir dugum (dizi / @graph / ic ice dahil) iceren blok.
+ * Bozuk JSON ya da tipsiz nesne sayilmaz. Tip SAYISI odullendirilmez.
+ */
+export function hasValidJsonLd(blocks: readonly string[]): boolean {
+  for (const raw of blocks) {
+    // Bazi CMS'ler blogu HTML yorumu / CDATA ile sarar
+    const body = raw.trim().replace(/^<!--/, "").replace(/-->$/, "").replace(/^\/\*<!\[CDATA\[\*\//, "").replace(/\/\*\]\]>\*\/$/, "").trim();
+    if (!body) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      continue;
+    }
+    if (collectTypedNodes(parsed, 50).some((n) => schemaTypesOf(n).length > 0)) return true;
+  }
+  return false;
+}
+
+/** Gorunur soru-cevap sayisinin tam puan esigi (v4'te gorunur kisim 6 soruda doyuyordu) */
+export const VISIBLE_QA_FULL_AT = 6;
+
+/**
+ * SSS / soru-cevap puani (v5) — YALNIZ gorunur soru-cevap: soru isaretiyle
+ * biten satir sayisi; 6 ve ustu 100. Isaretleme (FAQPage) puan vermez.
+ */
+export function visibleQaScore(qaCount: number): number {
+  if (!Number.isFinite(qaCount) || qaCount <= 0) return 0;
+  return Math.min(100, Math.round((qaCount / VISIBLE_QA_FULL_AT) * 100));
 }

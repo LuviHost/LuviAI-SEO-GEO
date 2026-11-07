@@ -55,6 +55,10 @@ const METHOD_LABEL: Record<number, { text: string; title: string }> = {
     text: 'Metodoloji v3 · Eki 2026',
     title: 'Ekim 2026: erişim engeli (güvenlik duvarı, bot doğrulaması, 429/503) artık "eksik" sayılmıyor ve puana girmiyor; HTML dönen sahte dosyalar (soft-404) geçerli sayılmıyor; auth.md, API kataloğu, A2A ve MCP kontrolleri yalnız site o arayüzü sunuyorsa puanlanıyor; llms-full.txt canlı siteden ölçülüyor; ürün feed\'i yalnız gerçekten okunup doğrulandığında puanlanıyor, Product schema site haritasından örneklenen ürün sayfalarında ölçülüyor; agentic checkout ve işletilebilirlik sinyalleri bilgi amaçlı.',
   },
+  4: {
+    text: 'Metodoloji v4 · Kas 2026',
+    title: 'Kasım 2026: "AI botlarını adıyla an" kuralı kalktı; yerine görünürlüğü gerçekten kesen altı botun (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User) robots.txt\'te engelli olmaması puanlanıyor. llms.txt, llms-full.txt ve Markdown sunumu bilgi amaçlı: Google Arama llms.txt\'i yok sayıyor, bağımsız ölçümlerde etkisi görülmedi.',
+  },
 };
 
 type CheckState = 'pass' | 'fail' | 'blocked' | 'info';

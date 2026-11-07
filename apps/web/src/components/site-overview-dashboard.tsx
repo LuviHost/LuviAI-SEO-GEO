@@ -490,7 +490,7 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
       tone: 'warning',
       icon: Sparkles,
       title: `AI görünürlük altyapısı zayıf (${geoScore}/100)`,
-      desc: `Şema, SSS, llms.txt ve okunabilir içerik eksik. Sayfa SEO aracıyla sayfa sayfa iyileştir.${note ? ` ${note}` : ''}`,
+      desc: `Sayfa sinyalleri (görünür soru-cevap, tanım, kanıt blokları, başlık yapısı) GEO analizinde düşük çıktı; ayrıntı tarama sonucunda. Sayfa SEO aracıyla sayfa sayfa iyileştir.${note ? ` ${note}` : ''}`,
       cta: 'İyileştir',
       href: href('snippet'),
     });

@@ -79,7 +79,7 @@ export class DemoSeederService {
         checks: {
           sitemap_xml: { id: 'sitemap_xml', name: 'Sitemap XML', found: true, valid: true, score: 100, issues: [] },
           robots_txt: { id: 'robots_txt', name: 'Robots.txt', found: true, valid: true, score: 90, issues: [] },
-          llms_txt: { id: 'llms_txt', name: 'LLMs.txt (AI search)', found: false, valid: false, score: 30, issues: [{ severity: 'warning', type: 'llms_missing', description: 'llms.txt yok — ChatGPT/Perplexity/Claude AI sitenizi alıntılaması zorlaşır', fixable: true }] },
+          llms_txt: { id: 'llms_txt', name: 'LLMs.txt (AI search)', found: false, valid: false, score: 30, details: { methodVersion: 3, informational: true, note: 'Bilgi: llms.txt genel skora girmez. Google Arama dosyayı yok sayıyor; bağımsız ölçümlerde görünürlüğe etkisi görülmedi.' }, issues: [{ severity: 'info', type: 'llms_missing', description: 'llms.txt yok — bilgi: genel skora girmez. Google Arama bu dosyayı yok sayıyor; Sistrix ve SE Ranking ölçümlerinde görünürlüğe etkisi görülmedi. İstersen düşük maliyetli bir ek olarak yayınlayabilirsin.', fixable: true }] },
           schema_markup: { id: 'schema_markup', name: 'Schema.org markup', found: true, valid: false, score: 60, issues: [] },
           meta_title: { id: 'meta_title', name: 'Meta Title', found: true, valid: true, score: 85, issues: [] },
           https: { id: 'https', name: 'HTTPS', found: true, valid: true, score: 100, issues: [] },
@@ -103,7 +103,7 @@ export class DemoSeederService {
           },
         } as any,
         issues: [
-          { severity: 'warning', type: 'llms_missing', description: 'llms.txt yok — ChatGPT/Perplexity/Claude AI sitenizi alıntılaması zorlaşır', fixable: true, checkId: 'llms_txt' },
+          { severity: 'info', type: 'llms_missing', description: 'llms.txt yok — bilgi: genel skora girmez. Google Arama bu dosyayı yok sayıyor; Sistrix ve SE Ranking ölçümlerinde görünürlüğe etkisi görülmedi. İstersen düşük maliyetli bir ek olarak yayınlayabilirsin.', fixable: true, checkId: 'llms_txt' },
           { severity: 'info', type: 'schema_low_coverage', description: 'Schema markup 12/20 sayfada — kapsama düşük', fixable: true, checkId: 'schema_markup' },
         ] as any,
         durationMs: 25000,

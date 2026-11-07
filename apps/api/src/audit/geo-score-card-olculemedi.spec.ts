@@ -6,11 +6,12 @@ const { GeoScoreCardService, weightedOverall, gradeOf } = await import('./geo-sc
 /**
  * GEO skor karti — OLCULEMEYEN sutunlar.
  *
- * NEDEN VAR: Yapisal Veri, Tazelik ve Multi-Modal yalniz RanksUp'in yayinladigi
- * makalelere bakar. Blogunu baska yerden yoneten gercek bir site (RanksUp'tan
- * 0 yayin) bu uc sutunda sahte sifir aliyor, kart F'ye dusuyordu. AI Citation da
- * son 9 gunde olcum yokken 0 veriyordu. Olculemeyen sutun artik null + neden;
- * genel skor yalniz olculen sutunlarin agirlikli ortalamasi.
+ * NEDEN VAR: Tazelik ve Multi-Modal yalniz RanksUp'in yayinladigi makalelere
+ * bakar; Yapisal Veri makale kapsamina ve ana sayfadaki Organization semasina
+ * (Agent Readiness taramasi). Blogunu baska yerden yoneten gercek bir site
+ * (RanksUp'tan 0 yayin) bu sutunlarda sahte sifir aliyor, kart F'ye dusuyordu.
+ * AI Citation da son 9 gunde olcum yokken 0 veriyordu. Olculemeyen sutun artik
+ * null + neden; genel skor yalniz olculen sutunlarin agirlikli ortalamasi.
  */
 
 const DAY = 86_400_000;
@@ -40,6 +41,8 @@ function kart(opts: {
   snapshots?: Array<{ provider: string; score: number | null; available: boolean }>;
   audit?: any;
   site?: any;
+  /** Son Agent Readiness taramasi (Organization semasi) — yoksa null */
+  scan?: any;
 } = {}) {
   const rows = opts.articles ?? [];
   const prisma = {
@@ -47,7 +50,7 @@ function kart(opts: {
     kvStore: { findUnique: vi.fn(async () => null) },
     site: { findUniqueOrThrow: vi.fn(async () => opts.site ?? { brain: null, llmsFullTxt: null }) },
     aiCitationSnapshot: { findMany: vi.fn(async () => opts.snapshots ?? []) },
-    agentReadinessScan: { findFirst: vi.fn(async () => null) },
+    agentReadinessScan: { findFirst: vi.fn(async () => opts.scan ?? null) },
     article: {
       count: vi.fn(async ({ where }: any) => rows.filter((r) => matches(r, where)).length),
       findMany: vi.fn(async ({ where }: any) => rows.filter((r) => matches(r, where))),
@@ -62,10 +65,20 @@ const article = (i: number, over: Partial<ArticleRow> = {}): ArticleRow => ({
   heroImageUrl: 'https://cdn.ornek.com/hero.webp', frontmatter: {}, ...over,
 });
 
-// Denetimde robots + sitemap var, llms.txt yok; llms-full olusturulmus
+// Denetimde robots (kritik botlar acik, yontem v3) + sitemap var, llms.txt yok
+const KRITIK = ['Googlebot', 'Bingbot', 'OAI-SearchBot', 'PerplexityBot', 'Claude-SearchBot', 'Claude-User'];
 const AUDIT = {
   ranAt: ago(1),
-  checks: { robots_txt: { found: true, score: 90 }, llms_txt: { found: false }, sitemap_xml: { found: true } },
+  checks: {
+    robots_txt: { found: true, score: 100, details: { methodVersion: 3, searchBots: KRITIK.map((name) => ({ name, effective: 'allow' })) } },
+    llms_txt: { found: false },
+    sitemap_xml: { found: true },
+  },
+};
+// Ana sayfada Organization + 2 sameAs (Agent Readiness 'org-schema')
+const SCAN = {
+  ranAt: ago(3),
+  levels: [{ id: 'groundwork', checks: [{ id: 'org-schema', ok: true, state: 'pass', statusText: 'Organization schema var, 2 sameAs profili', audit: [{ step: 'PARSE', ok: true }] }] }],
 };
 const SITE = {
   llmsFullTxt: '# ornek.com', llmsFullTxtAt: ago(2),
@@ -83,18 +96,26 @@ const MAKALELER = [
 ];
 
 const BEKLENEN_NEDEN = "RanksUp'tan yayınlanmış makale yok — bu sütun yalnız RanksUp'ın yayınladığı yazılara bakar";
+const YAPISAL_NEDEN = "RanksUp'tan yayınlanmış makale yok ve ana sayfadaki Organization şeması henüz ölçülmedi (Agent Readiness taraması)";
 
-describe('GeoScoreCard — makale varken davranis degismez (onceki surumun sayilari)', () => {
-  it('sutun puanlari, genel skor ve not ayni', async () => {
-    const c = await kart({ articles: MAKALELER, snapshots: SNAPS, audit: AUDIT, site: SITE }).build('s1');
+describe('GeoScoreCard — makale varken tum sutunlar olculur (08.11.2026 olcutleri)', () => {
+  it('sutun puanlari, genel skor ve not', async () => {
+    const c = await kart({ articles: MAKALELER, snapshots: SNAPS, audit: AUDIT, site: SITE, scan: SCAN }).build('s1');
     const puan = Object.fromEntries(c.pillars.map((p) => [p.id, p.score]));
     expect(puan).toEqual({
-      'crawler-access': 75, 'structured-data': 50, 'ai-citation': 67,
-      authority: 67, freshness: 67, 'multi-modal': 0,
+      // Crawler: kritik botlar + sitemap (llms.txt / llms-full.txt yok) → 2/2
+      'crawler-access': 100,
+      // Yapisal: kapsama 2/3 (< %80) gecmez, Organization var → 1/2
+      'structured-data': 50,
+      'ai-citation': 67,
+      authority: 67,
+      // Tazelik: 3/3 makale son 12 ayda → 1/1 (yayin sikligi esigi yok)
+      freshness: 100,
+      'multi-modal': 0,
     });
-    // (75*3 + 50*3 + 67*3 + 67*2 + 67*2 + 0*1) / 14 = 844/14 = 60.3 → 60
-    expect(c.overallScore).toBe(60);
-    expect(c.grade).toBe('C');
+    // (100*3 + 50*3 + 67*3 + 67*2 + 100*2 + 0*1) / 14 = 985/14 = 70.4 → 70
+    expect(c.overallScore).toBe(70);
+    expect(c.grade).toBe('B');
     expect(c.pillars.every((p) => p.unmeasuredReason === undefined)).toBe(true);
     expect(c.measuredWeight).toBe(14);
     expect(c.totalWeight).toBe(14);
@@ -102,14 +123,15 @@ describe('GeoScoreCard — makale varken davranis degismez (onceki surumun sayil
 });
 
 describe('GeoScoreCard — RanksUp makalesi yoksa makale sutunlari olculemedi', () => {
-  it('Yapisal Veri, Tazelik, Multi-Modal null + neden; ortalamaya girmez', async () => {
+  it('Yapisal Veri (tarama da yoksa), Tazelik, Multi-Modal null + neden; ortalamaya girmez', async () => {
     const c = await kart({ articles: [], snapshots: SNAPS, audit: AUDIT, site: SITE }).build('s1');
-    for (const id of ['structured-data', 'freshness', 'multi-modal']) {
+    for (const id of ['freshness', 'multi-modal']) {
       const p = c.pillars.find((x) => x.id === id)!;
       expect(p, id).toMatchObject({ score: null, status: 'unmeasured', unmeasuredReason: BEKLENEN_NEDEN, checks: [] });
     }
-    // Olculen: crawler 75 (w3), AI 67 (w3), otorite 67 (w2) → (225+201+134)/8 = 70
-    expect(c.overallScore).toBe(70);
+    expect(c.pillars.find((x) => x.id === 'structured-data')).toMatchObject({ score: null, status: 'unmeasured', unmeasuredReason: YAPISAL_NEDEN, checks: [] });
+    // Olculen: crawler 100 (w3), AI 67 (w3), otorite 67 (w2) → (300+201+134)/8 = 79.4 → 79
+    expect(c.overallScore).toBe(79);
     expect(c.grade).toBe('B');
     expect(c.measuredWeight).toBe(8);
     expect(c.totalWeight).toBe(14);
@@ -136,21 +158,31 @@ describe('GeoScoreCard — RanksUp makalesi yoksa makale sutunlari olculemedi', 
   it('tek yayinda makale yeterli: sutunlar yine olculur', async () => {
     const c = await kart({ articles: [article(1, { publishedAt: ago(200) })], snapshots: SNAPS, audit: AUDIT, site: SITE }).build('s1');
     expect(c.pillars.every((p) => p.score !== null)).toBe(true);
-    // Tazelik: 30/7 gun kosullari dusuyor, eskimis < 10 geciyor → 33
-    expect(c.pillars.find((p) => p.id === 'freshness')!.score).toBe(33);
+    // Tazelik: 200 gunluk yazi 12 ay icinde → 100 (eskiden 30/7 gun esikleri yuzunden 33)
+    expect(c.pillars.find((p) => p.id === 'freshness')!.score).toBe(100);
+    // 13 aylik yazi taze degil
+    const eski = await kart({ articles: [article(1, { publishedAt: ago(400) })], snapshots: SNAPS, audit: AUDIT, site: SITE }).build('s1');
+    expect(eski.pillars.find((p) => p.id === 'freshness')!.score).toBe(0);
+  });
+
+  it('makale yok ama Organization olculdu: Yapisal Veri yalniz o satirla olculur', async () => {
+    const c = await kart({ articles: [], snapshots: SNAPS, audit: AUDIT, site: SITE, scan: SCAN }).build('s1');
+    const p = c.pillars.find((x) => x.id === 'structured-data')!;
+    expect(p.score).toBe(100);
+    expect(p.checks.find((x) => x.id === 'schema-coverage')).toMatchObject({ unverified: true, detail: BEKLENEN_NEDEN });
   });
 });
 
 describe('GeoScoreCard — AI Citation olcumu yoksa olculemedi', () => {
   it('pencerede snapshot yok → null + neden; puana girmez', async () => {
-    const c = await kart({ articles: MAKALELER, snapshots: [], audit: AUDIT, site: SITE }).build('s1');
+    const c = await kart({ articles: MAKALELER, snapshots: [], audit: AUDIT, site: SITE, scan: SCAN }).build('s1');
     const p = c.pillars.find((x) => x.id === 'ai-citation')!;
     expect(p).toMatchObject({
       score: null, status: 'unmeasured',
       unmeasuredReason: "Son 9 günde AI ölçümü yok — AI Görünürlük'te Yeniden Test ile ölçülür",
     });
-    // (75*3 + 50*3 + 67*2 + 67*2 + 0*1) / 11 = 643/11 = 58.45 → 58
-    expect(c.overallScore).toBe(58);
+    // (100*3 + 50*3 + 67*2 + 100*2 + 0*1) / 11 = 784/11 = 71.3 → 71
+    expect(c.overallScore).toBe(71);
     expect(c.measuredWeight).toBe(11);
   });
 
@@ -175,9 +207,9 @@ describe('GeoScoreCard — agirlik yeniden dagitimi', () => {
     // Makale yok + AI olcumu yok: yalniz crawler (w3) + otorite (w2)
     const c = await kart({ articles: [], snapshots: [], audit: AUDIT, site: SITE }).build('s1');
     expect(c.pillars.filter((p) => p.score !== null).map((p) => p.id)).toEqual(['crawler-access', 'authority']);
-    // (75*3 + 67*2) / 5 = 359/5 = 71.8 → 72
-    expect(c.overallScore).toBe(72);
-    expect(c.grade).toBe('B');
+    // (100*3 + 67*2) / 5 = 434/5 = 86.8 → 87
+    expect(c.overallScore).toBe(87);
+    expect(c.grade).toBe('A');
     expect(c.measuredWeight).toBe(5);
   });
 

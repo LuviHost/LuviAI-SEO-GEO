@@ -27,12 +27,12 @@ export const KONTROL_METINLERI: Readonly<Record<string, KontrolMetni>> = {
   },
   robots_txt: {
     ad: 'robots.txt',
-    neden: 'Hangi botların siteyi tarayabileceğini belirler. AI arama botları engellenirse site, AI cevaplarında kaynak olarak gösterilemez.',
-    oneri: 'robots.txt içinde site haritası satırı bulunsun; AI arama botlarına (OAI-SearchBot, PerplexityBot vb.) erişim bilinçli bir kararla verilsin.',
+    neden: 'Hangi botların siteyi tarayabileceğini belirler. Googlebot ya da Bingbot engellenirse site o arama motorunda görünmez; AI arama botları (OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User) engellenirse AI cevaplarında kaynak olarak gösterilemez.',
+    oneri: 'robots.txt içinde site haritası satırı bulunsun; Googlebot, Bingbot ve AI arama botları engellenmesin. Botları tek tek adıyla anmak gerekmez.',
   },
   llms_txt: {
     ad: 'llms.txt',
-    neden: 'AI asistanlarına sitenin özetini sunan, isteğe bağlı bir dosyadır. Büyük AI sağlayıcıları bu dosyayı kullanacağını taahhüt etmiyor; olası faydası küçük, zararı yoktur.',
+    neden: 'AI asistanlarına sitenin özetini sunan, isteğe bağlı bir dosyadır. Google Arama bu dosyayı yok sayıyor, bağımsız ölçümlerde görünürlüğe etkisi görülmedi; bu yüzden skora girmez, yalnız bilgi olarak gösterilir.',
     oneri: 'Site kökünde kısa bir llms.txt yayınlayın; düşük maliyetli bir hijyen adımıdır.',
   },
   schema_markup: {
@@ -210,5 +210,5 @@ export const AI_DUSUK_ESIGI = 30;
  */
 export function aiGorunurlukAksiyonAciklamasi(skor: number | null): string {
   const bas = typeof skor === 'number' ? `AI görünürlük skoru ${skor}/100` : 'AI görünürlüğü düşük';
-  return `${bas}: AI asistanları marka adı geçmeyen sorulara verdikleri yanıtlarda siteyi nadiren kaynak gösteriyor ya da markayı nadiren anıyor. Soru-cevap biçiminde GEO içeriği ve schema işaretlemesi önerilir; llms.txt düşük maliyetli, opsiyonel bir adımdır.`;
+  return `${bas}: AI asistanları marka adı geçmeyen sorulara verdikleri yanıtlarda siteyi nadiren kaynak gösteriyor ya da markayı nadiren anıyor. Sorulara doğrudan cevap veren, rakam ve karşılaştırma gibi kanıt blokları içeren içerik önerilir; arama botlarının (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot) robots.txt'te engelli olmadığından emin ol.`;
 }

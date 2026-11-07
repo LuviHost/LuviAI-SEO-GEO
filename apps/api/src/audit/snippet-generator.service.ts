@@ -563,7 +563,7 @@ Başlık: ${heading}
     return {
       pageUrl: url,
       type: 'jsonld_faq',
-      reason: `FAQ schema yok — GEO için ağırlık 12. ${pairs.length} soru-cevap önerildi.`,
+      reason: `${pairs.length} soru-cevap önerildi. GEO puanı yalnız sayfada GÖRÜNEN soru-cevaba bakar: bu soruları sayfaya görünür metin olarak da ekle; FAQPage işaretlemesi tek başına puanı artırmaz.`,
       insertLocation: 'Sayfanın <head> bölümüne (Article schema varsa onun yanına)',
       generatedSnippet: `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`,
       language: 'json-ld',

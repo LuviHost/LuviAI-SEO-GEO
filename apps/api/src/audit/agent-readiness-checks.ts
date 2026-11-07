@@ -1,9 +1,10 @@
 import * as cheerio from 'cheerio';
-import { KNOWN_AI_BOTS, STANCE_SCORED_BOTS } from './known-ai-bots.js';
+import { KNOWN_AI_BOTS } from './known-ai-bots.js';
 import { parseRobotsAiStance, type RobotsAiStance } from './robots-ai-stance.js';
 import { assessJsFreeDiscovery } from './js-free-discovery.js';
 import { describeProbe, isUnmeasured, type Probe } from './axo-fetch.js';
 import { assessRobotsBody } from './robots-merge.js';
+import { CLASSIC_SEARCH_BOTS, CRITICAL_SEARCH_BOTS, criticalBotAccess } from './robots-check.js';
 import {
   validateTextDoc, validateLlmsTxt, validateLlmsFullTxt, validateOpenApiDoc, validateApiCatalog,
   parseAiCatalog, isRanksUpLegacyAuthMd, looksLikeHtml, parseJsonSafe, DOC_FAILURE_TEXT,
@@ -31,7 +32,7 @@ import { authMdTemplate } from './generators.service.js';
  *      · A2A: (RanksUp'in eski uretimi olmayan) bir ajan karti var
  *      · auth.md: bunlardan herhangi biri var
  *  - llms-full canli siteden olculur (DB kopyasi yalniz ipucu), etkisi llms.txt
- *    ile ayni (low): ayni zayif kanit tabani.
+ *    ile ayni (low; v4'te ikisi de info): ayni zayif kanit tabani.
  *  - agentic-checkout 'info': dis sinyalden tespit edilemiyor; her ticaret
  *    sitesini cezalandiriyordu.
  *  - Ticaret: urun feed'i YALNIZ gercekten okunup dogrulandiginda puanlanir
@@ -46,11 +47,22 @@ import { authMdTemplate } from './generators.service.js';
  *  - Isletilebilirlik sinyalleri (tel/WhatsApp, form anlamlari, gomulu
  *    rezervasyon, WebMCP) 'info' — esikler gercek dagilim gorulmeden puanlanmaz.
  * v2 (2026-08): user-triggered fetcher'lar stance skorundan cikti, llms.txt low.
+ *
+ * SKOR METODOLOJISI v4 (2026-11, 08.11.2026 kanit denetimi):
+ *  - 'ai-crawler-rules' artik "21 bottan en az 4'u adiyla anilmali" DEGIL:
+ *    botlari adiyla anmak bir standart degil (RFC 9309'da isimsiz bot "*"
+ *    grubuna uyar). Kontrol, gorunurlugu GERCEKTEN kesen alti botun
+ *    (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot,
+ *    Claude-User) robots.txt'te ETKIN olarak engelli OLMADIGINA bakar (yuksek
+ *    etki; robots-check.ts ile ayni liste).
+ *  - llms.txt, llms-full.txt ve Markdown sunumu (Accept: text/markdown)
+ *    'info': Google Arama llms.txt'i yok sayiyor; Sistrix ve SE Ranking
+ *    olcumlerinde etkisi cikmadi. Gozlem olarak gosterilir, puana girmez.
  */
-export const SCORE_VERSION = 3;
+export const SCORE_VERSION = 4;
 
-/** ai-crawler-rules esigi — v2 tabani 21 bot, esik 4 */
-export const AI_RULES_MIN_NAMED = 4;
+/** Kanit tabani zayif kontrollerin puana neden girmedigi (scoreNote) */
+const WEAK_EVIDENCE_NOTE = "Bilgi amaçlı: Google Arama llms.txt'i yok sayıyor, bağımsız ölçümlerde (Sistrix, SE Ranking) bu dosyaların görünürlüğe etkisi görülmedi; puana girmez.";
 
 export interface ReadinessAuditStep {
   step: 'FETCH' | 'PARSE' | 'CONCLUDE';
@@ -268,35 +280,36 @@ function levelQuickWins(ctx: ScanContext, rv: RobotsView): ReadinessLevel {
     blocked: smBlocked,
   });
 
-  // 3. AI bot yonetimi — skor tabani training + search (21); user-triggered
-  // fetcher'lar robots.txt'e guvenilir uymaz (bkz. known-ai-bots.ts)
-  const stance = rv.stance;
-  const namedCount = stance ? stance.scored.named : 0;
-  const scoredTotal = stance ? stance.scored.total : STANCE_SCORED_BOTS.length;
-  const aiRulesOk = !!stance && namedCount >= AI_RULES_MIN_NAMED;
-  const missingScored = stance
-    ? stance.bots.filter((b) => b.category !== 'user-triggered' && b.stance === 'unspecified').map((b) => b.name).slice(0, 4)
-    : [];
-  const userTriggeredNamed = stance ? stance.bots.filter((b) => b.category === 'user-triggered' && b.stance !== 'unspecified').length : 0;
+  // 3. Kritik arama botlari engelli degil (v4). Eskiden "21 bottan en az 4'u
+  // adiyla anilmali" idi; adla anmak bir standart degil, gorunurlugu kesen
+  // sey ETKIN engel. robots.txt yoksa / gecersizse kural da yok: botlar
+  // serbest (RFC 9309 2.3.1.3). 5xx'te RFC 9309 2.3.1.4 tam yasak varsayar.
+  const robotsServerError = robots.state === 'http_error' && robots.status >= 500;
+  const critical = rv.valid ? criticalBotAccess(rv.text) : null;
+  const criticalBlocked = critical ? critical.filter((b) => b.effective === 'block').map((b) => b.name) : [];
+  const classicBlocked = criticalBlocked.filter((n) => (CLASSIC_SEARCH_BOTS as readonly string[]).includes(n));
+  const criticalOk = !robotsServerError && criticalBlocked.length === 0;
+  const criticalNames = CRITICAL_SEARCH_BOTS.map((b) => b.name);
   checks.push({
     id: 'ai-crawler-rules',
-    name: 'AI botlarını yönet (AI Crawler Rules)',
-    ok: aiRulesOk,
+    name: 'Kritik arama botları engelli değil',
+    ok: criticalOk,
     impact: 'high',
     statusText: robotsBlocked
       ? robotsBlocked.reason
-      : stance
-        ? aiRulesOk
-          ? `robots.txt ${namedCount}/${scoredTotal} eğitim + AI arama botunu isimle anıyor (${stance.scored.allow} izin / ${stance.scored.block} engel)`
-          : `robots.txt yalnız ${namedCount}/${scoredTotal} eğitim + AI arama botunu isimle anıyor${userTriggeredNamed ? ` — ${userTriggeredNamed} kullanıcı-tetikli fetcher skora girmez` : ''}; en az ${AI_RULES_MIN_NAMED} gerekli, ör. ${missingScored.join(', ')}`
-        : 'Geçerli bir robots.txt okunamadığı için AI bot duruşu çıkarılamadı',
-    howTo: `GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot gibi eğitim ve AI-arama crawler'ları için robots.txt'de açık User-agent blokları tanımla — izin ver ya da engelle, ama bilinçli olsun (en az ${AI_RULES_MIN_NAMED} bot). "Önizle ve uygula" eksik botları, mevcut erişimlerini değiştirmeden ("User-agent: *" kurallarını kopyalayarak) ekler; mevcut engelleri kaldırmaz. ChatGPT-User, Perplexity-User, Claude-User gibi kullanıcı-tetikli fetcher'lar robots.txt'e güvenilir uymadığı için skora girmez.`,
-    agentPrompt: `Fetch ${ctx.origin}/robots.txt and list which of these AI crawlers have an explicit User-agent block: ${STANCE_SCORED_BOTS.slice(0, 10).map((b) => b.name).join(', ')}. For each, state allow or block.`,
-    fixKey: robotsBlocked ? undefined : 'robots_txt',
+      : robotsServerError
+        ? `robots.txt sunucu hatası veriyor (HTTP ${robots.status}) — arama motorları bu durumda siteyi taramayı durdurabilir`
+        : !critical
+          ? 'Geçerli bir robots.txt yok — kural olmadığı için arama botları serbest'
+          : criticalBlocked.length === 0
+            ? `${criticalNames.length} kritik arama botunun hiçbiri engelli değil`
+            : `Engelli: ${criticalBlocked.join(', ')}${classicBlocked.length > 0 ? ' — site bu arama motorlarının sonuçlarından düşer' : ''}`,
+    howTo: `Görünürlüğü gerçekten kesen botlar: ${criticalNames.join(', ')}. Bunlardan biri robots.txt'te (kendi grubunda ya da "User-agent: *" ile) "Disallow: /" ile engelliyse o arama motorunda ya da asistanda görünmezsin. Engeli kaldırmak için botun kendi grubundaki "Disallow: /" satırını sil ya da bot "*" grubuyla engelliyse ona "Allow: /" içeren ayrı bir grup ekle. RanksUp mevcut engelleri kendiliğinden kaldırmaz; karar senin. Botları tek tek adıyla anmak bir standart değil, gerekmiyor.`,
+    agentPrompt: `Fetch ${ctx.origin}/robots.txt and, following RFC 9309 group matching (a crawler without its own group follows "User-agent: *"), report whether any of these crawlers is fully blocked ("Disallow: /"): ${criticalNames.join(', ')}.`,
     audit: [
       fetchStep('/robots.txt', robots),
-      { step: 'PARSE', detail: stance ? `Skorlanan AI user-agent'ları: ${stance.bots.filter((b) => b.category !== 'user-triggered' && b.stance !== 'unspecified').map((b) => b.name).slice(0, 8).join(', ') || 'hiçbiri'}` : '—', ok: aiRulesOk },
-      { step: 'CONCLUDE', detail: robotsBlocked ? 'Ölçülemedi — puana girmez' : aiRulesOk ? 'AI crawler kuralları deklare edilmiş' : 'AI crawler\'lar için yeterli açık kural yok', ok: aiRulesOk },
+      { step: 'PARSE', detail: critical ? `Etkin erişim: ${critical.map((b) => `${b.name}=${b.effective === 'block' ? 'engelli' : 'açık'}`).join(', ')}` : robotsServerError ? 'Sunucu hatası — kurallar okunamadı' : 'robots.txt kuralı yok', ok: criticalOk },
+      { step: 'CONCLUDE', detail: robotsBlocked ? 'Ölçülemedi — puana girmez' : criticalOk ? 'Kritik arama botları erişebiliyor' : 'Kritik arama botlarından en az biri engelli', ok: criticalOk },
     ],
     blocked: robotsBlocked,
   });
@@ -326,8 +339,8 @@ function levelQuickWins(ctx: ScanContext, rv: RobotsView): ReadinessLevel {
     blocked: robotsBlocked,
   });
 
-  // 5. llms.txt — DUSUK ETKI (v2): hicbir buyuk saglayici taahhut etmiyor,
-  // %97'si hic okunmuyor, Google kullanmiyor. Opsiyonel hijyen.
+  // 5. llms.txt — BILGI (v4; v2'de dusuk etki): Google Arama yok sayiyor,
+  // bagimsiz olcumlerde etkisi yok. Gozlem olarak kalir, puana girmez.
   const llmsBlocked = blockedOf(llms);
   const llmsCheck = llms.state === 'ok' ? validateLlmsTxt(llms.text, catchAllBody(ctx)) : null;
   const llmsOk = !!llmsCheck?.ok;
@@ -335,7 +348,8 @@ function levelQuickWins(ctx: ScanContext, rv: RobotsView): ReadinessLevel {
     id: 'llms-txt',
     name: 'AI-optimize özet (llms.txt) — opsiyonel',
     ok: llmsOk,
-    impact: 'low',
+    impact: 'info',
+    scoreNote: WEAK_EVIDENCE_NOTE,
     statusText: llmsBlocked
       ? llmsBlocked.reason
       : llmsOk
@@ -343,7 +357,7 @@ function levelQuickWins(ctx: ScanContext, rv: RobotsView): ReadinessLevel {
         : llmsCheck && !llmsCheck.ok
           ? `llms.txt adresi yanıt veriyor ama ${llmsCheck.detail ?? DOC_FAILURE_TEXT[llmsCheck.reason]}`
           : llms.state === 'http_error' ? `llms.txt okunamadı (HTTP ${llms.status})` : 'llms.txt yok (opsiyonel)',
-    howTo: 'Düşük maliyetli, kanıtı zayıf, opsiyonel bir hijyen adımı: hiçbir büyük AI sağlayıcısı llms.txt\'yi kullanacağını taahhüt etmiyor, Google Search kullanmıyor ve Ahrefs\'in 137 bin sitelik ölçümünde dosyaların %97\'si hiç okunmadı. Zararı yok, olası faydası küçük. RanksUp yalnız llms.txt yokken oluşturur; var olan dosyanın üzerine yazmaz.',
+    howTo: 'Kanıtı zayıf, opsiyonel bir adım: Google Arama llms.txt\'yi yok sayıyor, hiçbir büyük AI sağlayıcısı kullanacağını taahhüt etmiyor ve Sistrix ile SE Ranking ölçümlerinde görünürlüğe etkisi görülmedi. Zararı yok; puana girmez. RanksUp yalnız llms.txt yokken oluşturur; var olan dosyanın üzerine yazmaz.',
     fixKey: llmsBlocked ? undefined : 'llms_txt',
     audit: [
       fetchStep('/llms.txt', llms),
@@ -563,7 +577,8 @@ function levelGroundwork(ctx: ScanContext, ev: InterfaceEvidence, nodes: any[]):
     id: 'llms-full',
     name: 'Konsolide içerik (llms-full.txt) — opsiyonel',
     ok: lfOk,
-    impact: 'low',
+    impact: 'info',
+    scoreNote: WEAK_EVIDENCE_NOTE,
     statusText: lfBlocked
       ? lfBlocked.reason
       : lfOk
@@ -782,7 +797,10 @@ function levelAdvanced(ctx: ScanContext, ev: InterfaceEvidence, nodes: any[]): R
     id: 'markdown-negotiation',
     name: 'AI-optimize format sunumu (Markdown Negotiation)',
     ok: mdNegotiation,
-    impact: 'low',
+    // v4: bilgi — markdown sunumunun gorunurluge etkisini gosteren bagimsiz
+    // olcum yok; llms.txt ile ayni zayif kanit tabani
+    impact: 'info',
+    scoreNote: 'Bilgi amaçlı: Markdown sunumunun görünürlüğe etkisini gösteren bağımsız bir ölçüm yok; puana girmez.',
     statusText: mdBlocked
       ? mdBlocked.reason
       : mdNegotiation ? `Accept: text/markdown → ${homeMd.contentType || 'markdown içerik'}` : 'Sunucu markdown varyantı sunmuyor',

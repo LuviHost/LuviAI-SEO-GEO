@@ -4,16 +4,14 @@ import { EngineLogo } from '@/components/engine-logo';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, MapPin, Mail, BarChart3, Bot,
-  Gauge, Award, Wrench, Send, BookOpen, Target, Lightbulb, Package, FileText, Search, Map as MapIcon, Trophy, CheckCircle2, XCircle, AlertTriangle, Tags,
+  Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, Mail, BarChart3, Bot,
+  Gauge, Award, Wrench, Send, BookOpen, Target, Lightbulb, Package, FileText, Search, Trophy, CheckCircle2, XCircle, AlertTriangle, Tags,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatNum } from '@/lib/format';
 import { api } from '@/lib/api';
-import { LockedGenerateButton } from '@/components/locked-article';
-import { refreshArticleAllowance, useArticleAllowance } from '@/lib/use-article-allowance';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { displayProbeText } from '@/lib/probe-error-text';
@@ -27,11 +25,12 @@ import { Badge } from '@/components/ui/badge';
  *  2. Wikidata draft (Knowledge Graph icin)
  *  3. Wikipedia article draft
  */
-type ToolId = 'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker' | 'sitemap-ai' | 'haro' | 'programmatic' | 'ai-console' | 'chat-widget';
+type ToolId = 'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker' | 'sitemap-ai' | 'haro' | 'ai-console' | 'chat-widget';
 
 type Tool = { id: ToolId; label: string; icon: React.ComponentType<{ className?: string }> };
 
-// 13 arac tek satirda telefonda kirilip tasiyordu → 4 kategori, her biri kendi sekme listesinde
+// Araclar tek satirda telefonda kirilip tasiyordu → 4 kategori, her biri kendi sekme listesinde.
+// "81 il sayfasi" (programatik SEO) 08.11.2026'da panelden kaldirildi; ozellik ayri PR'da kapaniyor.
 const CATEGORIES: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }>; description: string; tools: Tool[] }> = [
   {
     id: 'olc',
@@ -72,15 +71,14 @@ const CATEGORIES: Array<{ id: string; label: string; icon: React.ComponentType<{
     id: 'dagitim',
     label: 'Dağıtım',
     icon: Send,
-    description: 'İçeriğini ölçekle çoğalt ve sitende AI sohbetiyle sun.',
+    description: 'İçeriğini sitende AI sohbetiyle sun.',
     tools: [
-      { id: 'programmatic', label: '81 il sayfası', icon: MapPin },
       { id: 'chat-widget', label: 'Sohbet aracı', icon: Bot },
     ],
   },
 ];
 
-function ToolBody({ id, siteId, ownerId }: { id: ToolId; siteId: string; ownerId?: string | null }) {
+function ToolBody({ id, siteId }: { id: ToolId; siteId: string }) {
   switch (id) {
     case 'heatmap': return <HeatmapTab siteId={siteId} />;
     case 'wikidata': return <WikidataTab siteId={siteId} />;
@@ -92,7 +90,6 @@ function ToolBody({ id, siteId, ownerId }: { id: ToolId; siteId: string; ownerId
     case 'tracker': return <TrackerEmbedTab siteId={siteId} />;
     case 'sitemap-ai': return <AiSitemapTab siteId={siteId} />;
     case 'haro': return <HaroTab siteId={siteId} />;
-    case 'programmatic': return <ProgrammaticTab siteId={siteId} ownerId={ownerId} />;
     case 'ai-console': return <AiSearchConsoleTab siteId={siteId} />;
     case 'chat-widget': return <ChatWidgetTab siteId={siteId} />;
   }
@@ -102,7 +99,7 @@ function ToolBody({ id, siteId, ownerId }: { id: ToolId; siteId: string; ownerId
  * GEO Lab — gelismis GEO arac kutusu. ui/tabs (Radix: klavye + ARIA), iki seviye:
  * kategori → arac. Sekme listeleri yatay kayar; telefonda satir kirilmaz.
  */
-export function GeoLabPanel({ siteId, ownerId }: { siteId: string; /** Sitenin sahibi (site.userId): makale hakki onun */ ownerId?: string | null }) {
+export function GeoLabPanel({ siteId }: { siteId: string }) {
   const [category, setCategory] = useState(CATEGORIES[0].id);
   // Her kategoride son secilen arac hatirlanir
   const [toolByCat, setToolByCat] = useState<Record<string, ToolId>>(
@@ -116,7 +113,7 @@ export function GeoLabPanel({ siteId, ownerId }: { siteId: string; /** Sitenin s
           as="h3"
           icon={Sparkles}
           title="Gelişmiş AI görünürlük araçları"
-          description="Ölç, otorite kazan, teknik altyapıyı düzelt ve içeriğini dağıt."
+          description="Ölç, otorite kazan, teknik altyapıyı düzelt ve sitende AI sohbetiyle sun."
         />
 
         <Tabs value={category} onValueChange={setCategory}>
@@ -158,7 +155,7 @@ export function GeoLabPanel({ siteId, ownerId }: { siteId: string; /** Sitenin s
                 </div>
                 {c.tools.map((t) => (
                   <TabsContent key={t.id} value={t.id} className="mt-3">
-                    <ToolBody id={t.id} siteId={siteId} ownerId={ownerId} />
+                    <ToolBody id={t.id} siteId={siteId} />
                   </TabsContent>
                 ))}
               </Tabs>
@@ -437,113 +434,6 @@ function HaroTab({ siteId }: { siteId: string }) {
               </div>
             </div>
           ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// Programmatic SEO (81 İl)
-// ──────────────────────────────────────────────────────────────────
-function ProgrammaticTab({ siteId, ownerId }: { siteId: string; ownerId?: string | null }) {
-  // Hak bitince sunucu hic sehir eklemez (programmatic-seo.service kalan hakka gore
-  // keser): dugme bos sonuc yerine kilidi gosterir
-  const allowance = useArticleAllowance(ownerId);
-  const [template, setTemplate] = useState('{location} için {niche} öneri rehberi');
-  const [spreadDays, setSpreadDays] = useState(30);
-  const [maxQuota, setMaxQuota] = useState(20);
-  const [result, setResult] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-
-  const generate = async () => {
-    if (!template.includes('{location}')) {
-      toast.error('Şablonda {location} yer tutucusu olmalı');
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await api.generateProgrammaticCities(siteId, { template, spreadDays, maxQuota });
-      setResult(res);
-      // Hak yetmeyen sehirler sessizce dusmesin (programmatic-seo.service skippedForQuota)
-      const atlanan = Number(res?.skippedForQuota ?? 0);
-      if (atlanan > 0) toast.warning(`${res.scheduled} şehir takvime eklendi; ${atlanan} şehir makale hakkın yetmediği için eklenmedi`);
-      else toast.success(`${res.scheduled} şehir takvime eklendi`);
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      refreshArticleAllowance(ownerId);
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Programmatic SEO: tek şablon, 81 il = 81 makale. <code className="bg-muted px-1 rounded">{'{location}'}</code> ve <code className="bg-muted px-1 rounded">{'{niche}'}</code> yer tutucuları desteklenir. Plan kotasına göre N şehir yayılır, takvime eklenir, otopilot ON ise sırayla üretilip yayınlanır.
-      </p>
-
-      <div className="space-y-2">
-        <label className="block">
-          <span className="text-xs font-medium">Şablon</span>
-          <input
-            value={template}
-            onChange={(e) => setTemplate(e.target.value)}
-            className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-            placeholder="{location} için shared hosting önerileri"
-          />
-        </label>
-
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="text-xs font-medium">Yayılma süresi (gün)</span>
-            <input
-              type="number"
-              value={spreadDays}
-              onChange={(e) => setSpreadDays(parseInt(e.target.value, 10) || 30)}
-              className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-              min={1}
-              max={365}
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs font-medium">Maks şehir (kotaya göre)</span>
-            <input
-              type="number"
-              value={maxQuota}
-              onChange={(e) => setMaxQuota(parseInt(e.target.value, 10) || 1)}
-              className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-              min={1}
-              max={81}
-            />
-          </label>
-        </div>
-      </div>
-
-      {allowance.locked ? (
-        <LockedGenerateButton lock={allowance} />
-      ) : (
-      <Button size="sm" onClick={generate} disabled={loading}>
-        {loading ? 'Şehirler ekleniyor…' : <><MapIcon className="h-3.5 w-3.5 mr-1.5" aria-hidden />{maxQuota} şehri takvime ekle</>}
-      </Button>
-      )}
-
-      {result && (
-        <div className="rounded-md border p-3 bg-success/5 space-y-2">
-          <p className="flex items-center gap-1.5 text-sm font-semibold"><CheckCircle2 className="h-4 w-4 text-success" aria-hidden />{result.scheduled} şehir takvime eklendi</p>
-          {Number(result.skippedForQuota ?? 0) > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {result.skippedForQuota} şehir makale hakkın yetmediği için eklenmedi (kalan hak: {result.remainingQuota ?? 0}).
-            </p>
-          )}
-          <details>
-            <summary className="text-xs cursor-pointer text-muted-foreground">Eklenen başlıklar</summary>
-            <ul className="mt-2 space-y-0.5 text-label">
-              {(result.topics ?? []).map((t: string, i: number) => (
-                <li key={i}>• {t}</li>
-              ))}
-            </ul>
-          </details>
         </div>
       )}
     </div>

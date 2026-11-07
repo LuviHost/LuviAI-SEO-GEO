@@ -3,9 +3,11 @@
  * apps/api/src/audit/geo-score-card.service.ts GeoScoreCard) ve gosterim kurallari.
  *
  * Olculemeyen sutun (score null + unmeasuredReason) 0 DEGILDIR: RanksUp'tan
- * yayinlanmis makale yoksa Yapisal Veri / Tazelik / Multi-Modal, son 9 gunde AI
- * olcumu yoksa AI Citation olculemez; genel skora girmez. Hicbir sutun
- * olculemezse genel skor ve harf notu null.
+ * yayinlanmis makale yoksa Tazelik / Multi-Modal, makale de Agent Readiness
+ * taramasi da yoksa Yapisal Veri, son 9 gunde AI olcumu yoksa AI Citation
+ * olculemez; genel skora girmez. Hicbir sutun olculemezse genel skor ve harf
+ * notu null. Sutun icindeki unverified satir (ör. Organization semasi henuz
+ * olculmedi) "doğrulanamadı" gorunur.
  */
 
 export type GeoPillarStatus = 'great' | 'good' | 'warning' | 'critical' | 'unmeasured';

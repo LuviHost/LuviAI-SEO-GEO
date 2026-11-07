@@ -143,7 +143,7 @@ export const CHAT_SKILLS: ChatSkill[] = [
     // get_audit her planda acik; get_agent_readiness kilitli olabilir → prompt'ta "erisimin varsa"
     prompt: [
       'Bu sitenin AI tarayıcılarına erişim durumunu değerlendir:',
-      '1) get_audit — robots_txt kontrolünün details.searchBots (OAI-SearchBot, Claude-SearchBot, PerplexityBot etkin erişimi) ve details.trainingBlocked alanları.',
+      '1) get_audit — robots_txt kontrolünün details.searchBots (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User etkin erişimi; eski taramalarda yalnız üç AI arama botu) ve details.trainingBlocked alanları.',
       '2) Erişimin varsa get_agent_readiness — robots AI duruşu ve keşif sinyalleri (sitemap, llms.txt).',
       '3) Ayrımı net anlat: bir ARAMA botunu engellemek o asistanın canlı cevaplarında kaynak gösterilmeyi engeller; EĞİTİM botunu (GPTBot, ClaudeBot, Google-Extended) engellemek yalnız model eğitimini etkiler, canlı cevapları etkilemez (OpenAI ve Anthropic bot dokümanları).',
       '4) Engelli bir arama botu varsa robots.txt\'e eklenecek tam satırları yaz. Eğitim engeli bilinçli bir tercih olabilir — kaldırılmasını önerme, yalnız sonucunu açıkla.',

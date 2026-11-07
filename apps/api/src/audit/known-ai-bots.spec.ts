@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  KNOWN_AI_BOTS, KNOWN_AI_BOT_NAMES, STANCE_SCORED_BOTS, USER_TRIGGERED_BOTS, ROBOTS_ALLOW_EXTRAS,
+  KNOWN_AI_BOTS, KNOWN_AI_BOT_NAMES, STANCE_SCORED_BOTS, USER_TRIGGERED_BOTS, ROBOTS_MERGE_BOTS,
 } from './known-ai-bots.js';
 
 /**
@@ -36,8 +36,14 @@ describe('KNOWN_AI_BOTS', () => {
     expect(USER_TRIGGERED_BOTS.length).toBe(6);
   });
 
-  it('robots ekstra listesi AI listesiyle cakismaz', () => {
-    const ai = new Set(KNOWN_AI_BOT_NAMES);
-    for (const e of ROBOTS_ALLOW_EXTRAS) expect(ai.has(e.name)).toBe(false);
+  it('auto-fix robots.txt listesi yalniz resmi belgeli botlar; DeepSeek / xAI (Grok) yok', () => {
+    const merge = ROBOTS_MERGE_BOTS.map((b) => b.name);
+    expect(merge.join(' ')).not.toMatch(/deepseek|grok|xai/i);
+    for (const ad of ['anthropic-ai', 'cohere-ai', 'cohere-training-data-crawler', 'Bytespider', 'Timpibot', 'Omgilibot']) {
+      expect(merge, ad).not.toContain(ad);
+      // Gozlem / durus olcumu icin tam listede kalir
+      expect(KNOWN_AI_BOT_NAMES, ad).toContain(ad);
+    }
+    for (const b of KNOWN_AI_BOTS) expect(typeof b.documented, b.name).toBe('boolean');
   });
 });

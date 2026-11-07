@@ -124,20 +124,16 @@ describe('GeoRunnerService — engelli sayfa skora girmez', () => {
     expect(r.score).not.toBeNull();
   });
 
-  it('llms.txt engellendiyse "yok" sayilmaz, sinyal skordan cikar; HTML donen yol ise "yok"tur', async () => {
+  it('v5: llms.txt istenmez ve sinyal yok — dosyanin varligi da yoklugu da skoru degistirmez', async () => {
     const page = { 'https://site.com': { status: 200, text: RICH } };
-    serve({ ...page, 'https://site.com/llms.txt': CF_WAF });
-    const blocked = await new GeoRunnerService().runAudit('https://site.com');
-    expect(blocked.methods.find((m) => m.id === 'llms_txt')).toBeUndefined();
-
-    // Ozel 404: 200 + HTML. Eskiden "200 karakterden uzun" diye 30 puan aliyordu.
-    serve({ ...page, 'https://site.com/llms.txt': { status: 200, text: `<!doctype html><html><body>${'x'.repeat(500)}</body></html>` } });
-    const soft404 = await new GeoRunnerService().runAudit('https://site.com');
-    expect(soft404.methods.find((m) => m.id === 'llms_txt')).toMatchObject({ score: 0, detail: 'Bulunamadi' });
-
     serve({ ...page, 'https://site.com/llms.txt': { status: 200, text: LLMS, contentType: 'text/plain' } });
-    const real = await new GeoRunnerService().runAudit('https://site.com');
-    expect(real.methods.find((m) => m.id === 'llms_txt')?.score).toBe(100);
+    const var_ = await new GeoRunnerService().runAudit('https://site.com');
+    expect(fetchMock.mock.calls.map((c) => c[0])).not.toContain('https://site.com/llms.txt');
+    serve(page);
+    const yok = await new GeoRunnerService().runAudit('https://site.com');
+    expect(var_.methods.find((m) => m.id === 'llms_txt')).toBeUndefined();
+    expect(yok.methods.find((m) => m.id === 'llms_txt')).toBeUndefined();
+    expect(var_.score).toBe(yok.score);
   });
 
   it('yonlendirme sonrasi koken kullanilir (example.com → www): ic sayfalar orneklenir', async () => {
@@ -147,7 +143,7 @@ describe('GeoRunnerService — engelli sayfa skora girmez', () => {
     });
     const r = await new GeoRunnerService().runAudit('https://site.com');
     const asked = fetchMock.mock.calls.map((c) => c[0]);
-    expect(asked).toContain('https://www.site.com/llms.txt');
+    expect(asked).toContain('https://www.site.com/sitemap_index.xml');
     expect(asked).toContain('https://www.site.com/a');
     // Anasayfa "/" ile ikinci kez orneklenmez
     expect(asked.filter((u) => u === 'https://www.site.com/')).toHaveLength(0);
@@ -163,18 +159,18 @@ describe('GeoRunnerService — engelli sayfa skora girmez', () => {
   // F7: yontem degisti (HTML llms.txt 0 puan, anasayfa tek ornek, yonlendirme
   // sonrasi koken). Surum damgasi olmazsa karsilastirma farki siteye yazar.
   it('her donus yolu olcum yontemi surumunu tasir (basarili, engelli, okunamayan, hata)', async () => {
-    expect(GEO_METHOD_VERSION).toBe(4);
+    expect(GEO_METHOD_VERSION).toBe(5);
     const svc = new GeoRunnerService();
     const surum = async (map: Record<string, Reply | Error>) => {
       serve(map);
       return (await svc.runAudit('https://site.com')).details;
     };
-    expect(await surum({ 'https://site.com': { status: 200, text: RICH } })).toEqual({ methodVersion: 4 });
-    expect(await surum({ 'https://site.com': CF_WAF })).toEqual({ methodVersion: 4 });
-    expect(await surum({ 'https://site.com': { status: 500, text: 'hata' } })).toEqual({ methodVersion: 4 });
-    expect(await surum({ 'https://site.com': new Error('ag koptu') })).toEqual({ methodVersion: 4 });
+    expect(await surum({ 'https://site.com': { status: 200, text: RICH } })).toEqual({ methodVersion: 5 });
+    expect(await surum({ 'https://site.com': CF_WAF })).toEqual({ methodVersion: 5 });
+    expect(await surum({ 'https://site.com': { status: 500, text: 'hata' } })).toEqual({ methodVersion: 5 });
+    expect(await surum({ 'https://site.com': new Error('ag koptu') })).toEqual({ methodVersion: 5 });
     // Gecersiz adres catch yoluna duser — o da damgali
-    expect((await svc.runAudit('gecersiz adres')).details).toEqual({ methodVersion: 4 });
+    expect((await svc.runAudit('gecersiz adres')).details).toEqual({ methodVersion: 5 });
   });
 
   it('istekler durust bot kimligi ve onbellek atlatma basliklariyla gider (UA ezilmez)', async () => {
@@ -264,7 +260,7 @@ describe('GeoRunnerService — tarih sinyali', () => {
   });
 });
 
-describe('GeoRunnerService — v4 sayfa sinyalleri', () => {
+describe('GeoRunnerService — v4/v5 sayfa sinyalleri', () => {
   const sayfa = (body: string, head = '') => {
     const svc = new GeoRunnerService() as unknown as { scorePage(html: string): Record<string, number> };
     return svc.scorePage(`<html><head>${head}</head><body>${body}</body></html>`);
@@ -277,10 +273,25 @@ describe('GeoRunnerService — v4 sayfa sinyalleri', () => {
     expect(sayfa('<p>Ödeme nedir?</p>').defScore).toBe(8);
   });
 
-  it('FAQPage isareti tek basina 40 alir; gorunur soru-cevap 60\'a kadar ekler', () => {
+  it('v5: FAQPage isareti puan VERMEZ; yalniz gorunur soru-cevap (6 soruda 100)', () => {
     const faqLd = '<script type="application/ld+json">{"@type":"FAQPage"}</script>';
-    expect(sayfa('<p>x</p>', faqLd).faqScore).toBe(40);
-    expect(sayfa('<h3>Ne kadar sürer?\n</h3><p>a</p><h3>Ücret ne?\n</h3><p>b</p>').faqScore).toBe(20);
+    expect(sayfa('<p>x</p>', faqLd).faqScore).toBe(0);
+    expect(sayfa('<h3>Ne kadar sürer?\n</h3><p>a</p><h3>Ücret ne?\n</h3><p>b</p>').faqScore).toBe(33);
+    const alti = Array.from({ length: 6 }, (_, i) => `<h3>Soru ${i}?\n</h3><p>c</p>`).join('');
+    expect(sayfa(alti).faqScore).toBe(100);
+    // Isaretleme gorunur soru-cevaba ekleme yapmaz
+    expect(sayfa(alti, faqLd).faqScore).toBe(100);
+  });
+
+  it('v5: yapisal veri gecerli JSON-LD varligina bakar; tip cesitliligi odullendirilmez', () => {
+    const ld = (body: string) => `<script type="application/ld+json">${body}</script>`;
+    expect(sayfa('<p>x</p>', ld('{"@type":"Organization","name":"A"}')).schemaScore).toBe(100);
+    expect(sayfa('<p>x</p>', ld('{"@context":"https://schema.org","@graph":[{"@type":"WebPage"}]}')).schemaScore).toBe(100);
+    // v4'te 3 farkli tip 100, tek tip 33 aliyordu
+    expect(sayfa('<p>x</p>', ld('{"@type":"Article"}') + ld('{"@type":"FAQPage"}') + ld('{"@type":"BreadcrumbList"}')).schemaScore).toBe(100);
+    expect(sayfa('<p>x</p>', ld('{"@type": "Article", bozuk')).schemaScore).toBe(0);
+    expect(sayfa('<p>x</p>', ld('{"name":"tipsiz"}')).schemaScore).toBe(0);
+    expect(sayfa('<p>x</p>').schemaScore).toBe(0);
   });
 
   it('kanit ve derinlik yalniz ic sayfalardan: kisa vitrin anasayfa ortalamayi dusurmez', async () => {
@@ -297,6 +308,9 @@ describe('GeoRunnerService — v4 sayfa sinyalleri', () => {
     expect(m.evidence.weight).toBe(12);
     expect(m.depth.weight).toBe(8);
     expect(m.faq_qa.weight).toBe(6);
+    expect(m.structured_data.weight).toBe(8);
+    expect(m.llms_txt).toBeUndefined();
+    expect(r.methods).toHaveLength(9);
   });
 });
 

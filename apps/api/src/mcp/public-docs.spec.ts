@@ -588,10 +588,21 @@ describe('Pazarlama sayfaları = ürün', () => {
       const rest = faq.slice(i);
       return rest.slice(0, rest.indexOf('},'));
     };
+    // AI Citation tazelik penceresi servisteki sabitle ayni (eskiden "7 gun" araniyordu ve
+    // yalniz Tazelik'in "son 7 gunde 1 yayin" esigi yuzunden geciyordu)
+    const pencere = svc.match(/export const AI_CITATION_FRESH_DAYS = (\d+)/)![1];
+    // Kritik botlar robots-check.ts ile ayni (Crawler sutunu, 08.11.2026)
+    const robots = read(path.resolve(HERE, '../audit/robots-check.ts'));
+    const kritik = [...robots.slice(robots.indexOf('export const CRITICAL_SEARCH_BOTS')).matchAll(/\{ name: '([^']+)'/g)].slice(0, 6).map((x) => x[1]);
+    expect(kritik).toHaveLength(6);
     for (const c of [cevap("q: 'GEO Score nedir"), cevap("q: 'What is GEO Score")]) {
       for (const id of ids) expect(c, `${id} GEO Score cevabinda yok`).toContain(AD[id] ?? id);
       expect(c).not.toMatch(/podcast|\bses\b|audio/i);
-      expect(c).toMatch(/7 gün|7 days/);
+      expect(c).toMatch(new RegExp(`${pencere} gün|${pencere} days`));
+      for (const bot of kritik) expect(c, `${bot} GEO Score cevabinda yok`).toContain(bot);
+      // Kaldirilan olcutler vaat edilmez: tip sayisi, yayin sikligi esikleri
+      expect(c).not.toMatch(/en az 5 farklı|at least 5 distinct|son 30 günde en az|in the last 30 days/);
+      expect(c).toMatch(/12 ay|12 months/);
     }
   });
 

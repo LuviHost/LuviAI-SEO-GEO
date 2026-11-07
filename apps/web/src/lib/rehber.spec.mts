@@ -17,7 +17,9 @@ import {
 const SRC = fileURLToPath(new URL('..', import.meta.url));
 const REHBER_DIR = join(SRC, 'app/(marketing)/rehber');
 const read = (p: string) => readFileSync(p, 'utf8');
-const BUGUN = new Date().toISOString().slice(0, 10);
+// Tarihler Turkiye gunune gore yazilir (page-updated.spec.mts trBugun ile ayni): UTC ile
+// 00:00-03:00 arasi TR'de yeni gunun tarihi "gelecek" sayiliyordu. TR = UTC+3, yaz saati yok.
+const BUGUN = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const gecerliTarih = (d: string) => ISO.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`));
 

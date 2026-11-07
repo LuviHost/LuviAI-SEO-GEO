@@ -629,8 +629,8 @@ export function ozetMetni(r: Omit<MusteriRaporu, 'ozet'>): string[] {
       parcalar.push(!g.robots.dosya
         ? 'robots.txt yok (botlar varsayılan olarak serbest)'
         : engelli.length > 0
-          ? `robots.txt şu AI arama botlarını engelliyor: ${engelli.join(', ')}`
-          : 'robots.txt AI arama botlarına açık');
+          ? `robots.txt şu arama botlarını engelliyor: ${engelli.join(', ')}`
+          : 'robots.txt arama botlarına açık');
     }
     if (!g.schema.olculemedi) parcalar.push(`yapısal veri kapsamı ${trYuzde(g.schema.oran)}`);
     out.push(`AI hazırlığı: ${parcalar.join('; ')}.`);

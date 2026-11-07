@@ -244,7 +244,7 @@ describe('ozet metni — deterministik sablon', () => {
     expect(build().ozet.metin).toEqual([
       'Mükellef için 21 Ekim 2026 tarihli taramada site skoru 76/100 (geliştirilmeye açık). 14 kontrolün 4 tanesi geçti; 2 kontrolde kritik, 8 kontrolde uyarı düzeyinde sorun var.',
       'Öne çıkan sayfa sorunları: 24 sayfada H1 başlığı yok, 9 sayfada meta açıklama yok, 772 görselde alt metni yok.',
-      'AI hazırlığı: llms.txt yok; robots.txt AI arama botlarına açık; yapısal veri kapsamı %25.',
+      'AI hazırlığı: llms.txt yok; robots.txt arama botlarına açık; yapısal veri kapsamı %25.',
       'AI görünürlük skoru 17/100 (ilk ölçüm): 21 Ekim 2026 ölçümünde 6 AI asistanının 2 tanesinde site kaynak gösterildi ya da marka adı geçti. Anılma oranı ve ses payı henüz ölçülmedi.',
       'Öncelikli ilk adım: Eksik meta açıklamaları yazın.',
     ]);
@@ -253,7 +253,7 @@ describe('ozet metni — deterministik sablon', () => {
   it('robots AI arama botunu engelliyorsa bot adlariyla soyler', () => {
     const g = mukellefGirdisi();
     (g.audit!.checks as any).robots_txt.details.searchBots = [{ name: 'OAI-SearchBot', effective: 'block' }, { name: 'PerplexityBot', effective: 'allow' }];
-    expect(build(g).ozet.metin[2]).toContain('şu AI arama botlarını engelliyor: OAI-SearchBot');
+    expect(build(g).ozet.metin[2]).toContain('şu arama botlarını engelliyor: OAI-SearchBot');
   });
 
   it('ozetMetni yalniz govdeden okur (saf)', () => {

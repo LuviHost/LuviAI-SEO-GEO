@@ -211,9 +211,10 @@ export function AuditStepBody({
   const aiView = aiCardView(audit, latestRun);
   const aiFromRun = aiView?.source === 'run';
   const aiAt = aiMeasuredAtLabel(aiView?.at);
-  // Doğrulanamayan kontrol (erişim engeli) ve ölçülmeyen AI adımı "sorunlu" sayılmaz — ölçülemedi
+  // Doğrulanamayan kontrol (erişim engeli) ve ölçülmeyen AI adımı "sorunlu" sayılmaz — ölçülemedi.
+  // Bilgi kontrolü (details.informational, ör. llms.txt) genel skora girmez, sorun da sayılmaz.
   const failedCount = Object.values(checks).filter((v: any) =>
-    v?.name && !v?.details?.unverified && !(v?.id === 'ai_citations' && !ai?.measured) && (v?.score ?? 0) < 100,
+    v?.name && !v?.details?.unverified && !v?.details?.informational && !(v?.id === 'ai_citations' && !ai?.measured) && (v?.score ?? 0) < 100,
   ).length;
   const totalCount = Object.values(checks).filter((v: any) => v?.name).length;
   const blockedPageCount: number = Number(checks.crawlCoverage?.blockedCount ?? 0);
@@ -587,6 +588,30 @@ export function AuditStepBody({
                       </div>
                     </div>
                     <span className="font-mono text-xs font-bold shrink-0 text-muted-foreground" title="Skora dahil edilmedi">—</span>
+                  </div>
+                </div>
+              );
+            }
+            // Bilgi kontrolü (API details.informational — llms.txt, 08.11.2026): listede kalır ama
+            // genel skora girmez; "YOK" kırmızısı ve x/100 puanı ceza gibi okunurdu. Nötr satır.
+            if (v.details?.informational) {
+              return (
+                <div key={k} className="px-4 py-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <Info className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" aria-hidden />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{v.name}</span>
+                          <span className="text-label font-semibold text-muted-foreground">BİLGİ · {v.found ? 'VAR' : 'YOK'}</span>
+                          {fixable && <Badge variant="outline" className="px-1.5 py-0 text-label">otomatik</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {v.details.note ?? firstIssue?.description ?? 'Bilgi amaçlı; genel skora girmez.'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-mono text-xs font-bold shrink-0 text-muted-foreground" title="Genel skora dahil edilmedi">—</span>
                   </div>
                 </div>
               );
