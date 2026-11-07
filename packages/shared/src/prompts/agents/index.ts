@@ -358,23 +358,24 @@ atlama.
 Hero görseli EKLEME (ne frontmatter'a ne gövdeye): yayın sırasında otomatik
 üretilip sayfanın başına konuyor. Gövdeye görsel/yer tutucu satırı yazma.
 
-## GEO Kuralları (AI search engines için zorunlu)
+## GEO Kuralları (AI arama motorları için)
 
-Bu kurallar Claude/Gemini/ChatGPT/Perplexity'nin makaleyi alıntılamasını ~3x artırır:
+Bu kuralların bir kısmı ÖLÇÜLÜYOR. Editörden önce deterministik bir kapı çalışıyor:
+görünür son güncelleme tarihini, kaynaksız sayıları VE H1'den sonraki ilk 200
+karakterin cevap taşıyıp taşımadığını (Hızlı cevap blockquote'u; görsel/giriş
+klişesi değil) sayıyor. AI indeksleri sayfadan yalnız başlık + ~200 karakter
+saklar. Geçemeyen taslak otomatik revizyona düşer. Tablo ve soru biçimli başlık
+yalnız öneri olarak ölçülür (karşılaştırma, "en iyi seçenekler" ve fiyat tiplerinde tablo zorunludur).
 
-Bu kurallar ÖLÇÜLÜYOR. Editörden önce deterministik bir kapı çalışıyor: metni
-regex ile tarayıp tabloyu, "Kısa cevap" satırlarını, soru H2 oranını, görünür
-son güncelleme tarihini, kaynaksız sayıları VE H1'den sonraki ilk 200 karakterin
-cevap taşıyıp taşımadığını (Hızlı cevap blockquote'u; görsel/giriş klişesi değil)
-sayıyor. AI indeksleri sayfadan yalnız başlık + ~200 karakter saklar. Geçemeyen
-taslak otomatik revizyona düşer.
+Her yazıyı aynı iskelete sokma: başlık, liste ve tablo yapısını konunun kendisi belirler.
 
-1. **Soru-bazlı H2 başlıkları:** İçerik H2'lerinin en az %50'si soru olsun ("Shared hosting kim için uygundur?", "WordPress'te SSL nasıl kurulur?"). Sayıma "Sıkça Sorulan Sorular" ve "Sonuç" başlıkları girmez.
-2. **Direct answer cümlesi:** Her içerik H2'sinin hemen altında, ilk paragraftan ÖNCE \`> **Kısa cevap:** [max 25 kelime, atomik bilgi].\` blockquote satırı zorunlu. AI bu cümleleri olduğu gibi alıntılar. (SSS ve Sonuç bölümleri hariç — orada gerekmez.)
-3. **Yapılandırılmış içerik zorunluluğu:** Her makalede en az 1 liste + en az 1 tablo bulunmalı. Liste tipini İÇERİK belirler, kalıp değil:
+1. **Başlıklar:** H2'ler okurun gerçekten sorduğu alt konuları karşılasın. Soru biçimi doğal düşüyorsa kullan ("WordPress'te SSL nasıl kurulur?"); her başlığı soruya çevirmek zorunlu değil.
+2. **Açılışta doğrudan cevap:** Asıl soruya cevap H1'in hemen altındaki "Hızlı cevap" bloğunda verilir (yukarıdaki Yapı, 3. madde). H2 bölümlerine ayrıca "Kısa cevap" satırı ekleme zorunluluğu yok; her bölüm konusuna doğrudan girsin, giriş klişesiyle başlamasın.
+3. **Liste ve tablo yalnız içerik gerektiriyorsa:** Liste tipini İÇERİK belirler, kalıp değil:
    - **Numaralı liste:** sıra önemliyse (adımlar, süreç, kronoloji, checklist).
    - **Madde işaretli liste:** sıra önemsizse (kalemler, kriterler, seçenekler, örnekler).
    Sıralı olmayan içeriği numaralandırmak yanlış sinyal verir; AI motorları listeyi "adım" sanır. Doğru tipi seç, ikisini birden zorlama.
+   - **Tablo:** yalnız metinde gerçekten karşılaştırılan veri varsa (seçenekler, oranlar, tarifeler, kriterler). Karşılaştırılacak veri yoksa tablo ekleme; dolgu tablo uydurma.
 4. **İstatistik blockquote:** Makalede en az 1 \`<blockquote cite="KAYNAK-URL">\` ile sayısal istatistik veya alıntı (AI source attribution alır).
 5. **Yazar imzası:** Sonuç bölümünden sonra "**Bu makale [yazar/kurum] tarafından hazırlandı.**" satırı (E-E-A-T sinyali). Buraya persona YAZMA — persona okuyucu profilidir, yazar değil.
 6. **Son güncelleme tarihi:** Makale sonunda GÖRÜNÜR "*Son güncelleme: YYYY-MM-DD*" satırı (AI tazelik filtresi). Frontmatter'daki tarih yetmez, gövdede de olacak.

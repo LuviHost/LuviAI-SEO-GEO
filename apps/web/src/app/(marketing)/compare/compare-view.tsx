@@ -95,7 +95,6 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
       { name: 'GEO Skor Kartı (6 başlık, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI görünürlük düşüş alarmı (e-posta)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'uyarılar' },
       { name: 'AI tarayıcı takibi (GPTBot, PerplexityBot vb.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
-      { name: 'llms.txt + llms-full.txt üretici', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'FraseCMS sayfalarında' },
       { name: 'AI özetli site haritası (sitemap-ai.xml)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Sitene eklenen AI sohbet aracı (ziyaretçi soruları)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Kapalı döngü: kaybedilen soru → içerik → QA → yeniden ölçüm', luviai: true, surfer: null, jasper: 'GEO Agent (Business)', ahrefs: null, frase: null, hint: 'Kaybedilen sorudan makale fırsatı çıkar, makale kalite kapısından geçer, yayından sonra aynı soru yeniden ölçülür (Profesyonel ve üstü).' },
@@ -110,10 +109,10 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
       { name: 'Search Console entegrasyonu', luviai: true, surfer: true, jasper: null, ahrefs: null, frase: null },
       { name: 'Organik trafik verisi: Search Console gerçeği vs. tahmin', luviai: 'GSC gerçek', surfer: null, jasper: null, ahrefs: 'tahmin', frase: null, hint: 'Üçüncü taraf araçların "organik trafik" rakamı modelleme tahminidir. RanksUp birinci taraf Search Console verisini ve markalı/markasız ayrımını kullanır.' },
       { name: 'GA4 entegrasyonu', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
-      { name: 'Kök dosya düzeltmesi (robots.txt, sitemap.xml, llms.txt) + şema/meta snippet', luviai: 'önizlemeli', surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'robots.txt mevcut dosyayla birleştirilir ve farkı görüp onaylamadan yazılmaz; mevcut dosyanın önceki hali yedeklenir ve dosya o günden beri değişmediyse geri alınabilir. sitemap.xml / llms.txt yalnızca dosya yoksa oluşturulur; yeni oluşturulan dosyayı kaldırmak için sunucudan silmek gerekir.' },
+      { name: 'Kök dosya düzeltmesi (robots.txt, sitemap.xml) + şema/meta snippet', luviai: 'önizlemeli', surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'robots.txt mevcut dosyayla birleştirilir ve farkı görüp onaylamadan yazılmaz; mevcut dosyanın önceki hali yedeklenir ve dosya o günden beri değişmediyse geri alınabilir. sitemap.xml yalnızca dosya yoksa oluşturulur; yeni oluşturulan dosyayı kaldırmak için sunucudan silmek gerekir.' },
       { name: 'Konu motoru (4 kaynak, 3 öncelik seviyesi)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Anahtar kelime fırsatı (ilk sayfaya yakın, boşluk, düşük CTR)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
-      { name: '15+ şema tipi (FAQ, HowTo, Speakable vb.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Makalelerde geçerli Article / Organization şeması', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'PageSpeed iyileştirme önerileri', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'İç bağlantı önerileri', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'Professional planında' },
       { name: 'Knowledge Graph + Wikidata', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
@@ -137,7 +136,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
       { name: 'HARO e-posta özetinden gazeteci sorgusu + yanıt taslağı', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Topluluk ajanı (Reddit yanıt taslağı)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Wikidata / Wikipedia taslağı', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
-      { name: 'Yazar E-E-A-T profili (Person şeması)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Yazar bilgisi girildiğinde Person şeması', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
@@ -196,7 +195,6 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
       { name: 'GEO Score Card (6 pillars, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI visibility drop alert (email)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'alerts' },
       { name: 'AI crawler tracking (GPTBot, PerplexityBot etc.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
-      { name: 'llms.txt + llms-full.txt builder', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'on FraseCMS pages' },
       { name: 'AI-summary sitemap (sitemap-ai.xml)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI chat widget for your site (visitor questions)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Closed loop: lost query → content → QA → re-measure', luviai: true, surfer: null, jasper: 'GEO Agent (Business)', ahrefs: null, frase: null, hint: 'A lost query becomes an article opportunity, the article passes the quality gate, and the same query is re-measured after publishing (Professional and up).' },
@@ -211,10 +209,10 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
       { name: 'Search Console integration', luviai: true, surfer: true, jasper: null, ahrefs: null, frase: null },
       { name: 'Organic traffic data: Search Console truth vs. estimates', luviai: 'GSC actuals', surfer: null, jasper: null, ahrefs: 'estimate', frase: null, hint: 'Third-party "organic traffic" numbers are modelled estimates. RanksUp uses first-party Search Console data with a branded/non-branded split.' },
       { name: 'GA4 integration', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
-      { name: 'Root-file fixes (robots.txt, sitemap.xml, llms.txt) + schema/meta snippets', luviai: 'previewed', surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'robots.txt is merged with your existing file and never written until you review the diff and confirm; the previous version of an existing file is backed up and can be restored if it hasn\'t changed since. sitemap.xml / llms.txt are only created when missing; to undo, delete the new file from your server.' },
+      { name: 'Root-file fixes (robots.txt, sitemap.xml) + schema/meta snippets', luviai: 'previewed', surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'robots.txt is merged with your existing file and never written until you review the diff and confirm; the previous version of an existing file is backed up and can be restored if it hasn\'t changed since. sitemap.xml is only created when missing; to undo, delete the new file from your server.' },
       { name: 'Topic engine (4 sources, 3 priority tiers)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Keyword opportunities (near-miss, gap, low CTR)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
-      { name: '15+ schema types (FAQ, HowTo, Speakable etc.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Valid Article / Organization schema on articles', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'PageSpeed improvement suggestions', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Internal link suggestions', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'on Professional' },
       { name: 'Knowledge Graph + Wikidata', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
@@ -238,7 +236,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
       { name: 'Journalist queries from HARO email digests + reply drafts', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Community agent (Reddit reply drafts)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'Wikidata / Wikipedia drafts', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
-      { name: 'Author E-E-A-T profile (Person schema)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Person schema when you enter author details', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
@@ -290,6 +288,12 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
  *    kurallari koruyarak, onizleme + onayla ekler (robots-merge.ts,
  *    auto-fix.service.ts). Bot sayisi known-ai-bots.ts (27).
  *  - 12-15: uretim hatti 5 ajan (pipeline.service.ts), "6 ajan" degil.
+ *  - 16 (08.11.2026): Person semasi yalniz site sahibi yazar bilgisini
+ *    girdiyse (author-profile.service SiteAuthor); persona icin modelle
+ *    biyografi ureten uc kaldirildi (uydurma yazar profili) → partial.
+ *  - 8-9 (08.11.2026): "15+ sema tipi" ve "5 yapisal kural" satilmaz; FAQ
+ *    zengin sonucu Mayis 2026'dan, HowTo 2023'ten beri gosterilmiyor, yapi
+ *    kurallari icin kanit zayif. llms.txt avantaj olarak satilmaz.
  *  - 17: sosyal medya modulu yok (API'de modul/route yok) → none.
  *  - 11: otomatik yeniden yazim (content-pivot.service) yalniz Search Console
  *    bagli sitede veri bulur (Article.performanceMetrics'i gunluk GSC senkronu
@@ -303,12 +307,12 @@ const PLAYBOOK: Array<{ step: string; tr: string; en: string; status: 'auto' | '
   { step: '4', tr: 'Site denetimi (kırık link, yönlendirme, orphan, tekrar içerik)', en: 'Site audit (broken links, redirects, orphans, duplicates)', status: 'partial', noteTr: '14 kontrol + PageSpeed; orphan var, kırık link ve tekrar title henüz yok.', noteEn: '14 checks + PageSpeed; orphans yes, broken links and duplicate titles not yet.' },
   { step: '5, 19', tr: 'Marka doğruluk taraması — AI markan hakkında yanlış ne söylüyor?', en: 'Brand accuracy scan — what does AI get wrong about you?', status: 'none', noteTr: 'Sentiment ölçülüyor; doğruluk taraması yol haritasında.', noteEn: 'Sentiment is measured; accuracy scanning is on the roadmap.' },
   { step: '6-7', tr: 'Atıf alan sayfalarını ve bahsedilmeleri analiz et', en: 'Analyse your cited pages and mentions', status: 'auto', noteTr: 'Sayfa bazlı atıf kırılımı, "atıf var · ad anılmadı" sayacı, canlı cite-fetch sinyali.', noteEn: 'Per-page citation breakdown, "cited but not mentioned" counter, live cite-fetch signal.' },
-  { step: '8-9', tr: 'Sayfa optimizasyonu + Article/FAQ/HowTo/Product şeması', en: 'On-page optimisation + Article/FAQ/HowTo/Product schema', status: 'auto', noteTr: '15+ şema tipi üretim ve doğrulama; geo-gate 5 yapısal kural.', noteEn: '15+ schema types generated and validated; geo-gate with 5 structural rules.' },
+  { step: '8-9', tr: 'Sayfa optimizasyonu + Article/FAQ/HowTo/Product şeması', en: 'On-page optimisation + Article/FAQ/HowTo/Product schema', status: 'auto', noteTr: 'Makalelerde geçerli Article / Organization şeması; yayın öncesi kapı kaynaksız sayıyı ve görünür güncelleme tarihini denetler.', noteEn: 'Valid Article / Organization schema on articles; a pre-publish gate checks unsourced numbers and a visible updated date.' },
   { step: '10', tr: 'Site mimarisi (2-3 tıkta erişilebilir hiyerarşi)', en: 'Site architecture (key pages within 2-3 clicks)', status: 'partial', noteTr: 'Orphan tespiti ve cross-link önerileri var; mimari planlama yok.', noteEn: 'Orphan detection and cross-link suggestions exist; no architecture planner.' },
   { step: '11', tr: 'Eski içeriği güncelle (istatistik, örnek, tarih)', en: 'Refresh old content (stats, examples, dates)', status: 'partial', noteTr: 'Otomatik akış açık ve Search Console bağlıysa, yayından 30 gün sonra Search Console verisinde zayıf kalan makale haftalık taramada yeniden yazılır (Yarı otomatikte onayını bekler); kaybedilen soru için mevcut makaleyi güncelleme köprüsü (Profesyonel ve üstü).', noteEn: 'With automation on and Search Console connected, an article still weak in Search Console data 30 days after publishing is rewritten in a weekly scan (waits for your approval in semi-auto mode); lost-query → update-existing-article bridge (Professional and up).' },
   { step: '12-15', tr: 'AI\'ın tercih ettiği formatlarda içerik: rehber, karşılaştırma, soru-cevap, tablo', en: 'Content in AI-preferred formats: guides, comparisons, Q&A, tables', status: 'auto', noteTr: 'Kaybedilen soru → 5 ajanlı üretim → QA kapısı → yayın → yeniden ölçüm.', noteEn: 'Lost query → 5-agent pipeline → QA gate → publish → re-measure.' },
   { step: '13', tr: 'İçerik hub\'ı (pillar + 5-10 cluster)', en: 'Content hubs (pillar + 5-10 clusters)', status: 'partial', noteTr: 'Brain\'de pillar/cluster modeli var; hub sayfası üretimi yol haritasında.', noteEn: 'Pillar/cluster model exists in the brain; hub page generation on the roadmap.' },
-  { step: '16', tr: 'E-E-A-T: yazar biyografisi, kaynak atıfları', en: 'E-E-A-T: author bios, source citations', status: 'auto', noteTr: 'Person şeması + sameAs + imza bloğu; geo-gate kaynaklı sayı kuralı.', noteEn: 'Person schema + sameAs + byline; geo-gate sourced-number rule.' },
+  { step: '16', tr: 'E-E-A-T: yazar biyografisi, kaynak atıfları', en: 'E-E-A-T: author bios, source citations', status: 'partial', noteTr: 'Yazar bilgisi girildiğinde Person şeması ve görünür yazar satırı; biyografi üretilmez. Kaynaksız sayı yayın öncesi kapıda durur.', noteEn: 'Person schema and a visible byline when you enter author details; no bios are generated. Unsourced numbers are stopped at the pre-publish gate.' },
   { step: '17', tr: 'İçeriği yeniden kullan (LinkedIn, X, YouTube)', en: 'Repurpose content (LinkedIn, X, YouTube)', status: 'none', noteTr: 'Sosyal medya paylaşım modülü şu an üründe yok.', noteEn: 'There is no social publishing module in the product right now.' },
   { step: '18', tr: '"Best of" listelerine gir, digital PR', en: 'Get into "best of" lists, digital PR', status: 'partial', noteTr: 'Product Radar listelerde sırayı ölçer; HARO pitch taslağı; başvuru elle.', noteEn: 'Product Radar tracks list positions; HARO pitch drafts; outreach is manual.' },
   { step: '20', tr: 'Reddit / Quora katkıları', en: 'Reddit / Quora contributions', status: 'partial', noteTr: 'Topluluk ajanı Reddit’i tarar, taslak hazırlar, onayla gönderilir (otomatik post yok). Quora henüz taranmıyor.', noteEn: 'Community agent scans Reddit and drafts replies; you approve (no auto-posting). Quora is not scanned yet.' },
@@ -330,7 +334,7 @@ const COPY = {
     hc1Title: 'AI asistanında ölçüm',
     hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Marka adı geçen sorular manşet skora girmez.',
     hc2Title: 'GEO/AEO aracı',
-    hc2Desc: 'AI görünürlük takibi, ısı haritası, skor kartı, düşüş alarmı, llms.txt üretici, siteye eklenen AI sohbet aracı ve kapalı döngü.',
+    hc2Desc: 'AI görünürlük takibi, ısı haritası, skor kartı, düşüş alarmı, siteye eklenen AI sohbet aracı ve kapalı döngü.',
     hc3Num: 'SEO + Reklam',
     hc3Title: 'Tek panelde',
     hc3Desc: 'Google Ads ve Meta Ads bağlantısı, kampanya skoru ve 6 saatlik ROAS otopilotu; SEO ve içerikle aynı panelde.',
@@ -374,7 +378,7 @@ const COPY = {
     hc1Title: 'AI assistants measured',
     hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek. Questions that contain your brand stay out of the headline score.',
     hc2Title: 'GEO/AEO tools',
-    hc2Desc: 'AI visibility tracking, heatmap, score card, drop alert, llms.txt builder, an AI chat widget for your site and the closed loop.',
+    hc2Desc: 'AI visibility tracking, heatmap, score card, drop alert, an AI chat widget for your site and the closed loop.',
     hc3Num: 'SEO + Ads',
     hc3Title: 'In one panel',
     hc3Desc: 'Google Ads and Meta Ads connection, campaign score and a 6-hour ROAS autopilot, in the same panel as SEO and content.',

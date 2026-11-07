@@ -23,7 +23,7 @@ const USE_CASES = {
         icon: '🛒',
         title: 'E-ticaret',
         bullets: [
-          'Şehir + ürün kategorisi sayfaları (programatik SEO, Ajans planı)',
+          'Ürün Radarı — haftalık rakip ses payı ve kategori sırası (Ajans planı)',
           'Ürün karşılaştırma blogları (organic traffic)',
           'WordPress / WooCommerce sitelerine WordPress REST ile otomatik yayın',
           'Sezonsal kampanya yazıları (Black Friday, Sevgililer Günü)',
@@ -47,7 +47,7 @@ const USE_CASES = {
         bullets: [
           'Müşteri sitesi başına ayrı marka beyni ve marka sesi',
           'Ajans planında 15 site ve ayda 100 makale',
-          'Programatik SEO ve Ürün Radarı (Ajans planı)',
+          'Ürün Radarı ve GEO ısı haritası (Ajans planı)',
           'Haftalık e-posta performans raporu',
         ],
         cta: 'Ajans için başla',
@@ -96,7 +96,7 @@ const USE_CASES = {
         icon: '🛒',
         title: 'E-commerce',
         bullets: [
-          'City + product category pages (programmatic SEO, Agency plan)',
+          'Product Radar — weekly competitor share of voice and category rank (Agency plan)',
           'Product comparison blogs (organic traffic)',
           'Auto-publish to WordPress / WooCommerce sites via WordPress REST',
           'Seasonal campaign articles (Black Friday, Valentine\'s Day)',
@@ -120,7 +120,7 @@ const USE_CASES = {
         bullets: [
           'Separate brand brain and brand voice per client site',
           '15 sites and 100 articles a month on the Agency plan',
-          'Programmatic SEO and Product Radar (Agency plan)',
+          'Product Radar and GEO Heatmap (Agency plan)',
           'Weekly performance report by email',
         ],
         cta: 'Start for Agency',

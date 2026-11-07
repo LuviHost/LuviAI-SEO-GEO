@@ -23,13 +23,24 @@
  * REGRESYON İLKESİ: bugün geçen bir makale yeni kurallar yüzünden durmaz
  * (iki revizyonda kapanmayan blok → REVIZE_NEEDED, yayın yok, hak iade yok).
  * Yeni engelleyici kural yalnız tip AÇIKÇA (açık seçim / sıralayıcı) belirlenmişse.
+ *
+ * KANIT DENETİMİ (08.11.2026): yapı kuralları için kanıt zayıf ve çelişkili
+ * (tablo ve soru başlığıyla alıntı arasında yalnız korelasyon var; soru biçimli
+ * başlık bir ölçümde ChatGPT için olumsuz çıktı; bağımsız tekrar denemesinde
+ * stil taktikleri çoğu durumda anlamsız). Her yazıyı aynı iskelete sokmak da
+ * ölçekli şablon izi bırakır. Bu yüzden:
+ *  - NO_TABLE yalnız şablonu tabloyu zorunlu kılan tiplerde (comparison,
+ *    best_for, pricing) engeller; diğer tiplerde öneridir.
+ *  - Her H2 altında "Kısa cevap" kuralı kaldırıldı (öneri olarak da yok);
+ *    açılıştaki cevap WEAK_LEDE ile ölçülmeye devam ediyor.
+ *  - LOW_QUESTION_H2_RATIO öneridir.
+ * Kaynaksız sayı, görünür tarih ve lede kuralları değişmedi.
  */
 
 import { isAuthoritativeSource, isProductFactType, type ContentType, type ContentTypeSource } from '../prompts/content-templates.js';
 
 export type GeoGateCode =
   | 'NO_TABLE'
-  | 'MISSING_SHORT_ANSWER'
   | 'LOW_QUESTION_H2_RATIO'
   | 'NO_UPDATED_DATE'
   | 'UNSOURCED_NUMERIC_CLAIM'
@@ -55,6 +66,7 @@ export interface GeoGateStats {
   questionH2: number;
   questionRatio: number;
   tables: number;
+  /** "Kısa cevap" satırı olan içerik H2 sayısı — yalnız bilgi, kural değil (08.11.2026) */
   shortAnswerCovered: number;
   hasUpdatedDate: boolean;
   unsourcedNumericClaims: number;
@@ -109,7 +121,15 @@ export interface GeoGateOptions {
 }
 
 /**
- * Yapısal bölümler: bunlarda "Kısa cevap" blockquote'u ve soru başlığı beklenmez.
+ * Tablonun ENGEL olduğu tipler: içerik şablonu tabloyu zorunlu kılıyor
+ * (comparison: yan yana tablo, best_for: sıralı tablo, pricing: plan tablosu).
+ * Diğer tiplerde tablo yalnız gerçek bir veri karşılaştırması varsa anlamlıdır;
+ * yokluğu öneri olarak bildirilir, dolgu tablo istenmez.
+ */
+const TABLE_REQUIRED_TYPES: ReadonlySet<ContentType> = new Set(['comparison', 'best_for', 'pricing']);
+
+/**
+ * Yapısal bölümler: bunlarda soru başlığı beklenmez.
  * Soru oranının paydasına da girmezler — SSS/Sonuç başlığı zaten soru değildir,
  * paydada tutmak oranı yapay olarak düşürür.
  */
@@ -239,7 +259,7 @@ function splitH2Sections(body: string): H2Section[] {
   return sections;
 }
 
-/** Bölümün ilk anlamlı satırlarında "> **Kısa cevap:**" var mı? */
+/** Bölümün ilk anlamlı satırlarında "> **Kısa cevap:**" var mı? (yalnız istatistik) */
 function hasShortAnswer(sectionBody: string): boolean {
   const lines = sectionBody
     .split('\n')
@@ -550,7 +570,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
 
   const questionH2 = content.filter((s) => s.title.trim().endsWith('?')).length;
   const questionRatio = content.length > 0 ? questionH2 / content.length : 0;
-  const missingShortAnswer = content.filter((s) => !hasShortAnswer(s.body));
+  const shortAnswerCovered = content.filter((s) => hasShortAnswer(s.body)).length;
   const tables = countTables(body);
   const hasUpdatedDate = /son\s+g[üu]ncelleme\s*[:：]\s*\*{0,2}\s*\d{4}-\d{2}-\d{2}/i.test(body);
   const { legacy: unsourced, price: unsourcedPrice } = findUnsourcedClaims(body, maxSamples);
@@ -589,36 +609,28 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   }
 
   if (tables === 0) {
+    const tableRequired = TABLE_REQUIRED_TYPES.has(contentType);
     issues.push({
       code: 'NO_TABLE',
-      severity: 'block',
-      message:
-        'Makalede hiç markdown tablosu yok. Karşılaştırma, oran/tarife veya adım-kriter ' +
-        'verisini en az 1 tabloya taşı. Tabloyu dolgu için uydurma; metinde zaten anlattığın ' +
-        'karşılaştırmayı yapılandır.',
-    });
-  }
-
-  if (missingShortAnswer.length > 0) {
-    issues.push({
-      code: 'MISSING_SHORT_ANSWER',
-      severity: 'block',
-      message:
-        `${missingShortAnswer.length} H2 bölümünde "> **Kısa cevap:** ..." satırı yok. ` +
-        'Her içerik H2\'sinin hemen altına, ilk paragraftan ÖNCE max 25 kelimelik atomik ' +
-        'cevap blockquote\'u ekle (SSS ve Sonuç bölümleri hariç).',
-      samples: missingShortAnswer.slice(0, maxSamples).map((s) => s.title),
+      // Yalnız şablonu tabloyu zorunlu kılan tiplerde engel; diğerlerinde öneri
+      severity: tableRequired ? 'block' : 'warn',
+      message: tableRequired
+        ? 'Makalede hiç markdown tablosu yok. Bu içerik tipinde karşılaştırma tablosu zorunlu: ' +
+          'metinde zaten anlattığın seçenek/plan karşılaştırmasını tabloya taşı. Tabloyu dolgu için uydurma.'
+        : 'Makalede tablo yok. Metinde gerçekten karşılaştırılan veri (seçenek, oran, tarife, kriter) ' +
+          'varsa tabloya taşımayı düşün; yoksa tablo ekleme, dolgu tablo uydurma.',
     });
   }
 
   if (content.length > 0 && questionRatio < minRatio) {
     issues.push({
       code: 'LOW_QUESTION_H2_RATIO',
-      severity: 'block',
+      // Öneri: soru biçimli başlık lehine kanıt zayıf ve çelişkili (08.11.2026 denetimi)
+      severity: 'warn',
       message:
-        `Soru formatlı H2 oranı %${Math.round(questionRatio * 100)} (${questionH2}/${content.length}); ` +
-        `alt sınır %${Math.round(minRatio * 100)}. Başlıkları okurun arama kutusuna yazdığı ` +
-        'soruya çevir ("KDV Hesaplama" → "KDV nasıl hesaplanır?"). Konuyu değiştirme, sadece başlığı.',
+        `Soru formatlı H2 oranı %${Math.round(questionRatio * 100)} (${questionH2}/${content.length}). ` +
+        'Okurun aradığı soruyu doğal olarak karşılayan başlıklar soru biçiminde yazılabilir ' +
+        '("KDV Hesaplama" → "KDV nasıl hesaplanır?"); her başlığı soruya çevirmek zorunlu değil. Konuyu değiştirme.',
       samples: content
         .filter((s) => !s.title.trim().endsWith('?'))
         .slice(0, maxSamples)
@@ -704,7 +716,7 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
     questionH2,
     questionRatio: Number(questionRatio.toFixed(3)),
     tables,
-    shortAnswerCovered: content.length - missingShortAnswer.length,
+    shortAnswerCovered,
     hasUpdatedDate,
     unsourcedNumericClaims: unsourced.length,
     unsourcedPriceClaims: unsourcedPrice.length,

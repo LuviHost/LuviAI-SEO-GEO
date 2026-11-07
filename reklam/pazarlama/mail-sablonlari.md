@@ -8,6 +8,7 @@
   - Not (28.08.2026): "Bankaları çıkar" yalnız bu KOBİ/self-servis hunisi içindir. Büyük kurumlar (banka, e-ticaret, havayolu, telekom, otomotiv) için ayrı kampanya: `kurumsal-mail-sablonlari.md` — karar verici hedefli, İYS/KVKK ön koşullu.
 - **Hukuk:** her mailde açık kimlik (ad, şirket, adres), tek tıkla ret linki (Jetmail unsubscribe), İYS kaydı. Şahıs işletmelerine ilk mailde satış değil "ücretsiz test sonucu" ver.
 - **Kanıt kuralı:** tek kaynaklı sayı (33×, %68,9, %34,5) kullanma. Müşteri adı (Kobipratik) yazılı onaysız geçmez.
+- **Ölçülmemiş sonuç yazılmaz (08.11.2026):** "sorduk", "cevapta yoktu", "cevap 2-3 otel adı içeriyor", "şu üç salonu öneririm" gibi ifadeler yalnız o firma için gerçekten ölçüm yapıldıysa ve sonuç buysa kullanılır. Toplu gönderimde genel ifade yaz ("önerebiliyor", "geçiyor mu?").
 - **Uzunluk:** 90-130 kelime, düz metin görünümü, tek CTA, ek yok, görsel yok (ilk mailde).
 
 Değişkenler: `{{firma}}` `{{sehir}}` `{{sektor_sorusu}}` `{{ad}}` (Jetmail merge alanları).
@@ -17,8 +18,8 @@ Değişkenler: `{{firma}}` `{{sehir}}` `{{sektor_sorusu}}` `{{ad}}` (Jetmail mer
 ## Konu satırı seçenekleri (A/B — 2-3 tanesini dönüşümlü kullan)
 1. `{{firma}} ChatGPT'de görünüyor mu? (30 saniyelik test)`
 2. `Müşteriler artık Google'a değil ChatGPT'ye soruyor — {{firma}} cevapta var mı?`
-3. `{{sehir}}'de "{{sektor_sorusu}}" diye sorduk`
-4. `Sitenizi 6 AI asistana sorduk — sonuç`
+3. `{{sehir}}'de "{{sektor_sorusu}}" diye sorulunca AI kimi öneriyor?`
+4. `Siteniz 6 AI asistanın cevabında geçiyor mu?`
 
 Preheader: `Ücretsiz, üyeliksiz, kart yok. Sonucu 30 saniyede görün.`
 
@@ -26,11 +27,11 @@ Preheader: `Ücretsiz, üyeliksiz, kart yok. Sonucu 30 saniyede görün.`
 
 ## Şablon 1 — Otel / turizm
 
-**Konu:** `{{sehir}}'de "iyi bir otel" diye sorduk — {{firma}} cevapta yoktu`
+**Konu:** `{{sehir}}'de "iyi bir otel" diye sorulunca {{firma}} cevapta var mı?`
 
 Merhaba {{ad}},
 
-Misafirler artık "{{sehir}}'de aile için iyi bir otel" sorusunu Google'a değil ChatGPT'ye, Gemini'ye, Perplexity'ye soruyor. Cevap 2-3 otel adı içeriyor; listede olmayan otel o misafir için hiç var olmuyor.
+Misafirler artık "{{sehir}}'de aile için iyi bir otel" sorusunu Google'a değil ChatGPT'ye, Gemini'ye, Perplexity'ye soruyor. Asistan bu soruyu kendi seçtiği birkaç oteli önererek cevaplayabiliyor; o cevapta adı geçmeyen otel o misafirin aklına hiç gelmeyebilir.
 
 RanksUp tam bunu ölçüyor: sitenizi haftada bir 6 AI asistana soruyor, hangi soruda anıldığınızı, hangisinde rakibin önerildiğini gösteriyor — ve eksik olduğunuz soruya cevap veren içeriği üretip yayınlıyor.
 
@@ -50,7 +51,7 @@ Kurucu, RanksUp · ranksup.ai
 
 Merhaba {{ad}},
 
-Bir müşteri telefonuna "{{sehir}}'de iyi bir kuaför" yazdığında artık karşısına bir liste değil, tek bir cevap çıkıyor: "Şu üç salonu öneririm." O üç ismin içinde olup olmadığınızı bilmiyorsanız, müşteriyi kimin aldığını da bilmiyorsunuz.
+Bir müşteri telefonuna "{{sehir}}'de iyi bir kuaför" yazdığında karşısına bir bağlantı listesi yerine birkaç salonu öneren tek bir cevap çıkabiliyor. O cevapta olup olmadığınızı bilmiyorsanız, müşteriyi kimin aldığını da bilmiyorsunuz.
 
 RanksUp bunu 30 saniyede gösteriyor: sitenizi yazın, 6 AI asistanın sizi önerip önermediğini görün — ücretsiz, üyeliksiz. Sonra isterseniz, eksik olduğunuz soruların cevabını sizin adınıza yazıp yayınlıyoruz.
 
@@ -64,11 +65,11 @@ Kurucu, RanksUp
 
 ## Şablon 3 — KOBİ / profesyonel hizmet (muhasebe, hukuk, klinik, ajans)
 
-**Konu:** `{{firma}} için 6 AI asistandan gelen cevap`
+**Konu:** `{{firma}} 6 AI asistanın cevabında geçiyor mu?`
 
 Merhaba {{ad}},
 
-Potansiyel müşteriniz "{{sektor_sorusu}}" diye ChatGPT'ye sorduğunda cevapta {{firma}} geçiyor mu? Çoğu işletme geçmiyor — ve bunu ölçen bir raporu da yok; Search Console AI cevaplarını göstermiyor.
+Potansiyel müşteriniz "{{sektor_sorusu}}" diye ChatGPT'ye sorduğunda cevapta {{firma}} geçiyor mu? Bunu Search Console göstermiyor; ayrıca ölçmek gerekiyor.
 
 RanksUp haftada bir 6 AI asistanı (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) test eder, marka adınızın geçtiği soruları skordan ayırır (o tanınırlık, görünürlük değil), kaybettiğiniz soru için içeriği üretip yeniden ölçer.
 

@@ -106,14 +106,21 @@ ${urls}
     return authMdTemplate(opts.brandName);
   }
 
-  /** llms.txt — Auriti formatında AI search özetlemesi */
+  /**
+   * llms.txt — sitenin içerik özeti (llmstxt.org biçimi).
+   *
+   * Dosyada AI asistanlarına dair etki iddiası YAZILMAZ (08.11.2026 kanıt
+   * denetimi): Google llms.txt'i yok sayıyor, hangi asistanın dosyayı
+   * okuduğu açıklanmış değil. Eskiden "AI search asistanlarının ... doğru ve
+   * güncel bilgi alabilmesi için hazırlandı" yazıyordu; müşterinin sitesinde
+   * yayınlanan, kanıtsız bir vaatti.
+   */
   generateLlmsTxt(crawl: CrawlResult, brandName: string, brandDescription: string): string {
     const baseUrl = crawl.baseUrl.replace(/\/$/, '');
 
     let txt = `# ${brandName}\n\n`;
     txt += `> ${brandDescription}\n\n`;
-    txt += `Bu dosya, AI search asistanlarının (ChatGPT, Claude, Perplexity, Gemini) `;
-    txt += `${brandName} hakkında doğru ve güncel bilgi alabilmesi için hazırlandı.\n\n`;
+    txt += `Bu dosya sitenin içerik özetidir.\n\n`;
 
     // Ana sayfalar
     const homepage = crawl.pages.find(p => p.url === baseUrl || p.url === `${baseUrl}/`);

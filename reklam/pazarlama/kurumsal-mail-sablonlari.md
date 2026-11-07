@@ -104,7 +104,7 @@ Sayın {{ad}} {{soyad}},
 
 Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perplexity gibi AI asistanlarında nasıl göründüğünü ölçüyoruz.
 
-Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi alışveriş sorularını artık arama motoruna değil bir AI asistanına soruyor. Asistanın cevabında birkaç marka adı geçiyor; o listede olmayan marka, o müşterinin gündemine hiç girmiyor. Reklamla o cevaba girilmiyor; içerik ve yapısal sinyallerle giriliyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu markanın burada nerede durduğunu bilmediğini görüyoruz.
+Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi alışveriş sorularını artık arama motoruna değil bir AI asistanına soruyor. Asistanın cevabında birkaç marka adı geçiyor; o listede olmayan marka, o müşterinin gündemine hiç girmiyor. Reklamla o cevaba girilmiyor; içerikle ve başkalarının sizin hakkınızda yazdıklarıyla giriliyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu markanın burada nerede durduğunu bilmediğini görüyoruz.
 
 {{firma}} için bunu somut olarak gösterebiliriz: altı AI asistanına marka adı geçmeyen gerçek alışveriş soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi sorularda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
 

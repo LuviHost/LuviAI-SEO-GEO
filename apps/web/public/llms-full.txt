@@ -41,7 +41,7 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 - robots.txt'te 27 AI botunun erişimi kategorili ölçülür: eğitim, AI arama ve kullanıcı tetikli botlar.
 - llms.txt, llms-full.txt, sitemap ve ajan keşif dosyaları (ai-catalog.json, MCP sunucu kartı, A2A ajan kartı, openapi.json, auth.md) denetlenir. API ya da ajan arayüzüne bağlı kontroller yalnızca site o arayüzü sunuyorsa puanlanır.
 - Erişim engeli "eksik" sayılmaz ve puana girmez.
-- robots.txt / llms.txt / sitemap için önizlemeli düzeltme (site denetimindeki kurallarla aynı).
+- robots.txt için önizlemeli düzeltme; eksik site haritası oluşturulur (site denetimindeki kurallarla aynı).
 
 ### AI makale ve yayın
 
@@ -76,7 +76,6 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 
 ### Ajans araçları — Ajans ve üstü
 
-- Programatik SEO: tek şablonla 81 il için şehir sayfası; kalan aylık makale hakkın kadar şehir üretilir, her sayfa haktan düşer.
 - Ürün Radarı: haftalık rakip ses payı ve kategori sırası.
 - GEO ısı haritası: çoklu sağlayıcıda görünürlük ısı haritası.
 - Canlı Tarayıcı: AI botlarının canlı akışı ve sunucu logu yükleme.
