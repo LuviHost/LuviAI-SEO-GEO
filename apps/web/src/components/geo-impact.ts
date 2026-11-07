@@ -10,7 +10,13 @@
  * yontem kesitinden verir ve methodChanged/methodChangedAt doner. Burada kiyas
  * yalniz kesitinde iki AYRI olcumu olan saglayicilarla yapilir — baslangic ve
  * son ayni saglayici kumesinden.
+ *
+ * YON (08.11.2026 kanit denetimi): kartin yesil/kirmizi yonu sayilarin farkindan
+ * DEGIL, API'nin aralik kararindan (data.olcum.etki.karar, visibility-interval):
+ * baslangic ve son olcumun gorunme araliklari ortusuyorsa "anlamli degisim yok".
  */
+// Goreli yol: bu saf modul vitest ile '@/' takma adi olmadan da yuklenir (lib/*.spec.mts)
+import { kararYonu, olcumOf, type AralikKarari } from '../lib/visibility-interval';
 
 export interface GeoTrendLike {
   provider: string;
@@ -51,6 +57,10 @@ export interface GeoImpact {
   mentionsStart: number;
   mentionsNow: number;
   newEngines: string[];
+  /** Baslangic ve son olcumun aralik karari (API olcum.etki); hesaplanamadiysa null */
+  karar: AralikKarari | null;
+  /** Gosterilecek yon: yalniz araliklar ortusmuyorsa up/down, aksi halde flat */
+  yon: 'up' | 'down' | 'flat';
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -83,6 +93,8 @@ export function geoImpact(data: any): GeoImpact {
     mentionsStart: 0,
     mentionsNow: 0,
     newEngines: [],
+    karar: null,
+    yon: 'flat',
   };
   if (trends.length === 0) return base;
 
@@ -119,9 +131,16 @@ export function geoImpact(data: any): GeoImpact {
   const growthPct = firstAvg !== null && lastAvg !== null
     ? (firstAvg > 0 ? Math.round(((lastAvg - firstAvg) / firstAvg) * 100) : (lastAvg > 0 ? null : 0))
     : null;
+  // Aralik karari yoksa (eski API, kosum kaydi olmayan eski olcum) "anlamli degisim yok"
+  const olcum = olcumOf(data);
+  const karar = olcum?.etki?.karar ?? null;
+  // "Artik gorunuyorsun" da bir degisim iddiasi: yalniz o asistanin araligi da arttiysa
+  const asistanArtti = (p: string) => olcum?.asistanlar?.[p]?.karar === 'artti';
 
   return {
     ...base,
+    karar,
+    yon: kararYonu(karar),
     state: 'compare',
     spanDays,
     firstAvg,
@@ -132,7 +151,9 @@ export function geoImpact(data: any): GeoImpact {
     totalEngines: comparable.length,
     mentionsStart,
     mentionsNow,
-    newEngines: comparable.filter((t) => (t.last as number) > 0 && (t.first as number) <= 0).map((t) => t.provider),
+    newEngines: comparable
+      .filter((t) => (t.last as number) > 0 && (t.first as number) <= 0 && asistanArtti(t.provider))
+      .map((t) => t.provider),
   };
 }
 

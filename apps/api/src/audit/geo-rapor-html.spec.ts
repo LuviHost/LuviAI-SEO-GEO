@@ -227,6 +227,9 @@ describe('geoRaporHtml — olculmeyen motor ve kapak sayilari (G8)', () => {
     expect(yontemNotu({ a: 1, b: 4 })).toMatch(/benzer alan adları[\s\S]*kaynak listesindeki[\s\S]*jenerik marka/);
     expect(yontemNotu({ a: 3, b: 4 })).not.toMatch(/benzer alan adları|kaynak listesindeki/);
     expect(yontemNotu(undefined)).toContain('Farklar yöntemden kaynaklanabileceği için hesaplanmadı');
+    // v5 tek turlu → v6 tekrarli site olcumu (host-match.ts SITE_MEASUREMENT_VERSION)
+    expect(yontemNotu({ a: 5, b: 6 })).toMatch(/birden fazla kez soruluyor[\s\S]*güven aralığı/);
+    expect(yontemNotu({ a: 5, b: 6 })).not.toMatch(/Grok ve DeepSeek/);
   });
 
   it('atifi anilmaya cevir: gercek "atif var, ad yok" sayisi', () => {

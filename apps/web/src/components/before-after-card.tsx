@@ -2,6 +2,7 @@
 
 import { TrendingUp, TrendingDown, Minus, Sparkles, Rocket, Info } from 'lucide-react';
 import { geoImpact, formatTrDate } from '@/components/geo-impact';
+import { kararAciklamasi, olcumOf } from '@/lib/visibility-interval';
 
 const LABELS: Record<string, string> = {
   anthropic: 'Claude', gemini: 'Gemini', openai: 'ChatGPT',
@@ -53,7 +54,10 @@ export function BeforeAfterCard({ data }: { data: any }) {
 
   const firstAvg = g.firstAvg ?? 0;
   const lastAvg = g.lastAvg ?? 0;
-  const direction = lastAvg > firstAvg ? 'up' : lastAvg < firstAvg ? 'down' : 'flat';
+  // Yön sayıların farkından DEĞİL aralık kararından (geo-impact.ts): görünme
+  // aralıkları örtüşüyorsa ya da hesaplanamıyorsa "anlamlı değişim yok" — nötr
+  const direction = g.yon;
+  const kararIpucu = kararAciklamasi(olcumOf(data)?.etki);
   const toneText = direction === 'up' ? 'text-emerald-700 dark:text-emerald-300'
     : direction === 'down' ? 'text-red-700 dark:text-red-300'
     : 'text-muted-foreground';
@@ -73,28 +77,38 @@ export function BeforeAfterCard({ data }: { data: any }) {
       </div>
 
       <div className="flex items-end gap-6 flex-wrap">
-        {/* Büyük değişim % */}
-        <div className="flex items-center gap-2">
+        {/* Büyük değişim % — yalnız aralıklar örtüşmüyorsa; aksi hâlde "anlamlı değişim yok" */}
+        <div className="flex items-center gap-2" title={kararIpucu}>
           {direction === 'up' ? <TrendingUp className={`h-7 w-7 ${toneText}`} />
             : direction === 'down' ? <TrendingDown className={`h-7 w-7 ${toneText}`} />
             : <Minus className={`h-7 w-7 ${toneText}`} />}
           <div>
-            <div className={`text-4xl font-extrabold leading-none ${toneText}`}>
-              {g.growthPct === null ? `+${lastAvg}` : `${g.growthPct > 0 ? '+' : ''}${g.growthPct}%`}
-            </div>
+            {direction === 'flat' ? (
+              <div className={`text-2xl font-extrabold leading-none ${toneText}`}>Anlamlı değişim yok</div>
+            ) : (
+              <div className={`text-4xl font-extrabold leading-none ${toneText}`}>
+                {g.growthPct === null ? `+${lastAvg}` : `${g.growthPct > 0 ? '+' : ''}${g.growthPct}%`}
+              </div>
+            )}
             <div className="text-xs text-muted-foreground mt-1">
-              {g.growthPct === null ? 'AI görünürlük (0\'dan başladı)' : 'AI görünürlük değişimi'}
+              {direction === 'flat'
+                ? 'Fark AI cevaplarının ölçüm oynaklığı içinde'
+                : g.growthPct === null ? 'AI görünürlük (0\'dan başladı)' : 'AI görünürlük değişimi'}
             </div>
           </div>
         </div>
 
-        {/* Mini metrikler */}
+        {/* Mini metrikler — renk yalnız anlamlı değişimde */}
         <div className="grid grid-cols-3 gap-x-6 gap-y-1 text-sm">
-          <Metric label="Görünür olduğun asistan" before={`${g.enginesStart}`} after={`${g.enginesNow}`} suffix={`/${g.totalEngines}`} up={g.enginesNow >= g.enginesStart} />
-          <Metric label="Ort. skor" before={`${firstAvg}`} after={`${lastAvg}`} up={lastAvg >= firstAvg} />
-          <Metric label="Anılma + atıf" before={`${g.mentionsStart}`} after={`${g.mentionsNow}`} up={g.mentionsNow >= g.mentionsStart} />
+          <Metric label="Görünür olduğun asistan" before={`${g.enginesStart}`} after={`${g.enginesNow}`} suffix={`/${g.totalEngines}`} tone={direction === 'flat' ? 'flat' : g.enginesNow >= g.enginesStart ? 'up' : 'down'} />
+          <Metric label="Ort. skor" before={`${firstAvg}`} after={`${lastAvg}`} tone={direction} />
+          <Metric label="Anılma + atıf" before={`${g.mentionsStart}`} after={`${g.mentionsNow}`} tone={direction === 'flat' ? 'flat' : g.mentionsNow >= g.mentionsStart ? 'up' : 'down'} />
         </div>
       </div>
+
+      {direction === 'flat' && (
+        <p className="text-label text-muted-foreground mt-2">{kararIpucu}</p>
+      )}
 
       {newEngines.length > 0 && (
         <p className={`text-sm mt-3 ${toneText}`}>
@@ -110,14 +124,15 @@ export function BeforeAfterCard({ data }: { data: any }) {
   );
 }
 
-function Metric({ label, before, after, suffix = '', up }: { label: string; before: string; after: string; suffix?: string; up: boolean }) {
+function Metric({ label, before, after, suffix = '', tone }: { label: string; before: string; after: string; suffix?: string; tone: 'up' | 'down' | 'flat' }) {
+  const cls = tone === 'up' ? 'text-emerald-600 dark:text-emerald-400' : tone === 'down' ? 'text-red-600 dark:text-red-400' : 'text-foreground';
   return (
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="font-semibold tabular-nums">
         <span className="text-muted-foreground">{before}{suffix}</span>
         <span className="mx-1.5 text-muted-foreground">→</span>
-        <span className={up ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>{after}{suffix}</span>
+        <span className={cls}>{after}{suffix}</span>
       </div>
     </div>
   );
