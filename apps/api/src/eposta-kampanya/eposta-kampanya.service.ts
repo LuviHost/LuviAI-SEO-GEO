@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { EpostaHedefDurum, Prisma } from '@prisma/client';
+import { Prisma, type EpostaHedefDurum } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { parseCsv, toCsv } from '../prospect/prospect-utils.js';
 import { kimlikEnv, kimlikSorunlari, mailjetMesaj, mesajDenetimi, type Alici } from '../prospect/eposta-sablon.js';
@@ -8,7 +8,10 @@ import {
   ACIK_DURUMLAR, KAPALI_DURUMLAR, bizimMesaj, eskiKanalDuraklatmasi, firmaAnahtari, mailjetJsonOku, type IceAktarSatir, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani, tikGecerli,
   trAyBasi, trGun, trGunBasi, turKotasi,
 } from './eposta-kurallar.js';
-import { retImzaGecerli, retSirri, sogukPaket, tikUrl } from './soguk-gonderim.js';
+import { kisiselMi, retImzaGecerli, retSirri, sogukPaket, sogukSablonlar, sogukSatir, tikBaglantisiEkle, tikUrl } from './soguk-gonderim.js';
+import { KISISEL_GECERLILIK_MS, type KisiselVeri, kisiselOku } from './kisisel.js';
+import { doldur } from './smtp-kanal.js';
+import { KisiselHazirlikService } from './kisisel-hazirlik.service.js';
 import {
   type Kanal, type SmtpAyar, bizimKimlikler, dsnAyikla, dsnMi, kaliciRet, kanal, mesajKimligi, smtpAyar, smtpMesaj, smtpSorunlari, yanitTuru,
 } from './smtp-kanal.js';
@@ -60,7 +63,43 @@ export type GelenOkuyucu = (a: SmtpAyar, sonrasi: string | null) => Promise<{ im
 export class EpostaKampanyaService {
   private readonly log = new Logger(EpostaKampanyaService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly kisiselHazirlik?: KisiselHazirlikService,
+  ) {}
+
+  /**
+   * Kisisel mail stogu: gonderim sirasindaki adresleri onceden hazirlar (worker her turdan once cagirir).
+   * Kampanya kapaliyken para harcamaz. Stok hedefi gunluk kotanin iki kati (pazartesi sabahina hazir olsun).
+   */
+  async kisiselHazirla(o: { zorla?: boolean; adet?: number } = {}) {
+    if (!this.kisiselHazirlik) return { hazirlanan: 0, incele: 0, ertelenen: 0, stok: 0, neden: 'Hazırlık servisi yok' };
+    if (!o.zorla && !(await this.isAcik())) return { hazirlanan: 0, incele: 0, ertelenen: 0, stok: 0, neden: 'Kampanya kapalı' };
+    return this.kisiselHazirlik.hazirla({ stokHedefi: this.gunlukKota * 2, adet: o.adet });
+  }
+
+  /** Bir hedefe gidecek ilk mailin tam metni (panel onizlemesi). Kisisel hazir degilse neden doner, metin uretilmez. */
+  async onizleme(id: string): Promise<{ hazir: boolean; neden?: string; konu?: string; govde?: string }> {
+    const h = await this.prisma.epostaHedef.findUnique({ where: { id } });
+    if (!h) throw new BadRequestException('Hedef yok');
+    const kisisel = kisiselOku(h.kisisel);
+    if (h.sektor !== 'ajans' && !kisisel) {
+      const neden = (h.kisisel as { neden?: string } | null)?.neden;
+      return { hazir: false, neden: h.kisiselDurum === 'INCELE' ? `İncelenmeli: ${neden ?? 'neden yok'}` : 'Kişisel metin henüz hazırlanmadı' };
+    }
+    const sir = retSirri() ?? 'onizleme';
+    const base = process.env.API_PUBLIC_URL || 'https://api.ranksup.ai';
+    const satir = sogukSatir({ ...h, kisisel }, sir, base);
+    const kimlik = kimlikEnv();
+    const [ilk] = sogukSablonlar(satir.sektor, kimlik);
+    return { hazir: true, konu: doldur(ilk.konu, satir), govde: tikBaglantisiEkle(doldur(ilk.govde, satir), kimlik, tikUrl(h.id, this.site)) };
+  }
+
+  /** INCELE'deki hedefi yeniden hazirlanmaya birak (panel "Yeniden dene") */
+  async kisiselSifirla(id: string): Promise<{ ok: true }> {
+    await this.prisma.epostaHedef.updateMany({ where: { id, kisiselDurum: { in: ['INCELE', 'HAZIR'] } }, data: { kisiselDurum: null, kisisel: Prisma.DbNull, kisiselAt: null } });
+    return { ok: true };
+  }
 
   /** SMTP baglantisi ve gelen kutusu okuyucu — testler sahte verir */
   smtpFabrika: (a: SmtpAyar) => SmtpGonderici = (a) =>
@@ -161,6 +200,10 @@ export class EpostaKampanyaService {
   async overview(f: { durum?: string; sektor?: string; q?: string; sayfa?: number } = {}) {
     const simdi = new Date();
     const yedi = new Date(simdi.getTime() - 7 * 86_400_000);
+    const [kisiselGruplar] = await Promise.all([
+      this.prisma.epostaHedef.groupBy({ by: ['kisiselDurum'], where: { durum: 'SIRADA', sektor: { not: 'ajans' } }, _count: { _all: true } }),
+    ]);
+    const kisiselSayilar = Object.fromEntries(kisiselGruplar.map((g) => [g.kisiselDurum ?? 'BEKLIYOR', g._count._all]));
     const [acik, duraklatma, gruplar, bugun, ay, acilan, tiklanan, partiler, son7] = await Promise.all([
       this.isAcik(),
       this.duraklatma(),
@@ -208,6 +251,7 @@ export class EpostaKampanyaService {
       sorunlar,
       kota: { bugun, gunluk: this.gunlukKota, ay, aylik: this.aylikKota },
       sayilar,
+      kisisel: kisiselSayilar,
       metrik: { gonderilen: gonderilenToplam, acilan, tiklanan, son7 },
       iysPartileri: partiler.filter((p) => p.iysParti).map((p) => ({ parti: p.iysParti as string, adet: p._count._all, olusturuldu: p._min.updatedAt })),
       liste: liste.map((h) => ({ ...h, linkedin: linkedin.get(firmaAnahtari(h.marka || h.firma)) ?? null })),
@@ -503,9 +547,19 @@ export class EpostaKampanyaService {
       const adet = turKotasi({ bugunGonderilen: bugun, ayGonderilen: ay, gunluk: this.gunlukKota, aylik: this.aylikKota, turBasi: this.turBasi });
       if (adet === 0) return bos(`Kota doldu (bugün ${bugun}/${this.gunlukKota}, ay ${ay}/${this.aylikKota})`);
 
-      const uygun = { durum: 'SIRADA' as const, OR: [{ sonOlay: null }, { NOT: { sonOlay: { startsWith: GONDERILIYOR } } }] };
+      // Ajans disi hedef yalniz kisisel metni HAZIR ve olcumu tazeyken gider (07.11 karari: genel metne donus yok)
+      const uygun: Prisma.EpostaHedefWhereInput = {
+        durum: 'SIRADA',
+        OR: [{ sonOlay: null }, { NOT: { sonOlay: { startsWith: GONDERILIYOR } } }],
+        AND: [{ OR: [{ sektor: 'ajans' }, { kisiselDurum: 'HAZIR', kisiselAt: { gte: new Date(simdi.getTime() - KISISEL_GECERLILIK_MS) } }] }],
+      };
       const adaylar = await this.prisma.epostaHedef.findMany({ where: uygun, orderBy: { iysYuklendiAt: 'asc' }, take: adet, select: { id: true } });
-      if (adaylar.length === 0) return bos('Sırada adres yok (İYS partisi onayı bekleniyor olabilir)');
+      if (adaylar.length === 0) {
+        const sirada = await this.prisma.epostaHedef.count({ where: { durum: 'SIRADA' } });
+        return bos(sirada
+          ? `Kişisel metni hazır adres yok (${sirada} adres sırada; hazırlık worker'da sürüyor)`
+          : 'Sırada adres yok (İYS partisi onayı bekleniyor olabilir)');
+      }
 
       // SAHIPLEN: yalniz hala SIRADA ve isaretsiz olanlar (arada HARIC/RET yapilan ya da baska turun aldigi dusurulur)
       const isaret = `${GONDERILIYOR}:${belirtec}`;
@@ -515,9 +569,28 @@ export class EpostaKampanyaService {
         where: { id: { in: adaylar.map((a) => a.id) }, ...uygun },
         data: { sonOlay: isaret, sonOlayAt: new Date(), kampanya },
       });
-      const hedefler = await this.prisma.epostaHedef.findMany({ where: { sonOlay: isaret, durum: 'SIRADA' }, orderBy: { iysYuklendiAt: 'asc' } });
+      const sahiplenilen = await this.prisma.epostaHedef.findMany({ where: { sonOlay: isaret, durum: 'SIRADA' }, orderBy: { iysYuklendiAt: 'asc' } });
+      // Kisisel JSON okunamayan ajans disi hedef GONDERILMEZ (genel metne dusmesin): INCELE'ye alinir, isareti birakilir
+      const hedefler: Array<(typeof sahiplenilen)[number] & { kisisel: KisiselVeri | null }> = [];
+      for (const h of sahiplenilen) {
+        const kisisel = kisiselOku(h.kisisel);
+        if (h.sektor !== 'ajans' && !kisisel) {
+          await this.prisma.epostaHedef.updateMany({
+            where: { id: h.id, sonOlay: isaret },
+            data: { sonOlay: null, sonOlayAt: null, kisiselDurum: 'INCELE', kisisel: { neden: 'Kişisel veri okunamadı; yeniden hazırlanmalı' } },
+          });
+          continue;
+        }
+        hedefler.push({ ...h, kisisel });
+      }
       if (hedefler.length === 0) return bos('Sahiplenilecek adres kalmadı');
       const isaretiKaldir = () => this.prisma.epostaHedef.updateMany({ where: { sonOlay: isaret }, data: { sonOlay: null, sonOlayAt: null } });
+      if (this.kanal === 'mailjet' && hedefler.some((h) => kisiselMi(h))) {
+        await isaretiKaldir();
+        const n = 'Mailjet kanalı kişisel şablonu desteklemiyor (EPOSTA_KANAL=resend ya da smtp olmalı)';
+        await this.duraklat(n);
+        return bos(n);
+      }
 
       if (this.kanal === 'smtp') return await this.smtpTuru(hedefler, isaret, kampanya, isaretiKaldir);
       if (this.kanal === 'resend') return await this.resendTuru(hedefler, isaret, kampanya, isaretiKaldir);
@@ -599,7 +672,7 @@ export class EpostaKampanyaService {
    *  - diger hata (baglanti, kimlik dogrulama, zaman asimi) → o satir HATA "belirsiz", kalanlarin isareti kalkar, DURAKLAT
    */
   private async smtpTuru(
-    hedefler: Array<{ id: string; email: string; firma: string; marka: string | null; sektor: string; varyant: string; web: string | null }>,
+    hedefler: Array<{ id: string; email: string; firma: string; marka: string | null; sektor: string; varyant: string; web: string | null; kisisel: KisiselVeri | null }>,
     isaret: string,
     kampanya: string,
     isaretiKaldir: () => Promise<unknown>,
@@ -672,7 +745,7 @@ export class EpostaKampanyaService {
    * Idempotency-Key = tur isareti: ayni tur istegi tekrar edilirse Resend ikinci kez gondermez.
    */
   private async resendTuru(
-    hedefler: Array<{ id: string; email: string; firma: string; marka: string | null; sektor: string; varyant: string; web: string | null }>,
+    hedefler: Array<{ id: string; email: string; firma: string; marka: string | null; sektor: string; varyant: string; web: string | null; kisisel: KisiselVeri | null }>,
     isaret: string,
     kampanya: string,
     isaretiKaldir: () => Promise<unknown>,

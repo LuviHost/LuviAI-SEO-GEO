@@ -798,6 +798,11 @@ export class AiCitationService {
      * kendi defterleriyle sinirlanir (publicAnonCostKey).
      */
     budgetUserId?: string;
+    /**
+     * Yalniz bu saglayicilar (kurumsal kisisel mail: ChatGPT + Perplexity). Verilmezse hepsi.
+     * Listede olmayan saglayici hic cagrilmaz ve sonuca da girmez.
+     */
+    only?: Provider[];
   }): Promise<Array<{
     provider: Provider;
     label: string;
@@ -806,9 +811,10 @@ export class AiCitationService {
     reason?: string;
     cost: number;
   }>> {
-    const { brand, host, queries, competitors = [], budgetUserId } = opts;
+    const { brand, host, queries, competitors = [], budgetUserId, only } = opts;
     const systemPrompt = this.buildSystemPrompt();
-    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+    const tum: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+    const providers: Provider[] = only?.length ? tum.filter((p) => only.includes(p)) : tum;
 
     const out = await Promise.all(providers.map(async (provider) => {
       const label = PROVIDER_LABELS[provider];

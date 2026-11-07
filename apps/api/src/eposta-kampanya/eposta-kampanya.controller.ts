@@ -14,6 +14,7 @@ function assertAdmin(req: Request) {
 
 /** Tick ayni surecte iki kez baslamasin (asil koruma DB kilidi; bu yalniz panel cift tiklamasi icin) */
 let tickSuruyor = false;
+let hazirlikSuruyor = false;
 
 /**
  * /api/eposta — kurumsal e-posta kampanyasi (admin paneli /admin/eposta) + Mailjet olay akisi.
@@ -123,6 +124,33 @@ export class EpostaKampanyaController {
   webhookKur(@Req() req: Request, @Body() body: { zorla?: boolean }) {
     assertAdmin(req);
     return this.svc.webhookKur(body?.zorla === true);
+  }
+
+  /** Kisisel mail stogunu simdi hazirla (kampanya kapali olsa da). Her firma ~1 dk; tek cagrida en fazla 4. */
+  @Post('kisisel/hazirla')
+  async kisiselHazirla(@Req() req: Request) {
+    assertAdmin(req);
+    if (hazirlikSuruyor) return { hazirlanan: 0, incele: 0, ertelenen: 0, stok: 0, neden: 'Hazırlık zaten çalışıyor' };
+    hazirlikSuruyor = true;
+    try {
+      return await this.svc.kisiselHazirla({ zorla: true });
+    } finally {
+      hazirlikSuruyor = false;
+    }
+  }
+
+  /** Hedefe gidecek ilk mailin tam metni */
+  @Get('hedef/:id/onizleme')
+  onizleme(@Req() req: Request, @Param('id') id: string) {
+    assertAdmin(req);
+    return this.svc.onizleme(id);
+  }
+
+  /** INCELE (ya da HAZIR) hedefi yeniden hazirlanmaya birak */
+  @Post('hedef/:id/kisisel-sifirla')
+  kisiselSifirla(@Req() req: Request, @Param('id') id: string) {
+    assertAdmin(req);
+    return this.svc.kisiselSifirla(id);
   }
 
   /** Elle tur: pencere disinda da (zorla) ama anahtar/IYS/kota/fren kapilari aynen gecerli */

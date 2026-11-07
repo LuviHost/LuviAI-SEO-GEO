@@ -3315,12 +3315,20 @@ model EpostaHedef {
   /// Insan notu (cevap geldi, gorusme ayarlandi...) — sistem dokunmaz
   not          String?   @db.Text
 
+  /// Kisisel mail hazirligi (07.11.2026): firmanin sitesinden faaliyet cumlesi + ona ozel soru + o sorunun
+  /// ChatGPT/Perplexity olcumu (kisisel.ts KisiselVeri). Ajans disi her hedef ancak HAZIR iken gonderilir.
+  kisisel      Json?
+  /// HAZIRLANIYOR | HAZIR | INCELE (gonderilmez; neden kisisel.neden'de)
+  kisiselDurum String?   @db.VarChar(16)
+  kisiselAt    DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([durum])
   @@index([gonderildiAt])
   @@index([iysParti])
+  @@index([kisiselDurum])
   @@map("eposta_hedefleri")
 }
 

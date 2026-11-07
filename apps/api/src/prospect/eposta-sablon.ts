@@ -21,6 +21,9 @@ export const SEKTOR_META: Record<string, { html: string; mdBaslik: string; soru:
   // 27.10.2026: ajanslar is ortagi adayi (Sablon D), uc gruba girmeyen firmalar genel metin (Sablon E)
   ajans: { html: 'kurumsal-ajans.html', mdBaslik: 'Şablon D', soru: 'iyi bir dijital pazarlama ajansı öner', ad: 'ajans' },
   diger: { html: 'kurumsal-genel.html', mdBaslik: 'Şablon E', soru: 'bu alanda hangi şirketi önerirsin', ad: 'genel' },
+  // 07.11.2026: firmaya ozel faaliyet + soru + olcum (eposta-kampanya/kisisel.ts). Ice aktarma sektoru DEGIL;
+  // gonderimde hazir kisisel verisi olan (ajans disi) hedef bu sablona gecer. HTML govdesi yok (duz metin kanallari).
+  kisisel: { html: 'kurumsal-genel.html', mdBaslik: 'Şablon K', soru: '', ad: 'kişisel' },
 };
 
 /** Gonderime girebilecek sektorler: karnedeki uc grup + ajans + genel (diger) */
@@ -280,9 +283,18 @@ const KONU_AJANS: Record<string, (firma: string) => string> = {
   B: (firma) => `${firma} için AI görünürlük iş birliği`,
 };
 
+/**
+ * Kisisel sablon konu satirlari. NEDEN: "ChatGPT X hakkinda ne soyluyor?" firma hakkinda soru sormadigimiz halde
+ * oyle izlenim veriyordu; kisisel mailde gercekten sorulan sey sektorun sorusu.
+ */
+const KONU_KISISEL: Record<string, (firma: string) => string> = {
+  A: (firma) => `${firma}: ChatGPT'ye sektörünüzü sorduk`,
+  B: (firma) => `${firma} için ChatGPT ve Perplexity'ye sorduk`,
+};
+
 /** Konu satiri: sektor + varyant (bilinmeyen varyant → A) */
 export function konuSatiri(sektor: string, varyant: string, firma: string): string {
-  const tablo = sektor === 'ajans' ? KONU_AJANS : KONU;
+  const tablo = sektor === 'ajans' ? KONU_AJANS : sektor === 'kisisel' ? KONU_KISISEL : KONU;
   return (tablo[varyant] ?? tablo.A)(firma);
 }
 

@@ -727,7 +727,11 @@ async function bootstrap() {
      * Panel anahtari kapaliyken, hafta ici 10-17 TR disinda, IYS onayli (SIRADA) adres yokken "yapilacak yok" doner.
      */
     EPOSTA_KAMPANYA_TICK: async () => {
-      return services.eposta.tick();
+      // Once kisisel mail stogu (hafta sonu da calisir; pazartesi 10:00'a hazir olsun). Hata turu durdurmaz:
+      // hazir olmayan adres zaten gonderilmez.
+      const hazirlik = await services.eposta.kisiselHazirla().catch((e: any) => ({ neden: `hazirlik hatasi: ${e?.message ?? e}` }));
+      const tur = await services.eposta.tick();
+      return { ...tur, hazirlik };
     },
 
     /**
