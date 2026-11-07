@@ -96,7 +96,6 @@ const USE_CASES = {
         icon: '🛒',
         title: 'E-commerce',
         bullets: [
-          'City + product category pages (programmatic SEO, Agency plan)',
           'Product comparison blogs (organic traffic)',
           'Auto-publish to WordPress / WooCommerce sites via WordPress REST',
           'Seasonal campaign articles (Black Friday, Valentine\'s Day)',

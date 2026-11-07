@@ -51,6 +51,33 @@ export interface ClassificationResult {
  *  - DefinedTerm (sektor terim sozlugu)
  *  - Speakable (sesli optimizasyon — her makaleye)
  */
+/**
+ * Otomatik uretilebilecek tipler (08.11.2026 kanit denetimi).
+ *
+ * NEDEN beyaz liste: Google'in yapisal veri politikasi "Don't mark up content that is not visible to readers
+ * of the page" der ve isaretlemenin sayfanin asil icerigini temsil etmesini ister. Eskiden bir makaleye
+ * anahtar kelimeyle HowTo (tek adimi sabit "Adimlar makalede detayli aciklanmaktadir" metni), sayfa adresini
+ * video sayan VideoObject, makale basligiyla Product / Service / Course ekleniyordu: hepsi sayfada olmayan ya
+ * da sayfayi yanlis tanimlayan isaretleme. HowTo zengin sonucu 2023'te, FAQ zengin sonucu 7 Mayis 2026'da
+ * kaldirildi; Ahrefs'in kontrollu testinde (2026) sema eklemenin AI alintisina etkisi cikmadi. Makaleye
+ * yalniz makaleyi dogru tanimlayan tipler girer; FAQPage yalniz sayfada gorunen SSS varsa (bkz. visibleFaqs).
+ */
+export const OTOMATIK_SEMA_TIPLERI: ReadonlySet<SchemaType> = new Set<SchemaType>([
+  'Article', 'BlogPosting', 'BreadcrumbList', 'Speakable', 'WebSite', 'Organization', 'FAQPage', 'DefinedTerm',
+]);
+
+/**
+ * SSS'den yalniz sayfada GORUNEN sorular sema'ya girer: soru metni (bosluk/buyuk-kucuk harf farki gozetmeden)
+ * makale govdesinde gecmeli. Frontmatter'daki ama metinde olmayan soru isaretlenmez (Google: gorunmeyen icerik
+ * isaretlenmez).
+ */
+export function visibleFaqs(faqs: Array<{ q: string; a: string }> | undefined, body: string | undefined): Array<{ q: string; a: string }> {
+  if (!faqs?.length || !body) return [];
+  const norm = (t: string) => t.replace(/<[^>]+>/g, ' ').replace(/[*_`]/g, '').replace(/[#>]/g, ' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase('tr-TR');
+  const metin = norm(body);
+  return faqs.filter((f) => f?.q && f?.a && metin.includes(norm(f.q)));
+}
+
 @Injectable()
 export class SchemaClassifierService {
   private readonly log = new Logger(SchemaClassifierService.name);
@@ -71,31 +98,13 @@ export class SchemaClassifierService {
     // FAQ
     if (hints.hasFaqs || /sıkça\s*sorulan\s*soru|sss/i.test(md)) primary.add('FAQPage');
 
-    // HowTo — "adım", "adım adım", "1.", "2.", "kurulum"
-    if (/(adım\s*adım|step[- ]by[- ]step|nasıl\s*kurulur|nasıl\s*yapılır|kurulum\s*rehberi)/i.test(md)) {
-      primary.add('HowTo');
-    }
-
     // Definition / Term
     if (/(\?|nedir|ne\s*demek|ne\s*ise\s*yarar)/i.test(md.split('\n')[0] ?? '')) {
       primary.add('DefinedTerm');
     }
 
-    // Video embed
-    if (/youtube\.com\/embed|<video|youtu\.be\//i.test(md)) primary.add('VideoObject');
-
-    // Course / education
-    if (/(eğitim|kurs|sertifika|öğren|öğrenmek)/i.test(lower) && /(modül|ders|saat|gün)/i.test(lower)) {
-      primary.add('Course');
-    }
-
-    // Product / Service heuristic
-    if (/(ürün|fiyat|paket|abonelik|aylık|yıllık)/i.test(lower) && /(satın\s*al|sipariş|cart|checkout)/i.test(lower)) {
-      primary.add('Product');
-    }
-    if (/(hizmet|servis|destek\s*paketi|teklif)/i.test(lower) && !primary.has('Product')) {
-      primary.add('Service');
-    }
+    // Video / Course / Product / Service / HowTo artik otomatik eklenmez (bkz. OTOMATIK_SEMA_TIPLERI)
+    void lower;
 
     // AI'ya inceltme yaptir (env'de Anthropic key varsa)
     let reasoning = 'heuristic-only';
@@ -108,7 +117,7 @@ export class SchemaClassifierService {
           messages: [
             {
               role: 'user',
-              content: `Markdown makale:\n\n${md.slice(0, 4000)}\n\nMevcut tahminler: ${[...primary].join(', ')}\n\nJSON dondur, format:\n{\n  "add": ["schema1", "schema2"],\n  "remove": ["schema1"],\n  "reason": "kisa aciklama"\n}\n\nKabul edilen tipler: Article, BlogPosting, NewsArticle, HowTo, FAQPage, QAPage, Product, Service, Review, AggregateRating, LocalBusiness, Organization, Person, Course, Event, VideoObject, BreadcrumbList, WebSite, DefinedTerm, ClaimReview, Speakable.`,
+              content: `Markdown makale:\n\n${md.slice(0, 4000)}\n\nMevcut tahminler: ${[...primary].join(', ')}\n\nJSON dondur, format:\n{\n  "add": ["schema1", "schema2"],\n  "remove": ["schema1"],\n  "reason": "kisa aciklama"\n}\n\nKabul edilen tipler: ${[...OTOMATIK_SEMA_TIPLERI].join(', ')}. Yalniz makalede gercekten gorunen icerigi temsil eden tipi ekle.`,
             },
           ],
         });
@@ -129,7 +138,8 @@ export class SchemaClassifierService {
     }
 
     return {
-      primary: [...primary],
+      // Beyaz liste disi her tip (AI eklese de) cikar
+      primary: [...primary].filter((t) => OTOMATIK_SEMA_TIPLERI.has(t)),
       reasoning,
     };
   }
@@ -233,20 +243,6 @@ export class SchemaClassifierService {
       });
     }
 
-    // HowTo (heuristic — frontmatter'da steps yoksa basit format)
-    if (args.types.includes('HowTo')) {
-      schemas.push({
-        '@context': 'https://schema.org',
-        '@type': 'HowTo',
-        name: a.title,
-        description: a.metaDescription ?? '',
-        // Step listesi makale icindeki numarali liste'den extract edilebilir; simdilik placeholder
-        step: [
-          { '@type': 'HowToStep', name: 'Adimlar makalede detayli aciklanmaktadir', url: a.url },
-        ],
-      });
-    }
-
     // Speakable — her zaman, AI sesli asistanlar icin
     if (args.types.includes('Speakable')) {
       schemas.push({
@@ -268,56 +264,11 @@ export class SchemaClassifierService {
         name: a.title,
         description: a.metaDescription ?? '',
         url: a.url,
-        inDefinedTermSet: `${baseUrl}/sozluk`,
       });
     }
 
-    // VideoObject (placeholder — gercek video varsa pipeline doldurmali)
-    if (args.types.includes('VideoObject')) {
-      schemas.push({
-        '@context': 'https://schema.org',
-        '@type': 'VideoObject',
-        name: a.title,
-        description: a.metaDescription ?? '',
-        uploadDate: a.datePublished ?? new Date().toISOString(),
-        thumbnailUrl: a.heroImage ?? `${baseUrl}/default-video-thumb.png`,
-        contentUrl: a.url,
-      });
-    }
-
-    // Course
-    if (args.types.includes('Course')) {
-      schemas.push({
-        '@context': 'https://schema.org',
-        '@type': 'Course',
-        name: a.title,
-        description: a.metaDescription ?? '',
-        provider: { '@type': 'Organization', name: s.name, url: baseUrl },
-        url: a.url,
-      });
-    }
-
-    // Product / Service
-    if (args.types.includes('Product')) {
-      schemas.push({
-        '@context': 'https://schema.org',
-        '@type': 'Product',
-        name: a.title,
-        description: a.metaDescription ?? '',
-        url: a.url,
-        brand: { '@type': 'Brand', name: s.name },
-      });
-    }
-    if (args.types.includes('Service')) {
-      schemas.push({
-        '@context': 'https://schema.org',
-        '@type': 'Service',
-        name: a.title,
-        description: a.metaDescription ?? '',
-        provider: { '@type': 'Organization', name: s.name, url: baseUrl },
-        url: a.url,
-      });
-    }
+    // HowTo / VideoObject / Course / Product / Service uretilmez (bkz. OTOMATIK_SEMA_TIPLERI): sabit
+    // yer tutuculu ya da makaleyi urun/kurs gibi gosteren isaretleme sayfanin icerigini temsil etmiyordu.
 
     // Organization (Knowledge Graph) — sameAs ile
     if (args.types.includes('Organization') || (s.sameAs && s.sameAs.length > 0)) {
@@ -331,21 +282,14 @@ export class SchemaClassifierService {
       });
     }
 
-    // WebSite + SearchAction — AI'in "burada nasıl ararim" sorusuna cevap
+    // WebSite — SearchAction YOK: sabit `/?s=` yalniz WordPress'te calisir (diger sitelerde var olmayan arama
+    // adresi isaretleniyordu) ve Google sitelinks arama kutusunu 2024'te kaldirdi.
     if (args.types.includes('WebSite')) {
       schemas.push({
         '@context': 'https://schema.org',
         '@type': 'WebSite',
         name: s.name,
         url: baseUrl,
-        potentialAction: {
-          '@type': 'SearchAction',
-          target: {
-            '@type': 'EntryPoint',
-            urlTemplate: `${baseUrl}/?s={search_term_string}`,
-          },
-          'query-input': 'required name=search_term_string',
-        },
       });
     }
 

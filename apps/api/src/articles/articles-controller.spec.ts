@@ -20,7 +20,7 @@ function setup() {
     unscheduleArticle: vi.fn(async () => ({ ok: true })),
   };
   const translator = { translate: vi.fn(async () => ({ ok: true })), bulkTranslateSite: vi.fn(async () => ({})) };
-  const ctl = new ArticlesController(articles as any, scheduler as any, {} as any, translator as any, {} as any);
+  const ctl = new ArticlesController(articles as any, scheduler as any, translator as any, {} as any);
   return { ctl, articles, scheduler, translator };
 }
 
@@ -104,7 +104,7 @@ describe('makale govdeleri — sinif DTO', () => {
 describe('makale listesi — suzgec', () => {
   it('nesne status (?status[not]=x) servise gitmez', async () => {
     const list = vi.fn(async () => []);
-    const ctl = new ArticlesController({ list } as any, {} as any, {} as any, {} as any, {} as any);
+    const ctl = new ArticlesController({ list } as any, {} as any, {} as any, {} as any);
     await ctl.list('s1', { not: 'x' } as any);
     await ctl.list('s1', 'PUBLISHED');
     expect(list.mock.calls).toEqual([['s1', undefined], ['s1', 'PUBLISHED']]);
