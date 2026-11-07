@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AgentRunnerService } from './agent-runner.service.js';
 import { EmailService } from '../email/email.service.js';
-import { SchemaClassifierService } from './schema-classifier.service.js';
+import { SchemaClassifierService, visibleFaqs } from './schema-classifier.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
@@ -584,9 +584,11 @@ export class PipelineService {
     // faqs yazmadığında FAQPage şeması hiç üretilmiyordu. Artık frontmatter
     // birincil kaynak, görünür SSS bölümü fallback. İkisi de görünür metne
     // dayandığı için şema-içerik uyumsuzluğu üretmez.
-    const faqs = this.resolveFaqs(fm.faqs, body);
+    // 08.11.2026: frontmatter'daki sorunun metinde gerçekten göründüğü artık DENETLENİYOR (visibleFaqs);
+    // eskiden yalnız talimatta isteniyordu. Görünmeyen soru şemaya girmez (Google yapısal veri politikası).
+    const faqs = visibleFaqs(this.resolveFaqs(fm.faqs, body), body);
 
-    // ── Schema Classifier — 15+ schema tipini otomatik karara bagla ──
+    // ── Schema Classifier — makaleyi doğru tanımlayan tipler (OTOMATIK_SEMA_TIPLERI) ──
     let schemaMarkup: any = null;
     if (editorVerdict === 'PASS') {
       try {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { HttpException, HttpStatus, ForbiddenException } from '@nestjs/common';
 import { AuditService, aiCitationSkipFromError, aiCitationSkipFromResults, compareAuditRows } from './audit.service.js';
 import { AuditChecksService } from './audit-checks.service.js';
-import { CITATION_MATCH_VERSION } from './host-match.js';
+import { SITE_MEASUREMENT_VERSION } from './host-match.js';
 
 /**
  * F6 — atlanan AI olcumu `score: 0` olarak YAZILMAZ.
@@ -119,7 +119,8 @@ describe('runAudit — AI adimi atlandiginda', () => {
     ]);
     await t.svc.runAudit('s1');
     const yeni = t.kaydedilen();
-    expect(yeni.checks.aiCitations.details).toEqual({ methodVersion: CITATION_MATCH_VERSION });
+    // Site olcumu (runForSite: tekrar + aralik) surumu — eslesme surumu degil
+    expect(yeni.checks.aiCitations.details).toEqual({ methodVersion: SITE_MEASUREMENT_VERSION });
 
     // Ayni site, v3 ile yapilmis eski denetim: jenerik markada yalin kelime anilma sayiliyordu
     const aiDusuk = (yeni.issues as any[]).find((i) => i.type === 'ai_citation_low');

@@ -16,6 +16,11 @@ export const metadata = { title: 'AI Görünürlük — RanksUp Help' };
 //    site taramasi (audit run, trigger 'user') AI adiminda ayni hakki kullanir;
 //    hak yoksa AI adimi atlanir, tarama tamamlanir (audit.service aiSkip).
 //    Calistirma aylik tavan: runForSite 1, Prompt Lab sorusu / dali 1.
+//  - Tekrar (08.11.2026, api audit/citation-repeat.ts): site olcumu her soruyu
+//    her asistana N kez sorar (CITATION_TEKRAR, varsayilan 3; deneme planinda 1);
+//    tekrar sayisi haftalik hakki ve aylik calistirma sayacini degistirmez.
+//    "±X" ve "arttı/azaldı yalniz araliklar ortusmuyorsa" kurali
+//    api audit/visibility-interval.ts. Prompt Lab tek tur kalir.
 export default function Page() {
   return (
     <HelpArticle slug="ai-visibility"
@@ -54,6 +59,19 @@ export default function Page() {
         <li><strong>Yok</strong> = 0 puan — hiç geçmiyor</li>
       </ul>
       <p>Marka adının sorunun içinde geçtiği sorular skora girmez; orada anılmak zaten beklenen bir sonuçtur.</p>
+
+      <h3>Tekrar ve güven aralığı</h3>
+      <p>
+        AI asistanlarının cevapları aynı soruda bile turdan tura değişir; tek turluk ölçüm kesin sonuç değildir. Bu yüzden ücretli
+        planlarda her soru her asistana birden fazla kez (3 tekrar), birbirinden bağımsız sorulur; ücretsiz denemede bir kez.
+        Skor tüm tekrarlardan hesaplanır. Tekrar sayısı haftalık ölçüm hakkını ve aylık çalıştırma sayacını değiştirmez: bir ölçüm yine 1 sayılır.
+      </p>
+      <p>
+        Skorun yanındaki <strong>±</strong> değeri, markanın görünme sıklığı (anılma ya da kaynak gösterilme) için %95 güven aralığının
+        yarısıdır; ölçümün kaç tekrar × kaç soruyla yapıldığı da yanında yazar. İki ölçüm arasındaki fark yalnız bu aralıklar
+        örtüşmüyorsa &ldquo;arttı&rdquo; ya da &ldquo;azaldı&rdquo; diye gösterilir; örtüşüyorsa &ldquo;anlamlı değişim yok&rdquo; yazar.
+        Bu yöntemle henüz tek ölçüm varsa sonuç &ldquo;ön sonuç&rdquo; diye işaretlenir.
+      </p>
 
       <h2>Ölçülen metrikler</h2>
 

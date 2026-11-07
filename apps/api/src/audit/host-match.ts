@@ -39,6 +39,31 @@ import { escapeRegex } from '../common/text-normalize.js';
  */
 export const CITATION_MATCH_VERSION = 5;
 
+/**
+ * SITE olcumunun yontem surumu — runForSite'in yazdigi kayitlar:
+ * AiCitationSnapshot.matchVersion, AiCitationRun.matchVersion ve denetimdeki
+ * aiCitations.details.methodVersion. Eski kiyas engeli (citation-history-trend,
+ * citation-run-compare, ai-mention-alarm, denetim karsilastirmasi) bu alanlara
+ * baktigi icin v5 ile v6 olcumu "yontem degisti" diye ayrilir, fark hesaplanmaz.
+ *
+ * NEDEN AYRI SABIT: CITATION_MATCH_VERSION eslesme kuralini anlatir ve Prompt
+ * Lab (GeoPromptRun), landing testi (public-citation) ve karne de onu yazar.
+ * Tekrar yalniz site olcumune eklendi; ortak surum artsaydi tek tur kalan bu
+ * yuzeylerde de sahte "yontem degisti" isareti cikardi (aboneye giden yeniden
+ * test e-postasi, Prompt Lab kiyasi).
+ *
+ * 6 = her soru her asistana N kez sorulur (citation-repeat.ts, CITATION_TEKRAR,
+ *     varsayilan 3; deneme planinda 1); skor tum tekrarlardan, gorunme
+ *     sikligina %95 Wilson araligi (visibility-interval.ts). Panelde fark
+ *     yalniz araliklar ortusmuyorsa "artti/azaldi" okunur.
+ *
+ * KURAL: her zaman CITATION_MATCH_VERSION'dan BUYUK kalir (host-match.spec.ts).
+ * Eslesme kurali bir daha degisirse ikisi birlikte, ayni yeni numaraya
+ * cikarilir — ayni numara iki farkli yontemi anlatmasin (geo-rapor-html.ts
+ * YONTEM_DEGISIKLIGI tablosu numarayla anlatir).
+ */
+export const SITE_MEASUREMENT_VERSION = 6;
+
 /** Iki etiketli kayit edilebilir sonekler (kurate — PSL'nin bizi ilgilendiren kismi) */
 const MULTI_PART_SUFFIXES = new Set([
   'com.tr', 'net.tr', 'org.tr', 'gov.tr', 'edu.tr', 'k12.tr', 'gen.tr', 'biz.tr', 'info.tr',

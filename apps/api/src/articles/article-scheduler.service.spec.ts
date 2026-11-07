@@ -9,6 +9,7 @@ import { findPlan } from '../billing/plans.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { statusAfterRetirement } from './republish-policy.js';
 import { ArticlesService } from './articles.service.js';
+import { sayacAnahtari, tavanAcikMi, trGunAnahtari } from './site-yayin-tavani.js';
 
 /**
  * Takvim — yayin onayi modu, akis durdurma ve kiraci izolasyonu.
@@ -119,6 +120,9 @@ function build(opts: { site?: SiteRow; articles?: any[]; due?: any[]; quota?: an
   const users = userTable(opts.users);
   const prisma = {
     user: { updateMany: users.updateMany },
+    // Site basina otomatik uretim tavani sayaci (site-yayin-tavani.ts): bu testlerde hep bos (tavan acik)
+    kvStore: { findMany: vi.fn(async () => []) },
+    $executeRawUnsafe: vi.fn(async () => 1),
     site: { findUniqueOrThrow: vi.fn(async () => site) },
     article: {
       create: vi.fn(async ({ data }: any) => ({ id: 'a-new', ...data })),
@@ -684,7 +688,7 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — takvim sahiplenmesi'
   it('sahiplik reddinin nedeni is sonucuna dogru yazilir: hak dolu → QUOTA_EXHAUSTED (eskiden ALREADY_CLAIMED)', () => {
     expect(handler).toContain('return { skipped: true, reason: GENERATION_CLAIM_SKIP_REASON[claim] };');
     expect(handler).not.toMatch(/claim === 'article_missing' \? 'ARTICLE_MISSING' : 'ALREADY_CLAIMED'/);
-    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED', attempt_refunded: 'ATTEMPT_REFUNDED', trial_manual_only: 'TRIAL_MANUAL_ONLY' });
+    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED', attempt_refunded: 'ATTEMPT_REFUNDED', trial_manual_only: 'TRIAL_MANUAL_ONLY', site_rate_limited: 'SITE_RATE_LIMITED' });
   });
 
   it('PROCESS_SCHEDULED is verisindeki userId ile yalniz o kullaniciyi tarar (plan yukseltme sonrasi)', () => {
@@ -913,6 +917,9 @@ describe('rv18 F5 — daha once yayinlanmis yazi kalan hakki tuketmez ve takvimd
   const kur = (rows: Row[], remaining: number) => {
     const prisma = {
       site: { findUniqueOrThrow: vi.fn(async () => SITE()), findUnique: vi.fn(async () => ({ userId: 'u1' })) },
+      // Site basina otomatik uretim tavani sayaci (site-yayin-tavani.ts): bu testlerde hep bos (tavan acik)
+      kvStore: { findMany: vi.fn(async () => []) },
+      $executeRawUnsafe: vi.fn(async () => 1),
       // Ucretli plan: takvim yazisi plana kilitli degil (plan-lock.ts)
       user: { findUnique: vi.fn(async () => ({ plan: 'PRO', articlesUsedThisMonth: 0 })) },
       article: {
@@ -1036,6 +1043,8 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     const counter = userTable(users);
     let seq = 0;
     const prisma: any = {
+      kvStore: { findMany: vi.fn(async () => []) },
+      $executeRawUnsafe: vi.fn(async () => 1),
       user: {
         updateMany: counter.updateMany,
         // Kilit hesabi (plan-lock.ts) plan ve sayaci okur
@@ -1323,5 +1332,45 @@ describe('scheduleTopic — icerik tipi karari kayda yazilir (surukle-birak, top
       await ctx.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT });
       expect((ctx.prisma.article.create.mock.calls[0][0] as any).data).not.toHaveProperty('agentOutputs');
     }
+  });
+});
+
+
+describe('site basina otomatik uretim tavani (08.11.2026 kanit denetimi)', () => {
+  /** Durumlu kv_store taklidi: findMany anahtarlari dondurur, $executeRawUnsafe sayaci artirir */
+  const kvTaklit = (baslangic: Record<string, number> = {}) => {
+    const kv = new Map(Object.entries(baslangic).map(([k, v]) => [k, String(v)]));
+    return {
+      kv,
+      prisma: {
+        kvStore: { findMany: vi.fn(async ({ where }: any) => where.key.in.filter((k: string) => kv.has(k)).map((k: string) => ({ key: k, value: kv.get(k) }))) },
+        $executeRawUnsafe: vi.fn(async (_sql: string, key: string) => { kv.set(key, String((Number(kv.get(key)) || 0) + 1)); return 1; }),
+      },
+    };
+  };
+  const SIMDI = new Date('2026-11-09T07:00:00Z'); // Pazartesi 10:00 TR
+
+  it('gunde 1: bugun bir otomatik uretim olduysa tavan kapali; ertesi gun acilir', async () => {
+    const t = kvTaklit({ [sayacAnahtari('s1', '2026-11-09')]: 1 });
+    const svc = new ArticleSchedulerService(t.prisma as any, {} as any, {} as any);
+    expect(await svc.otoUretimTavaniAcik('s1', SIMDI)).toBe(false);
+    expect(await svc.otoUretimTavaniAcik('s1', new Date('2026-11-10T07:00:00Z'))).toBe(true);
+    expect(await svc.otoUretimTavaniAcik('s2', SIMDI)).toBe(true);
+  });
+
+  it('haftada 5: son 7 TR gununde 5 uretim varsa bugun bos olsa da kapali; 8. gunde dusen gun hesaptan cikar', async () => {
+    const gunler = ['2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07'];
+    const t = kvTaklit(Object.fromEntries(gunler.map((g) => [sayacAnahtari('s1', g), 1])));
+    const svc = new ArticleSchedulerService(t.prisma as any, {} as any, {} as any);
+    expect(await svc.otoUretimTavaniAcik('s1', SIMDI)).toBe(false);
+    expect(await svc.otoUretimTavaniAcik('s1', new Date('2026-11-10T07:00:00Z'))).toBe(true);
+  });
+
+  it('TR gunu: 23:30 UTC ertesi TR gunune sayilir', () => {
+    expect(trGunAnahtari(new Date('2026-11-08T21:30:00Z'))).toBe('2026-11-09');
+    expect(trGunAnahtari(new Date('2026-11-08T20:30:00Z'))).toBe('2026-11-08');
+    expect(tavanAcikMi({ bugun: 0, hafta: 4 })).toBe(true);
+    expect(tavanAcikMi({ bugun: 1, hafta: 1 })).toBe(false);
+    expect(tavanAcikMi({ bugun: 0, hafta: 5 })).toBe(false);
   });
 });

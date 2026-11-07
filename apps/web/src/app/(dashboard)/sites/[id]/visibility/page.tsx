@@ -233,9 +233,9 @@ export default function VisibilityPage() {
               </div>
             </div>
 
-            {/* Özet */}
+            {/* Özet — site ölçümü her soruyu birden fazla kez sorar (api audit/citation-repeat.ts); alıntılar tüm tekrarlardan sayılır */}
             <div className="md:col-span-2 mt-2 rounded-lg bg-muted/30 p-3 text-center text-xs">
-              <strong className="text-sm tabular-nums">{formatNum(perPage.totalCites)}</strong> toplam alıntı ·{' '}
+              <strong className="text-sm tabular-nums">{formatNum(perPage.totalCites)}</strong> toplam alıntı (tekrarlar dahil) ·{' '}
               <strong className="tabular-nums">{formatNum(perPage.pages.length)}</strong> sayfa alıntılandı ·{' '}
               <strong className="tabular-nums">{formatNum(perPage.groundingQueries.length)}</strong> farklı sorgu tetikledi
             </div>

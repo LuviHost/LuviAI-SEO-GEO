@@ -93,8 +93,28 @@ export function pivotRewritePlan(input: { publishedTo: unknown; targets: Republi
  *  - Ayni yazi ayni taramada bir kez isaretlenir (GSC kurali + AI kurali cift is acmaz).
  */
 
-/** Bekleme suresi: son canli yazimdan ya da reddedilen / engellenen denemeden bu kadar gun sonra */
-export const PIVOT_COOLDOWN_DAYS = 30;
+/**
+ * Bekleme suresi: son canli yazimdan ya da reddedilen / engellenen denemeden bu kadar gun sonra.
+ * 30 → 60 (08.11.2026 kanit denetimi): Google baslik/icerik degisikliginin etkisinin "gunler ya da haftalar"
+ * surdugunu ve iyi giden sayfada radikal degisiklik yapilmamasini soyluyor; ayni sayfayi ayda bir bastan
+ * yazmak etkiyi olcmeden yeniden degistirmek demekti.
+ */
+export const PIVOT_COOLDOWN_DAYS = 60;
+
+/**
+ * Google'da ilk 15'te gorunen yazi BASTAN YENIDEN YAZILMAZ (08.11.2026 kanit denetimi).
+ * NEDEN: pivot yaziyi ayni konuyla bastan uretiyor (meta degil, tum govde). Google: "we recommend avoiding
+ * making radical changes if your page is already performing well" (debugging-search-traffic-drops). Ilk
+ * 15'teki yazinin kucuk iyilestirmesi Takili Sayfalar akisinin isi (en cok 6 cumle + 1 paragraf, 30 gun
+ * bekleme, 30 gun sonra etki olcumu).
+ */
+export const PIVOT_SIRALANAN_UST_SINIR = 15;
+export function siralananYazi(metrics: unknown): boolean {
+  const m = (metrics ?? {}) as { position?: unknown; impressions?: unknown };
+  const position = Number(m.position ?? 0);
+  const impressions = Number(m.impressions ?? 0);
+  return impressions > 0 && position >= 1 && position <= PIVOT_SIRALANAN_UST_SINIR;
+}
 /** Aday okuma penceresi: bekleme suresindekiler elendikten sonra ilk PIVOT_SCAN_LIMIT incelenir */
 export const PIVOT_CANDIDATE_WINDOW = 200;
 /** Site basina incelenen yazi sayisi (eskisi gibi) */
@@ -292,22 +312,16 @@ export class ContentPivotService {
       const ctr = impressions > 0 ? clicks / impressions : 0;
       const position = Number(metrics.position ?? 0);
 
-      // 1) Yuksek impression dusuk CTR — meta yeniden yaz
+      // Ilk 15'teki yazi bastan yazilmaz (bkz. siralananYazi); eskiden kural 1 ve 2 tam da bunlari yeniden
+      // uretiyordu. Kucuk iyilestirme Takili Sayfalar'da.
+      if (siralananYazi(metrics)) continue;
+
+      // 1) Yuksek impression dusuk CTR (ilk 15 disinda)
       if (impressions > 500 && ctr < 0.02) {
         hits.push({
           article: a,
           reason: `Imp=${impressions}, CTR=${(ctr * 100).toFixed(1)}% (cok dusuk) — meta_title + meta_description yenile`,
           severity: 'medium',
-        });
-        continue;
-      }
-
-      // 2) Position 4-15 — on-page guclendirme (FAQ + schema)
-      if (position >= 4 && position <= 15 && impressions > 100) {
-        hits.push({
-          article: a,
-          reason: `Position=${position.toFixed(1)} (1.sayfa esiginde) — FAQ ekle + schema'yi gozden gecir`,
-          severity: 'low',
         });
         continue;
       }
@@ -350,8 +364,10 @@ export class ContentPivotService {
         // kuraliyla isaretli yazi ikinci kez is almaz (eskiden articles[0] hem
         // GSC hem AI kuraliyla iki ayri yeniden yazim isi aliyordu).
         const hitIds = new Set(hits.map((h) => h.article.id));
-        const pillar = articles.find((a) => !hitIds.has(a.id) && planOf(a).kind === 'republish')
-          ?? articles.find((a) => !hitIds.has(a.id));
+        // Google'da ilk 15'teki yazi AI gorunurlugu icin de bastan yazilmaz (Google sirasini riske atmayalim)
+        const aday = (a: (typeof articles)[number]) => !hitIds.has(a.id) && !siralananYazi(a.performanceMetrics);
+        const pillar = articles.find((a) => aday(a) && planOf(a).kind === 'republish')
+          ?? articles.find((a) => aday(a));
         if (pillar) {
           hits.push({
             article: pillar,
