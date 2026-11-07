@@ -18,7 +18,7 @@ import { pageUpdated } from '@/lib/page-updated';
  *    WRITER_MODEL / EDITOR_MODEL / ROUTING_MODEL), gorsel varsayilan
  *    gemini-2.5-flash-image (image-generator.service.ts). Musteri basina
  *    "Opus opt-in" yok.
- *  - GEO analizi uygulama ici 10 sinyal (geo-runner.service.ts, yontem v4); "Auriti GEO
+ *  - GEO analizi uygulama ici 9 sinyal (geo-runner.service.ts, yontem v5; llms.txt 08.11.2026'da cikti); "Auriti GEO
  *    Optimizer 47 metrik" ve "tek tikla duzeltir" dogru degildi.
  *  - Ortaklik: %30 (Affiliate.commissionPct), kayittan sonra 90 gun
  *    (affiliate.service commissionUntil), davet cerezi 60 gun (ref-tracker.tsx),
@@ -73,13 +73,16 @@ import { pageUpdated } from '@/lib/page-updated';
  *  - AB AI Act md. 50 (2 Agustos 2026'dan itibaren):
  *    https://artificialintelligenceact.eu/article/50/
  *  - GEO Skor Karti: apps/api/src/audit/geo-score-card.service.ts — 6 sutun,
- *    agirlik 3/3/3/2/2/1, sutun puani = gecen kontrol orani; AI Citation olculen
- *    6 asistanin (OLCULEN_ASISTANLAR) son 7 gunu, asistan basina ortalama >= 30
- *    gecer, 7 gunde olcumu olmayan asistan sayilmaz; Otorite sameAs (>= 2 profil)
- *    + rakip (>= 3) + GSC; Tazelik 30 gunde >= 4, 7 gunde >= 1, 90+ gunluk
- *    guncellenmemis < 10; Multi-Modal yalniz hero gorsel (>= %70). Olculemeyen
- *    sutun (RanksUp'tan yayin yoksa Yapisal Veri/Tazelik/Multi-Modal; 9 gunde AI
- *    olcumu yoksa AI Citation) puan null, ortalamaya girmez. TTS ses ve
+ *    agirlik 3/3/3/2/2/1, sutun puani = gecen kontrol orani; Crawler alti kritik
+ *    botun (robots-check.ts CRITICAL_SEARCH_BOTS) engelsizligi + sitemap (llms.txt
+ *    yok, 08.11.2026); Yapisal Veri makale schema kapsami (>= %80) + ana sayfa
+ *    Organization/LocalBusiness (AXO org-schema); AI Citation olculen 6 asistanin
+ *    (OLCULEN_ASISTANLAR) son 9 gunu, asistan basina ortalama >= 30 gecer, 9 gunde
+ *    olcumu olmayan asistan sayilmaz; Otorite sameAs (>= 2 profil) + rakip (>= 3)
+ *    + GSC; Tazelik makalelerin >= %70'i son 12 ayda yayinlanmis/guncellenmis;
+ *    Multi-Modal yalniz hero gorsel (>= %70). Olculemeyen sutun (RanksUp'tan yayin
+ *    yoksa Tazelik/Multi-Modal; makale ve AXO taramasi yoksa Yapisal Veri; 9 gunde
+ *    AI olcumu yoksa AI Citation) puan null, ortalamaya girmez. TTS ses ve
  *    podcast RSS urunden cikti (0db5a1c), skora girmez. public-docs.spec.ts
  *    asistan adlarini servisle karsilastirir.
  */
@@ -158,7 +161,7 @@ const FAQS_TR = [
   },
   {
     q: 'GEO Score nedir, nasıl hesaplanır?',
-    a: '6 başlığın ağırlıklı ortalamasıdır; her başlığın puanı geçilen kontrollerin oranıdır. (1) AI tarayıcı erişimi — robots.txt, llms.txt, sitemap.xml ve RanksUp\'ın ürettiği llms-full.txt; (2) Yapısal veri — RanksUp ile yayınlanan makalelerde şema kapsamı (en az %80), en az 5 farklı şema tipi, Speakable ve FAQPage; (3) AI atıfları — ölçülen AI asistanlarının (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) son 9 gündeki ölçümleri: ortalaması 30 ve üstü olan asistan geçer, son 9 günde ölçüm alınamayan asistan hesaba katılmaz (haftalık ölçüm hakkıyla sütun boşa düşmesin diye pencere 9 gündür); (4) Otorite — sosyal profil (sameAs) bağlantıları, en az 3 tanımlı rakip ve Search Console bağlantısı; (5) Tazelik — son 30 günde en az 4, son 7 günde en az 1 yayın ve 90 günden uzun süredir güncellenmeyen makalenin 10\'dan az olması; (6) Çoklu ortam — yayınlanan makalelerin en az %70\'inde kapak görseli. İlk üç başlığın ağırlığı en yüksektir. Ölçülemeyen başlık 0 sayılmaz, "ölçülmedi" görünür ve ortalamaya katılmaz: RanksUp ile yayınlanmış makale yoksa (2), (5) ve (6); son 9 günde AI ölçümü yoksa (3). Ağırlıklar ölçülen başlıklar arasında yeniden dağıtılır. Sonuç A+ ile F arasında bir harf notudur.',
+    a: '6 başlığın ağırlıklı ortalamasıdır; her başlığın puanı geçilen kontrollerin oranıdır. (1) AI tarayıcı erişimi — görünürlüğü gerçekten kesen altı botun (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User) robots.txt\'te engelli olmaması ve sitemap.xml; llms.txt ve llms-full.txt puana girmez; (2) Yapısal veri — RanksUp ile yayınlanan makalelerde şema kapsamı (en az %80) ve ana sayfada Organization ya da LocalBusiness şeması (Ajan Hazırlığı taramasından); şema tipi sayısı, Speakable ve FAQPage ayrıca puan almaz; (3) AI atıfları — ölçülen AI asistanlarının (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) son 9 gündeki ölçümleri: ortalaması 30 ve üstü olan asistan geçer, son 9 günde ölçüm alınamayan asistan hesaba katılmaz (haftalık ölçüm hakkıyla sütun boşa düşmesin diye pencere 9 gündür); (4) Otorite — sosyal profil (sameAs) bağlantıları, en az 3 tanımlı rakip ve Search Console bağlantısı; (5) Tazelik — yayındaki makalelerin en az %70\'inin son 12 ayda yayınlanmış ya da güncellenmiş olması; yayın sıklığı puanlanmaz; (6) Çoklu ortam — yayınlanan makalelerin en az %70\'inde kapak görseli. İlk üç başlığın ağırlığı en yüksektir. Ölçülemeyen başlık 0 sayılmaz, "ölçülmedi" görünür ve ortalamaya katılmaz: RanksUp ile yayınlanmış makale yoksa (5) ve (6); makale de Ajan Hazırlığı taraması da yoksa (2); son 9 günde AI ölçümü yoksa (3). Ağırlıklar ölçülen başlıklar arasında yeniden dağıtılır. Sonuç A+ ile F arasında bir harf notudur.',
   },
   {
     q: 'Otopilot tam olarak ne yapıyor?',
@@ -170,7 +173,7 @@ const FAQS_TR = [
   },
   {
     q: 'Google llms.txt\'i kullanıyor mu? Bu dosya gerçekten gerekli mi?',
-    a: 'Google\'ın AI özellikleri rehberi, bu özelliklerde görünmek için yeni makine-okunur dosyalar, AI metin dosyaları ya da işaretleme oluşturmanın gerekmediğini söylüyor; yani Google için llms.txt zorunlu değil. llms.txt, sitenin yapay zekâ araçlarına yönelik özetini sunmak için önerilmiş bir standart taslağıdır (llmstxt.org, 2024). Hangi AI asistanının bu dosyayı okuduğu resmî olarak açıklanmış değil; RanksUp dosyayı düşük maliyetli bir ek olarak üretir. Google\'da asıl odak benzersiz bakış açısı, ilk elden deneyim, güvenilirlik ve klasik teknik SEO\'dur (indekslenebilirlik ve snippet uygunluğu).',
+    a: 'Google\'ın AI özellikleri rehberi, bu özelliklerde görünmek için yeni makine-okunur dosyalar, AI metin dosyaları ya da işaretleme oluşturmanın gerekmediğini söylüyor; yani Google için llms.txt zorunlu değil. llms.txt, sitenin yapay zekâ araçlarına yönelik özetini sunmak için önerilmiş bir standart taslağıdır (llmstxt.org, 2024). Hangi AI asistanının bu dosyayı okuduğu resmî olarak açıklanmış değil ve bağımsız ölçümlerde (Sistrix, SE Ranking) görünürlüğe etkisi görülmedi; RanksUp dosyayı düşük maliyetli bir ek olarak üretir, site denetiminde ve GEO skorunda llms.txt puana girmez, yalnız bilgi olarak gösterilir. Google\'da asıl odak benzersiz bakış açısı, ilk elden deneyim, güvenilirlik ve klasik teknik SEO\'dur (indekslenebilirlik ve snippet uygunluğu).',
   },
   {
     q: 'Demo görmek istiyorum, nasıl?',
@@ -249,7 +252,7 @@ const FAQS_EN = [
   },
   {
     q: 'What is GEO Score, how is it calculated?',
-    a: 'A weighted average of 6 pillars; each pillar scores the share of its checks that pass. (1) AI crawler access — robots.txt, llms.txt, sitemap.xml and the llms-full.txt RanksUp generates; (2) Structured data — on articles published through RanksUp: schema coverage (at least 80%), at least 5 distinct schema types, Speakable and FAQPage; (3) AI citations — the measurements of the last 9 days for each measured AI assistant (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek): an assistant passes at 30 or above, and an assistant with no measurement in the last 9 days is left out (the window is 9 days so the pillar does not lapse between weekly measurements); (4) Authority — social profile (sameAs) links, at least 3 defined competitors and a Search Console connection; (5) Freshness — at least 4 articles in the last 30 days, at least 1 in the last 7 days, and fewer than 10 articles left without an update for over 90 days; (6) Multi-modal — a cover image on at least 70% of published articles. The first three pillars carry the highest weight. A pillar that cannot be measured does not count as 0: it shows as "not measured" and is left out of the average — (2), (5) and (6) when no article has been published through RanksUp, (3) when there is no AI measurement in the last 9 days. The weights are spread over the measured pillars. The result is a letter grade from A+ to F.',
+    a: 'A weighted average of 6 pillars; each pillar scores the share of its checks that pass. (1) AI crawler access — none of the six crawlers that actually cut visibility (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User) is blocked in robots.txt, plus sitemap.xml; llms.txt and llms-full.txt are not scored; (2) Structured data — schema coverage on articles published through RanksUp (at least 80%) and an Organization or LocalBusiness schema on the homepage (from the Agent Readiness scan); the number of schema types, Speakable and FAQPage earn no extra points; (3) AI citations — the measurements of the last 9 days for each measured AI assistant (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek): an assistant passes at 30 or above, and an assistant with no measurement in the last 9 days is left out (the window is 9 days so the pillar does not lapse between weekly measurements); (4) Authority — social profile (sameAs) links, at least 3 defined competitors and a Search Console connection; (5) Freshness — at least 70% of published articles were published or updated in the last 12 months; publishing frequency is not scored; (6) Multi-modal — a cover image on at least 70% of published articles. The first three pillars carry the highest weight. A pillar that cannot be measured does not count as 0: it shows as "not measured" and is left out of the average — (5) and (6) when no article has been published through RanksUp, (2) when there is neither such an article nor an Agent Readiness scan, (3) when there is no AI measurement in the last 9 days. The weights are spread over the measured pillars. The result is a letter grade from A+ to F.',
   },
   {
     q: 'What exactly does Autopilot do?',
@@ -261,7 +264,7 @@ const FAQS_EN = [
   },
   {
     q: 'Does Google use llms.txt? Is this file actually needed?',
-    a: 'Google\'s guide for its AI features says you don\'t need to create new machine-readable files, AI text files or markup to appear in those features, so llms.txt is not required for Google. llms.txt is a proposed standard for offering an AI-friendly summary of a site (llmstxt.org, 2024). Which AI assistants read the file has not been officially disclosed; RanksUp produces it as a low-cost extra. For Google, the real focus is a unique perspective, first-hand experience, trustworthiness and classic technical SEO (indexability and snippet eligibility).',
+    a: 'Google\'s guide for its AI features says you don\'t need to create new machine-readable files, AI text files or markup to appear in those features, so llms.txt is not required for Google. llms.txt is a proposed standard for offering an AI-friendly summary of a site (llmstxt.org, 2024). Which AI assistants read the file has not been officially disclosed, and independent measurements (Sistrix, SE Ranking) found no effect on visibility; RanksUp produces it as a low-cost extra, and in the site audit and GEO score llms.txt is shown for information only and is not scored. For Google, the real focus is a unique perspective, first-hand experience, trustworthiness and classic technical SEO (indexability and snippet eligibility).',
   },
   {
     q: 'I want a demo, how?',

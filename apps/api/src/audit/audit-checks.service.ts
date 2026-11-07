@@ -30,8 +30,12 @@ export interface CheckResult {
  * artik "dosya var" saymiyor (site-crawler looksLikeHtmlDocument). Eskiden
  * boyle siteler 100 aliyordu; site degismeden 30'a iner — karsilastirma bunu
  * "kotulesti" diye siteye yazmasin.
+ * v3 (08.11.2026 kanit denetimi): kontrol GENEL SKORA GIRMEZ, listede bilgi
+ * olarak kalir (details.informational). Google Arama llms.txt'i yok sayiyor;
+ * Sistrix ve SE Ranking olcumlerinde dosyanin gorunurluge etkisi cikmadi.
+ * Eskiden dosyasi olmayan site 30 puanla genel skordan ceza aliyordu.
  */
-export const LLMS_METHOD_VERSION = 2;
+export const LLMS_METHOD_VERSION = 3;
 
 /**
  * Ic linkleme kontrolunun olcum yontemi (details.methodVersion).
@@ -42,15 +46,17 @@ export const LLMS_METHOD_VERSION = 2;
  */
 export const INTERNAL_LINKING_METHOD_VERSION = 2;
 
+/** llms_txt bilgi kontrolunun panel notu (details.note) */
+export const LLMS_INFO_NOTE = 'Bilgi: llms.txt genel skora girmez. Google Arama dosyayı yok sayıyor; bağımsız ölçümlerde görünürlüğe etkisi görülmedi.';
+
 /**
  * Genel skor agirliklari — computeOverallScore ve karsilastirmadaki "skor
  * kapsami" notu (audit.service compareAuditRows) AYNI listeyi kullanir.
- * Listede olmayan kontrol 1 agirlik alir.
+ * Listede OLMAYAN kontrol genel skora girmez (bilgi kontrolu, ör. llms_txt).
  */
 export const OVERALL_SCORE_WEIGHTS: Readonly<Record<string, number>> = {
   sitemap_xml: 1.5,
   robots_txt: 1.5,
-  llms_txt: 1.0,
   schema_markup: 1.5,
   meta_title: 1.5,
   meta_description: 1.5,
@@ -63,6 +69,27 @@ export const OVERALL_SCORE_WEIGHTS: Readonly<Record<string, number>> = {
   internal_linking: 1.0,
   hreflang: 0.5,
 };
+
+/**
+ * Genel skordan CIKARILAN kontroller: kimlik → cikarildigi yontem surumu
+ * (details.methodVersion). Bu surumden ONCEKI taramalarda kontrol genel skora
+ * giriyordu; eski/yeni tarama ciftinde skor farkinin bir kismi bu yuzden
+ * yontemden gelir (audit.service genelSkorKiyasi).
+ * llms_txt: v3'te cikti (LLMS_METHOD_VERSION).
+ */
+export const OVERALL_SCORE_RETIRED: Readonly<Record<string, number>> = {
+  llms_txt: 3,
+};
+
+/**
+ * Kontrol, verilen yontem surumuyle olculdugunde genel skora giriyor muydu?
+ * Surum alani yoksa 1 sayilir (audit.service checkMethodVersion ile ayni).
+ */
+export function feedsOverallScoreAt(id: string, methodVersion: number): boolean {
+  if (Object.hasOwn(OVERALL_SCORE_WEIGHTS, id)) return true;
+  const since = OVERALL_SCORE_RETIRED[id];
+  return typeof since === 'number' && methodVersion < since;
+}
 
 /**
  * Kontrol olculemedi mi? (details.unverified) — dosyaya erisimimiz engellendi
@@ -113,7 +140,8 @@ function isUnreadable(res: CrawlResourceStatus | undefined): res is CrawlResourc
 
 /**
  * 14 kontrol noktası — her biri ayrı method.
- * Sonuçlar audit.checks JSON alanına yazılır.
+ * Sonuçlar audit.checks JSON alanına yazılır. Genel skora 13'ü girer
+ * (OVERALL_SCORE_WEIGHTS); llms_txt yalnız bilgi.
  */
 @Injectable()
 export class AuditChecksService {
@@ -169,7 +197,7 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   //  2. robots.txt
   // ───────────────────────────────────────────────────────────
-  // Yontem v2 — RFC 9309 etkin erisim + bot kategorisi; bkz. robots-check.ts
+  // Yontem v3 — alti kritik botun RFC 9309 etkin erisimi; bkz. robots-check.ts
   private checkRobotsTxt(c: CrawlResult): CheckResult {
     const res = c.resources?.robots;
     if (!c.robotsTxt && isUnreadable(res)) {
@@ -187,19 +215,20 @@ export class AuditChecksService {
   }
 
   // ───────────────────────────────────────────────────────────
-  //  3. llms.txt (AI search için)
+  //  3. llms.txt — BILGI (v3): genel skora girmez
   // ───────────────────────────────────────────────────────────
   private checkLlmsTxt(c: CrawlResult): CheckResult {
     const found = !!c.llmsTxt;
+    const details = { methodVersion: LLMS_METHOD_VERSION, informational: true, note: LLMS_INFO_NOTE };
     if (!found && isUnreadable(c.resources?.llms)) {
-      return unverifiedCheck('llms_txt', 'LLMs.txt (AI search)', 'llms.txt', c.resources!.llms, { methodVersion: LLMS_METHOD_VERSION });
+      return unverifiedCheck('llms_txt', 'LLMs.txt (AI search)', 'llms.txt', c.resources!.llms, details);
     }
     const issues: AuditIssue[] = [];
     if (!found) {
       issues.push({
-        severity: 'warning',
+        severity: 'info',
         type: 'llms_missing',
-        description: 'llms.txt yok — düşük maliyetli, opsiyonel bir hijyen adımı: hiçbir büyük AI sağlayıcısı dosyayı kullanacağını taahhüt etmiyor ve Google Search kullanmıyor; olası faydası küçük, zararı yok',
+        description: 'llms.txt yok — bilgi: genel skora girmez. Google Arama bu dosyayı yok sayıyor; Sistrix ve SE Ranking ölçümlerinde görünürlüğe etkisi görülmedi. İstersen düşük maliyetli bir ek olarak yayınlayabilirsin.',
         fixable: true,
         fixCommand: 'auto-fix: llms',
       });
@@ -207,9 +236,11 @@ export class AuditChecksService {
     return {
       id: 'llms_txt', name: 'LLMs.txt (AI search)',
       found, valid: found,
-      score: found ? 100 : 30, // partial — yokluğu kritik değil ama önerilir
+      // Genel skora girmez (OVERALL_SCORE_WEIGHTS'te yok); skor yalniz
+      // karsilastirma satiri icin, panel bilgi kontrolunde gostermez
+      score: found ? 100 : 30,
       issues,
-      details: { methodVersion: LLMS_METHOD_VERSION },
+      details,
     };
   }
 
@@ -582,9 +613,11 @@ export class AuditChecksService {
     // Weight'li ortalama (OVERALL_SCORE_WEIGHTS)
     let sum = 0, totalWeight = 0;
     for (const r of results) {
+      // Bilgi kontrolu (ör. llms_txt v3) genel skora girmez
+      if (!Object.hasOwn(OVERALL_SCORE_WEIGHTS, r.id)) continue;
       // Olculemeyen kontrol 0 sayilmaz — erisim engeli sitenin kusuru degil
       if (isUnverifiedCheck(r)) continue;
-      const w = OVERALL_SCORE_WEIGHTS[r.id] ?? 1;
+      const w = OVERALL_SCORE_WEIGHTS[r.id];
       sum += r.score * w;
       totalWeight += w;
     }

@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import * as cheerio from "cheerio";
 import { unblockHint, type BlockKind, type BlockSignal } from "../common/block-detect.js";
 import { fetchCustomerPage, type CustomerPage } from "./customer-page-fetch.js";
-import { contentSignals } from "./geo-content-signals.js";
+import { contentSignals, hasValidJsonLd, visibleQaScore } from "./geo-content-signals.js";
 
 export interface GeoSignal {
   id: string;
@@ -50,8 +50,15 @@ export interface GeoAccessBlock {
  * FAQ/soru-cevap agirligi 12 → 6, FAQPage isaretlemesinin payi 70 → 40.
  * Tanim sinyali Turkce harfleri (tanım, açıklamak) ve <dfn> etiketini gorur.
  * Gerekce ve kaynaklar: geo-content-signals.ts.
+ *
+ * v5 (08.11.2026 kanit denetimi): llms.txt sinyali (agirlik 15) skordan
+ * cikti ve artik istenmiyor — Google Arama dosyayi yok sayiyor, Sistrix ve
+ * SE Ranking olcumlerinde etkisi cikmadi (dosya Site Skoru'nda bilgi olarak
+ * gorunur). Yapisal veri "3 tip varsa 100" yerine gecerli JSON-LD varligina
+ * bakar, agirligi 18 -> 8. SSS sinyalinde FAQPage isaretlemesinin 40 puani
+ * kalkti; yalniz gorunur soru-cevap sayilir (geo-content-signals.ts).
  */
-export const GEO_METHOD_VERSION = 4;
+export const GEO_METHOD_VERSION = 5;
 
 export interface GeoAuditResult {
   score: number | null;
@@ -85,10 +92,10 @@ function toAccessBlock(signal: BlockSignal, url: string): GeoAccessBlock {
  * Dahili GEO/AEO heuristic scorer.
  * Auriti CLI public paket olmadigi icin in-process analiz.
  *
- * 10 sinyal x weighted score = 0-100 GEO score.
- * Sinyaller: llms.txt, JSON-LD schema, FAQ/QA, definition density,
+ * 9 sinyal x weighted score = 0-100 GEO score.
+ * Sinyaller: gecerli JSON-LD (v5), gorunur soru-cevap (v5), definition density,
  * heading hierarchy, OG/canonical, freshness, citation format,
- * evidence blocks (v4), content depth (v4).
+ * evidence blocks (v4), content depth (v4). llms.txt v5'te cikti.
  *
  * Site genelinde anasayfa + en fazla 8 ic sayfa ornekleyerek ortalama skor;
  * kanit ve derinlik sinyalleri yalniz ic sayfalardan.
@@ -136,7 +143,6 @@ export class GeoRunnerService {
       const origin = new URL(home.url).origin;
       const isHome = (u: string) => u === origin || u === `${origin}/`;
       const homepage = home.text;
-      const llms = await this.fetchPage(`${origin}/llms.txt`);
 
       // Sample sayfa seti — GERÇEK içerik sayfalarını örnekle. Eskiden sadece
       // anasayfa + ilk 5 menü linki örnekleniyordu → blog postları (FAQ/schema
@@ -175,17 +181,8 @@ export class GeoRunnerService {
         }
       }
 
-      // llms.txt engele takildiysa "yok" DEGIL, "olculemedi": sinyal skordan
-      // cikarilir, 0 puanla siteyi cezalandirmaz.
-      const llmsSignal = llms.kind === "blocked"
-        ? null
-        : this.checkLlmsTxt(llms.kind === "ok" ? llms.text : null);
-      if (!llmsSignal) this.log.warn(`${origin}/llms.txt GEO: erisim engellendi — sinyal skora katilmadi`);
-
-      const signals: GeoSignal[] = [
-        ...(llmsSignal ? [llmsSignal] : []),
-        ...this.checkPagesAggregate(samplePages),
-      ];
+      // v5: llms.txt sinyali yok (bkz. GEO_METHOD_VERSION) — dosya istenmez
+      const signals: GeoSignal[] = this.checkPagesAggregate(samplePages);
 
       const totalWeight = signals.reduce((s, x) => s + x.weight, 0);
       const weightedScore = signals.reduce((s, x) => s + (x.score * x.weight), 0);
@@ -204,20 +201,6 @@ export class GeoRunnerService {
     }
   }
 
-  private checkLlmsTxt(content: string | null): GeoSignal {
-    // Bircok site olmayan yola 200 + HTML (ozel 404 / anasayfa) doner. llms.txt
-    // markdown'dir ve "<" ile baslamaz; eskiden bu HTML "200 karakterden uzun
-    // ozet" sayilip olmayan dosyaya 30 puan veriyordu.
-    if (!content || /^\s*</.test(content)) {
-      return { id: "llms_txt", label: "llms.txt mevcudiyeti", weight: 15, score: 0, detail: "Bulunamadi" };
-    }
-    const hasH1 = /^#\s+\S/m.test(content);
-    const hasSummary = /^>\s+\S/m.test(content) || content.length > 200;
-    const hasLinks = (content.match(/\[.+?\]\(.+?\)/g) ?? []).length >= 3;
-    const score = (hasH1 ? 40 : 0) + (hasSummary ? 30 : 0) + (hasLinks ? 30 : 0);
-    return { id: "llms_txt", label: "llms.txt format", weight: 15, score, detail: `${score}/100` };
-  }
-
   private checkPagesAggregate(samples: { url: string; html: string }[]): GeoSignal[] {
     if (samples.length === 0) return [];
     const scores = samples.map(s => this.scorePage(s.html));
@@ -231,8 +214,8 @@ export class GeoRunnerService {
     const content = scores.length > 1 ? scores.slice(1) : scores;
 
     return [
-      { id: "structured_data", label: "JSON-LD schema kapsami", weight: 18, score: avg("schemaScore") },
-      { id: "faq_qa",          label: "FAQ / Soru-cevap formati", weight: 6, score: avg("faqScore") },
+      { id: "structured_data", label: "Gecerli JSON-LD (sayfa orani)", weight: 8, score: avg("schemaScore") },
+      { id: "faq_qa",          label: "Gorunur soru-cevap", weight: 6, score: avg("faqScore") },
       { id: "definition",      label: "Tanim yogunlugu (X nedir?)", weight: 12, score: avg("defScore") },
       { id: "heading",         label: "Heading hiyerarsisi (H1>H2>H3)", weight: 10, score: avg("headingScore") },
       { id: "og_canonical",    label: "Canonical + OG/Twitter meta", weight: 13, score: avg("metaScore") },
@@ -246,31 +229,22 @@ export class GeoRunnerService {
   private scorePage(html: string) {
     const $ = cheerio.load(html);
 
-    // 1) JSON-LD schema variety
+    // 1) Yapisal veri — v5: gecerli JSON-LD VAR MI (100 / 0). Tip cesitliligi
+    // odullendirilmez: Ahrefs'in kontrollu testinde schema eklemenin AI
+    // alintisina etkisi cikmadi (bkz. geo-content-signals.ts).
     const ldBlocks = $("script[type=\"application/ld+json\"]")
       .toArray()
       .map(el => $(el).html() ?? "");
-    const types = new Set<string>();
-    for (const block of ldBlocks) {
-      const m = block.match(/"@type"\s*:\s*"([^"]+)"/g) ?? [];
-      for (const t of m) {
-        const v = t.match(/"@type"\s*:\s*"([^"]+)"/);
-        if (v) types.add(v[1]);
-      }
-    }
-    const desired = ["Article", "FAQPage", "BreadcrumbList", "Organization", "Product", "HowTo"];
-    const hits = desired.filter(d => types.has(d)).length;
-    const schemaScore = Math.min(100, Math.round((hits / 3) * 100));
+    const schemaScore = hasValidJsonLd(ldBlocks) ? 100 : 0;
 
-    // 2) FAQ — v4: isaretleme degil gorunur soru-cevap agir basar. FAQPage
-    // isaretlemesinin AI alintisina olculebilir katkisi bulunamadi (Ahrefs
-    // 1.885 sayfa kontrollu test, May 2026; Google FAQ zengin sonuclarini
-    // 7 May 2026'da kaldirdi; GEO Citation Lab'de Q&A bicimi alinti derinligine
-    // katki gostermedi). Sinyalin agirligi da 12 → 6.
-    const hasFAQSchema = types.has("FAQPage") || types.has("Question");
+    // 2) FAQ — v5: YALNIZ gorunur soru-cevap. FAQPage isaretlemesinin AI
+    // alintisina olculebilir katkisi bulunamadi (Ahrefs 1.885 sayfa kontrollu
+    // test, May 2026; Google FAQ zengin sonuclarini 7 May 2026'da kaldirdi;
+    // GEO Citation Lab'de Q&A bicimi alinti derinligine katki gostermedi).
+    // v4'te isaretleme 40 puan aliyordu; v5'te 0.
     const text = $("body").text();
     const qaCount = (text.match(/\?\s*\n/g) ?? []).length;
-    const faqScore = (hasFAQSchema ? 40 : 0) + Math.min(60, qaCount * 10);
+    const faqScore = visibleQaScore(qaCount);
 
     // 3) Definition density — "X nedir", "X ne demek", "X tanimlanir"
     // v4: Turkce harfler — v3 "tanim"/"aciklamak" ASCII ariyordu, "tanım" ve

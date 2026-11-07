@@ -57,11 +57,11 @@ const run = (ctx: ScanContext) => {
 };
 
 describe('SCORE_VERSION', () => {
-  it('v3', () => expect(SCORE_VERSION).toBe(3));
+  it('v4', () => expect(SCORE_VERSION).toBe(4));
 });
 
 describe('kalibrasyon — API/ajan arayuzu olmayan yerel isletme cezalandirilmaz', () => {
-  it('auth.md / API katalogu / A2A / MCP info; payda 16 (v2: 24)', () => {
+  it('auth.md / API katalogu / A2A / MCP info; payda 13 (v3: 16, v2: 24)', () => {
     const { summary, check } = run(makeCtx());
     for (const id of ['auth-md', 'api-catalog', 'a2a-agent-card', 'mcp-declaration']) {
       expect(check(id).impact, id).toBe('info');
@@ -69,8 +69,9 @@ describe('kalibrasyon — API/ajan arayuzu olmayan yerel isletme cezalandirilmaz
       expect(check(id).scoreNote, id).toMatch(/arayüz/);
       expect(summary.nextUpToFix.map((n) => n.checkId)).not.toContain(id);
     }
-    // L1 12 (robots 3 + sitemap 3 + AI kurallari 3 + content-signal 2 + llms 1) + L2 3 (llms-full 1 + org 2) + L3 1 (markdown)
-    expect(summary.scoring.max).toBe(16);
+    // L1 11 (robots 3 + sitemap 3 + kritik arama botlari 3 + content-signal 2) + L2 2 (org) — v4'te
+    // llms.txt, llms-full.txt ve Markdown sunumu bilgi (0 puan)
+    expect(summary.scoring.max).toBe(13);
     expect(check('agentic-checkout').impact).toBe('info');
     expect(summary.status).not.toBe('blocked');
   });
@@ -97,7 +98,7 @@ describe('engel eksik degildir', () => {
       expect(check(id).fixKey, id).toBeUndefined();
       expect(check(id).blocked?.hint).toMatch(/RanksUpBot/);
     }
-    expect(summary.scoring.max).toBe(16 - 8);
+    expect(summary.scoring.max).toBe(13 - 8);
     expect(summary.status).toBe('blocked');
     expect(summary.access).toMatchObject({ state: 'blocked', scope: 'robots' });
     expect(summary.nextUpToFix.map((n) => n.checkId)).not.toContain('robots-txt');
@@ -119,11 +120,11 @@ describe('engel eksik degildir', () => {
     expect(summary.status).toBe('unreachable');
   });
 
-  it('yalniz llms.txt engelliyse yalniz o kontrol duser; tarama durumu skora gore', () => {
+  it('yalniz llms.txt engelliyse yalniz o kontrol olculemedi; bilgi kontrolu oldugu icin payda degismez', () => {
     const { summary, check } = run(makeCtx({ llms: wall() }));
     expect(check('llms-txt').state).toBe('blocked');
     expect(summary.access).toBeNull();
-    expect(summary.scoring.max).toBe(15);
+    expect(summary.scoring.max).toBe(13);
   });
 
   it('buildLevel: blocked kontrol hem max hem earned disinda', () => {
@@ -137,12 +138,71 @@ describe('engel eksik degildir', () => {
   });
 });
 
+/**
+ * v4 (08.11.2026 kanit denetimi): 'ai-crawler-rules' artik "21 bottan en az 4'u
+ * adiyla anilmali" degil; botlari adiyla anmak bir standart degil. Kontrol
+ * gorunurlugu kesen alti botun ETKIN engeline bakar.
+ */
+describe('v4 — kritik arama botlari engelli degil', () => {
+  const robotsCtx = (txt: string) => makeCtx({ robots: ok(txt) });
+
+  it('hicbir bot adiyla anilmasa da "*" serbestse gecer (v3 bunu basarisiz sayiyordu)', () => {
+    const { check } = run(makeCtx());
+    const c = check('ai-crawler-rules');
+    expect(c).toMatchObject({ ok: true, state: 'pass', impact: 'high', name: 'Kritik arama botları engelli değil' });
+    expect(c.statusText).toBe('6 kritik arama botunun hiçbiri engelli değil');
+    expect(c.howTo).toMatch(/Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User/);
+    expect(c.howTo).not.toMatch(/en az 4/);
+  });
+
+  it('Googlebot tamamen engelli → basarisiz; arama motorundan duser denir; otomatik duzeltme yok', () => {
+    const { check, summary } = run(robotsCtx('User-agent: Googlebot\nDisallow: /\n\nUser-agent: *\nAllow: /\n'));
+    const c = check('ai-crawler-rules');
+    expect(c).toMatchObject({ ok: false, state: 'fail' });
+    expect(c.statusText).toBe('Engelli: Googlebot — site bu arama motorlarının sonuçlarından düşer');
+    expect(c.fixKey).toBeUndefined();
+    expect(summary.nextUpToFix.map((n) => n.checkId)).toContain('ai-crawler-rules');
+  });
+
+  it('"*" ile tam kapali site: alti botun hepsi engelli', () => {
+    const { check } = run(robotsCtx('User-agent: *\nDisallow: /\n'));
+    expect(check('ai-crawler-rules').statusText).toMatch(/^Engelli: Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User/);
+  });
+
+  it('yalniz AI botu (Claude-User) engelliyse de basarisiz; egitim botu engeli bu kontrolu etkilemez', () => {
+    expect(run(robotsCtx('User-agent: Claude-User\nDisallow: /\n\nUser-agent: *\nAllow: /\n')).check('ai-crawler-rules').ok).toBe(false);
+    expect(run(robotsCtx('User-agent: GPTBot\nDisallow: /\n\nUser-agent: ClaudeBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n')).check('ai-crawler-rules').ok).toBe(true);
+  });
+
+  it('robots.txt yoksa kural yok: gecer; 5xx sunucu hatasinda basarisiz (RFC 9309 tam yasak varsayar)', () => {
+    expect(run(makeCtx({ robots: missing() })).check('ai-crawler-rules')).toMatchObject({ ok: true, state: 'pass' });
+    const e = run(makeCtx({ robots: probe('http_error', 503) })).check('ai-crawler-rules');
+    expect(e).toMatchObject({ ok: false, state: 'fail' });
+    expect(e.statusText).toMatch(/HTTP 503/);
+  });
+
+  it('llms.txt, llms-full.txt ve Markdown sunumu bilgi: puana ve siradaki duzeltmelere girmez', () => {
+    const { check, summary } = run(makeCtx());
+    for (const id of ['llms-txt', 'llms-full', 'markdown-negotiation']) {
+      expect(check(id).impact, id).toBe('info');
+      expect(check(id).state, id).toBe('info');
+      expect(check(id).scoreNote, id).toMatch(/puana girmez/);
+      expect(summary.nextUpToFix.map((n) => n.checkId), id).not.toContain(id);
+    }
+    // llms.txt var olsa da yok olsa da skor ayni
+    const var_ = run(makeCtx({ llms: ok('# Kuaför\n\n> Özet\n\n- [Hizmetler](https://kuafor.com/hizmetler)\n') }));
+    expect(var_.check('llms-txt').ok).toBe(true);
+    expect(var_.summary.overallScore).toBe(summary.overallScore);
+  });
+});
+
 describe('soft-404 / catch-all', () => {
-  it('robots.txt yerine HTML → gecersiz (fail, blocked degil)', () => {
+  it('robots.txt yerine HTML → gecersiz (fail, blocked degil); kural olmadigi icin kritik botlar serbest', () => {
     const { check } = run(makeCtx({ robots: ok(SPA, 'text/html') }));
     expect(check('robots-txt')).toMatchObject({ ok: false, state: 'fail' });
     expect(check('robots-txt').statusText).toMatch(/HTML/);
-    expect(check('ai-crawler-rules').ok).toBe(false);
+    expect(check('ai-crawler-rules')).toMatchObject({ ok: true, state: 'pass' });
+    expect(check('ai-crawler-rules').statusText).toMatch(/kural olmadığı için arama botları serbest/);
   });
 
   it('rastgele yolla ayni govde → catch-all, robots yok sayilir', () => {
@@ -179,7 +239,7 @@ describe('kimlik grafigi — alt turler', () => {
 describe('llms-full canli siteden', () => {
   it('DB\'de var ama sitede yok → acik metin, gecmez', () => {
     const { check } = run(makeCtx({}, { llmsFullInDb: { at: new Date('2026-10-01') } }));
-    expect(check('llms-full')).toMatchObject({ ok: false, impact: 'low' });
+    expect(check('llms-full')).toMatchObject({ ok: false, impact: 'info', state: 'info' });
     expect(check('llms-full').statusText).toBe('llms-full.txt RanksUp\'ta üretildi ama sitede yayında değil');
   });
   it('sitede yayindaysa gecer', () => {
@@ -304,8 +364,8 @@ describe('ticaret seviyesi — olculmeyen sey cezalandirilmaz', () => {
     expect(check('product-schema').scoreNote).toMatch(/puana girmedi/);
     expect(levels.find((l) => l.id === 'commerce')).toMatchObject({ applicable: true, max: 0 });
     expect(summary.nextUpToFix.map((n) => n.checkId)).not.toContain('product-schema');
-    // Puansiz seviye skoru dusurmez: kalibrasyon paydasi (16) + groundwork'te org (zaten var)
-    expect(summary.scoring.max).toBe(16);
+    // Puansiz seviye skoru dusurmez: kalibrasyon paydasi (13) + groundwork'te org (zaten var)
+    expect(summary.scoring.max).toBe(13);
   });
 
   it('urun sayfalari engelliyse product-schema olculemedi (blocked)', () => {
@@ -446,8 +506,8 @@ describe('ai-catalog karti engelli — eksik degil, olculemedi', () => {
     expect(auth).toMatchObject({ impact: 'info', state: 'info' });
     expect(auth.scoreNote).toMatch(/kartı .*okunamadı/);
     expect(auth.manualTemplate?.filename).toBe('auth.md');
-    // Kalibrasyon paydasi (16) korunur: hicbir sey olculmeden puan kaybedilmez
-    expect(summary.scoring.max).toBe(16);
+    // Kalibrasyon paydasi (13) korunur: hicbir sey olculmeden puan kaybedilmez
+    expect(summary.scoring.max).toBe(13);
     expect(summary.nextUpToFix.map((n) => n.checkId)).not.toEqual(expect.arrayContaining(['mcp-declaration', 'a2a-agent-card', 'auth-md']));
   });
 
@@ -460,7 +520,7 @@ describe('ai-catalog karti engelli — eksik degil, olculemedi', () => {
     expect(check('mcp-declaration').state).toBe('fail');
     expect(check('a2a-agent-card').state).toBe('fail');
     expect(check('auth-md')).toMatchObject({ impact: 'medium', state: 'fail' });
-    expect(summary.scoring.max).toBe(16 + 5);
+    expect(summary.scoring.max).toBe(13 + 5);
   });
 
   it('kart adresi 404 → olculmus eksik (fail), "kart okunamadı" metniyle', () => {

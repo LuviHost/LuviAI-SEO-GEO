@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contentSignalsFromHtml } from './geo-content-signals.js';
+import { contentSignalsFromHtml, hasValidJsonLd, visibleQaScore } from './geo-content-signals.js';
 
 const sayfa = (govde: string, kabuk = '') =>
   `<html><body><nav>Ana sayfa Fiyatlar %50 indirim 3 gün</nav>${kabuk}<article>${govde}</article><footer>© 2026 · 0850 123 45 67</footer></body></html>`;
@@ -71,5 +71,32 @@ describe('contentSignals — buyuk girdide dogrusal', () => {
     const t0 = Date.now();
     contentSignalsFromHtml(`<html><body><p>${'a'.repeat(1_000_000)}</p><p>${'1'.repeat(1_000_000)}</p></body></html>`);
     expect(Date.now() - t0).toBeLessThan(1000);
+  });
+});
+
+describe('v5 — isaretleme odulleri yok', () => {
+  it('hasValidJsonLd: ayristirilabilen ve @type tasiyan blok yeter; bozuk / tipsiz / bos sayilmaz', () => {
+    expect(hasValidJsonLd(['{"@type":"Organization"}'])).toBe(true);
+    expect(hasValidJsonLd(['[{"@type":"BreadcrumbList"}]'])).toBe(true);
+    expect(hasValidJsonLd(['{"@graph":[{"@id":"#x"},{"@type":"WebSite"}]}'])).toBe(true);
+    expect(hasValidJsonLd(['{"@type": "Article",'])).toBe(false);
+    expect(hasValidJsonLd(['{"name":"tipsiz"}', '   '])).toBe(false);
+    expect(hasValidJsonLd([])).toBe(false);
+    // Bozuk blok yanindaki gecerli blok yeter
+    expect(hasValidJsonLd(['{bozuk', '{"@type":"Product"}'])).toBe(true);
+  });
+
+  it('hasValidJsonLd: HTML yorumu / CDATA sarmali ayiklanir', () => {
+    expect(hasValidJsonLd(['<!-- {"@type":"Organization"} -->'])).toBe(true);
+    expect(hasValidJsonLd(['/*<![CDATA[*/{"@type":"Organization"}/*]]>*/'])).toBe(true);
+  });
+
+  it('visibleQaScore: 6 gorunur soruda 100, oransal; negatif / gecersiz 0', () => {
+    expect(visibleQaScore(0)).toBe(0);
+    expect(visibleQaScore(3)).toBe(50);
+    expect(visibleQaScore(6)).toBe(100);
+    expect(visibleQaScore(20)).toBe(100);
+    expect(visibleQaScore(-1)).toBe(0);
+    expect(visibleQaScore(Number.NaN)).toBe(0);
   });
 });

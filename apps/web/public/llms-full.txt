@@ -30,7 +30,7 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 
 ### Site denetimi
 
-- 14 teknik SEO/GEO kontrolü: sitemap.xml, robots.txt, llms.txt, şema (JSON-LD), meta başlık, meta açıklama, Open Graph, Twitter Card, canonical, HTTPS, H1, görsel alt metni, iç bağlantı ve hreflang. Yanında mobil PageSpeed iyileştirme önerileri (sorun listesinde) ve sitenin GEO analizi.
+- 14 teknik SEO/GEO kontrolü: sitemap.xml, robots.txt, llms.txt, şema (JSON-LD), meta başlık, meta açıklama, Open Graph, Twitter Card, canonical, HTTPS, H1, görsel alt metni, iç bağlantı ve hreflang. llms.txt yalnız bilgi olarak gösterilir, genel skora girmez. robots.txt puanı Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot ve Claude-User'ın engelli olup olmadığına bakar; Googlebot ya da Bingbot tamamen engelliyse kritik sorun olarak çıkar. Yanında mobil PageSpeed iyileştirme önerileri (sorun listesinde) ve sitenin GEO analizi.
 - Erişim engeli dürüst raporlanır: güvenlik duvarı ya da bot doğrulaması RanksUpBot'u engellediyse doğrulama ekranı puanlanmaz; "Erişim engellendi", nedeni ve çözüm yolu gösterilir. Engele takılan sayfalar puana dahil edilmez.
 - Kök dosya düzeltmesi: sitemap.xml ve llms.txt yalnızca dosya yoksa oluşturulur. robots.txt mevcut dosyayla birleştirilir; mevcut satırlar korunur, hiçbir engel kaldırılmaz ve değişiklik önizlenip onaylanmadan yazılmaz. Dosyalar FTP, SFTP ya da cPanel yayın hedefiyle yüklenir. Var olan bir dosya değiştirilirken önceki hali yedeklenir ve dosya o günden beri değişmediyse geri alınabilir; yeni oluşturulan bir dosyayı geri almak için dosyayı sunucudan silmek gerekir (RanksUp dosya silmez). Yayın hedefi yoksa önerilen içerik kopyalanıp elle yüklenebilir.
 - Sayfa SEO (snippet) aracı: başlık, meta açıklama, canonical, Open Graph, Twitter Card ve şema (SSS, tanım, liste biçimi) önerileri; WordPress'e uygulanır ya da kopyalanır.
@@ -38,8 +38,8 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 
 ### Ajan Hazırlığı (AXO) — Profesyonel ve üstü
 
-- robots.txt'te 27 AI botunun erişimi kategorili ölçülür: eğitim, AI arama ve kullanıcı tetikli botlar.
-- llms.txt, llms-full.txt, sitemap ve ajan keşif dosyaları (ai-catalog.json, MCP sunucu kartı, A2A ajan kartı, openapi.json, auth.md) denetlenir. API ya da ajan arayüzüne bağlı kontroller yalnızca site o arayüzü sunuyorsa puanlanır.
+- robots.txt'te 27 AI botunun erişimi kategorili gösterilir: eğitim, AI arama ve kullanıcı tetikli botlar. Puanlanan kısım, kritik arama botlarının (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User) engelli olmamasıdır; botları tek tek adıyla anmak gerekmez.
+- Sitemap ve ajan keşif dosyaları (ai-catalog.json, MCP sunucu kartı, A2A ajan kartı, openapi.json, auth.md) denetlenir; llms.txt, llms-full.txt ve Markdown sunumu bilgi amaçlı gösterilir, puana girmez. API ya da ajan arayüzüne bağlı kontroller yalnızca site o arayüzü sunuyorsa puanlanır.
 - Erişim engeli "eksik" sayılmaz ve puana girmez.
 - robots.txt için önizlemeli düzeltme; eksik site haritası oluşturulur (site denetimindeki kurallarla aynı).
 

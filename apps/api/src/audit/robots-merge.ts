@@ -1,4 +1,4 @@
-import { STANCE_SCORED_BOTS } from './known-ai-bots.js';
+import { ROBOTS_MERGE_BOTS } from './known-ai-bots.js';
 import { looksLikeHtml } from './axo-validators.js';
 
 /**
@@ -9,7 +9,8 @@ import { looksLikeHtml } from './axo-validators.js';
  * Kurallar:
  *  1. Mevcut icerik BYTE BYTE onek olarak korunur; hicbir satir silinmez,
  *     degistirilmez, yer degistirmez. Yalniz sona eklenir.
- *  2. Eklenenler: isimle anilmayan AI botlari icin grup, Content-Signal (dosyada
+ *  2. Eklenenler: isimle anilmayan ve resmi belgesi olan AI botlari icin grup
+ *     (ROBOTS_MERGE_BOTS), Content-Signal (dosyada
  *     hic yoksa), Sitemap satiri (dosyada hic yoksa ve canli bir site haritasi
  *     biliniyorsa).
  *  3. Hicbir Disallow kaldirilmaz ya da zayiflatilmaz. RFC 9309 / Google: bir
@@ -222,7 +223,11 @@ export function robotsSitemapUrls(text: string): string[] {
 }
 
 export interface RobotsMergeOptions {
-  /** Isimle anilmasi istenen botlar — varsayilan: stance skoruna giren 21 AI botu */
+  /**
+   * Isimle anilmasi istenen botlar — varsayilan: stance skoruna giren ve RESMI
+   * belgesi olan AI botlari (known-ai-bots.ts ROBOTS_MERGE_BOTS). Belgesiz adlar
+   * (DeepSeek, xAI/Grok, anthropic-ai, cohere-ai...) eklenmez.
+   */
   bots?: readonly string[];
   /** ör. 'search=yes, ai-input=yes, ai-train=yes'; null → Content-Signal eklenmez */
   contentSignal?: string | null;
@@ -323,7 +328,7 @@ export function mergeRobotsTxt(existing: string | null, opts: RobotsMergeOptions
   const base = existing ?? '';
   const eol = detectEol(base);
   const before = parseRobots(base);
-  const wanted = uniq([...(opts.bots ?? STANCE_SCORED_BOTS.map((b) => b.name))]);
+  const wanted = uniq([...(opts.bots ?? ROBOTS_MERGE_BOTS.map((b) => b.name))]);
   const named = new Set(before.groups.flatMap((g) => g.agents.map(agentToken)).filter((t): t is string => !!t));
   const missing = wanted.filter((b) => !named.has(b.toLowerCase()));
   const alreadyNamed = wanted.filter((b) => named.has(b.toLowerCase()));

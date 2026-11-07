@@ -1078,7 +1078,7 @@ export class PublisherService implements OnModuleInit {
       // Okuyanlar (18.10.2026 tarandi):
       //  - "donemde yayinlanan yazi" sayilari: reports.service overview,
       //    site-report isDokumu, agency (son 30 gun), email.cron haftalik ozet,
-      //    geo-score-card tazelik (30/7 gun). Guncelleme / disa aktarim yeni yayin
+      //    geo-score-card tazelik (son 12 ay; guncelleme lastLiveWriteAt'ten). Guncelleme / disa aktarim yeni yayin
       //    sayilsaydi eski yazi bu donemin uretimi gibi raporlanirdi (yanlis musteri verisi).
       //  - llms-full "Yayin:" tarihi, siralamalar (orderBy publishedAt) ve uretim
       //    hattinin JSON-LD datePublished'i (pipeline: existing.publishedAt): ilk yayin dogru.

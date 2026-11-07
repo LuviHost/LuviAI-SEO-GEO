@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { isHeroPlaceholder } from '../articles/hero-placeholder.js';
 import { lastLiveWriteAt } from '../articles/republish-policy.js';
 import { isUnverifiedCheck } from './audit-checks.service.js';
+import { CRITICAL_SEARCH_BOTS } from './robots-check.js';
 import { crawlAccessMessage, crawlAccessNewerThanAudit, readCrawlAccess } from '../sites/crawl-access.js';
 
 /**
@@ -99,9 +100,85 @@ export function sameAsCheck(
   };
 }
 
+const ORG_SCHEMA_CHECK = { id: 'org-schema', name: 'Organization / LocalBusiness şeması (site)' } as const;
+
+/**
+ * Yapisal Veri sutununun site kontrolu: ana sayfada Organization ya da bir alt
+ * turu (LocalBusiness, HairSalon, Dentist...) JSON-LD'si VAR MI. sameAs sayisi
+ * burada aranmaz (o Otorite sutununda). Kaynak son v3+ Agent Readiness
+ * taramasinin 'org-schema' kontrolu: PARSE adimi "Organization ailesi bulundu"
+ * sonucunu tasir (agent-readiness-checks.ts). Tarama yoksa ya da ana sayfa
+ * okunamadiysa unverified — puana girmez.
+ */
+export function orgSchemaPresenceCheck(
+  scan: { ranAt: Date | string; levels: unknown } | null | undefined,
+): GeoPillar['checks'][number] {
+  const org = scan ? orgSchemaCheckOf(scan.levels) : null;
+  if (!scan || !org) {
+    return {
+      ...ORG_SCHEMA_CHECK, ok: false, unverified: true,
+      detail: 'Ana sayfadaki Organization şeması henüz ölçülmedi — Agent Readiness taraması çalıştığında ölçülür; o zamana kadar puana girmez.',
+    };
+  }
+  const tarih = isoDay(scan.ranAt);
+  const durum = org.statusText ?? '';
+  if (org.state === 'blocked' || org.blocked || /^Ana sayfa okunamad/i.test(durum)) {
+    const neden = org.blocked?.reason ?? (durum || 'ana sayfa okunamadı');
+    return {
+      ...ORG_SCHEMA_CHECK, ok: false, unverified: true,
+      detail: `${tarih} tarihli Agent Readiness taraması ana sayfayı okuyamadı: ${neden}`,
+    };
+  }
+  const parse = Array.isArray(org.audit)
+    ? (org.audit as Array<{ step?: unknown; ok?: unknown }>).find((a) => a?.step === 'PARSE')
+    : undefined;
+  const var_ = parse ? parse.ok === true : /schema var/i.test(durum);
+  return {
+    ...ORG_SCHEMA_CHECK, ok: var_,
+    detail: var_
+      ? `Ana sayfa (${tarih} Agent Readiness taraması): ${durum || 'Organization şeması var'}`
+      : `Ana sayfada Organization ya da LocalBusiness şeması yok (${tarih} Agent Readiness taraması)`,
+  };
+}
+
+const ROBOTS_CHECK = { id: 'robots', name: 'Kritik arama botları (robots.txt)' } as const;
+const CRITICAL_BOT_NAMES = CRITICAL_SEARCH_BOTS.map((b) => b.name);
+
+/**
+ * Crawler sutununun robots satiri: gorunurlugu kesen alti botun (Googlebot,
+ * Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User)
+ * robots.txt'te ETKIN olarak engelli olup olmadigi — denetimin robots_txt
+ * kontrolunun details.searchBots alanindan (robots-check.ts, yontem v3).
+ * robots.txt yoksa kural da yoktur: botlar serbest (RFC 9309), satir gecer.
+ * v2 kaydi yalniz uc AI arama botunu tasir; eksik botlar yeni taramada olculur.
+ */
+export function criticalBotsCheck(entry: any, noAudit: string | null): GeoPillar['checks'][number] {
+  if (noAudit) return { ...ROBOTS_CHECK, ok: false, detail: noAudit };
+  if (entry?.found !== true) {
+    return { ...ROBOTS_CHECK, ok: true, detail: 'robots.txt yok — kural olmadığı için arama botları serbest' };
+  }
+  const bots: Array<{ name?: unknown; effective?: unknown }> = Array.isArray(entry.details?.searchBots) ? entry.details.searchBots : [];
+  if (bots.length === 0) {
+    // v1 kaydi: bot ayrintisi yok — yalniz eski skor bilinir
+    const ok = typeof entry.score === 'number' && entry.score >= 70;
+    return { ...ROBOTS_CHECK, ok, detail: `Skor: ${entry.score ?? '?'}/100 (eski tarama — yeniden tarayınca kritik botlar ölçülür)` };
+  }
+  const olculen = bots.filter((b) => typeof b?.name === 'string').map((b) => ({ name: b.name as string, block: b.effective === 'block' }));
+  const engelli = olculen.filter((b) => b.block).map((b) => b.name);
+  const eksik = CRITICAL_BOT_NAMES.filter((n) => !olculen.some((b) => b.name === n));
+  const not = eksik.length > 0 ? ` (${eksik.join(', ')} bir sonraki taramada ölçülür)` : '';
+  return {
+    ...ROBOTS_CHECK,
+    ok: engelli.length === 0,
+    detail: engelli.length === 0
+      ? `Engelli kritik bot yok${not}`
+      : `Engelli: ${engelli.join(', ')} — robots.txt'teki engeli kaldırmazsan bu botlar siteyi göremez${not}`,
+  };
+}
+
 /** AgentReadinessScan.levels JSON'unda 'org-schema' kontrolu (bicim bozuksa null) */
 function orgSchemaCheckOf(levels: unknown): {
-  ok?: unknown; statusText?: string; state?: string; blocked?: { reason?: string } | null;
+  ok?: unknown; statusText?: string; state?: string; blocked?: { reason?: string } | null; audit?: unknown;
 } | null {
   if (!Array.isArray(levels)) return null;
   for (const level of levels) {
@@ -114,14 +191,24 @@ function orgSchemaCheckOf(levels: unknown): {
 }
 
 /**
- * Makale sutunlarinin (Yapisal Veri, Tazelik, Multi-Modal) "olculemedi" nedeni.
- * Bu sutunlar YALNIZ RanksUp'in yayinladigi yazilara (Article, PUBLISHED) bakar,
- * musterinin kendi sitesindeki sayfalara degil. RanksUp'tan yayin yoksa olculecek
- * bir sey yok: 0 vermek, kendi blogunu baska yerden yoneten siteyi sebepsiz
- * F'ye dusuruyordu (uc sahte sifir).
+ * Makale sutunlarinin (Tazelik, Multi-Modal; Yapisal Veri'nin kapsama satiri)
+ * "olculemedi" nedeni. Bunlar YALNIZ RanksUp'in yayinladigi yazilara (Article,
+ * PUBLISHED) bakar, musterinin kendi sitesindeki sayfalara degil. RanksUp'tan
+ * yayin yoksa olculecek bir sey yok: 0 vermek, kendi blogunu baska yerden
+ * yoneten siteyi sebepsiz F'ye dusuruyordu (uc sahte sifir).
  */
 export const NO_RANKSUP_ARTICLES_REASON =
   "RanksUp'tan yayınlanmış makale yok — bu sütun yalnız RanksUp'ın yayınladığı yazılara bakar";
+
+/** Yapisal Veri sutunu hic olculemedi: RanksUp makalesi de, ana sayfa Organization olcumu de yok */
+export const NO_STRUCTURED_DATA_REASON =
+  "RanksUp'tan yayınlanmış makale yok ve ana sayfadaki Organization şeması henüz ölçülmedi (Agent Readiness taraması)";
+
+/** Tazelik penceresi: yayindaki makalenin son icerik yazimi bu kadar gun icindeyse taze */
+export const FRESHNESS_WINDOW_DAYS = 365;
+
+/** Tazelik sutununun gecme esigi: makalelerin en az bu orani pencere icinde */
+export const FRESHNESS_MIN_SHARE = 0.7;
 
 /** AI Citation sutununun "olculemedi" nedeni: tazelik penceresinde hic olcum yok */
 export const NO_FRESH_CITATION_REASON =
@@ -200,17 +287,25 @@ export function gradeOf(overall: number): GeoGrade {
  * GEO Score Card — sitenin "AI search engine'lerde gorunurluk seviyesi"ni
  * 6 pillar uzerinden olcer. Her birinin agirlikli ortalamasi overall skor.
  *
- *  1. Crawler Erisimi (robots.txt + llms.txt + llms-full.txt + sitemap.xml)
- *  2. Yapısal Veri (schema markup tipleri ve kapsami)
+ *  1. Crawler Erisimi (alti kritik arama botunun robots.txt erisimi + sitemap.xml)
+ *  2. Yapısal Veri (RanksUp makalelerinin schema kapsami + ana sayfada
+ *     Organization/LocalBusiness — Agent Readiness taramasindan)
  *  3. AI Citation (olculen tum AI asistanlarinin son 9 gun skorlari, AI_CITATION_FRESH_DAYS)
  *  4. Otorite (ana sayfa Organization sameAs — Agent Readiness taramasindan —, rakip listesi, GSC baglantisi)
- *  5. Tazelik (yayin sikligi, son guncellenme, content pivot durumu)
+ *  5. Tazelik (makalelerin en az %70'i son 12 ayda yayinlanmis ya da guncellenmis)
  *  6. Multi-Modal (hero gorsel kapsami)
  *
- * OLCULEMEYEN SUTUN (score null, unmeasuredReason): 2, 5, 6 yalniz RanksUp'in
- * yayinladigi makalelere bakar — RanksUp'tan yayin yoksa olculemez. 3, tazelik
- * penceresinde (AI_CITATION_FRESH_DAYS) olcum yoksa olculemez. Olculemeyen sutun
- * genel skora girmez; agirliklar olculen sutunlar uzerinden yeniden dagitilir
+ * 08.11.2026 kanit denetimi: llms.txt / llms-full.txt (Google yok sayiyor,
+ * olcumlerde etkisi yok), "en az 5 schema tipi", Speakable ve FAQPage odulleri
+ * (Ahrefs'in kontrollu testinde schema'nin AI alintisina etkisi cikmadi; FAQ
+ * zengin sonucu Mayis 2026'da kalkti) ve yayin sikligi esikleri (Google: taze
+ * gorunmek icin cok icerik eklemek ise yaramaz) puandan cikti.
+ *
+ * OLCULEMEYEN SUTUN (score null, unmeasuredReason): 5 ve 6 yalniz RanksUp'in
+ * yayinladigi makalelere bakar — RanksUp'tan yayin yoksa olculemez. 2, makale
+ * de Organization olcumu de yoksa olculemez. 3, tazelik penceresinde
+ * (AI_CITATION_FRESH_DAYS) olcum yoksa olculemez. Olculemeyen sutun genel skora
+ * girmez; agirliklar olculen sutunlar uzerinden yeniden dagitilir
  * (weightedOverall). Hicbiri olculemezse genel skor ve harf notu null.
  *
  * Urunden kaldirilan modullere (sosyal yayin, TTS ses, podcast RSS — commit
@@ -313,28 +408,15 @@ export class GeoScoreCardService {
     // Hic denetim yoksa dosyalarin durumu BILINMIYOR — "yok" denmez
     const noAudit = !audit ? 'Henüz site denetimi yapılmadı — durum bilinmiyor.' : null;
 
-    checks.push(staleByAccess('robots', 'robots.txt', 'robots.txt') ?? unverified('robots', 'robots.txt', ck.robots_txt, 'robots.txt') ?? {
-      id: 'robots', name: 'robots.txt',
-      ok: ck.robots_txt?.found === true && ck.robots_txt?.score >= 70,
-      detail: ck.robots_txt?.found ? `Skor: ${ck.robots_txt?.score}/100` : noAudit ?? 'robots.txt yok — auto-fix uygula',
-    });
-    checks.push(staleByAccess('llms', 'llms.txt', 'llms.txt') ?? unverified('llms', 'llms.txt', ck.llms_txt, 'llms.txt') ?? {
-      id: 'llms', name: 'llms.txt',
-      ok: ck.llms_txt?.found === true,
-      detail: ck.llms_txt?.found ? 'Mevcut (opsiyonel hijyen)' : noAudit ?? 'llms.txt yok — opsiyonel: hiçbir büyük AI sağlayıcısı taahhüt etmiyor, Google kullanmıyor; düşük maliyetli ama kanıtı zayıf bir adım.',
-    });
-
-    const site: any = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    // Haftalik yeniden olusturma: worker LLMS_FULL_BUILD cron'u (Pazartesi 03:00 UTC)
-    // ve llms-full-builder getCached (7 gunden eski kopyayi yeniler)
-    const llmsFullAt = site.llmsFullTxtAt ? isoDay(site.llmsFullTxtAt) : null;
-    checks.push({
-      id: 'llms-full', name: 'llms-full.txt',
-      ok: !!site.llmsFullTxt,
-      detail: site.llmsFullTxt
-        ? `Oluşturuldu${llmsFullAt ? ` (${llmsFullAt})` : ''}; her hafta otomatik yenilenir`
-        : 'Henüz oluşturulmadı',
-    });
+    // 08.11.2026: llms.txt ve llms-full.txt satirlari puandan cikti —
+    // Google Arama llms.txt'i yok sayiyor, Sistrix ve SE Ranking olcumlerinde
+    // etkisi gorulmedi. Sutun yalniz gorunurlugu GERCEKTEN kesen iki seye bakar:
+    // kritik arama botlarinin erisimi ve site haritasi.
+    checks.push(
+      staleByAccess(ROBOTS_CHECK.id, ROBOTS_CHECK.name, 'robots.txt')
+        ?? unverified(ROBOTS_CHECK.id, ROBOTS_CHECK.name, ck.robots_txt, 'robots.txt')
+        ?? criticalBotsCheck(ck.robots_txt, noAudit),
+    );
     checks.push(staleByAccess('sitemap', 'sitemap.xml', 'sitemap.xml') ?? unverified('sitemap', 'sitemap.xml', ck.sitemap_xml, 'sitemap.xml') ?? {
       id: 'sitemap', name: 'sitemap.xml',
       ok: ck.sitemap_xml?.found === true,
@@ -352,58 +434,39 @@ export class GeoScoreCardService {
   //  Pillar 2: Yapısal Veri (Schema)
   // ────────────────────────────────────────────────────────────
   private async checkStructuredData(siteId: string): Promise<GeoPillar> {
-    const articles = await this.prisma.article.findMany({
-      where: { siteId, status: 'PUBLISHED' as any },
-      select: { id: true, schemaMarkup: true } as any,
-      take: 50,
-    });
+    const [articles, scan] = await Promise.all([
+      this.prisma.article.findMany({
+        where: { siteId, status: 'PUBLISHED' as any },
+        select: { id: true, schemaMarkup: true } as any,
+        take: 50,
+      }),
+      this.latestOrgScan(siteId),
+    ]);
     const checks: GeoPillar['checks'] = [];
 
-    if (articles.length === 0) {
-      return unmeasuredPillar('structured-data', 'Yapısal Veri', 3, NO_RANKSUP_ARTICLES_REASON);
+    // "En az 5 farklı tip", Speakable ve FAQPage odulleri kaldirildi (08.11.2026):
+    // Ahrefs'in kontrollu testinde schema eklemenin AI alintisina etkisi
+    // cikmadi, Google FAQ zengin sonucunu Mayis 2026'da kaldirdi; Speakable
+    // yalniz ABD'de Ingilizce haber icin beta. Kalan: makalelerde schema
+    // KAPSAMI ve sitede kimlik (Organization/LocalBusiness) isaretlemesi.
+    if (articles.length > 0) {
+      const withSchema = articles.filter((a: any) => a.schemaMarkup);
+      checks.push({
+        id: 'schema-coverage', name: 'Schema kapsama',
+        ok: withSchema.length / articles.length >= 0.8,
+        detail: `${withSchema.length}/${articles.length} makale schema'lı (önerilen: en az %80)`,
+      });
+    } else {
+      checks.push({ id: 'schema-coverage', name: 'Schema kapsama', ok: false, unverified: true, detail: NO_RANKSUP_ARTICLES_REASON });
     }
+    checks.push(orgSchemaPresenceCheck(scan));
 
-    const withSchema = articles.filter((a: any) => a.schemaMarkup);
-    const totalArticles = articles.length;
-
-    checks.push({
-      id: 'schema-coverage', name: 'Schema kapsama',
-      ok: totalArticles > 0 && withSchema.length / totalArticles >= 0.8,
-      detail: `${withSchema.length}/${totalArticles} makale schema'lı`,
-    });
-
-    // Schema types diversity
-    const allTypes = new Set<string>();
-    for (const a of withSchema as any[]) {
-      for (const t of (a.schemaMarkup?.types ?? [])) allTypes.add(t);
+    // Olculemeyen satir puana girmez; hicbiri olculemezse sutun olculmedi
+    const scored = checks.filter((c) => !c.unverified);
+    if (scored.length === 0) {
+      return unmeasuredPillar('structured-data', 'Yapısal Veri', 3, NO_STRUCTURED_DATA_REASON);
     }
-    checks.push({
-      id: 'schema-diversity', name: 'Schema tip çeşitliliği',
-      ok: allTypes.size >= 5,
-      detail: `${allTypes.size} farklı schema tipi (${[...allTypes].slice(0, 6).join(', ')})`,
-    });
-
-    // Eski metin "Siri/Alexa optimize değil" diyordu. Google'a gore speakable
-    // beta bir ozellik ve yalniz Google Asistan kullanir: ABD'de, Ingilizce'ye
-    // ayarli Google Home cihazlarinda, guncel haber sorularina cevapta
-    // ("works for users in the U.S. that have Google Home devices set to
-    // English" — https://developers.google.com/search/docs/appearance/structured-data/speakable,
-    // 18.10.2026'da dogrulandi). Siri ya da Alexa'nin okudugu belgelenmis degil.
-    checks.push({
-      id: 'speakable', name: 'Speakable (Google Asistan)',
-      ok: [...allTypes].includes('Speakable'),
-      detail: [...allTypes].includes('Speakable')
-        ? 'Aktif'
-        : 'Yok — Speakable, Google Asistan\'ın beta özelliğidir; yalnız ABD\'de İngilizce haber içeriği için kullanılır',
-    });
-
-    checks.push({
-      id: 'faq-page', name: 'FAQPage',
-      ok: [...allTypes].includes('FAQPage'),
-      detail: [...allTypes].includes('FAQPage') ? 'Aktif' : 'FAQ schema eksik',
-    });
-
-    const score = Math.round((checks.filter(c => c.ok).length / checks.length) * 100);
+    const score = Math.round((scored.filter(c => c.ok).length / scored.length) * 100);
     return {
       id: 'structured-data', name: 'Yapısal Veri', weight: 3,
       score, status: this.scoreStatus(score), checks,
@@ -476,14 +539,7 @@ export class GeoScoreCardService {
         where: { id: siteId },
         include: { brain: true },
       }) as Promise<any>,
-      // Kart okumasi tarama tablosu yuzunden dusmesin: hata = kanit yok
-      Promise.resolve()
-        .then(() => this.prisma.agentReadinessScan.findFirst({
-          where: { siteId, scoreVersion: { gte: ORG_SAMEAS_MIN_SCAN_VERSION } },
-          orderBy: { ranAt: 'desc' },
-          select: { ranAt: true, levels: true },
-        }))
-        .catch(() => null),
+      this.latestOrgScan(siteId),
     ]);
     const checks: GeoPillar['checks'] = [];
 
@@ -520,76 +576,58 @@ export class GeoScoreCardService {
   //  Pillar 5: Tazelik
   // ────────────────────────────────────────────────────────────
   private async checkFreshness(siteId: string): Promise<GeoPillar> {
-    const last30 = new Date(Date.now() - 30 * 86400000);
-    const last7 = new Date(Date.now() - 7 * 86400000);
+    // 08.11.2026: "son 30 günde 4+ yayın", "son 7 günde 1+ yayın" ve "90 günden
+    // eski <10 makale" kaldirildi. Google: taze gorunmek icin cok icerik eklemek
+    // ise yaramaz; yayin SIKLIGI bir kalite sinyali degil. Kalan tek olcut:
+    // yayindaki makalelerin en az %70'i son 12 ayda yayinlanmis ya da
+    // guncellenmis (icerigi bayatlamamis).
+    const totalPublished = await this.prisma.article.count({
+      where: { siteId, status: 'PUBLISHED' as any },
+    });
 
-    const [totalPublished, recentArticles, lastWeek] = await Promise.all([
-      this.prisma.article.count({
-        where: { siteId, status: 'PUBLISHED' as any },
-      }),
-      this.prisma.article.count({
-        where: { siteId, status: 'PUBLISHED' as any, publishedAt: { gte: last30 } },
-      }),
-      this.prisma.article.count({
-        where: { siteId, status: 'PUBLISHED' as any, publishedAt: { gte: last7 } },
-      }),
-    ]);
-
-    // RanksUp'tan hic yayin yoksa yayin sikligi olculemez ("eskimis icerik
-    // yok" da bos kumede anlamsiz gecis olurdu)
+    // RanksUp'tan hic yayin yoksa olculemez (bos kumede oran anlamsiz)
     if (totalPublished === 0) {
       return unmeasuredPillar('freshness', 'Tazelik', 2, NO_RANKSUP_ARTICLES_REASON);
     }
 
-    const checks: GeoPillar['checks'] = [];
-    checks.push({
-      id: 'recent-30', name: '30 gün yayın',
-      ok: recentArticles >= 4,
-      detail: `${recentArticles} makale (önerilen: 4+)`,
+    // Guncelleme = yazinin sitedeki metnine son ICERIK yazimi: yayin kayitlarinin
+    // updatedAt'i (republish-policy lastLiveWriteAt: yerinde guncelleme, ayni
+    // yolun uzerine yazma, musterinin "guncelledim" bildirimi); kayit
+    // tasimiyorsa ilk yayin tarihi. Icerik pivotunun bekleme suresiyle ayni kural.
+    // NEDEN Article.updatedAt DEGIL: satirin her yazimi onu ilerletir (Prisma
+    // @updatedAt); canlilik denetiminin defter yazimlari (liveSeenAt, goneSince),
+    // iyimser kilitler ve isaretler de. Gunluk canlilik denetimi her canli
+    // kopyaya liveSeenAt yazar: aylardir dokunulmamis yazi taze gorunurdu.
+    // Pencere icinde ilk kez yayinlanan yazi zaten taze (sayimla); daha eskiler
+    // icin son yazim publishedTo JSON'unda oldugundan 500'luk parcalarla okunur.
+    const since = new Date(Date.now() - FRESHNESS_WINDOW_DAYS * 86400000);
+    let fresh = await this.prisma.article.count({
+      where: { siteId, status: 'PUBLISHED' as any, publishedAt: { gte: since } },
     });
-    checks.push({
-      id: 'recent-7', name: '7 gün yayın',
-      ok: lastWeek >= 1,
-      detail: `${lastWeek} makale`,
-    });
-
-    // Eskimis icerik: yazinin sitedeki metnine son yazim 90 gunden eski mi. Son yazim
-    // yayin kayitlarinin updatedAt'i (republish-policy lastLiveWriteAt: yerinde guncelleme,
-    // ayni yolun uzerine yazma, musterinin "guncelledim" bildirimi); kayit tasimiyorsa ilk
-    // yayin tarihi. Icerik pivotunun bekleme suresiyle ayni kural (content-pivot.service:
-    // lastLiveWriteAt ?? publishedAt): kart "content pivot çalıştır" dediginde pivot da ayni
-    // yazilari eski sayar.
-    // NEDEN Article.updatedAt DEGIL: satirin her yazimi onu ilerletir (Prisma @updatedAt);
-    // canlilik denetiminin defter yazimlari (liveSeenAt, goneSince), iyimser kilitler ve
-    // isaretler de. Gunluk canlilik denetimi dagitimdan sonraki ilk turunda her canli dosya
-    // kopyasina liveSeenAt yazar: eski kuralla 5 aydir dokunulmamis yazi 90 gun taze
-    // gorunur, kart 'Eskimiş içerik yok' derdi.
-    // publishedAt <= 90 gun ON SUZGEC: son canli yazim ilk yayindan eski olamaz, ilk yayini
-    // daha yeni yazi zaten taze. Son yazim JSON icinde oldugu icin sorguda suzulemiyor.
-    // Kart her sayfa acilisinda hesaplanir: buyuk sitede binlerce publishedTo JSON'unu
-    // tek seferde bellege almamak icin 500'luk parcalarla okunur; sayim yine tam.
-    const last90 = new Date(Date.now() - 90 * 86400000);
-    let stale = 0;
     for (let cursor: string | undefined; ;) {
       const batch = await this.prisma.article.findMany({
-        where: { siteId, status: 'PUBLISHED' as any, publishedAt: { lte: last90 } },
+        where: { siteId, status: 'PUBLISHED' as any, publishedAt: { lte: since } },
         select: { id: true, publishedAt: true, publishedTo: true },
         orderBy: { id: 'asc' },
         take: 500,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       });
       for (const a of batch) {
-        const lastWrite = lastLiveWriteAt(a.publishedTo) ?? a.publishedAt;
-        if (lastWrite && lastWrite.getTime() <= last90.getTime()) stale++;
+        // Sinirdaki (tam since anindaki) yazi sayimda zaten sayildi
+        if (a.publishedAt && a.publishedAt.getTime() >= since.getTime()) continue;
+        const lastWrite = lastLiveWriteAt(a.publishedTo);
+        if (lastWrite && lastWrite.getTime() >= since.getTime()) fresh++;
       }
       if (batch.length < 500) break;
       cursor = batch[batch.length - 1].id;
     }
-    checks.push({
-      id: 'stale-content', name: 'Eskimiş içerik',
-      ok: stale < 10,
-      detail: stale === 0 ? 'Eskimiş içerik yok' : `${stale} makale 90+ gündür güncellenmedi (content pivot çalıştır)`,
-    });
+
+    const yuzde = Math.round((fresh / totalPublished) * 100);
+    const checks: GeoPillar['checks'] = [{
+      id: 'updated-12m', name: 'Son 12 ayda yayınlanan / güncellenen',
+      ok: fresh / totalPublished >= FRESHNESS_MIN_SHARE,
+      detail: `${fresh}/${totalPublished} makale (%${yuzde}) son 12 ayda yayınlandı ya da güncellendi (önerilen: en az %${Math.round(FRESHNESS_MIN_SHARE * 100)})`,
+    }];
 
     const score = Math.round((checks.filter(c => c.ok).length / checks.length) * 100);
     return {
@@ -635,6 +673,21 @@ export class GeoScoreCardService {
       id: 'multi-modal', name: 'Multi-Modal', weight: 1,
       score, status: this.scoreStatus(score), checks,
     };
+  }
+
+  /**
+   * Son v3+ Agent Readiness taramasi (Organization sameAs ve varlik kaniti).
+   * Kart okumasi tarama tablosu yuzunden dusmesin: hata = kanit yok.
+   */
+  private latestOrgScan(siteId: string): Promise<{ ranAt: Date; levels: unknown } | null> {
+    return Promise.resolve()
+      .then(() => this.prisma.agentReadinessScan.findFirst({
+        where: { siteId, scoreVersion: { gte: ORG_SAMEAS_MIN_SCAN_VERSION } },
+        orderBy: { ranAt: 'desc' },
+        select: { ranAt: true, levels: true },
+      }))
+      .then((r: any) => r ?? null)
+      .catch(() => null);
   }
 
   // ────────────────────────────────────────────────────────────

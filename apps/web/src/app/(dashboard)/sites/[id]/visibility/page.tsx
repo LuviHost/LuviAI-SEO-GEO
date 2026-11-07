@@ -182,7 +182,7 @@ export default function VisibilityPage() {
         {perPage && perPage.totalCites === 0 && (
           <div className="p-8 text-center text-sm text-muted-foreground">
             <FileText className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" aria-hidden />
-            <p>Henüz alıntı alan sayfa yok. AI cevabında URL&apos;inin geçmesi için daha fazla makale, SSS şeması ve güncel bir llms.txt yardımcı olur.</p>
+            <p>Henüz alıntı alan sayfa yok. AI cevabında URL&apos;inin geçmesi için sorulara doğrudan cevap veren, rakam ve karşılaştırma içeren sayfalar ve arama botlarının (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot) robots.txt&apos;te engelli olmaması yardımcı olur.</p>
           </div>
         )}
 

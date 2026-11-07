@@ -19,7 +19,7 @@ import {
 
 type Row = { id: string; ranAt: Date; overallScore: number; geoScore: number | null; issues: unknown; durationMs: number | null; trigger: string; checks: unknown };
 
-/** Genel skora giren 14 kontrolun hepsi olculmus, varsayilan yontemle (v1) */
+/** Genel skora giren 13 kontrolun hepsi olculmus, varsayilan yontemle (v1) */
 function tamChecks(over: Record<string, unknown> = {}): Record<string, unknown> {
   const c: Record<string, unknown> = {};
   for (const id of Object.keys(OVERALL_SCORE_WEIGHTS)) c[id] = { id, score: 80, details: {} };
@@ -101,18 +101,51 @@ describe('getHistory — skor kiyaslanabilirligi ve trigger', () => {
 
   it('iki neden birlikte: iki cumle de yazilir', async () => {
     const { s } = svc([
-      row('b', '02-01', tamChecks({ image_alt: { score: 90, details: { methodVersion: 2 } }, llms_txt: { score: 0, details: { unverified: true } } })),
+      row('b', '02-01', tamChecks({ image_alt: { score: 90, details: { methodVersion: 2 } }, sitemap_xml: { score: 0, details: { unverified: true } } })),
       row('a', '01-01', tamChecks()),
     ]);
     const [yeni] = await s.getHistory('s1');
     expect(yeni.scoreComparableWithPrevious).toBe(false);
-    expect(yeni.scoreMethodNote).toMatch(/farklı ölçüm yöntemleriyle ölçtü: Görsel alt metni\..*yalnız birinde ölçülebildi: llms\.txt\./);
+    expect(yeni.scoreMethodNote).toMatch(/farklı ölçüm yöntemleriyle ölçtü: Görsel alt metni\..*yalnız birinde ölçülebildi: sitemap\.xml\./);
   });
 
   it('tek tarama: iki alan null; checks bozuk/eksik satir patlatmaz', async () => {
     expect((await svc([row('a', '01-01', tamChecks())]).s.getHistory('s1'))[0]).toMatchObject({ scoreComparableWithPrevious: null, scoreMethodNote: null });
     const h = await svc([row('b', '02-01', null), row('a', '01-01', 'bozuk')]).s.getHistory('s1');
     expect(h[0]).toMatchObject({ scoreComparableWithPrevious: true, scoreMethodNote: null });
+  });
+});
+
+/**
+ * llms_txt v3'te genel skordan cikti (OVERALL_SCORE_RETIRED). Eski (v2) tarama
+ * ile yeni tarama arasindaki genel skor farkinin bir kismi bu yuzden yontemden
+ * gelir; iki yeni tarama arasinda llms.txt artik hicbir fark uretmez.
+ */
+describe('genelSkorKiyasi — genel skordan cikarilan kontrol (llms_txt v3)', () => {
+  const llms = (v: number, over: Record<string, unknown> = {}) => ({ id: 'llms_txt', score: 30, details: { methodVersion: v, ...over } });
+
+  it('v2 (skora girdi) → v3 (bilgi): yontem degisti; tarih notu llms.txt der', async () => {
+    const k = genelSkorKiyasi(tamChecks({ llms_txt: llms(2) }), tamChecks({ llms_txt: llms(3, { informational: true }) }));
+    expect(k).toEqual({ yontemiDegisen: ['llms_txt'], kapsamiFarkli: [] });
+    const { s } = svc([row('b', '02-01', tamChecks({ llms_txt: llms(3) })), row('a', '01-01', tamChecks({ llms_txt: llms(2) }))]);
+    const [h] = await s.getHistory('s1');
+    expect(h.scoreComparableWithPrevious).toBe(false);
+    expect(h.scoreMethodNote).toContain('llms.txt');
+  });
+
+  it('alan tasimayan eski kayit (v1) da genel skora girmisti', () => {
+    expect(genelSkorKiyasi(tamChecks({ llms_txt: { score: 100, details: {} } }), tamChecks({ llms_txt: llms(3) })).yontemiDegisen).toEqual(['llms_txt']);
+  });
+
+  it('v2 olculdu → v3 dogrulanamadi: kapsam farki (eski skora girdi, yenisinde yok)', () => {
+    const k = genelSkorKiyasi(tamChecks({ llms_txt: llms(2) }), tamChecks({ llms_txt: llms(3, { unverified: true }) }));
+    expect(k).toEqual({ yontemiDegisen: [], kapsamiFarkli: ['llms_txt'] });
+  });
+
+  it('iki tarafta da skor disi (v3 ↔ v3, biri dogrulanamadi; ya da v2 dogrulanamadi → v3) fark uretmez', () => {
+    expect(genelSkorKiyasi(tamChecks({ llms_txt: llms(3) }), tamChecks({ llms_txt: llms(3, { unverified: true }) }))).toEqual({ yontemiDegisen: [], kapsamiFarkli: [] });
+    expect(genelSkorKiyasi(tamChecks({ llms_txt: llms(2, { unverified: true }) }), tamChecks({ llms_txt: llms(3) }))).toEqual({ yontemiDegisen: [], kapsamiFarkli: [] });
+    expect(genelSkorKiyasi(tamChecks(), tamChecks({ llms_txt: llms(3) }))).toEqual({ yontemiDegisen: [], kapsamiFarkli: [] });
   });
 });
 

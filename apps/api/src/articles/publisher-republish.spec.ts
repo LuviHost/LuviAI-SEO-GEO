@@ -621,7 +621,7 @@ describe('tam sayfa JSON-LD: yazi adresi alanlari canonical ile ayni (yoksa yazi
   const byType = (ld: any[], type: string) => ld.find((n) => n['@type'] === type);
   /** Uretim hattinin kurdugu JSON-LD (pipeline.service: Anasayfa + yazi kirintisi) */
   const schemaFor = (articleUrl: string) => {
-    const types = ['BlogPosting', 'BreadcrumbList', 'Speakable', 'HowTo', 'Organization'] as any[];
+    const types = ['BlogPosting', 'BreadcrumbList', 'Speakable', 'Organization'] as any[];
     const jsonLd = new SchemaClassifierService().buildJsonLd({
       types,
       article: {
@@ -633,7 +633,7 @@ describe('tam sayfa JSON-LD: yazi adresi alanlari canonical ile ayni (yoksa yazi
     });
     return { types, reasoning: 'test', jsonLd };
   };
-  /** Yazi adresi alanlari: Article url + mainEntityOfPage, son kirinti, Speakable url, HowTo adimi */
+  /** Yazi adresi alanlari: Article url + mainEntityOfPage, son kirinti, Speakable url */
   const articleUrlFields = (ld: any[]) => {
     const post = byType(ld, 'BlogPosting');
     const crumbs = byType(ld, 'BreadcrumbList').itemListElement;
@@ -642,7 +642,6 @@ describe('tam sayfa JSON-LD: yazi adresi alanlari canonical ile ayni (yoksa yazi
       mainEntityOfPage: post.mainEntityOfPage?.['@id'],
       lastCrumb: crumbs[crumbs.length - 1].item,
       speakable: byType(ld, 'WebPage').url,
-      howToStep: byType(ld, 'HowTo').step[0].url,
     };
   };
 
@@ -654,7 +653,7 @@ describe('tam sayfa JSON-LD: yazi adresi alanlari canonical ile ayni (yoksa yazi
     const canonical = `${BASE}/blog/yazi.html`;
     expect(canonicalOf(html)).toBe(canonical);
     const ld = ldOf(html);
-    expect(articleUrlFields(ld)).toEqual({ url: canonical, mainEntityOfPage: canonical, lastCrumb: canonical, speakable: canonical, howToStep: canonical });
+    expect(articleUrlFields(ld)).toEqual({ url: canonical, mainEntityOfPage: canonical, lastCrumb: canonical, speakable: canonical });
     expect(html).not.toContain('/rehber/yazi.html');
     // Site adresleri (yayinci, kurulus, ilk kirinti) degismez
     expect(byType(ld, 'BlogPosting').publisher.url).toBe(BASE);
@@ -676,7 +675,7 @@ describe('tam sayfa JSON-LD: yazi adresi alanlari canonical ile ayni (yoksa yazi
     const html = htmlOf('FTP');
     const canonical = `${BASE}/makaleler/yazi.html`;
     expect(canonicalOf(html)).toBe(canonical);
-    expect(articleUrlFields(ldOf(html))).toEqual({ url: canonical, mainEntityOfPage: canonical, lastCrumb: canonical, speakable: canonical, howToStep: canonical });
+    expect(articleUrlFields(ldOf(html))).toEqual({ url: canonical, mainEntityOfPage: canonical, lastCrumb: canonical, speakable: canonical });
   });
 
   // canli-oncesi-21 madde 2: CMS govde parcasi (WordPress) da ayni kuralla hizalanir; adres
@@ -707,7 +706,7 @@ describe('tam sayfa JSON-LD: yazi adresi alanlari canonical ile ayni (yoksa yazi
     const html = htmlOf('WORDPRESS_REST');
     expect(html).not.toContain('/rehber/yazi.html');
     const real = 'https://site.example/yazi/';
-    expect(articleUrlFields(ldOf(html))).toEqual({ url: real, mainEntityOfPage: real, lastCrumb: real, speakable: real, howToStep: real });
+    expect(articleUrlFields(ldOf(html))).toEqual({ url: real, mainEntityOfPage: real, lastCrumb: real, speakable: real });
   });
 
   it('iki dosya hedefine ilk yayin: her sayfanin JSON-LD\'si kendi canonical\'ini bildirir', async () => {
@@ -734,7 +733,8 @@ describe('tam sayfa JSON-LD: yazi adresi alanlari canonical ile ayni (yoksa yazi
     expect(crumbs[1]).toEqual({ '@type': 'ListItem', position: 2, name: 'Yazı' });
     expect(byType(ld, 'WebPage')).not.toHaveProperty('url');
     expect(byType(ld, 'WebPage').speakable).toBeTruthy();
-    expect(byType(ld, 'HowTo').step[0]).not.toHaveProperty('url');
+    // HowTo artik uretilmiyor (OTOMATIK_SEMA_TIPLERI, 08.11.2026)
+    expect(byType(ld, 'HowTo')).toBeUndefined();
     // Hicbir dugum baska bir dugume @id ile baglanmiyor: silinen mainEntityOfPage kopuk referans birakmaz
     expect(JSON.stringify(ld)).not.toContain('"@id"');
   });

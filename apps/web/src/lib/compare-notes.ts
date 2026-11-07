@@ -6,9 +6,11 @@
 
 /**
  * Genel skora GIREN kontroller = api audit/audit-checks.service.ts OVERALL_SCORE_WEIGHTS
- * anahtarlari. runAudit overallScore'u yalniz bu 14 kontrolden hesaplar
+ * anahtarlari. runAudit overallScore'u yalniz bu 13 kontrolden hesaplar
  * (computeOverallScore); PageSpeed, GEO ve AI gorunurluk ayri tutulur, crawlCoverage
- * yalniz kapsam kaydidir.
+ * yalniz kapsam kaydidir. llms_txt 08.11.2026'dan (yontem v3) beri bilgi kontrolu:
+ * listede gorunur, genel skora girmez. v2 ile v3 taramasi arasindaki gecisi API
+ * isaretler (genelSkorKiyasi; ayni surumde robots_txt da v3'e gecti).
  *
  * NEDEN IZIN LISTESI: eskiden "girmeyenler" listesi tutuluyordu; o listede olmayan her
  * anahtar (eski taramalardaki ya da yeni eklenen skor disi bir olcum) genel skoru
@@ -19,7 +21,7 @@
  * kaynagindaki tabloyla karsilastirir (kayarsa test kirilir).
  */
 export const GENEL_SKOR_KONTROLLERI: ReadonlySet<string> = new Set([
-  'sitemap_xml', 'robots_txt', 'llms_txt', 'schema_markup', 'meta_title', 'meta_description', 'open_graph',
+  'sitemap_xml', 'robots_txt', 'schema_markup', 'meta_title', 'meta_description', 'open_graph',
   'twitter_card', 'canonical', 'https', 'h1_uniqueness', 'image_alt', 'internal_linking', 'hreflang',
 ]);
 

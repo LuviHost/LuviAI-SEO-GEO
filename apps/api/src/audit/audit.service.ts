@@ -5,7 +5,7 @@ import {
   clearCrawlAccess, CrawlAccessError, crawlAccessNewerThanAudit, readCrawlAccess, recordCrawlAccess,
 } from '../sites/crawl-access.js';
 import { WEEKLY_MEASUREMENT_LIMIT_CODE } from '../billing/measurement-allowance.js';
-import { AuditChecksService, isUnverifiedCheck, OVERALL_SCORE_WEIGHTS } from './audit-checks.service.js';
+import { AuditChecksService, feedsOverallScoreAt, isUnverifiedCheck, OVERALL_SCORE_RETIRED, OVERALL_SCORE_WEIGHTS } from './audit-checks.service.js';
 import { PageSpeedService } from './pagespeed.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
 import { AiCitationService } from './ai-citation.service.js';
@@ -348,17 +348,33 @@ export interface GenelSkorKiyasi {
 }
 
 /**
+ * Kontrol bu taramanin genel skoruna GIRDI mi? Genel skordan cikarilan
+ * kontrol (OVERALL_SCORE_RETIRED, ör. llms_txt v3) yalniz eski yontemle
+ * olculdugu taramalarda girmisti; olculemeyen kontrol hic girmez.
+ */
+function genelSkoraGirdi(checks: Record<string, unknown>, id: string): boolean {
+  return !kontrolOlculmedi(checks, id) && feedsOverallScoreAt(id, checkMethodVersion(checks[id]));
+}
+
+/**
  * Genel skor (overallScore) yalniz OVERALL_SCORE_WEIGHTS kontrollerinden ve
  * yalniz olculebilenlerden hesaplanir (computeOverallScore; GEO, AI
  * gorunurluk ve PageSpeed girmez). Iki taramanin skor farki ancak bu
  * kontrollerin hepsi iki tarafta ayni yontemle ve ayni kapsamla olculduyse
  * sitedeki degisimi gosterir. compareAuditRows (skorKapsamiFarkli) ve
  * getHistory (scoreComparableWithPrevious) bu tek fonksiyonu kullanir.
+ *
+ * Genel skordan cikarilan kontrol (OVERALL_SCORE_RETIRED) yalniz iki
+ * taramadan en az birinin genel skoruna girdiyse sayilir: iki tarafta da
+ * olculup yalniz birinde skora girdiyse bu bir YONTEM degisimidir
+ * (llms_txt v2 → v3); iki tarafta da skor disiysa fark uretmez.
  */
 export function genelSkorKiyasi(fromChecks: Record<string, unknown>, toChecks: Record<string, unknown>): GenelSkorKiyasi {
   const yontemiDegisen: string[] = [];
   const kapsamiFarkli: string[] = [];
-  for (const id of Object.keys(OVERALL_SCORE_WEIGHTS)) {
+  for (const id of [...Object.keys(OVERALL_SCORE_WEIGHTS), ...Object.keys(OVERALL_SCORE_RETIRED)]) {
+    // Iki taramanin da genel skoruna girmeyen kontrol farki etkilemez
+    if (!genelSkoraGirdi(fromChecks, id) && !genelSkoraGirdi(toChecks, id)) continue;
     const oncekiOlculdu = !kontrolOlculmedi(fromChecks, id);
     const sonrakiOlculdu = !kontrolOlculmedi(toChecks, id);
     if (oncekiOlculdu !== sonrakiOlculdu) kapsamiFarkli.push(id);
@@ -989,7 +1005,7 @@ export class AuditService {
       allIssues.push({
         severity: 'warning' as const,
         type: 'ai_citation_low',
-        description: `AI arama görünürlüğü düşük (${aiCitationAvg}/100): AI asistanlarının marka adı geçmeyen sorulara verdiği yanıtlarda siten nadiren kaynak gösteriliyor ya da anılıyor. Soru-cevap biçiminde GEO içeriği ve schema işaretlemesi önerilir; llms.txt düşük maliyetli, opsiyonel bir adımdır.`,
+        description: `AI arama görünürlüğü düşük (${aiCitationAvg}/100): AI asistanlarının marka adı geçmeyen sorulara verdiği yanıtlarda siten nadiren kaynak gösteriliyor ya da anılıyor. Sorulara doğrudan cevap veren, rakam ve karşılaştırma gibi kanıt blokları içeren içerik önerilir; arama botlarının (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot) robots.txt'te engelli olmadığından emin ol.`,
         fixable: true,
         checkId: 'ai_citation',
       } as any);
@@ -1000,7 +1016,7 @@ export class AuditService {
       faq_qa: {
         type: 'faq_missing',
         checkId: 'geo_faq',
-        desc: 'FAQ schema ve soru-cevap formatı eksik (GEO ağırlığı 6) — jsonld_faq snippet üretici hazır.',
+        desc: 'Sayfalarda görünür soru-cevap bölümü yok ya da çok az (GEO ağırlığı 6). Soru-cevapları sayfaya görünür metin olarak ekle; snippet aracı taslak üretir, FAQPage işaretlemesi tek başına puanı artırmaz.',
       },
       definition: {
         type: 'definition_missing',

@@ -3,7 +3,7 @@ import {
   mergeRobotsTxt, parseRobots, robotsAllows, assessRobotsBody, robotsSitemapUrls, agentToken,
 } from './robots-merge.js';
 import { parseRobotsAiStance } from './robots-ai-stance.js';
-import { KNOWN_AI_BOTS, STANCE_SCORED_BOTS } from './known-ai-bots.js';
+import { KNOWN_AI_BOTS, ROBOTS_MERGE_BOTS, STANCE_SCORED_BOTS } from './known-ai-bots.js';
 
 const SIGNAL = 'search=yes, ai-input=yes, ai-train=yes';
 
@@ -89,15 +89,44 @@ describe('mergeRobotsTxt — mevcut kurallar korunur', () => {
     expect(robotsAllows(parseRobots(r.content), 'BadBot', '/')).toBe(false);
   });
 
-  it('dosya yoksa (null): skorlanan 21 botun hepsi isimle anilir, Content-Signal ve Sitemap eklenir', () => {
+  it('dosya yoksa (null): resmi belgesi olan 15 bot isimle anilir, Content-Signal ve Sitemap eklenir', () => {
     const r = mergeRobotsTxt(null, { contentSignal: SIGNAL, sitemapUrl: 'https://ornek.com/sitemap.xml' });
     const stance = parseRobotsAiStance(r.content);
-    expect(stance.scored.named).toBe(STANCE_SCORED_BOTS.length);
+    expect(ROBOTS_MERGE_BOTS).toHaveLength(15);
+    expect(stance.scored.named).toBe(ROBOTS_MERGE_BOTS.length);
+    expect(r.addedBots).toEqual(ROBOTS_MERGE_BOTS.map((b) => b.name));
     expect(stance.scored.block).toBe(0);
     expect(r.content).toMatch(/^Content-Signal: search=yes, ai-input=yes, ai-train=yes$/m);
     expect(r.content).toMatch(/^Sitemap: https:\/\/ornek\.com\/sitemap\.xml$/m);
     expect(r.addedContentSignal).toBe(true);
     expect(r.addedSitemap).toBe(true);
+  });
+});
+
+describe('mergeRobotsTxt — yalniz resmi belgesi olan botlar eklenir (08.11.2026)', () => {
+  it('belgesiz adlar (DeepSeek, xAI/Grok, anthropic-ai, cohere, Bytespider, Timpibot, Omgilibot) gruba eklenmez', () => {
+    const r = mergeRobotsTxt(null, { contentSignal: SIGNAL });
+    for (const ad of ['DeepSeekBot', 'DeepSeek', 'GrokBot', 'xAI', 'anthropic-ai', 'cohere-ai', 'cohere-training-data-crawler', 'Bytespider', 'Timpibot', 'Omgilibot']) {
+      expect(r.content, ad).not.toMatch(new RegExp(`^User-agent: ${ad}$`, 'mi'));
+    }
+    // Belgeli egitim + AI arama botlari eklenir
+    for (const ad of ['GPTBot', 'ClaudeBot', 'Google-Extended', 'OAI-SearchBot', 'Claude-SearchBot', 'PerplexityBot']) {
+      expect(r.content, ad).toMatch(new RegExp(`^User-agent: ${ad}$`, 'm'));
+    }
+  });
+
+  it('ROBOTS_MERGE_BOTS = stance skoruna giren VE belgeli botlar; stance olcumu tum listeyi kullanmaya devam eder', () => {
+    expect(ROBOTS_MERGE_BOTS.every((b) => b.documented && b.category !== 'user-triggered')).toBe(true);
+    expect(STANCE_SCORED_BOTS.length - ROBOTS_MERGE_BOTS.length).toBe(6);
+    expect(KNOWN_AI_BOTS).toHaveLength(27);
+  });
+
+  it('dosyada belgesiz bir bot zaten anilmissa dokunulmaz (mevcut satir korunur)', () => {
+    const txt = 'User-agent: Bytespider\nDisallow: /\n\nUser-agent: *\nAllow: /\n';
+    const r = mergeRobotsTxt(txt, { contentSignal: null });
+    expect(r.content.startsWith(txt)).toBe(true);
+    expect(r.addedBots).not.toContain('Bytespider');
+    expectAccessUnchanged(txt, r.content);
   });
 });
 

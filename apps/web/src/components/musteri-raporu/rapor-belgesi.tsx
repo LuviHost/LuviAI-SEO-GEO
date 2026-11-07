@@ -505,7 +505,7 @@ function GeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
 
       {!geo.robots.olculemedi && geo.robots.aramaBotlari.length > 0 && (
         <>
-          <AltBaslik>AI arama botlarının erişimi</AltBaslik>
+          <AltBaslik>Arama botlarının erişimi</AltBaslik>
           <div className="rapor-blok flex flex-wrap gap-2">
             {geo.robots.aramaBotlari.map((b) => (
               <Rozet key={b.ad} ton={b.erisim === 'acik' ? 'success' : 'danger'}>

@@ -376,7 +376,7 @@ Her yazıyı aynı iskelete sokma: başlık, liste ve tablo yapısını konunun 
    - **Madde işaretli liste:** sıra önemsizse (kalemler, kriterler, seçenekler, örnekler).
    Sıralı olmayan içeriği numaralandırmak yanlış sinyal verir; AI motorları listeyi "adım" sanır. Doğru tipi seç, ikisini birden zorlama.
    - **Tablo:** yalnız metinde gerçekten karşılaştırılan veri varsa (seçenekler, oranlar, tarifeler, kriterler). Karşılaştırılacak veri yoksa tablo ekleme; dolgu tablo uydurma.
-4. **İstatistik blockquote:** Makalede en az 1 \`<blockquote cite="KAYNAK-URL">\` ile sayısal istatistik veya alıntı (AI source attribution alır).
+4. **Kaynaklı alıntı (varsa):** Konuyla doğrudan ilgili, kaynağı gösterilebilen bir istatistik ya da alıntı varsa \`<blockquote cite="KAYNAK-URL">\` ile ver. Yoksa ekleme; yalnız sayı olsun diye istatistik arama (bağımsız denemelerde istatistik eklemek alıntılanmayı artırmadı).
 5. **Yazar imzası:** Sonuç bölümünden sonra "**Bu makale [yazar/kurum] tarafından hazırlandı.**" satırı (E-E-A-T sinyali). Buraya persona YAZMA — persona okuyucu profilidir, yazar değil.
 6. **Son güncelleme tarihi:** Makale sonunda GÖRÜNÜR "*Son güncelleme: YYYY-MM-DD*" satırı (AI tazelik filtresi). Frontmatter'daki tarih yetmez, gövdede de olacak.
 7. **Kaynaklı sayı zorunluluğu (YMYL — vergi/faiz/kredi):** Yazdığın her oran, tutar, faiz, vergi ve komisyon rakamının yanında resmî kaynak olacak: markdown link (GİB, TÜİK, TCMB, Resmî Gazete, mevzuat.gov.tr, KOSGEB, SGK gibi) ya da aynı paragrafta "Kaynak: ..." satırı. Kaynağını gösteremeyeceğin sayıyı YAZMA — sayıyı çıkarıp niteliksel anlat. Uydurma istatistik tek başına revizyon sebebidir.

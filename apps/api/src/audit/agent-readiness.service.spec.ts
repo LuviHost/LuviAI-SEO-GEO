@@ -160,15 +160,15 @@ describe('AgentReadinessService.collect — kok dosyalar, katalog kartlari, tica
 });
 
 describe('AgentReadinessService.scan', () => {
-  it('kok dosyalar origin kokunde aranir, ana sayfa site adresinden okunur; v3 kaydedilir', async () => {
+  it('kok dosyalar origin kokunde aranir, ana sayfa site adresinden okunur; v4 kaydedilir', async () => {
     const { svc, created } = build();
     const r = await svc.scan('s1');
     expect(requested).toContain('https://x.com/robots.txt');
     expect(requested).toContain('https://x.com/.well-known/ai-catalog.json');
     expect(requested).toContain('https://x.com/tr');
     expect(requested).not.toContain('https://x.com/tr/robots.txt');
-    expect(created[0].scoreVersion).toBe(3);
-    expect(r.scoreVersion).toBe(3);
+    expect(created[0].scoreVersion).toBe(4);
+    expect(r.scoreVersion).toBe(4);
   });
 
   it('engelli tarama: status blocked, skor dustu bildirimi YOK, engel bir kez bildirilir', async () => {

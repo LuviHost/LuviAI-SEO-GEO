@@ -72,9 +72,10 @@ const SNIPPET_CHECKS = new Set([
  * birlestirme (robots-merge.ts) mevcut hicbir Disallow'u kaldirmaz: onizleme
  * engeli kaldiramaz. Engel bilincli bir tercih de olabilir — karar site
  * sahibinin. Egitim botu engeli (robots_ai_training_blocked) ayni nedenle
- * burada: o da yalniz Disallow kaldirilarak "duzelir".
+ * burada: o da yalniz Disallow kaldirilarak "duzelir". Googlebot / Bingbot
+ * engeli (robots_search_engine_blocked, yontem v3) da ayni nedenle elle.
  */
-const MANUAL_ISSUE_TYPES = new Set(['robots_ai_search_blocked', 'robots_ai_training_blocked']);
+const MANUAL_ISSUE_TYPES = new Set(['robots_ai_search_blocked', 'robots_ai_training_blocked', 'robots_search_engine_blocked']);
 
 export function isAutoFixKey(key: string | null | undefined): boolean {
   return !!key && Object.prototype.hasOwnProperty.call(AUTO_FIX_CANONICAL, key);
