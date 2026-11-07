@@ -14,9 +14,13 @@ import { toCsv } from '../prospect/prospect-utils.js';
 import {
   type EpostaKimlik, SEKTOR_META, firmaKisa, isimsizHitap, konuSatiri, metinBlogu, metinSablon, sablonSektoru, sektorSorusu,
 } from '../prospect/eposta-sablon.js';
+import { type KisiselVeri, kisiselDegiskenler } from './kisisel.js';
 
-/** Disa aktarim CSV sutunlari (aracta {{sutun}} olarak kullanilir) */
-export const SOGUK_SUTUNLAR = ['email', 'firma', 'firma_tam', 'sektor', 'sektor_sorusu', 'varyant', 'konu', 'ret_url', 'web'] as const;
+/** Disa aktarim CSV sutunlari (aracta {{sutun}} olarak kullanilir). Son dordu yalniz kisisel sablonda dolu. */
+export const SOGUK_SUTUNLAR = [
+  'email', 'firma', 'firma_tam', 'sektor', 'sektor_sorusu', 'varyant', 'konu', 'ret_url', 'web',
+  'faaliyet', 'ornek_soru', 'olcum_tarihi', 'olcum_cumlesi',
+] as const;
 
 /**
  * Ret imzasi icin sir. NEDEN ayri ad + NEXTAUTH yedegi: gonderilmis maillerdeki linkler aylarca calismali; sir
@@ -109,30 +113,43 @@ export function sogukSablonlar(sektor: string, k: EpostaKimlik): SogukSablon[] {
   ];
 }
 
-export type SogukHedef = { email: string; firma: string; marka: string | null; sektor: string; varyant: string; web: string | null };
+export type SogukHedef = {
+  email: string; firma: string; marka: string | null; sektor: string; varyant: string; web: string | null;
+  /** Hazir kisisel veri (kisiselOku ile dogrulanmis). Ajans disinda varsa Sablon K kullanilir. */
+  kisisel?: KisiselVeri | null;
+};
+
+/** Kisisel sablon kullanilacak mi: ajans kendi is birligi metnini alir */
+export function kisiselMi(h: Pick<SogukHedef, 'sektor' | 'kisisel'>): h is { sektor: string; kisisel: KisiselVeri } {
+  return !!h.kisisel && h.sektor !== 'ajans';
+}
 
 export function sogukSatir(h: SogukHedef, sir: string, base: string): Record<(typeof SOGUK_SUTUNLAR)[number], string> {
-  const firma = h.marka?.trim() || firmaKisa(h.firma);
+  const kisisel = kisiselMi(h) ? h.kisisel : null;
+  // Elle girilen marka > kisisel hazirlikta siteden okunan marka > unvandan kisaltma ("avasya.com.tr ekibi" olmasin)
+  const firma = h.marka?.trim() || kisisel?.marka || firmaKisa(h.firma);
   const varyant = h.varyant === 'B' ? 'B' : 'A';
-  // Sablon secimi (B2B firma Sablon B'nin alisveris metnini almaz) — bkz. sablonSektoru
-  const sektor = sablonSektoru(h.firma, h.sektor, h.web);
+  // Sablon secimi: kisisel veri varsa Sablon K; yoksa sektor (B2B firma Sablon B'nin alisveris metnini almaz)
+  const sektor = kisisel ? 'kisisel' : sablonSektoru(h.firma, h.sektor, h.web);
+  const k = kisisel ? kisiselDegiskenler(kisisel) : { faaliyet: '', ornek_soru: '', olcum_tarihi: '', olcum_cumlesi: '' };
   return {
     email: normal(h.email),
     firma,
     firma_tam: h.firma,
     sektor,
-    sektor_sorusu: sektorSorusu(h.firma, sektor, undefined, h.web),
+    sektor_sorusu: kisisel ? kisisel.soru : sektorSorusu(h.firma, sektor, undefined, h.web),
     varyant,
     konu: konuSatiri(sektor, varyant, firma),
     ret_url: retUrl(h.email, sir, base),
     web: h.web ?? '',
+    ...k,
   };
 }
 
 /** Disa aktarim paketi: CSV + sektor basina sablon metni (aracta bir kez yapistirilir) */
 export function sogukPaket(hedefler: SogukHedef[], k: EpostaKimlik, sir: string, base: string): { csv: string; sablonlar: string } {
   const csv = toCsv(hedefler.map((h) => sogukSatir(h, sir, base)), [...SOGUK_SUTUNLAR]);
-  const sektorler = [...new Set(hedefler.map((h) => sablonSektoru(h.firma, h.sektor, h.web)))].sort();
+  const sektorler = [...new Set(hedefler.map((h) => (kisiselMi(h) ? 'kisisel' : sablonSektoru(h.firma, h.sektor, h.web))))].sort();
   const parcalar = [
     'RanksUp — soğuk gönderim şablonları',
     'Değişkenler CSV sütunlarıdır: {{firma}}, {{konu}}, {{sektor_sorusu}}, {{ret_url}} …',

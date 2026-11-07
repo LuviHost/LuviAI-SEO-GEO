@@ -200,6 +200,39 @@ Aydınlatma metni: ranksup.ai/kvkk#kurumsal-iletisim · Bu iletiyi almak istemiy
 (3 iş günü içinde durduruyoruz.)
 ```
 
+## Şablon K — Kişisel (07.11.2026'dan itibaren ajans dışı tüm ilk mailler)
+
+Firmanın sitesinden üretilen faaliyet cümlesi, müşterisinin AI asistanına soracağı soru ve o sorunun
+ChatGPT + Perplexity'deki o günkü cevabı (apps/api/src/eposta-kampanya/kisisel.ts). Değişkenler:
+`{{faaliyet}}` (ikinci çoğul şahıs tek cümle), `{{olcum_tarihi}}` ("7 Kasım"), `{{ornek_soru}}`,
+`{{olcum_cumlesi}}` (koddan kurulur, LLM yazmaz). Hazırlanamayan firmaya bu mail gitmez; genel metne
+dönüş yok.
+
+```
+Sayın {{ad}} {{soyad}},
+
+Sitenize baktım: {{faaliyet}}
+
+Bu alanda arayış içindeki müşteriler artık soruyu yalnız Google'a değil, ChatGPT gibi bir yapay zekâ asistanına da soruyor. {{olcum_tarihi}} tarihinde ChatGPT'ye ve Perplexity'ye şunu sorduk:
+
+"{{ornek_soru}}"
+
+{{olcum_cumlesi}}
+
+Bu tek bir soru ve tek günün sonucu; asistanların cevabı günden güne değişebiliyor. İsterseniz {{firma}} için müşterilerinizin sorabileceği 8-10 soruyu altı yapay zekâ asistanında ölçüp hangi sorularda önerildiğinizi, hangilerinde başkalarının öne çıktığını tek sayfalık bir raporda paylaşayım. Ücretsizdir; sonucu yalnız sizinle paylaşırım.
+
+Uygun olursa 15 dakikalık bir görüşmede raporu birlikte açabiliriz.
+
+Saygılarımla,
+{{gonderen_ad}}
+{{gonderen_unvan}}
+{{gonderen_adres}} · MERSİS {{mersis}} · ranksup.ai
+
+Bu ileti, 6563 sayılı Kanun md. 6/2 kapsamında tacir alıcıya gönderilen bir ticari elektronik iletidir; İYS üzerinden kaydedilmiştir.
+Aydınlatma metni: ranksup.ai/kvkk#kurumsal-iletisim · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
+(3 iş günü içinde durduruyoruz.)
+```
+
 ---
 
 ## 5. Takip 1 (D+4, yalnız açanlara)

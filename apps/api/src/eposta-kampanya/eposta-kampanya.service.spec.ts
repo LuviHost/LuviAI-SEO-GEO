@@ -20,6 +20,7 @@ function sahtePrisma(hedefler: any[]) {
     if (!w) return true;
     for (const [k, v] of Object.entries<any>(w)) {
       if (k === 'OR') { if (!v.some((x: any) => eslesir(h, x))) return false; continue; }
+      if (k === 'AND') { if (!v.every((x: any) => eslesir(h, x))) return false; continue; }
       if (k === 'NOT') { if (eslesir(h, v)) return false; continue; }
       if (!alan(h, k, v)) return false;
     }
@@ -392,6 +393,69 @@ describe('Resend kanali', () => {
     expect((await svc2.tick()).neden).toMatch(/429/);
     expect(await svc2['kv']('eposta-kampanya:duraklatildi')).toBeNull();
     expect(p2.hedefler[0]).toMatchObject({ durum: 'SIRADA', sonOlay: null });
+  });
+
+  const kisisel = (anildi: [boolean, boolean]) => ({
+    surum: 1, marka: 'Avasya', faaliyet: 'Kurumsal firmalara bulut, siber güvenlik ve veri merkezi çözümleri sunuyorsunuz.',
+    soru: "İstanbul'da kurumsal sistem entegratörü firmalar hangileri?",
+    olcum: { tarih: '2026-10-26T09:00:00Z', asistanlar: [{ ad: 'ChatGPT', olculdu: true, anildi: anildi[0] }, { ad: 'Perplexity', olculdu: true, anildi: anildi[1] }], gecenler: ['netas.com.tr', 'glasshouse.com.tr'] },
+  });
+  const b2b = (i: number, k: any, durum: string | null = 'HAZIR', at = new Date('2026-10-26T09:00:00Z')) => ({
+    ...hedef(i), firma: 'avasya.com.tr', sektor: 'eticaret-perakende-teknoloji', web: 'avasya.com.tr', kisisel: k, kisiselDurum: durum, kisiselAt: at,
+  });
+
+  it('ajans disi hedef yalniz kisisel metni HAZIR ve tazeyken gider; Sablon K, firma adi siteden, olcum cumlesi', async () => {
+    const fetchMock = vi.fn(async (_u: string, init: any) => cevap(200, { data: JSON.parse(init.body).map((_: unknown, i: number) => ({ id: `re-${i}` })) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const p = sahtePrisma([
+      b2b(1, kisisel([false, false])),
+      b2b(2, null, null),                                                  // hazirlanmamis → gitmez
+      b2b(3, { neden: 'Site uygun değil' }, 'INCELE'),                     // incele → gitmez
+      b2b(4, kisisel([true, false]), 'HAZIR', new Date('2026-10-10T09:00:00Z')), // olcumu eskimis → gitmez
+    ]);
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    const r = await svc.tick();
+    expect(r).toMatchObject({ gonderildi: 1, hata: 0 });
+    const [m] = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(m.subject).toBe("Avasya: ChatGPT'ye sektörünüzü sorduk");
+    expect(m.text).toContain('Merhaba Avasya ekibi,');
+    expect(m.text).toContain('Sitenize baktım: Kurumsal firmalara bulut, siber güvenlik ve veri merkezi çözümleri sunuyorsunuz.');
+    expect(m.text).toContain("26 Ekim tarihinde ChatGPT'ye ve Perplexity'ye şunu sorduk:");
+    expect(m.text).toContain('"İstanbul\'da kurumsal sistem entegratörü firmalar hangileri?"');
+    expect(m.text).toContain('İki asistanın cevabında da yoktunuz. Cevaplarda öne çıkanlar: netas.com.tr ve glasshouse.com.tr.');
+    expect(m.text).not.toMatch(/alışveriş|telefon almak|\{\{/);
+    expect(p.hedefler.map((h: any) => h.durum)).toEqual(['GONDERILDI', 'SIRADA', 'SIRADA', 'SIRADA']);
+  });
+
+  it('hic hazir adres yoksa gonderim yok ve neden soylenir', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const p = sahtePrisma([b2b(1, null, null)]);
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    expect((await svc.tick()).neden).toMatch(/Kişisel metni hazır adres yok \(1 adres sırada/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('HAZIR ama JSON bozuk: genel metne dusmez, INCELE olur', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const p = sahtePrisma([b2b(1, { surum: 1, marka: 'X' })]);
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    expect((await svc.tick()).neden).toBe('Sahiplenilecek adres kalmadı');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(p.hedefler[0]).toMatchObject({ durum: 'SIRADA', sonOlay: null, kisiselDurum: 'INCELE' });
+  });
+
+  it('onizleme: hazir olmayan hedefte metin uretilmez', async () => {
+    const p = sahtePrisma([b2b(1, kisisel([true, true])), b2b(2, { neden: 'Ana sayfa okunamadı' }, 'INCELE')]);
+    const svc = new EpostaKampanyaService(p as any);
+    const a = await svc.onizleme('h1');
+    expect(a.hazir).toBe(true);
+    expect(a.govde).toContain('İki asistan da cevabında sizi andı.');
+    expect(await svc.onizleme('h2')).toEqual({ hazir: false, neden: 'İncelenmeli: Ana sayfa okunamadı' });
   });
 
   it('ag hatasi: gitmis olabilir → isaret kalir (tekrar gonderilmez), duraklar', async () => {

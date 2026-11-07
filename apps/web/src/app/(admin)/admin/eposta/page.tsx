@@ -13,7 +13,7 @@ import { MetricCard } from '@/components/ui/metric';
 import { cn } from '@/lib/utils';
 import { csvParcala } from '@/lib/csv-parcala';
 import {
-  Mail, RefreshCw, Send, Upload, Download, CheckCircle2, MousePointerClick, Eye, Ban, ShieldCheck, Webhook, Linkedin, Play,
+  Mail, RefreshCw, Send, Upload, Download, CheckCircle2, MousePointerClick, Eye, Ban, ShieldCheck, Webhook, Linkedin, Play, Sparkles,
 } from 'lucide-react';
 
 /**
@@ -142,6 +142,18 @@ export default function EpostaKampanyaPage() {
               <Send className="mr-1.5 h-3.5 w-3.5" />Şimdi bir tur gönder
             </Button>
             <Button
+              variant="outline"
+              size="sm"
+              disabled={!!mesgul || sirada === 0}
+              title="Sıradaki firmaların sitesini okuyup kişisel metni ve ChatGPT/Perplexity ölçümünü hazırlar (firma başına ~1 dk, en fazla 4)"
+              onClick={() => is('hazirla', async () => {
+                const r = await api.epostaKisiselHazirla();
+                toast.info(r.neden ?? `${r.hazirlanan} hazırlandı · ${r.incele} incelemeye düştü${r.ertelenen ? ` · ${r.ertelenen} sonraya kaldı` : ''} · stok ${r.stok}`);
+              })}
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />Kişisel metin hazırla
+            </Button>
+            <Button
               size="sm"
               variant={o.acik ? 'outline' : 'default'}
               disabled={!!mesgul}
@@ -153,6 +165,12 @@ export default function EpostaKampanyaPage() {
         }
       />
 
+      {o.kisisel && sirada > 0 && (
+        <StatusBanner tone={(o.kisisel.HAZIR ?? 0) > 0 ? 'info' : 'warning'} title={`Kişisel metin: ${o.kisisel.HAZIR ?? 0} hazır · ${o.kisisel.BEKLIYOR ?? 0} bekliyor · ${o.kisisel.INCELE ?? 0} incelenecek`}>
+          Ajans dışındaki her firmaya mail yalnız kişisel metni hazırsa gider: sitesinden okunan faaliyet cümlesi, müşterisinin AI&apos;a soracağı soru ve o sorunun ChatGPT + Perplexity&apos;deki cevabı.
+          Hazırlanamayan firma &ldquo;İncele&rdquo;ye düşer ve gönderilmez; genel metne dönüş yok. Worker her turdan önce stoğu günlük kotanın iki katına tamamlar.
+        </StatusBanner>
+      )}
       {o.sorunlar.length > 0 && (
         <StatusBanner tone="danger" title="Gönderim yapılamaz — eksik ayar">
           <ul className="list-disc pl-4">{o.sorunlar.map((s) => <li key={s}>{s}</li>)}</ul>
@@ -422,6 +440,7 @@ function Satir({ h, mesgul, is, duzMetin }: { h: EpostaHedef; mesgul: boolean; i
         <div className="font-medium">{h.marka || h.firma}</div>
         <div className="text-xs text-muted-foreground">{SEKTOR[h.sektor] ?? h.sektor}{h.web ? ` · ${h.web}` : ''}</div>
         {h.not && <div className="mt-1 text-xs text-muted-foreground">Not: {h.not}</div>}
+        <KisiselOzet h={h} mesgul={mesgul} is={is} />
       </td>
       <td className="py-2 pr-3 font-mono text-xs">{h.email}</td>
       <td className="py-2 pr-3">
@@ -473,5 +492,56 @@ function Satir({ h, mesgul, is, duzMetin }: { h: EpostaHedef; mesgul: boolean; i
         </div>
       </td>
     </tr>
+  );
+}
+
+/** Kisisel mail ozeti: hazirsa soru + olcum (+ onizleme), INCELE ise neden + yeniden dene */
+function KisiselOzet({ h, mesgul, is }: { h: EpostaHedef; mesgul: boolean; is: (ad: string, f: () => Promise<void>) => Promise<void> }) {
+  const [onizleme, setOnizleme] = useState<{ konu?: string; govde?: string; neden?: string } | null>(null);
+  if (h.sektor === 'ajans' || h.durum !== 'SIRADA') return null;
+  const k = h.kisisel;
+  const onizle = () => is('onizle', async () => {
+    const r = await api.epostaOnizleme(h.id);
+    setOnizleme(r.hazir ? { konu: r.konu, govde: r.govde } : { neden: r.neden });
+  });
+  if (h.kisiselDurum === 'INCELE') {
+    return (
+      <div className="mt-1 max-w-md space-y-1 text-xs">
+        <div className="text-warning">Gönderilmez — {k?.neden ?? 'incelenmeli'}</div>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" disabled={mesgul} onClick={() => void is('sifirla', async () => { await api.epostaKisiselSifirla(h.id); toast.success('Yeniden hazırlanacak'); })}>
+          Yeniden dene
+        </Button>
+      </div>
+    );
+  }
+  if (h.kisiselDurum !== 'HAZIR' || !k?.soru) {
+    return <div className="mt-1 text-xs text-muted-foreground">{h.kisiselDurum === 'HAZIRLANIYOR' ? 'Kişisel metin hazırlanıyor…' : 'Kişisel metin bekliyor'}</div>;
+  }
+  return (
+    <div className="mt-1 max-w-md space-y-1 text-xs">
+      <div className="text-muted-foreground">{k.faaliyet}</div>
+      <div>&ldquo;{k.soru}&rdquo;</div>
+      <div className="flex flex-wrap gap-1.5">
+        {k.olcum?.asistanlar.map((a) => (
+          <span key={a.ad} className={cn('rounded px-1.5 py-0.5', a.anildi ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground')}>
+            {a.ad}: {a.anildi ? 'andı' : 'yok'}
+          </span>
+        ))}
+        {k.olcum?.gecenler.length ? <span className="text-muted-foreground">öne çıkan: {k.olcum.gecenler.join(', ')}</span> : null}
+      </div>
+      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" disabled={mesgul} onClick={() => (onizleme ? setOnizleme(null) : void onizle())}>
+        <Eye className="mr-1 h-3 w-3" />{onizleme ? 'Önizlemeyi kapat' : 'Maili önizle'}
+      </Button>
+      {onizleme && (
+        <div className="rounded-md border bg-muted/40 p-2">
+          {onizleme.neden ? <div className="text-warning">{onizleme.neden}</div> : (
+            <>
+              <div className="mb-1 font-medium">Konu: {onizleme.konu}</div>
+              <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{onizleme.govde}</pre>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

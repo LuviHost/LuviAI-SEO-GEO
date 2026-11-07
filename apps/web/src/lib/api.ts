@@ -679,6 +679,19 @@ export interface EpostaHedef {
   not: string | null;
   /** Ayni firmanin LinkedIn kanalindaki en ileri durumu (kisi adi donmez) */
   linkedin: { durum: string; kisi: number } | null;
+  /** Kisisel mail: HAZIRLANIYOR | HAZIR | INCELE | null (henuz hazirlanmadi) */
+  kisiselDurum?: string | null;
+  kisiselAt?: string | null;
+  /** HAZIR iken faaliyet + soru + olcum; INCELE iken { neden } */
+  kisisel?: EpostaKisisel | null;
+}
+
+export interface EpostaKisisel {
+  marka?: string;
+  faaliyet?: string;
+  soru?: string;
+  neden?: string;
+  olcum?: { tarih: string; asistanlar: Array<{ ad: string; olculdu: boolean; anildi: boolean }>; gecenler: string[] };
 }
 
 export interface EpostaOverview {
@@ -696,6 +709,8 @@ export interface EpostaOverview {
   sorunlar: string[];
   kota: { bugun: number; gunluk: number; ay: number; aylik: number };
   sayilar: Partial<Record<EpostaHedefDurum, number>>;
+  /** Siradaki ajans disi adreslerin kisisel mail durumu (BEKLIYOR = henuz hazirlanmadi) */
+  kisisel?: Partial<Record<'BEKLIYOR' | 'HAZIRLANIYOR' | 'HAZIR' | 'INCELE', number>>;
   metrik: { gonderilen: number; acilan: number; tiklanan: number; son7: { gonderilen: number; bounce: number; spam: number } };
   iysPartileri: Array<{ parti: string; adet: number; olusturuldu: string | null }>;
   liste: EpostaHedef[];
@@ -1938,6 +1953,10 @@ export const api = {
   epostaWebhookKur: (zorla = false) =>
     request<{ kurulan: string[]; hatalar: string[]; cakisan: Array<{ tur: string; url: string }> }>('/eposta/webhook-kur', { method: 'POST', body: JSON.stringify({ zorla }) }),
   epostaTick: () => request<{ gonderildi: number; hata: number; neden: string }>('/eposta/tick', { method: 'POST' }),
+  epostaKisiselHazirla: () =>
+    request<{ hazirlanan: number; incele: number; ertelenen: number; stok: number; neden?: string }>('/eposta/kisisel/hazirla', { method: 'POST' }),
+  epostaOnizleme: (id: string) => request<{ hazir: boolean; neden?: string; konu?: string; govde?: string }>(`/eposta/hedef/${encodeURIComponent(id)}/onizleme`),
+  epostaKisiselSifirla: (id: string) => request<{ ok: true }>(`/eposta/hedef/${encodeURIComponent(id)}/kisisel-sifirla`, { method: 'POST' }),
   getLinkedinOverview: () => request<LinkedinOverview>('/intel/linkedin/overview'),
   /**
    * Tek istekte en fazla ~400 satir gonderin (lib/linkedin-import.ts runImportBatches):
