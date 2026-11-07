@@ -24,7 +24,7 @@ function controller() {
     unscheduleArticle: vi.fn(async () => ({ ok: true })),
   };
   const translator = { translate: vi.fn(async () => ({ ok: true })), bulkTranslateSite: vi.fn(async () => ({ scheduled: 0, results: [] })) };
-  const ctl = new ArticlesController(articles as any, scheduler as any, {} as any, translator as any, {} as any);
+  const ctl = new ArticlesController(articles as any, scheduler as any, translator as any, {} as any);
   return { ctl, articles, scheduler, translator };
 }
 

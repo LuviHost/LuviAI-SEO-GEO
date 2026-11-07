@@ -71,7 +71,7 @@ describe('ArticlesController — rotalar', () => {
       markPublishedEntryUpdated: vi.fn(async () => ({ ok: true })),
       forgetPublishedEntry: vi.fn(async () => ({ ok: true })),
     };
-    const ctl = new ArticlesController(articles as any, {} as any, {} as any, {} as any, {} as any);
+    const ctl = new ArticlesController(articles as any, {} as any, {} as any, {} as any);
     const params = Object.assign(new PublishedEntryParamsDto(), { siteId: S, articleId: A, targetId: T });
     await ctl.markPublishedEntryUpdated(params);
     await ctl.forgetPublishedEntry(params);

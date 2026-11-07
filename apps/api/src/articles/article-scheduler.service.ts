@@ -7,6 +7,7 @@ import { automationPublishFields, type PublishApprovalSite } from './publish-app
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 import { automaticGenerationAllowed } from '../billing/trial-policy.js';
 import { explicitContentPlan, findRankerTopicHint, rankerPlanFromHint, rankerPlanFromTopic, withContentPlan } from './content-plan.js';
+import { sayacAnahtari, son7GunAnahtarlari, tavanAcikMi, trGunAnahtari } from './site-yayin-tavani.js';
 
 /**
  * Takvimin gecikmeli uretim isinin BullMQ kimligi: makale basina tekil, ayni
@@ -256,19 +257,21 @@ export type ScheduledDispatchResult =
  * uretilmez. 'trial_manual_only': yazi SCHEDULED ve hesap denemede; otomasyon deneme
  * hesabinda uretmez (trial-policy.ts), yazi takvimde kullanicinin "Simdi uret"ini bekler.
  */
-export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted' | 'attempt_refunded' | 'trial_manual_only';
+export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted' | 'attempt_refunded' | 'trial_manual_only' | 'site_rate_limited';
 
 /**
  * Uretim isinin atlama nedeni (worker is sonucuna yazar), sahiplik kararina gore.
  * NEDEN tek tablo: worker 'quota_exhausted'i 'ALREADY_CLAIMED' diye yaziyordu;
  * hakki dolu oldugu icin uretilmeyen yazi is kaydinda "baskasi aldi" gorunuyordu.
  */
-export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED' | 'ATTEMPT_REFUNDED' | 'TRIAL_MANUAL_ONLY'>> = Object.freeze({
+export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED' | 'ATTEMPT_REFUNDED' | 'TRIAL_MANUAL_ONLY' | 'SITE_RATE_LIMITED'>> = Object.freeze({
   article_missing: 'ARTICLE_MISSING',
   already_claimed: 'ALREADY_CLAIMED',
   quota_exhausted: 'QUOTA_EXHAUSTED',
   attempt_refunded: 'ATTEMPT_REFUNDED',
   trial_manual_only: 'TRIAL_MANUAL_ONLY',
+  // Site basina otomatik uretim tavani dolu (site-yayin-tavani.ts): yazi SCHEDULED kalir, hak dusmez
+  site_rate_limited: 'SITE_RATE_LIMITED',
 });
 
 /**
@@ -679,7 +682,7 @@ export class ArticleSchedulerService {
     if (typeof articleId !== 'string' || !articleId) return 'proceed';
     const a = await this.prisma.article.findUnique({
       where: { id: articleId },
-      select: { status: true, agentOutputs: true, site: { select: { userId: true, user: { select: { plan: true } } } } },
+      select: { status: true, siteId: true, agentOutputs: true, site: { select: { userId: true, user: { select: { plan: true } } } } },
     });
     // Silinmis yaziya uretim: LLM maliyeti harcanir, sonunda kayit yok diye
     // hata verir ve is iki kez daha denenirdi
@@ -692,6 +695,8 @@ export class ArticleSchedulerService {
     // kuyruga atmadan once GENERATING yapar). Deneme hesabinda otomasyon uretmez:
     // yazi takvimde kalir, LLM harcanmaz (trial-policy.ts).
     if (!automaticGenerationAllowed((a.site as { user?: { plan?: string | null } | null }).user?.plan)) return 'trial_manual_only';
+    // Site basina otomatik uretim tavani (hak dusulmeden once bakilir; dolusa yazi SCHEDULED kalir)
+    if (!(await this.otoUretimTavaniAcik(a.siteId))) return 'site_rate_limited';
     const prepaid = hasAllowanceCharge(a.agentOutputs);
     if (!prepaid && !(await this.chargeArticle(userId))) return 'quota_exhausted';
     let claimed: boolean;
@@ -709,7 +714,32 @@ export class ArticleSchedulerService {
       throw err;
     }
     if (!claimed && !prepaid) await this.refundArticle(userId, articleId);
+    if (claimed) await this.otoUretimSay(a.siteId);
     return claimed ? 'proceed' : 'already_claimed';
+  }
+
+  /** Site bugun ve son 7 gunde otomatik uretim tavanini doldurmadi mi (site-yayin-tavani.ts) */
+  async otoUretimTavaniAcik(siteId: string, simdi = new Date()): Promise<boolean> {
+    const anahtarlar = son7GunAnahtarlari(siteId, simdi);
+    const satirlar = await this.prisma.kvStore.findMany({ where: { key: { in: anahtarlar } }, select: { key: true, value: true } });
+    const deger = new Map(satirlar.map((r) => [r.key, Number(r.value) || 0]));
+    const bugun = deger.get(anahtarlar[0]) ?? 0;
+    const hafta = anahtarlar.reduce((t, k) => t + (deger.get(k) ?? 0), 0);
+    return tavanAcikMi({ bugun, hafta });
+  }
+
+  /** Otomatik uretim sayacini artir (TR gunu, 8 gun sonra silinir). Hata uretimi durdurmaz. */
+  private async otoUretimSay(siteId: string, simdi = new Date()): Promise<void> {
+    const key = sayacAnahtari(siteId, trGunAnahtari(simdi));
+    try {
+      await this.prisma.$executeRawUnsafe(
+        'INSERT INTO `kv_store` (`key`, `value`, `expiresAt`, `updatedAt`) VALUES (?, ?, UTC_TIMESTAMP(3) + INTERVAL 8 DAY, UTC_TIMESTAMP(3)) ' +
+        'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS UNSIGNED) + 1 AS CHAR), `updatedAt` = UTC_TIMESTAMP(3)',
+        key, '1',
+      );
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Otomatik uretim sayaci yazilamadi: ${err?.message ?? err}`);
+    }
   }
 
   /**
@@ -750,6 +780,8 @@ export class ArticleSchedulerService {
     // Bu turda yazisi alinamayacak kullanicilar (hakki dolu ya da hakki
     // okunamadi): sonraki sorgular onlarin satirlarini hic getirmez
     const skipUsers = new Set<string>();
+    /** Bu turda otomatik uretim tavani dolan siteler */
+    const siteTavanDolu = new Set<string>();
     // Hakki okunamayanlar: ayni sorgudaki diger yazilari icin hak yeniden sorulmaz
     const quotaUnreadable = new Set<string>();
     // Anahtar kumesi imleci: okunan son satir. Kuyruga atilamayip SCHEDULED'a
@@ -814,9 +846,18 @@ export class ArticleSchedulerService {
             continue;
           }
         }
+        // Site basina otomatik uretim tavani: doluysa yazi SCHEDULED kalir (sonraki gun/hafta)
+        if (siteTavanDolu.has(a.siteId)) continue;
+        if (!(await this.otoUretimTavaniAcik(a.siteId))) {
+          siteTavanDolu.add(a.siteId);
+          continue;
+        }
         try {
           const r = await this.claimAndQueue(a, u.id, prepaid ? undefined : (limit ?? undefined));
-          if (r.outcome === 'queued') processed++;
+          if (r.outcome === 'queued') {
+            processed++;
+            await this.otoUretimSay(a.siteId);
+          }
           else if (r.outcome === 'already_claimed') alreadyClaimed++;
           else {
             // Son hak bu turda baska bir yaziya gitti: kullanicinin kalan yazilari bekler
