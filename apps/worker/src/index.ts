@@ -557,13 +557,16 @@ async function bootstrap() {
         });
       }
 
-      // Otopilot ON ise auto-fix (sitemap/llms) tetikle + ilk citation snapshot.
+      // Otopilot ON ise auto-fix (eksik sitemap) tetikle + ilk citation snapshot.
       // robots BILEREK yok: robots.txt yazimi onizleme + acik onay ister,
       // onaysiz kuyruk yolunda daima 'preview_required' doner (auto-fix.service.ts)
       // ve yalniz hata gurultusu uretirdi. Kullanici panelden onizleyip onaylar.
+      // llms.txt BILEREK yok (08.11.2026 kanit denetimi): Google yok sayiyor, Sistrix ve SE Ranking
+      // etkisini olcemedi; musterinin sunucusuna onizlemesiz dosya yazmanin karsiligi yok. Isteyen
+      // panelden elle olusturur.
       if (autopilot) {
         try {
-          await services.autoFix.runAutoFix(siteId, ['sitemap', 'llms']);
+          await services.autoFix.runAutoFix(siteId, ['sitemap']);
           log.log(`[${siteId}] Auto-fix tetiklendi (otopilot)`);
         } catch (err: any) {
           log.warn(`[${siteId}] Auto-fix atlandi: ${err.message}`);
