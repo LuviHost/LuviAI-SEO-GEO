@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 const PLANS = [
   { name: 'Büyüme',      price: '149',  desc: 'İki site, KOBİ ve freelancer için AI görünürlük ölçümü + içerik otomasyonu. Aylık 15 makale.' },
   { name: 'Profesyonel', price: '349',  desc: 'Büyüyen markalar için Apple Search Ads, App Store Connect ve App Prompt Lab dahil. Aylık 40 makale.' },
-  { name: 'Ajans',       price: '749',  desc: 'Çoklu site yönetimi, Programmatic SEO, Product Radar ve GEO Heatmap ile ajanslara özel.' },
+  { name: 'Ajans',       price: '749',  desc: 'Çoklu site yönetimi, Product Radar, GEO Heatmap ve Live Crawler ile ajanslara özel.' },
   { name: 'Kurumsal',    price: '1499', desc: 'BYOK, MCP sunucusu, REST API ve AI maliyet muhasebesiyle kurumsal ölçek.' },
 ];
 

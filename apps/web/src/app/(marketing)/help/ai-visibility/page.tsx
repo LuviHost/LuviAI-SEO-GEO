@@ -85,7 +85,7 @@ export default function Page() {
       <p>AI cevaplarında markan ve rakiplerin ne kadar yer kaplıyor: senin payın %X, rakiplerin %Y, %Z.</p>
 
       <h3>4. GEO yol haritası</h3>
-      <p>&ldquo;AI önerisi al&rdquo; alıntı testini çalıştırır ve sonuca göre <strong>5 uygulanabilir öneri</strong> üretir (örn. &ldquo;FAQ şeması ekle&rdquo;).</p>
+      <p>&ldquo;AI önerisi al&rdquo; alıntı testini çalıştırır ve sonuca göre <strong>5 uygulanabilir öneri</strong> üretir (örn. &ldquo;sık sorulan soruları sayfada görünür biçimde yanıtla&rdquo;).</p>
 
       <h2>Nasıl kullanırım?</h2>
       <Step n={1} title="AI Görünürlük sayfasına git">

@@ -93,7 +93,7 @@ const HARO_THROTTLE = { limit: 5, ttl: 60 * 60_000 };
 const KNOWLEDGE_AI_THROTTLE = { limit: 10, ttl: 60 * 60_000 };
 /** knowledge/wikidata: model cagrisi yok, yalniz DB okumasi — gevsek */
 const KNOWLEDGE_DRAFT_THROTTLE = { limit: 30, ttl: 60 * 60_000 };
-/** fanout/generate: tek model cagrisi; author-profile: brain'de bio yoksa tek model cagrisi */
+/** fanout/generate: tek model cagrisi */
 const SINGLE_AI_CALL_THROTTLE = { limit: 30, ttl: 60 * 60_000 };
 /**
  * Takili sayfa onarimi: sayfa basina bir model cagrisi (yaziyi yeniden yazar)
@@ -1125,14 +1125,10 @@ export class AuditController {
     res.send(xml);
   }
 
-  /** GET /sites/:siteId/audit/author-profile?persona=Mert — brain'de bio yoksa tek model cagrisi */
-  @UseGuards(SiteUserThrottlerGuard)
-  @Throttle({ [SITE_USER_THROTTLE]: SINGLE_AI_CALL_THROTTLE })
-  @Get('author-profile')
-  authorProfileGet(@Param('siteId') siteId: string, @Query('persona') persona: string) {
-    // Persona adi istem metnine girer: dize disi (dizi/nesne) ve uzun girdi kesilir
-    return this.authorProfile.buildForPersona(siteId, queryText(persona, 80) ?? 'Yazar');
-  }
+  // GET /sites/:siteId/audit/author-profile?persona=... KALDIRILDI (08.11.2026):
+  // persona icin modelle biyografi, uzmanlik ve tecrube yili uyduruyordu. Google
+  // uydurma yazar profilini aldatma sayar. Yazar bilgisi yalniz asagidaki
+  // author-profile/site ucundan, site sahibinin girdigi gercek bilgiyle gelir.
 
   /**
    * GET /sites/:siteId/audit/author-profile/site — sitenin kayitli GERCEK yazari (yoksa null).

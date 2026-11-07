@@ -185,7 +185,14 @@ export interface BasePlan {
  * ikisi sayilmaz; public-docs.spec.ts sayiyi katalogla denetler. Kosula
  * bagli ozellik kosulunu da yazar: keyword sira takibi ve takilmis sayfa
  * tespiti Search Console verisiyle calisir, geri alma yalniz RanksUp'in
- * yayinladigi yazida, sehir sayfalari kalan aylik makale hakki kadar.
+ * yayinladigi yazida.
+ *
+ * KANIT DENETIMI (08.11.2026): llms.txt bir avantaj olarak satilmaz (Google
+ * yok sayiyor, etkisi gosterilmedi); Agent Readiness maddesi yalniz robots.txt
+ * onizlemeli eklemesini ve eksik site haritasinin olusturulmasini yazar.
+ * Sehir sayfalari (programatik SEO) karttan kaldirildi: ozellik kapatiliyor
+ * (olcekli sablon sayfa). programmaticSeo anahtari plan kapisinda kalir,
+ * kod tarafini ayri PR kapatir.
  *
  * OLCUM MADDESI (18.10.2026): 16.10.2026'dan beri her hesap kayan 7 gunde 1
  * AI olcumu yapabilir (billing/measurement-allowance.ts; tum olcum araclari
@@ -297,7 +304,7 @@ export const BASE_PLANS: BasePlan[] = [
       'App Store Connect — sürüm senkronu, yorumları çekme + AI yanıt taslağı',
       'App Prompt Lab — AI asistanları uygulamanı öneriyor mu, ölç',
       'Screenshot Studio — AI arka plan + caption, 1290×2796 canvas editör',
-      'Agent Readiness (AXO) — AI bot ve ajan keşif dosyaları taraması; robots.txt / llms.txt / sitemap için önizlemeli düzeltme',
+      'Agent Readiness (AXO) — AI bot ve ajan keşif dosyaları taraması; robots.txt’e önizlemeli ekleme (mevcut kurallar korunur), site haritası yoksa oluşturulur',
       'Takılmış sayfa tespiti (Search Console ile) — LLM ile kurtarma; RanksUp’ın yayınladığı yazıda tek tıkla geri alma',
       'İçerik fırsatları — kaybettiğin promptlardan makale üretip yeniden ölçen kapalı döngü',
       `RanksUp Video — makale, site ve ürün tanıtım videoları, sitenin markasıyla (ayda ${VIDEOS_PER_MONTH.pro} video)`,
@@ -308,7 +315,7 @@ export const BASE_PLANS: BasePlan[] = [
       'App Store Connect — release sync, review ingest + AI reply drafts',
       'App Prompt Lab — measure whether AI assistants recommend your app',
       'Screenshot Studio — AI backgrounds + captions, 1290×2796 canvas editor',
-      'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed robots.txt / llms.txt / sitemap fixes',
+      'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed additions to robots.txt (existing rules kept), sitemap created if missing',
       'Stuck page detection (via Search Console) — LLM-driven recovery; one-click revert on articles RanksUp published',
       'Content opportunities — closed loop that writes for lost prompts and re-measures',
       `RanksUp Video — article, site and product promo videos in your site's branding (${VIDEOS_PER_MONTH.pro} videos/mo)`,
@@ -333,7 +340,6 @@ export const BASE_PLANS: BasePlan[] = [
     inheritsFrom: 'pro',
     features_tr: [
       '100 AI makale / ay · ayda en fazla 300 çalıştırma (ölçüm yine haftada 1) · 15 site',
-      'Programmatic SEO — tek şablonla 81 il için şehir sayfası; kalan aylık makale kotan kadar üretilir',
       'Product Radar — haftalık rakip ses payı ve kategori sırası',
       'GEO Heatmap — çoklu sağlayıcıda görünürlük ısı haritası',
       'Live Crawler — AI botlarının canlı akışı + sunucu logu yutma',
@@ -341,7 +347,6 @@ export const BASE_PLANS: BasePlan[] = [
     ],
     features_en: [
       '100 AI articles/mo · up to 300 runs/mo (still 1 measurement a week) · 15 sites',
-      'Programmatic SEO — one template, city pages for the 81 provinces; generated up to your remaining monthly article quota',
       'Product Radar — weekly competitor share-of-voice and category rank',
       'GEO Heatmap — multi-provider visibility heatmap',
       'Live Crawler — live AI bot stream + server log ingestion',

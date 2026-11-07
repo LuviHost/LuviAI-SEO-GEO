@@ -64,7 +64,7 @@ export default function Page() {
       <Step n={2} title={'Haftalık ölçüm: "AI önerisi al"'}>
         <strong>GEO yol haritası</strong> bölümündeki <strong>&ldquo;AI önerisi al&rdquo;</strong> butonuna bas: ChatGPT, Claude, Gemini, Perplexity, Grok ve
         DeepSeek&apos;e en fazla 5 soru sorulur, markanın anılıp anılmadığı ve sitenin kaynak gösterilip gösterilmediği ölçülür ve sonuca göre
-        5 uygulanabilir öneri üretilir (örn. &ldquo;FAQ şeması ekle&rdquo;). Hesap başına haftada bir AI ölçümü yapılabilir: grafikteki
+        5 uygulanabilir öneri üretilir (örn. &ldquo;sık sorulan soruları sayfada görünür biçimde yanıtla&rdquo;). Hesap başına haftada bir AI ölçümü yapılabilir: grafikteki
         <strong> &ldquo;Yeniden Test&rdquo;</strong> de aynı hakkı kullanır, sonucu ölçüm geçmişine kaydeder. Aynı hafta ikisinden birini seç.
       </Step>
       <Step n={3} title="İlk makaleni üret">

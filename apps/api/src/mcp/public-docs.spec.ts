@@ -302,10 +302,13 @@ describe('kart maddeleri = teslim edilen', () => {
     // Tespit Search Console ister; geri alma yalniz RanksUp'in yazisinda (STUCK_REVERT_EXTERNAL)
     expect(madde(tr, 'Takılmış sayfa')).toMatch(/Search Console[\s\S]*RanksUp’ın yayınladığı/);
     expect(madde(en, 'Stuck page')).toMatch(/Search Console[\s\S]*RanksUp published/);
-    // Sehir sayisi kalan aylik makale hakkiyla sinirli (programmatic-seo.service actualMax)
-    expect(madde(tr, 'Programmatic SEO')).toContain('makale kotan kadar');
-    expect(madde(en, 'Programmatic SEO')).toContain('remaining monthly article quota');
-    expect(madde(tr, 'Programmatic SEO')).not.toContain('tamamına');
+    // Sehir sayfalari (programatik SEO) satilmaz: ozellik kapatiliyor (08.11.2026 kanit denetimi;
+    // olcekli sablon sayfa). Anahtar plan kapisinda kalir (FEATURE_MIN_PLAN), kart maddesi yok.
+    for (const m of [...tr, ...en]) expect(m, m).not.toMatch(/Programmatic SEO|programatik SEO|81 il|81 provinces|şehir sayfa|city pages/i);
+    // Agent Readiness maddesi llms.txt'i satmaz; robots.txt onizlemeli, site haritasi yoksa olusturulur (auto-fix.service)
+    for (const m of [madde(tr, 'Agent Readiness'), madde(en, 'Agent Readiness')]) expect(m).not.toContain('llms.txt');
+    expect(madde(tr, 'Agent Readiness')).toMatch(/robots\.txt’e önizlemeli ekleme[\s\S]*site haritası yoksa oluşturulur/);
+    expect(madde(en, 'Agent Readiness')).toMatch(/previewed additions to robots\.txt[\s\S]*sitemap created if missing/);
   });
 });
 

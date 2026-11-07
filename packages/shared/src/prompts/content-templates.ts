@@ -320,7 +320,7 @@ const STAGE_HEADER: Record<TemplateStage, string> = {
 
 /**
  * Tipe göre prompt bloğu. 'guide' için BOŞ dize (bugünkü davranış).
- * Genel kurallar (Hızlı cevap, soru H2, Kısa cevap, SSS, Son güncelleme,
+ * Genel kurallar (Hızlı cevap, SSS, Son güncelleme,
  * kaynaklı sayı) şablonun üstünde geçerli kalır; şablon yalnız H2 iskeletini
  * ve tipe özgü zorunlu öğeleri belirler.
  */
@@ -339,7 +339,7 @@ export function contentTemplateBlock(type: ContentType, stage: TemplateStage): s
     }
   } else {
     lines.push(
-      'Genel kurallar (Hızlı cevap, soru formatlı H2, Kısa cevap satırları, SSS, Son güncelleme, kaynaklı sayı) aynen geçerli; bu şablon H2 iskeletini ve tipe özgü zorunlu öğeleri belirler. Şablondaki H2 adları soru biçimindedir (soru H2 oranı %50 kuralı), her birinin altında "> **Kısa cevap:**" olur; seçenekler / adımlar H3 ya da liste olarak yazılır.',
+      'Genel kurallar (Hızlı cevap, SSS, Son güncelleme, kaynaklı sayı) aynen geçerli; bu şablon H2 iskeletini ve tipe özgü zorunlu öğeleri belirler. Şablondaki H2 adları soru biçimindedir; seçenekler / adımlar H3 ya da liste olarak yazılır. H2 bölümlerine ayrıca "Kısa cevap" satırı eklemek zorunlu değil.',
       '',
       TEMPLATE_BODY[type],
     );

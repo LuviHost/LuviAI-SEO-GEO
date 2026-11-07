@@ -181,9 +181,17 @@ describe('contentTemplateBlock / withContentTemplate', () => {
     }
   });
 
-  it('sablon H2 adlari soru bicimi ister (soru H2 orani %50 kurali ile catismaz)', () => {
+  it('sablon H2 adlari soru bicimi ister (soru H2 orani onerisiyle catismaz)', () => {
     for (const t of ['comparison', 'best_for', 'alternatives', 'pricing', 'howto'] as const) {
       expect(contentTemplateBlock(t, 'writer')).toMatch(/H2 adları soru biçimindedir/);
+    }
+  });
+
+  it('sablon her H2 altinda "Kisa cevap" istemez (08.11.2026 kanit denetimi)', () => {
+    for (const t of ['comparison', 'best_for', 'alternatives', 'pricing', 'howto', 'listicle'] as const) {
+      const b = contentTemplateBlock(t, 'writer');
+      expect(b).not.toMatch(/her birinin altında "> \*\*Kısa cevap:\*\*" olur/);
+      expect(b).not.toMatch(/Kısa cevap satırları/);
     }
   });
 

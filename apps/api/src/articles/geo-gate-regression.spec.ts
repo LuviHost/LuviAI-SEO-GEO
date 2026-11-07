@@ -8,8 +8,9 @@ import { checkGeoGate as checkGeoGateV1 } from './fixtures/geo-gate-v1.js';
  * gecen makale yeni kurallar yuzunden durmamali.
  *
  * MOCK YOK: gercek checkGeoGate, dondurulmus eski kapiyla (fixtures/geo-gate-v1.ts,
- * main 9ebb3cc) ayni metinlerde karsilastirilir: karar ve engelleyici kodlar ayni,
- * geri bildirim metni "Öneriler" bolumu cikarilinca birebir ayni.
+ * main 9ebb3cc) ayni metinlerde karsilastirilir: gevseyen yapi kurallari
+ * (08.11.2026) disinda karar ve engelleyici kodlar ayni, geri bildirim metni
+ * "Öneriler" bolumu cikarilinca birebir ayni.
  */
 
 const OK_REST = `
@@ -67,21 +68,48 @@ const CORPUS: Array<[string, string]> = [
 /** Yeni geri bildirimden "Öneriler" (warn) bolumunu cikarir */
 const withoutSuggestions = (feedback: string) => feedback.replace(/\n\n### Öneriler[\s\S]*?(?=\n\nNot: )/, '');
 
-describe('rehber yolu: yeni kapi = eski kapi (karar, engelleyici kodlar, geri bildirim)', () => {
+/**
+ * 08.11.2026 kanit denetimi: rehber yolunda yapi kurallari gevsedi.
+ * MISSING_SHORT_ANSWER tamamen kalkti; NO_TABLE ve LOW_QUESTION_H2_RATIO
+ * oneriye (warn) indi. Ilke tek yonlu: eski kapinin gecirdigi makale yeni kapidan
+ * da gecer; geri kalan engelleyici bulgular (ornekleri dahil) birebir aynidir.
+ */
+const RELAXED_ON_GUIDE: ReadonlySet<string> = new Set(['NO_TABLE', 'MISSING_SHORT_ANSWER', 'LOW_QUESTION_H2_RATIO']);
+const NOW_WARN_ON_GUIDE: ReadonlySet<string> = new Set(['NO_TABLE', 'LOW_QUESTION_H2_RATIO']);
+
+describe('rehber yolu: yeni kapi = eski kapi, gevseyen yapi kurallari haric (karar, engelleyici kodlar, geri bildirim)', () => {
   it.each(CORPUS)('%s', (_name, md) => {
     const before = checkGeoGateV1(md);
+    const kept = before.issues.filter((i) => !RELAXED_ON_GUIDE.has(i.code));
+    const relaxed = before.issues.some((i) => RELAXED_ON_GUIDE.has(i.code));
     for (const after of [checkGeoGate(md), checkGeoGate(md, { contentType: 'guide' }), checkGeoGate(md, { contentType: 'guide', contentTypeSource: 'explicit' })]) {
-      expect(after.pass).toBe(before.pass);
+      if (before.pass) expect(after.pass).toBe(true);
+      expect(after.pass).toBe(kept.length === 0);
       const blockCodes = after.issues.filter((i) => i.severity === 'block').map((i) => i.code).sort();
-      expect(blockCodes).toEqual(before.issues.map((i) => i.code).sort());
-      // Engelleyici bulgularin ornekleri de ayni
-      for (const b of before.issues) {
+      expect(blockCodes).toEqual(kept.map((i) => i.code).sort());
+      // Kalan engelleyici bulgularin ornekleri de ayni
+      for (const b of kept) {
         expect(after.issues.find((i) => i.code === b.code && i.severity === 'block')?.samples).toEqual(b.samples);
       }
-      expect(withoutSuggestions(after.feedback)).toBe(before.feedback);
+      // "Kisa cevap" artik bulgu degil (oneri de degil); tablo / soru orani yalniz oneri
+      expect(after.issues.some((i) => (i.code as string) === 'MISSING_SHORT_ANSWER')).toBe(false);
+      for (const b of before.issues.filter((i) => NOW_WARN_ON_GUIDE.has(i.code))) {
+        expect(after.issues.find((i) => i.code === b.code)?.severity).toBe('warn');
+      }
+      if (!relaxed) expect(withoutSuggestions(after.feedback)).toBe(before.feedback);
       const hasWarn = after.issues.some((i) => i.severity === 'warn');
       expect(after.feedback.includes('### Öneriler')).toBe(!after.pass && hasWarn);
-      if (before.pass) expect(after.feedback).toBe('');
+      if (after.pass) expect(after.feedback).toBe('');
+    }
+  });
+
+  it('derlemde gevseyen kurallar gercekten tetikleniyor (bos test degil)', () => {
+    const v1Codes = (n: string) => checkGeoGateV1(CORPUS.find(([x]) => x === n)![1]).issues.map((i) => i.code);
+    expect(v1Codes('tablo yok')).toEqual(['NO_TABLE']);
+    expect(v1Codes('kisa cevap yok')).toEqual(['MISSING_SHORT_ANSWER']);
+    expect(v1Codes('soru H2 orani dusuk')).toEqual(['LOW_QUESTION_H2_RATIO']);
+    for (const n of ['tablo yok', 'kisa cevap yok', 'soru H2 orani dusuk']) {
+      expect(checkGeoGate(CORPUS.find(([x]) => x === n)![1]).pass).toBe(true);
     }
   });
 
@@ -94,7 +122,7 @@ describe('rehber yolu: yeni kapi = eski kapi (karar, engelleyici kodlar, geri bi
 });
 
 // ────────────────────────────────────────────────────────────
-//  Sablona uyan makale gercek kapidan gecer (soru H2 %50 kurali ile catisma yok)
+//  Sablona uyan makale gercek kapidan gecer (soru H2 orani onerisiyle catisma yok)
 // ────────────────────────────────────────────────────────────
 
 const TAIL = `

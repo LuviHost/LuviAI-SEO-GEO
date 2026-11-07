@@ -57,7 +57,6 @@ function controller(opts: { siteUrl?: string | null; stuck?: Record<string, { ar
   ctl.heatmap = { runForSite: vi.fn(async () => ({})) };
   ctl.opportunities = { reconcile: vi.fn(async () => undefined), list: vi.fn(async () => []) };
   ctl.personaChat = { ask: vi.fn(async () => ({ reply: 'ok', sources: [], cited: false })) };
-  ctl.authorProfile = { buildForPersona: vi.fn(async () => ({})) };
   ctl.snippets = { generateForPage: vi.fn(async () => []), bulkScan: vi.fn(async () => ({})) };
   return ctl;
 }
@@ -213,13 +212,18 @@ describe('sorgu parametreleri yalniz duz metin', () => {
     expect(ctl.communityAgent.list).toHaveBeenCalledWith('s1', { status: undefined });
   });
 
-  it('snippets: pageUrl dizisi 500 yerine anasayfa yoluna duser; author-profile persona kesilir', async () => {
+  it('snippets: pageUrl dizisi 500 yerine anasayfa yoluna duser', async () => {
     const ctl = controller();
     ctl.snippets.generateOrganizationJsonLd = vi.fn(async () => ({ type: 'organization' }));
     await ctl.getSnippets('s1', ['https://a', 'https://b'] as any);
     expect(ctl.snippets.generateForPage).toHaveBeenCalledWith('s1', 'https://ornek.com');
-    await ctl.authorProfileGet('s1', 'x'.repeat(500));
-    expect(ctl.authorProfile.buildForPersona).toHaveBeenCalledWith('s1', 'x'.repeat(80));
+  });
+
+  it('persona icin uydurma yazar profili ureten uc yok (08.11.2026: Google uydurma yazar profilini aldatma sayar)', async () => {
+    const ctl = controller();
+    expect((ctl as any).authorProfileGet).toBeUndefined();
+    const { AuthorProfileService } = await import('./author-profile.service.js');
+    expect((AuthorProfileService.prototype as any).buildForPersona).toBeUndefined();
   });
 });
 
@@ -269,7 +273,6 @@ describe('hiz siniri rota metadata', () => {
     ['wikipediaDraft', 10, 60 * 60_000],
     ['wikidataDraft', 30, 60 * 60_000],
     ['generateFanout', 30, 60 * 60_000],
-    ['authorProfileGet', 30, 60 * 60_000],
     ['recoverStuckPage', 30, 60 * 60_000],
     ['recoverBatch', 5, 60 * 60_000],
   ])('%s: SiteUserThrottlerGuard %i istek / %i ms', (handler, limit, ttl) => {

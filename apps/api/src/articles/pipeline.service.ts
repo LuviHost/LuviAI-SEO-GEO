@@ -392,8 +392,9 @@ export class PipelineService {
     //
     // Prompt'lardaki GEO kuralları doğruydu ama hiç ölçülmüyordu; editör
     // tamamen biçimsel bir LLM yargısıydı. Artık her turda metin regex ile
-    // ölçülüyor (tablo, "Kısa cevap", soru H2 oranı, görünür son güncelleme,
-    // kaynaksız sayı) ve kapı geçilmeden PASS kabul edilmiyor.
+    // ölçülüyor (görünür son güncelleme, kaynaksız sayı, açılış cevabı; tablo
+    // yalnız karşılaştırma/fiyat tiplerinde engel, soru H2 oranı öneri) ve
+    // kapı geçilmeden PASS kabul edilmiyor.
     let currentDraft = writer.output;
     // Başlangıç değeri FAIL değil REVIZE: hiç değerlendirme yapılmamış bir
     // taslağa "baştan yaz" hükmü vermek için elimizde kanıt yok.
