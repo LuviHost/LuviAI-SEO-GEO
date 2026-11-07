@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown, Minus, Sparkles, Rocket, Bot, Search, PartyPo
 import { api } from '@/lib/api';
 import { sinceGscDay } from '@/lib/gsc-coverage';
 import { geoImpact, formatTrDate } from '@/components/geo-impact';
+import { kararAciklamasi, olcumOf } from '@/lib/visibility-interval';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,7 +67,9 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
   const geoFirstAvg = g.firstAvg ?? 0;
   const geoLastAvg = g.lastAvg ?? 0;
   const geoGrowth = g.growthPct;
-  const geoDirection = geoLastAvg > geoFirstAvg ? 'up' : geoLastAvg < geoFirstAvg ? 'down' : 'flat';
+  // Yön aralık kararından (geo-impact.ts): görünme aralıkları örtüşüyorsa "anlamlı değişim yok"
+  const geoDirection = g.yon;
+  const geoKararIpucu = kararAciklamasi(olcumOf(geo)?.etki);
   const newEngines = g.newEngines.map((p) => LABELS[p] ?? p);
 
   // ── SEO / Google ──────────────────────────────────────────
@@ -126,18 +129,25 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
             </div>
           ) : (
             <>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2" title={geoKararIpucu}>
                 {geoDirection === 'up' ? <TrendingUp className={cn('h-5 w-5 self-center', up)} aria-hidden />
                   : geoDirection === 'down' ? <TrendingDown className={cn('h-5 w-5 self-center', down)} aria-hidden />
                   : <Minus className="h-5 w-5 self-center text-muted-foreground" aria-hidden />}
-                <span className={cn('text-metric-lg tabular-nums', geoDirection === 'up' ? up : geoDirection === 'down' ? down : 'text-muted-foreground')}>
-                  {geoGrowth === null ? `+${geoLastAvg}` : `${geoGrowth > 0 ? '+' : ''}${geoGrowth}%`}
-                </span>
+                {geoDirection === 'flat' ? (
+                  <span className="text-sm font-semibold text-muted-foreground">Anlamlı değişim yok</span>
+                ) : (
+                  <span className={cn('text-metric-lg tabular-nums', geoDirection === 'up' ? up : down)}>
+                    {geoGrowth === null ? `+${geoLastAvg}` : `${geoGrowth > 0 ? '+' : ''}${geoGrowth}%`}
+                  </span>
+                )}
               </div>
               <div className="text-sm text-muted-foreground mt-1.5 space-y-0.5">
                 <div>Görünür olduğun asistan: <strong className="text-foreground">{g.enginesStart} → {g.enginesNow}</strong>/{g.totalEngines}</div>
                 <div>Ort. AI skoru: <strong className="text-foreground">{geoFirstAvg} → {geoLastAvg}</strong> <span className="text-label">({g.spanDays} günlük aralık)</span></div>
               </div>
+              {geoDirection === 'flat' && (
+                <p className="text-label text-muted-foreground mt-1.5">{geoKararIpucu}</p>
+              )}
               {newEngines.length > 0 && (
                 <p className="text-label text-success mt-1.5 inline-flex items-center gap-1"><PartyPopper className="h-3.5 w-3.5" aria-hidden /> {newEngines.join(', ')} cevaplarında artık görünüyorsun</p>
               )}

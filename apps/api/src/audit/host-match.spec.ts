@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hostMentioned, hostMentionIndex, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs, CITATION_MATCH_VERSION } from './host-match.js';
+import { hostMentioned, hostMentionIndex, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs, CITATION_MATCH_VERSION, SITE_MEASUREMENT_VERSION } from './host-match.js';
 
 describe('hostMentioned — etiket sinirli', () => {
   it('kendi alan adi ve alt alan adi eslesir; cumle sonu noktasi sorun degil', () => {
@@ -66,5 +66,12 @@ describe('hostMentionIndex', () => {
 
   it('olcum surumu 4: jenerik marka korumasi anilma olcumunu degistirdi', () => {
     expect(CITATION_MATCH_VERSION).toBe(5);
+  });
+});
+
+describe('SITE_MEASUREMENT_VERSION — site olcumu (tekrar + aralik)', () => {
+  it('6: eslesme surumunun ustunde; ayni numara iki yontemi anlatmaz', () => {
+    expect(SITE_MEASUREMENT_VERSION).toBe(6);
+    expect(SITE_MEASUREMENT_VERSION).toBeGreaterThan(CITATION_MATCH_VERSION);
   });
 });

@@ -61,6 +61,7 @@ import { CommunityAgentService } from './community-agent.service.js';
 import { LiveCrawlerService } from './live-crawler.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
 import { MeasurementSession } from '../billing/measurement-session.interceptor.js';
+import { gorunmeAraligi } from './visibility-interval.js';
 
 // PLAN KAPILARI — bu dosyada yalnizca EYLEM uclari plana baglidir:
 // calistirma/uretme/uygulama gibi pahali POST'lar. Duz listeleme ve gecmis
@@ -845,7 +846,8 @@ export class AuditController {
   @Post('citation-test')
   async citationTest(@Param('siteId') siteId: string) {
     const results = await this.citation.runForSite(siteId, 5);
-    return { results, runAt: new Date().toISOString() };
+    // Asistan bazinda aralik results[].gorunme'de; genel aralik tum asistan ve tekrarlardan
+    return { results, gorunme: gorunmeAraligi(results.flatMap((r) => r.probes ?? [])), runAt: new Date().toISOString() };
   }
 
   /** POST /sites/:siteId/audit/citation-roadmap — son sonuçlardan AI önerisi */

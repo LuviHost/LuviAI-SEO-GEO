@@ -258,3 +258,145 @@ describe('anonim test tavan maliyeti (plannedPublicCost)', () => {
     expect(service().publicAnonCostKey('2026-10-25')).toBe('ai-cost:public-anon:2026-10-25');
   });
 });
+
+/**
+ * Site olcumu tekrari (08.11.2026 kanit denetimi): runForSite her soruyu her
+ * asistana N kez, BAGIMSIZ istekle sorar; skor tum tekrarlardan, gorunme
+ * araligi (Wilson) sonucla doner. Deneme planinda N=1; havuz butcesi N turu
+ * kaldirmazsa tekrar sigan kadar dusurulur (citation-repeat.ts MALIYET).
+ * Yalniz Perplexity anahtari var (beforeEach); 'system' tetik — kota ve
+ * haftalik hak devre disi, yalniz olcum yolu sinanir.
+ */
+describe('runForSite — her soru her asistana N kez (CITATION_TEKRAR)', () => {
+  const SORULAR = ['kredi karsilastirma sitesi hangisi?', 'kobi kredisi nereden bakilir?'];
+  const ORJ_TEKRAR = process.env.CITATION_TEKRAR;
+  afterEach(() => {
+    if (ORJ_TEKRAR === undefined) delete process.env.CITATION_TEKRAR;
+    else process.env.CITATION_TEKRAR = ORJ_TEKRAR;
+  });
+
+  function olcumServisi(plan: string, kv: Record<string, string> = {}) {
+    const prisma = {
+      appSetting: { findUnique: vi.fn(async () => null) },
+      site: {
+        findUnique: vi.fn(async () => ({
+          id: 's1', name: 'Kobipratik', url: 'https://kobipratik.com', userId: 'u1', niche: 'finans',
+          brain: { seoStrategy: { aeoQueries: SORULAR } },
+          user: { id: 'u1', plan, role: 'USER' },
+        })),
+      },
+      siteAiProviderKey: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+      kvStore: { findUnique: vi.fn(async ({ where }: any) => (kv[where.key] !== undefined ? { key: where.key, value: kv[where.key] } : null)) },
+      $queryRawUnsafe: vi.fn(async () => []),
+      $executeRawUnsafe: vi.fn(async () => 1),
+    };
+    const quota = {
+      getPlanPool: () => ['perplexity'],
+      enforceCitationQuota: vi.fn(async () => undefined),
+      incrementCitationUsage: vi.fn(async () => undefined),
+    };
+    const allowance = { reserveOutsideSession: vi.fn(async () => null), release: vi.fn(async () => undefined) };
+    return { svc: new AiCitationService(prisma as any, quota as any, {} as any, allowance as any), prisma };
+  }
+
+  /** Perplexity istekleri: tek numarali cagri alinti (kobipratik.com), cift numarali hicbir sey */
+  function perplexityCevaplari() {
+    let n = 0;
+    return vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      n++;
+      const metin = n % 2 === 1 ? 'Karsilastirma icin kobipratik.com bakilabilir.' : 'Bankalarin kendi siteleri bakilabilir.';
+      return new Response(JSON.stringify(answer(metin)), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+  }
+
+  const perplexityCagrilari = (f: ReturnType<typeof perplexityCevaplari>) =>
+    f.mock.calls.filter((c) => String(c[0]).includes('api.perplexity.ai'));
+
+  it('varsayilan N=3: soru basina 3 ayri istek; probe damgali, skor ve aralik tum tekrarlardan', async () => {
+    delete process.env.CITATION_TEKRAR;
+    const f = perplexityCevaplari();
+    const { svc, prisma } = olcumServisi('PRO');
+    const res = await svc.runForSite('s1', 5, { trigger: 'system' });
+    const pr = res.find((r) => r.provider === 'perplexity')!;
+
+    // Bagimsiz istek: her soru 3 kez saglayiciya gitti (onbellek yok)
+    const cagrilar = perplexityCagrilari(f);
+    expect(cagrilar).toHaveLength(SORULAR.length * 3);
+    for (const q of SORULAR) {
+      expect(cagrilar.filter((c) => JSON.parse(String((c[1] as RequestInit).body)).messages[1].content === q)).toHaveLength(3);
+    }
+
+    expect(pr).toMatchObject({ available: true, tekrar: 3 });
+    expect(pr.probes).toHaveLength(6);
+    expect(pr.probes.map((p) => p.tekrar).sort()).toEqual([1, 1, 2, 2, 3, 3]);
+    // 6 cevabin 3'u alinti → bugunku formul: (3 x 100) / 6 = 50
+    expect(pr.score).toBe(50);
+    expect(pr.gorunme).toMatchObject({ gorunen: 3, olculen: 6, oran: 50 });
+    // Havuz maliyeti 6 probe uzerinden (global + kiraci defteri)
+    const tutarlar = prisma.$executeRawUnsafe.mock.calls.map((c: any[]) => Number(c[2]));
+    expect(tutarlar).toHaveLength(2);
+    for (const t of tutarlar) expect(t).toBeCloseTo(6 * 0.0006, 10);
+  });
+
+  it('CITATION_TEKRAR=2 ve ust sinir 5', async () => {
+    process.env.CITATION_TEKRAR = '2';
+    let f = perplexityCevaplari();
+    let pr = (await olcumServisi('AGENCY').svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
+    expect(perplexityCagrilari(f)).toHaveLength(4);
+    expect(pr.tekrar).toBe(2);
+    f.mockRestore();
+
+    process.env.CITATION_TEKRAR = '50';
+    f = perplexityCevaplari();
+    pr = (await olcumServisi('AGENCY').svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
+    expect(perplexityCagrilari(f)).toHaveLength(10);
+    expect(pr.tekrar).toBe(5);
+  });
+
+  it('deneme plani: N=1 — tek istek, probe damgasiz, aralik yine doner', async () => {
+    process.env.CITATION_TEKRAR = '3';
+    const f = perplexityCevaplari();
+    const pr = (await olcumServisi('TRIAL').svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
+    expect(perplexityCagrilari(f)).toHaveLength(2);
+    expect(pr.tekrar).toBe(1);
+    expect(pr.probes.every((p) => p.tekrar === undefined)).toBe(true);
+    expect(pr.gorunme).toMatchObject({ gorunen: 1, olculen: 2 });
+  });
+
+  it('kiraci payi 3 turu kaldirmiyor: tekrar sigan kadar duser (asistan dusmez)', async () => {
+    delete process.env.CITATION_TEKRAR;
+    const bugun = new Date().toISOString().slice(0, 10);
+    // perplexity kiraci payi 5 x 0.25 = 1.25 USD; tur = 2 soru x 0.0006 = 0.0012 USD → yalniz 1 tur sigar
+    const { svc } = olcumServisi('PRO', { [`ai-cost:perplexity:${bugun}:u:u1`]: String(1.25 - 0.0018) });
+    const f = perplexityCevaplari();
+    const pr = (await svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
+    expect(perplexityCagrilari(f)).toHaveLength(2);
+    expect(pr).toMatchObject({ available: true, tekrar: 1 });
+  });
+
+  it('pay hic kalmadiysa eski davranis: butce nedeniyle olculmez', async () => {
+    const bugun = new Date().toISOString().slice(0, 10);
+    const { svc } = olcumServisi('PRO', { [`ai-cost:perplexity:${bugun}:u:u1`]: '1.25' });
+    const f = perplexityCevaplari();
+    const pr = (await svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
+    expect(perplexityCagrilari(f)).toHaveLength(0);
+    expect(pr).toMatchObject({ available: false, probes: [] });
+    expect(pr.reason).toMatch(/Günlük havuz bütçesi/);
+  });
+
+  it('kalici hata (401) turu dusurur: saglayici kullanilamaz, neden kod', async () => {
+    respond(401, { error: { message: 'Incorrect API key provided: pplx-test****7890' } });
+    const pr = (await olcumServisi('PRO').svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
+    expect(pr).toMatchObject({ available: false, reason: 'HATA: auth_failed', probes: [] });
+  });
+
+  it('runQueries (Prompt Lab) tek tur kalir; sonuca tekrar/aralik eklenmez', async () => {
+    process.env.CITATION_TEKRAR = '3';
+    const f = perplexityCevaplari();
+    const [pr] = await olcumServisi('PRO').svc.runQueries('s1', SORULAR, { providers: ['perplexity'], trigger: 'system' });
+    expect(perplexityCagrilari(f)).toHaveLength(2);
+    expect(pr).not.toHaveProperty('tekrar');
+    expect(pr).not.toHaveProperty('gorunme');
+    expect(pr.probes.every((p) => p.tekrar === undefined)).toBe(true);
+  });
+});

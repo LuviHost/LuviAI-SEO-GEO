@@ -27,6 +27,7 @@
  * ile ayni kural). Degerler gosterilir, farklar null/0 ve methodChanged=true.
  */
 import { isErrorProbe } from './citation-score.js';
+import type { GorunmeAraligi } from './visibility-interval.js';
 
 export interface RunProbe {
   query: string;
@@ -36,6 +37,8 @@ export interface RunProbe {
   position?: number | null;
   sentiment?: string | null;
   excerpt?: string | null;
+  /** Kacinci tekrar (1..N); yoksa soru tek kez soruldu (SITE_MEASUREMENT_VERSION 6 oncesi ya da N=1) */
+  tekrar?: number;
 }
 
 export interface RunProvider {
@@ -45,6 +48,10 @@ export interface RunProvider {
   score: number | null;
   reason?: string | null;
   probes: RunProbe[];
+  /** Her soru bu asistana kac kez soruldu (v6+); eski kosumda yok */
+  tekrar?: number;
+  /** Tum tekrarlar uzerinden gorunme sikliginin %95 Wilson araligi (v6+); eski kosumda yok */
+  gorunme?: GorunmeAraligi | null;
 }
 
 export interface RunSummary {

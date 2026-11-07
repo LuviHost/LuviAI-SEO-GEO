@@ -64,7 +64,8 @@ export function tetikEtiketi(trigger: string | undefined): string | null {
 }
 
 /**
- * Olcum yontemi surumlerinin (host-match.ts CITATION_MATCH_VERSION) musteriye
+ * Olcum yontemi surumlerinin (host-match.ts CITATION_MATCH_VERSION; 6 ve ustu
+ * SITE_MEASUREMENT_VERSION — kosumlar site olcumudur) musteriye
  * anlatimi. Eski not her zaman v2'yi ("benzer alan adlari") anlatiyordu; v3 →
  * v4 gecisinde degisen ise anilma ve HATA kuraliydi.
  */
@@ -73,6 +74,8 @@ const YONTEM_DEGISIKLIGI: Record<number, string> = {
   3: 'web araması yapan motorlarda (ChatGPT, Gemini, Claude) cevabın kaynak listesindeki alan adı da atıf sayılıyor',
   4: 'alan adından türetilen jenerik marka adı (ör. eticaret.com için “eticaret”) tek başına anılma sayılmıyor ve hata veren cevaplar ölçüme girmiyor',
   5: 'Grok ve DeepSeek de artık cevaplarken web’de arama yapıyor (önceden yalnız modelin kendi bilgisiyle cevaplıyordu)',
+  // host-match.ts SITE_MEASUREMENT_VERSION — yalniz site olcumu (kosumlar) bu numarayi tasir
+  6: 'her soru her AI asistanına birden fazla kez soruluyor; skor tüm tekrarlardan hesaplanıyor ve bir güven aralığıyla veriliyor (önceden her soru bir kez soruluyordu)',
 };
 
 export function yontemNotu(v: { a: number; b: number } | undefined): string {
