@@ -222,7 +222,7 @@ const orgJsonLd = {
         'AI makale üretimi (5 ajanlı üretim hattı + yayın öncesi kalite kapısı)',
         'WordPress, Webflow, Ghost, FTP/SFTP, cPanel ve GitHub dahil 13 yayın hedefine otomatik yayın',
         'AI görünürlük ölçümü (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek)',
-        'Ajan Hazırlığı (AXO) taraması ve önizlemeli robots.txt / llms.txt / sitemap düzeltmesi',
+        'Ajan Hazırlığı (AXO) taraması, robots.txt için önizlemeli düzeltme ve eksik site haritasının oluşturulması',
         'ASO: App Store ve Google Play için AI metadata önerileri, anahtar kelime sıra takibi',
         'Apple Search Ads ve App Store Connect entegrasyonu',
         'Google Ads + Meta Ads kampanya denetimi',

@@ -1,9 +1,8 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, GoneException, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { SiteUserThrottlerGuard, SITE_USER_THROTTLE } from '../audit/site-user-throttler.guard.js';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
-import { ProgrammaticSeoService } from './programmatic-seo.service.js';
 import { TranslatorService } from './translator.service.js';
 import { QaGateService } from './qa-gate.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
@@ -36,7 +35,6 @@ export class ArticlesController {
   constructor(
     private readonly articles: ArticlesService,
     private readonly scheduler: ArticleSchedulerService,
-    private readonly programmatic: ProgrammaticSeoService,
     private readonly translator: TranslatorService,
     private readonly qaGate: QaGateService,
   ) {}
@@ -214,18 +212,24 @@ export class ArticlesController {
     return this.translator.bulkTranslateSite(siteId, body.languages ?? ['en']);
   }
 
-  /** POST /sites/:siteId/articles/programmatic/cities — 81 il icin bulk schedule (plan kapisi) */
+  /**
+   * POST /sites/:siteId/articles/programmatic/cities — KAPATILDI (08.11.2026, kanit denetimi).
+   *
+   * NEDEN: "{il} icin {sektor} onerileri" sablonuyla 81 il icin sayfa uretmek Google spam politikasinin
+   * doorway ornegiyle birebir ortusuyor ("pages targeted at specific regions or cities that funnel users
+   * to one page", "substantially similar pages") ve yapay zekayla deger katmadan cok sayfa uretmek ayrica
+   * olcekli icerik kotuye kullanimi. Musterinin sitesini riske atmamak icin uc kalici olarak 410 doner;
+   * servis kodu baska yerden cagrilmiyor. Gercek subesi olan isletme icin elle onaylanan bir akis ayri
+   * tasarlanmali.
+   */
   @RequiresPlan('programmaticSeo')
   @Post('programmatic/cities')
   programmaticCities(
-    @Param('siteId') siteId: string,
-    @Body() body: ProgrammaticCitiesDto,
-  ) {
-    return this.programmatic.generateCityPages(siteId, {
-      template: body.template,
-      cities: body.cities,
-      spreadDays: body.spreadDays,
-      maxQuota: body.maxQuota,
-    });
+    @Param('siteId') _siteId: string,
+    @Body() _body: ProgrammaticCitiesDto,
+  ): never {
+    throw new GoneException(
+      'Şehir sayfaları özelliği kapatıldı: aynı şablonla şehir başına sayfa üretmek Google\'ın spam politikasında yönlendirme (doorway) sayfası örneği olarak geçiyor ve sitenizi riske atabilir.',
+    );
   }
 }

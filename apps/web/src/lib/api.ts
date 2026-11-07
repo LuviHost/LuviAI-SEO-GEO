@@ -1617,9 +1617,6 @@ export const api = {
   deleteSiteAuthor: (siteId: string) =>
     request<{ author: null }>(`/sites/${siteId}/audit/author-profile/site`, { method: 'DELETE' }),
 
-  getAuthorProfile: (siteId: string, persona: string) =>
-    request<any>(`/sites/${siteId}/audit/author-profile?persona=${encodeURIComponent(persona)}`),
-
   parseHaroDigest: (siteId: string, emailContent: string) =>
     request<any[]>(`/sites/${siteId}/audit/haro/parse`, {
       method: 'POST',

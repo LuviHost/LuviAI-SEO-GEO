@@ -22,6 +22,26 @@ describe('ajan promptlari — kapsama haritasi ve lede kurali', () => {
   });
 });
 
+/**
+ * 08.11.2026 kanit denetimi: yapi kurallari icin kanit zayif; "alintilanmayi ~3x
+ * artirir" gibi kanitsiz vaat yazara verilmez, her H2 altinda "Kisa cevap" ve
+ * her yazida tablo istenmez (ayni iskelet olcekli sablon izi birakir).
+ */
+describe('ajan promptlari — kanitsiz yapi kurallari', () => {
+  it('03-writer: alinti artisi vaadi yok', () => {
+    expect(AGENT_03_WRITER.systemSuffix).not.toMatch(/~?\d+\s?x\s+art/i);
+    expect(AGENT_03_WRITER.systemSuffix).not.toMatch(/alıntılamasını/);
+  });
+  it('03-writer: her H2 altinda "Kisa cevap" zorunlu degil', () => {
+    expect(AGENT_03_WRITER.systemSuffix).not.toMatch(/Her içerik H2'sinin hemen altında/);
+    expect(AGENT_03_WRITER.systemSuffix).toMatch(/"Kısa cevap" satırı ekleme zorunluluğu yok/);
+  });
+  it('03-writer: tablo yalniz gercek veri karsilastirmasi varsa', () => {
+    expect(AGENT_03_WRITER.systemSuffix).not.toMatch(/en az 1 tablo/);
+    expect(AGENT_03_WRITER.systemSuffix).toMatch(/Tablo:\*\* yalnız metinde gerçekten karşılaştırılan veri varsa/);
+  });
+});
+
 describe('ajan promptlari — hero yer tutucusu', () => {
   it('03-writer: hero yer tutucusu YAZDIRMAZ (QA her makaleyi BLOCKED yapiyordu)', () => {
     expect(AGENT_03_WRITER.systemSuffix).not.toContain('placeholder-hero');

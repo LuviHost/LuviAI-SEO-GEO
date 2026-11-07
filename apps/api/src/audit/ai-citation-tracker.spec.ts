@@ -178,3 +178,143 @@ describe('AiCitationTrackerService.snapshotSite — alintilanan kaynaklar (GEO F
     expect(JSON.stringify(runData.providers)).not.toContain('reddit.com');
   });
 });
+
+/**
+ * Tekrarli site olcumu (SITE_MEASUREMENT_VERSION 6): kayitlar v6 damgasi,
+ * kosum JSON'u asistan bazinda tekrar + gorunme araligi tasir (migration yok);
+ * gecmis kosumlardan ±X, ön sonuç ve aralik kararlari uretir.
+ */
+describe('AiCitationTrackerService — tekrar ve aralik (v6)', () => {
+  const p = (query: string, tekrar: number, cited: boolean, brandMentioned = cited) =>
+    ({ query, cited, brandMentioned, brandInQuery: false, excerpt: cited ? 'kobipratik.com' : 'yok', tekrar });
+
+  it('snapshotSite: v6 damgasi, kosumda tekrar/gorunme, probe tekrar damgasi; donuste genel aralik', async () => {
+    const results = [
+      {
+        provider: 'openai', label: 'OpenAI ChatGPT', available: true, score: 50, tekrar: 3,
+        gorunme: { gorunen: 3, olculen: 6, oran: 50, alt: 18.8, ust: 81.2, yariGenislik: 31.2 },
+        probes: [p('q1', 1, true), p('q2', 1, false), p('q1', 2, true), p('q2', 2, false), p('q1', 3, true), p('q2', 3, false)],
+      },
+      // eski bicim sonuc (alanlar yok): kosuma probe'lardan hesaplanip yazilir
+      { provider: 'gemini', label: 'Google Gemini', available: true, score: 0, probes: [p('q1', 1, false), p('q2', 1, false)].map(({ tekrar: _t, ...x }) => x) },
+    ];
+    const upserts: any[] = [];
+    let runData: any = null;
+    const prisma = {
+      aiCitationSnapshot: { upsert: vi.fn(async (a: any) => { upserts.push(a); return {}; }) },
+      aiCitationRun: { create: vi.fn(async (a: any) => { runData = a.data; return { id: 'run1' }; }) },
+    };
+    const svc = new AiCitationTrackerService(prisma as any, { runForSite: vi.fn(async () => results) } as any);
+    const out = await svc.snapshotSite('s1', { trigger: 'user' });
+
+    expect(upserts.every((u) => u.create.matchVersion === 6 && u.update.matchVersion === 6)).toBe(true);
+    expect(upserts.find((u) => u.create.provider === 'openai').create.probes.map((x: any) => x.tekrar)).toEqual([1, 1, 2, 2, 3, 3]);
+    expect(runData.matchVersion).toBe(6);
+    const openai = runData.providers.find((x: any) => x.provider === 'openai');
+    expect(openai).toMatchObject({ tekrar: 3, gorunme: { gorunen: 3, olculen: 6 } });
+    expect(openai.probes.map((x: any) => x.tekrar)).toEqual([1, 1, 2, 2, 3, 3]);
+    const gemini = runData.providers.find((x: any) => x.provider === 'gemini');
+    expect(gemini).toMatchObject({ tekrar: 1, gorunme: { gorunen: 0, olculen: 2 } });
+    expect(gemini.probes[0]).not.toHaveProperty('tekrar');
+
+    // Genel: 8 markasiz cevaptan 3'u gorundu (kosum sutunlariyla ayni havuz)
+    expect(runData).toMatchObject({ poolSize: 8, citedCount: 3 });
+    expect(out).toMatchObject({ tekrar: 3, soruSayisi: 2, gorunme: { gorunen: 3, olculen: 8 } });
+  });
+
+  // Pencere bugune gore kurulur
+  const iso = (n: number, saat = '09:00') => `${gunOnce(n)}T${saat}:00.000Z`;
+  const kosumProviders = (gorunen: number, olculen: number, tekrar = 3) => [{
+    provider: 'openai', label: 'OpenAI ChatGPT', available: true, score: null, tekrar,
+    probes: Array.from({ length: olculen }, (_, i) => p(`q${i % 5}`, Math.floor(i / 5) + 1, i < gorunen)),
+  }];
+
+  function gecmisServisi(snaps: Snap[], runs: Array<{ id: string; runAt: string; matchVersion: number; providers: unknown }>) {
+    const { svc: _s, findMany } = trackerWith(snaps);
+    const runFindMany = vi.fn(async (args: any) => {
+      if (args?.where?.id?.in) return runs.filter((r) => args.where.id.in.includes(r.id)).map((r) => ({ id: r.id, providers: r.providers }));
+      const since: Date = args?.where?.runAt?.gte;
+      return runs
+        .filter((r) => !since || new Date(r.runAt) >= since)
+        .sort((a, b) => a.runAt.localeCompare(b.runAt))
+        .map((r) => ({ id: r.id, runAt: new Date(r.runAt), matchVersion: r.matchVersion }));
+    });
+    const sonKosum = [...runs].sort((a, b) => b.runAt.localeCompare(a.runAt))[0] ?? null;
+    const prisma = {
+      aiCitationSnapshot: { findMany },
+      aiCitationRun: {
+        findFirst: vi.fn(async () => (sonKosum ? { runAt: new Date(sonKosum.runAt), matchVersion: sonKosum.matchVersion } : null)),
+        findMany: runFindMany,
+        count: vi.fn(async ({ where }: any) => runs.filter((r) => r.matchVersion === where.matchVersion).length),
+      },
+    };
+    return { svc: new AiCitationTrackerService(prisma as any, {} as any), runFindMany };
+  }
+
+  it('tek v6 olcum: ön sonuç, ±X ve "3 tekrar × 5 soru"; eski v5 kosum kiyasa girmez', async () => {
+    const { svc } = gecmisServisi(
+      [
+        { provider: 'openai', date: gunOnce(20), score: 0, matchVersion: 5 },
+        { provider: 'openai', date: gunOnce(1), score: 40, matchVersion: 6 },
+      ],
+      [
+        { id: 'r5', runAt: iso(20), matchVersion: 5, providers: kosumProviders(0, 5, 1) },
+        { id: 'r6', runAt: iso(1), matchVersion: 6, providers: kosumProviders(6, 15) },
+      ],
+    );
+    const h: any = await svc.getHistory('s1', 30);
+    expect(h.olcum.onSonuc).toBe(true);
+    expect(h.olcum.son).toMatchObject({ tekrar: 3, soruSayisi: 5, gorunme: { gorunen: 6, olculen: 15 } });
+    expect(h.olcum.manset.gorunme).toMatchObject({ gorunen: 6, olculen: 15 });
+    expect(h.olcum.manset.gorunme.yariGenislik).toBeGreaterThan(0);
+    // v5 → v6: trend kesiti yalniz v6 (tek nokta) → kiyas yok; haftalik da yok
+    expect(h.olcum.etki.karar).toBeNull();
+    expect(h.olcum.haftalik.karar).toBeNull();
+  });
+
+  it('iki v6 olcum: haftalik ve etki kararlari araliktan; gunun SON kosumu kullanilir; headline=1 de doner', async () => {
+    const { svc, runFindMany } = gecmisServisi(
+      [
+        { provider: 'openai', date: gunOnce(9), score: 7, matchVersion: 6 },
+        { provider: 'openai', date: gunOnce(2), score: 60, matchVersion: 6 },
+      ],
+      [
+        // ayni gun iki kosum: snapshot gunun sonuncusunu tutar → kiyas 1/15 ile
+        { id: 'a1', runAt: iso(9, '08:00'), matchVersion: 6, providers: kosumProviders(15, 15) },
+        { id: 'a2', runAt: iso(9, '10:00'), matchVersion: 6, providers: kosumProviders(1, 15) },
+        { id: 'b', runAt: iso(2), matchVersion: 6, providers: kosumProviders(12, 15) },
+      ],
+    );
+    const h: any = await svc.getHistory('s1', 14, true);
+    expect(h.olcum.onSonuc).toBe(false);
+    expect(h.olcum.haftalik).toMatchObject({ karar: 'artti', once: { gorunen: 1, olculen: 15 }, sonra: { gorunen: 12, olculen: 15 } });
+    expect(h.olcum.etki.karar).toBe('artti');
+    expect(h.olcum.asistanlar.openai.karar).toBe('artti');
+    // providers JSON yalniz gereken kosumlar icin (gunun son kosumu) okundu — a1 okunmadi
+    const idCagrisi = runFindMany.mock.calls.find((c: any[]) => c[0]?.where?.id?.in)![0];
+    expect([...idCagrisi.where.id.in].sort()).toEqual(['a2', 'b']);
+    expect(idCagrisi.select).toEqual({ id: true, providers: true });
+  });
+
+  it('kosum okunamazsa gecmis dusmez: blok bos, kararlar null', async () => {
+    const { svc } = trackerWith([{ provider: 'openai', date: gunOnce(1), score: 40, matchVersion: 6 }]);
+    const h: any = await svc.getHistory('s1', 30);
+    expect(h.olcum).toMatchObject({ son: null, onSonuc: false, etki: { karar: null }, haftalik: { karar: null } });
+    expect(h.trends[0].last).toBe(40);
+  });
+
+  it('listRuns: kosum basina genel aralik (sutunlardan) ve tekrar', async () => {
+    const prisma = {
+      aiCitationRun: {
+        findMany: vi.fn(async () => [
+          { id: 'r6', runAt: new Date(iso(1)), trigger: 'user', headlineScore: 40, citedCount: 4, mentionedCount: 2, poolSize: 15, providers: kosumProviders(6, 15) },
+          { id: 'r5', runAt: new Date(iso(9)), trigger: 'system', headlineScore: 0, citedCount: 0, mentionedCount: 0, poolSize: 5, providers: kosumProviders(0, 5, 1).map(({ tekrar: _t, ...x }) => x) },
+        ]),
+      },
+    };
+    const runs = await new AiCitationTrackerService(prisma as any, {} as any).listRuns('s1');
+    expect(runs[0]).toMatchObject({ tekrar: 3, gorunme: { gorunen: 6, olculen: 15 } });
+    expect(runs[0].providers[0]).not.toHaveProperty('probes');
+    expect(runs[1]).toMatchObject({ tekrar: 1, gorunme: { gorunen: 0, olculen: 5 } });
+  });
+});

@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 import { RanksUpImpactCard } from '@/components/ranksup-impact-card';
+import { aralikAciklamasi, kararMetni, kararYonu, olcumOf, plusMinus, type CitationOlcum } from '@/lib/visibility-interval';
 import { TestimonialWidget } from '@/components/testimonial-widget';
 import { QuotaMonitor } from '@/components/quota-monitor';
 import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
@@ -601,6 +602,7 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
   const [kpis, setKpis] = useState<any>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [headline, setHeadline] = useState<any>(null);
+  const [aiOlcum, setAiOlcum] = useState<CitationOlcum | null>(null);
   const [headlineLoading, setHeadlineLoading] = useState(true);
 
   // Iki kaynak paralel; her kutu kendi kaynagi gelince acilir (veri hazir tablolardan, olcum KOSMAZ)
@@ -613,8 +615,8 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
       .catch(() => { if (!cancelled) setKpis(null); })
       .finally(() => { if (!cancelled) setKpisLoading(false); });
     api.getCitationHeadline(siteId, 14)
-      .then((r) => { if (!cancelled) setHeadline(r?.headline ?? null); })
-      .catch(() => { if (!cancelled) setHeadline(null); })
+      .then((r) => { if (!cancelled) { setHeadline(r?.headline ?? null); setAiOlcum(olcumOf(r)); } })
+      .catch(() => { if (!cancelled) { setHeadline(null); setAiOlcum(null); } })
       .finally(() => { if (!cancelled) setHeadlineLoading(false); });
     return () => { cancelled = true; };
   }, [siteId]);
@@ -642,13 +644,21 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
   // F10: atif olcum yontemi (CITATION_MATCH_VERSION) iki pencere arasinda degistiyse fark siteden
   // degil olcuden — rozet gosterilmez, notr not yazilir. Alani tasimayan eski API'de false.
   const aiMethodChanged = headline?.methodChanged === true;
-  const aiDelta = !aiMethodChanged && typeof headline?.deltaVsPrev === 'number' && headline.deltaVsPrev !== 0
-    ? headline.deltaVsPrev
-    : undefined;
+  // Fark rozeti YALNIZ onceki haftayla gorunme araliklari ortusmuyorsa (API olcum.haftalik,
+  // visibility-interval.ts); ortusuyorsa ya da aralik yoksa "anlamlı değişim yok" yazilir.
+  const aiFarkVar = !aiMethodChanged && typeof headline?.deltaVsPrev === 'number' && headline.deltaVsPrev !== 0;
+  const aiKarar = aiOlcum?.haftalik?.karar ?? null;
+  const aiDelta = aiFarkVar && kararYonu(aiKarar) !== 'flat' ? headline.deltaVsPrev : undefined;
+  const aiPm = headline?.score != null ? plusMinus(aiOlcum?.manset?.gorunme) : null;
   // Kutu dar: yalniz en sik neden (haftalik hak, sonraki tarihle) yazilir; digerleri Site Skoru kartinda
   const aiTileHint = aiScore === null
     ? (auditAi?.skipped?.code === 'WEEKLY_MEASUREMENT_LIMIT' ? aiCitationSkipLabel(auditAi) : 'Henüz ölçülmedi')
-    : aiMethodChanged ? `${aiHint} · Kıyas yok: ölçüm yöntemi güncellendi` : aiHint;
+    : aiMethodChanged ? `${aiHint} · Kıyas yok: ölçüm yöntemi güncellendi`
+      : [
+        aiOlcum?.onSonuc ? 'Ön sonuç' : aiHint,
+        aiPm,
+        aiFarkVar && aiDelta === undefined ? kararMetni(null) : null,
+      ].filter(Boolean).join(' · ');
 
   // Mansetteki anilma YALNIZ markasiz sorulardan: marka adi soruda gecince anilmasi totolojik
   const mention = pct(kpis?.mentionRate?.value);
@@ -689,7 +699,7 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
             hint={access ? crawlAccessTitle(access) : overallScore === null ? 'Tarama bekleniyor' : autoFixable > 0 ? `${issues.length} sorun · ${autoFixable} otomatik` : `${issues.length} sorun`}
           />
         </KpiTile>
-        <KpiTile href={href('visibility')} loading={headlineLoading}>
+        <KpiTile href={href('visibility')} loading={headlineLoading} title={(aiPm && aralikAciklamasi(aiOlcum?.manset?.gorunme)) || undefined}>
           <MetricCard
             className="h-full"
             icon={Sparkles}

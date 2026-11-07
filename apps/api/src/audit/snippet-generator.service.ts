@@ -513,15 +513,16 @@ export class SnippetGeneratorService {
       headline: headline.trim().slice(0, 110),
       description: description.trim().slice(0, 200),
       author: { '@type': 'Organization', name: brand },
-      publisher: { '@type': 'Organization', name: brand, logo: { '@type': 'ImageObject', url: `${new URL(siteUrl).origin}/logo.png` } },
+      // 08.11.2026: eskiden var olmayabilecek bir logo adresi (/logo.png) ve eski sayfaya bugunun yayin tarihi
+      // yaziliyordu. Google gorunur tarih ile yapisal tarihin tutarli olmasini ister; bilinmeyen alan yazilmaz
+      // (ikisi de zorunlu degil).
+      publisher: { '@type': 'Organization', name: brand, url: new URL(siteUrl).origin },
       mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-      datePublished: new Date().toISOString().slice(0, 10),
-      dateModified: new Date().toISOString().slice(0, 10),
     };
     return {
       pageUrl: url,
       type: 'jsonld_article',
-      reason: 'Article schema yok — Google rich result + AI Overview için temel',
+      reason: 'Article şeması yok — Google zengin sonuç uygunluğu için. Yayın tarihini sayfada görünen tarihle aynı olacak şekilde siz ekleyin.',
       insertLocation: 'Sayfanın <head> bölümüne',
       generatedSnippet: `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`,
       language: 'json-ld',
@@ -547,26 +548,33 @@ Başlık: ${heading}
     }
     if (!Array.isArray(pairs) || pairs.length === 0) return null;
 
+    const temiz = pairs.slice(0, 6)
+      .map((p) => ({ q: String(p.q ?? '').trim().slice(0, 200), a: String(p.a ?? '').trim().slice(0, 800) }))
+      .filter((p) => p.q && p.a);
+    if (temiz.length === 0) return null;
     const obj = {
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
-      mainEntity: pairs.slice(0, 6).map(p => ({
-        '@type': 'Question',
-        name: String(p.q ?? '').trim().slice(0, 200),
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: String(p.a ?? '').trim().slice(0, 800),
-        },
-      })),
+      mainEntity: temiz.map((p) => ({ '@type': 'Question', name: p.q, acceptedAnswer: { '@type': 'Answer', text: p.a } })),
     };
+    // 08.11.2026: eskiden yalniz JSON-LD veriliyordu; sayfada olmayan soru-cevap isaretlenmis oluyordu (Google:
+    // "Don't mark up content that is not visible"). Artik once sayfaya eklenecek GORUNUR bolum, sonra ayni
+    // metinle sema verilir. FAQ zengin sonucu 7 Mayis 2026'dan beri gosterilmiyor; degeri okura ve AI
+    // asistanlarina dogrudan cevap vermesinde.
+    const bolum = [
+      '<section class="sss">',
+      '  <h2>Sıkça sorulan sorular</h2>',
+      ...temiz.flatMap((p) => [`  <h3>${this.esc(p.q)}</h3>`, `  <p>${this.esc(p.a)}</p>`]),
+      '</section>',
+    ].join('\n');
 
     return {
       pageUrl: url,
       type: 'jsonld_faq',
-      reason: `${pairs.length} soru-cevap önerildi. GEO puanı yalnız sayfada GÖRÜNEN soru-cevaba bakar: bu soruları sayfaya görünür metin olarak da ekle; FAQPage işaretlemesi tek başına puanı artırmaz.`,
-      insertLocation: 'Sayfanın <head> bölümüne (Article schema varsa onun yanına)',
-      generatedSnippet: `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`,
-      language: 'json-ld',
+      reason: `Sayfada soru-cevap bölümü yok. ${temiz.length} soru-cevap önerildi: önce cevapları kontrol edip bölümü sayfaya görünür olarak ekleyin, sonra aynı metinle şemayı ekleyin. Şema yalnız sayfada görünen metinle aynıysa geçerlidir; Google SSS zengin sonucunu Mayıs 2026'dan beri göstermiyor.`,
+      insertLocation: '1) Bölüm: sayfa içeriğinin sonuna, görünür olarak · 2) Şema: sayfanın <head> bölümüne',
+      generatedSnippet: `<!-- 1) Önce bu bölümü sayfaya görünür olarak ekleyin -->\n${bolum}\n\n<!-- 2) Sonra aynı soru-cevaplarla şemayı <head> bölümüne ekleyin -->\n<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`,
+      language: 'html',
     };
   }
 

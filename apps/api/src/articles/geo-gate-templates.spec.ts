@@ -55,21 +55,86 @@ describe('geriye uyumluluk — rehber yolu', () => {
     expect(r.stats.templateMissing).toEqual([]);
   });
 
-  it('rehberde sablon kontrolu yapilmaz (tablo yoksa yalniz eski NO_TABLE)', () => {
+  it('rehberde sablon kontrolu yapilmaz (tablo yoksa yalniz NO_TABLE onerisi)', () => {
     const md = PASSING_GUIDE.replace(/\| Kalem[\s\S]*?\| Oran \| Mevzuattaki oran \|\n/, '');
-    const c = codes(md);
+    const r = checkGeoGate(md);
+    const c = r.issues.map((i) => i.code);
     expect(c).toContain('NO_TABLE');
+    expect(r.issues.find((i) => i.code === 'NO_TABLE')?.severity).toBe('warn');
     expect(c).not.toContain('TEMPLATE_STRUCTURE');
+    expect(r.pass).toBe(true);
   });
 
   it('acikca contentType guide vermek varsayilanla ayni sonucu uretir', () => {
     expect(checkGeoGate(PASSING_GUIDE, { contentType: 'guide' })).toEqual(checkGeoGate(PASSING_GUIDE));
   });
 
-  it('eski bulgular block onem derecesi tasir', () => {
+  it('degismeyen eski bulgular (lede, tarih) block onem derecesi tasir; yapi kurallari rehberde oneri', () => {
     const r = checkGeoGate('# Başlık\n\nGünümüzde her şey değişiyor ve bu yazıda anlatacağız.\n\n## Giriş\nMetin.');
-    expect(r.issues.length).toBeGreaterThan(0);
-    for (const i of r.issues.filter((x) => x.code !== 'MISSING_AUTHOR_LINE')) expect(i.severity).toBe('block');
+    const sev = Object.fromEntries(r.issues.map((i) => [i.code, i.severity]));
+    expect(sev.WEAK_LEDE).toBe('block');
+    expect(sev.NO_UPDATED_DATE).toBe('block');
+    expect(sev.NO_TABLE).toBe('warn');
+    expect(sev.LOW_QUESTION_H2_RATIO).toBe('warn');
+    expect(sev.MISSING_AUTHOR_LINE).toBe('warn');
+    expect(Object.keys(sev)).not.toContain('MISSING_SHORT_ANSWER');
+    expect(r.pass).toBe(false);
+  });
+});
+
+/**
+ * 08.11.2026 kanit denetimi: yapi kurallari icin kanit zayif ve celiskili
+ * (tablo / soru basligi ile alinti arasinda yalniz korelasyon; bagimsiz tekrar
+ * denemesinde stil taktikleri cogu durumda anlamsiz). Her yaziyi ayni iskelete
+ * sokmak olcekli sablon izi birakir.
+ */
+describe('kanit denetimi (08.11.2026) — yapi kurallari', () => {
+  const noTable = PASSING_GUIDE.replace(/\| Kalem[\s\S]*?\| Oran \| Mevzuattaki oran \|\n/, '');
+  const SOURCES = [undefined, 'default', 'classifier', 'explicit', 'ranker'] as const;
+  const noTableSeverity = (o: Parameters<typeof checkGeoGate>[1]) =>
+    checkGeoGate(noTable, o).issues.find((i) => i.code === 'NO_TABLE')?.severity;
+
+  it('tablo yoksa: rehber, howto, liste, alternatifler yalniz oneri', () => {
+    for (const t of ['guide', 'howto', 'listicle', 'alternatives'] as const) {
+      for (const src of SOURCES) expect(noTableSeverity({ contentType: t, contentTypeSource: src })).toBe('warn');
+    }
+  });
+
+  it('tablo yoksa: sablonu tabloyu zorunlu kilan comparison, best_for, pricing tiplerinde engel (eskisi gibi)', () => {
+    for (const t of ['comparison', 'best_for', 'pricing'] as const) {
+      for (const src of SOURCES) {
+        expect(noTableSeverity({ contentType: t, contentTypeSource: src })).toBe('block');
+        expect(checkGeoGate(noTable, { contentType: t, contentTypeSource: src }).pass).toBe(false);
+      }
+    }
+  });
+
+  it('H2 altinda "Kisa cevap" olmamasi hicbir bulgu uretmez (oneri de degil)', () => {
+    const md = PASSING_GUIDE.replace(/> \*\*Kısa cevap:\*\*[^\n]*\n/g, '');
+    const r = checkGeoGate(md);
+    expect(r.issues).toEqual([]);
+    expect(r.pass).toBe(true);
+    expect(r.feedback).toBe('');
+    expect(r.stats.shortAnswerCovered).toBe(0);
+  });
+
+  it('soru H2 orani dusukse yalniz oneri; acik urun tipinde de', () => {
+    const md = PASSING_GUIDE.replace('## KDV nasıl hesaplanır?', '## KDV Hesaplama').replace('## KDV ne zaman beyan edilir?', '## Beyan Takvimi');
+    for (const o of [{}, { contentType: 'comparison' as const, contentTypeSource: 'explicit' as const }]) {
+      const r = checkGeoGate(md, o);
+      expect(r.issues.find((i) => i.code === 'LOW_QUESTION_H2_RATIO')?.severity).toBe('warn');
+      expect(r.pass).toBe(true);
+      expect(r.feedback).toBe('');
+    }
+  });
+
+  it('kaynaksiz sayi, gorunur tarih ve acilis cevabi kurallari engel olarak kaldi', () => {
+    const unsourced = PASSING_GUIDE.replace('Beyan aylıktır.', 'Gecikme faizi %4,5 uygulanır.');
+    expect(checkGeoGate(unsourced).issues.find((i) => i.code === 'UNSOURCED_NUMERIC_CLAIM')?.severity).toBe('block');
+    const noDate = PASSING_GUIDE.replace('*Son güncelleme: 2026-10-24*', '');
+    expect(checkGeoGate(noDate).issues.find((i) => i.code === 'NO_UPDATED_DATE')?.severity).toBe('block');
+    const weakLede = PASSING_GUIDE.replace(/> \*\*Hızlı cevap:\*\*[^\n]*\n/, '![Hero](hero.webp)\n');
+    expect(checkGeoGate(weakLede).issues.find((i) => i.code === 'WEAK_LEDE')?.severity).toBe('block');
   });
 });
 
@@ -216,6 +281,7 @@ describe('TEMPLATE_STRUCTURE (yalniz rehber disi tip; acik/siralayici: block, si
     expect(codes(PASSING_GUIDE, { contentType: 'pricing', contentTypeSource: 'explicit' })).not.toContain('TEMPLATE_STRUCTURE');
     const noTable = PASSING_GUIDE.replace(/\| Kalem[\s\S]*?\| Oran \| Mevzuattaki oran \|\n/, '');
     expect(codes(noTable, { contentType: 'pricing', contentTypeSource: 'explicit' })).toContain('TEMPLATE_STRUCTURE');
+    expect(checkGeoGate(noTable, { contentType: 'pricing', contentTypeSource: 'explicit' }).issues.find((i) => i.code === 'NO_TABLE')?.severity).toBe('block');
   });
 
   it('alternatives: en az 5 alternatif (H3 ya da tablo satiri)', () => {

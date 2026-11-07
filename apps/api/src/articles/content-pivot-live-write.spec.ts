@@ -78,7 +78,7 @@ const LAST_WRITE = new Date(Date.now() - 60 * DAY);
 const LIVE_TEXT = { title: 'KDV Beyanı Rehberi', metaTitle: null, metaDescription: 'KDV özeti', bodyMd: '# KDV Beyanı Rehberi\n\nYayındaki metin.' };
 const REWRITE = { ...LIVE_TEXT, bodyMd: '# KDV Beyanı Rehberi\n\nPivotun yeniden yazdığı metin.' };
 /** GSC kurali 1 (yuksek gosterim, dusuk CTR) tetiklenir */
-const METRICS = { impressions: 900, clicks: 2, position: 8 };
+const METRICS = { impressions: 900, clicks: 2, position: 22 };
 
 function wpEntry(over: Record<string, unknown> = {}) {
   return {

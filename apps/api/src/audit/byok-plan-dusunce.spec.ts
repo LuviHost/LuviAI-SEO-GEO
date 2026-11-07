@@ -106,9 +106,10 @@ describe('runForSite — kota doluyken eski BYOK anahtari tavani asamaz', () => 
   it('Kurumsal: kota dolu olsa da BYOK saglayicisi kendi anahtariyla olcer (mevcut davranis)', async () => {
     process.env.OPENAI_API_KEY = 'sk-ranksup-havuz';
     const { svc, openai } = kur('ENTERPRISE', 'USER', 1000);
-    const res = await svc.runForSite('s1');
-    expect(openai).toHaveBeenCalledTimes(1);
-    expect(openai.mock.calls[0]![0]).toBe('sk-musteri-anahtari');
-    expect(res.find((r) => r.provider === 'openai')).toMatchObject({ source: 'byok', available: true });
+    const res = await svc.runForSite('s1', 5, { tekrar: 3 });
+    // Site olcumu her soruyu N kez sorar (citation-repeat.ts); her tur musterinin anahtariyla
+    expect(openai).toHaveBeenCalledTimes(3);
+    for (const call of openai.mock.calls) expect(call[0]).toBe('sk-musteri-anahtari');
+    expect(res.find((r) => r.provider === 'openai')).toMatchObject({ source: 'byok', available: true, tekrar: 3 });
   });
 });

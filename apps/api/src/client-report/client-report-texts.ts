@@ -11,6 +11,11 @@
  *
  * llms.txt metni taramanin durust cercevesini korur: buyuk saglayicilar
  * dosyayi kullanacagini taahhut etmiyor, faydasi kucuk (audit-checks.service).
+ *
+ * KANIT DENETIMI (08.11.2026): FAQ zengin sonucu 7 Mayis 2026'dan beri
+ * gosterilmiyor (HowTo 2023'te kaldirildi). Sema "zengin sonucun on kosulu"
+ * diye satilmaz, FAQPage onerilmez; gorunur SSS icerik olarak faydali olabilir
+ * ve sema sayfada gorunen metinle eslesmeli.
  */
 
 export interface KontrolMetni {
@@ -37,8 +42,8 @@ export const KONTROL_METINLERI: Readonly<Record<string, KontrolMetni>> = {
   },
   schema_markup: {
     ad: 'Yapısal veri (Schema.org)',
-    neden: 'Google ve AI sistemlerinin sayfanın neyi anlattığını (kurum, ürün, makale, SSS) makinece okunur biçimde anlamasını sağlar; zengin sonuçların ön koşuludur.',
-    oneri: 'Organization ve BreadcrumbList ile içerik türüne uygun (Article, FAQPage, Product) JSON-LD işaretlemesi ekleyin.',
+    neden: 'Google ve AI sistemlerinin sayfanın neyi anlattığını (kurum, ürün, makale) makinece okunur biçimde anlamasına yardım eder. İşaretleme sayfada görünen metinle eşleşmelidir. Google, SSS (FAQ) zengin sonucunu artık göstermiyor.',
+    oneri: 'Organization ve BreadcrumbList ile içerik türüne uygun (Article, Product) JSON-LD işaretlemesi ekleyin; şemaya yalnız sayfada görünen bilgiyi yazın.',
   },
   meta_title: {
     ad: 'Sayfa başlığı (title)',
@@ -182,7 +187,8 @@ export const AKSIYON_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
   image_alt: { baslik: 'Görsellere alt metin yazın', efor: 'orta' },
   internal_linking: { baslik: 'Yetim sayfalara iç bağlantı verin', efor: 'orta' },
   hreflang: { baslik: 'Dil sürümlerine hreflang ekleyin', efor: 'orta' },
-  geo_faq: { baslik: 'Soru-cevap (SSS) içeriği ve FAQ şeması ekleyin', efor: 'orta' },
+  // FAQ zengin sonucu 7 Mayis 2026'dan beri gosterilmiyor: oneri sema degil, gorunur SSS icerigi
+  geo_faq: { baslik: 'Okurların sorduğu soruları sayfada görünür soru-cevap olarak yanıtlayın', efor: 'orta' },
   geo_definition: { baslik: '"X nedir?" biçiminde tanım içerikleri ekleyin', efor: 'orta' },
   geo_citation_format: { baslik: 'Önemli bilgileri liste ve tablo biçiminde sunun', efor: 'orta' },
   geo_freshness: { baslik: 'Sayfalara yayın ve güncelleme tarihi ekleyin', efor: 'kolay' },
@@ -210,5 +216,5 @@ export const AI_DUSUK_ESIGI = 30;
  */
 export function aiGorunurlukAksiyonAciklamasi(skor: number | null): string {
   const bas = typeof skor === 'number' ? `AI görünürlük skoru ${skor}/100` : 'AI görünürlüğü düşük';
-  return `${bas}: AI asistanları marka adı geçmeyen sorulara verdikleri yanıtlarda siteyi nadiren kaynak gösteriyor ya da markayı nadiren anıyor. Sorulara doğrudan cevap veren, rakam ve karşılaştırma gibi kanıt blokları içeren içerik önerilir; arama botlarının (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot) robots.txt'te engelli olmadığından emin ol.`;
+  return `${bas}: AI asistanları marka adı geçmeyen sorulara verdikleri yanıtlarda siteyi nadiren kaynak gösteriyor ya da markayı nadiren anıyor. Bu sorulara doğrudan cevap veren görünür içerik önerilir; arama botlarının (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot) robots.txt'te engelli olmadığından emin olun. Şema işaretlemesi sayfada görünen metinle eşleşmelidir.`;
 }

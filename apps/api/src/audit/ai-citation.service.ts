@@ -19,6 +19,8 @@ import {
 } from './probe-retry.js';
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
+import { tekrarSayisiFor } from './citation-repeat.js';
+import { gorunmeAraligi, type GorunmeAraligi } from './visibility-interval.js';
 import { answerNapSignal, type AnswerNapSignal } from './local-nap.js';
 import {
   SOURCES_VERSION, normalizeSources, anthropicSources, anthropicSearchFailure, geminiSources, openaiSources, perplexitySources,
@@ -75,6 +77,12 @@ export interface CitationProbe {
   sources?: CitationSource[];
   /** Kaynak kaydi surumu (citation-sources SOURCES_VERSION); yoksa eski kayit */
   sourcesVersion?: number;
+  /**
+   * Site olcumunde bu cevabin kacinci tekrardan geldigi (1..N, citation-repeat.ts).
+   * Alan YOKSA soru tek kez soruldu (tek turlu olcum ya da SITE_MEASUREMENT_VERSION
+   * 6 oncesi kayit).
+   */
+  tekrar?: number;
 }
 
 export interface CitationResult {
@@ -91,6 +99,14 @@ export interface CitationResult {
   sentimentMix?: { positive: number; neutral: number; negative: number; absent: number };
   /** Aggregate: share of voice — marka vs rakip toplam mention'lar */
   shareOfVoice?: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>;
+  /**
+   * Site olcumu (runForSite): bu asistana her soru kac kez soruldu. Kiraci
+   * payi yetmezse istenen N'den az olabilir (runProvider). Prompt Lab /
+   * runQueries sonuclarinda alan yok.
+   */
+  tekrar?: number;
+  /** Site olcumu: tum tekrarlar uzerinden gorunme sikliginin %95 Wilson araligi (visibility-interval.ts); sayilacak cevap yoksa null */
+  gorunme?: GorunmeAraligi | null;
 }
 
 interface KeyResolution {
@@ -674,11 +690,15 @@ export class AiCitationService {
    *            gercekten dayatilir ve basarili calistirma sayaci +1 artar.
    *   'system' platformun kendi otomasyonu (gunluk cron / otomatik izleme);
    *            kota ne kontrol edilir ne de tuketilir.
+   * @param opts.tekrar Her soru her asistana kac kez sorulur. Verilmezse
+   *   site sahibinin planina gore citation-repeat.ts (CITATION_TEKRAR,
+   *   varsayilan 3; deneme planinda 1 — gerekce orada). Tekrar sayisi kota ve
+   *   haftalik hakki DEGISTIRMEZ (olcum basina 1); havuz butcesi tur basina sayilir.
    */
   async runForSite(
     siteId: string,
     maxProbes = 5,
-    opts: { trigger?: 'user' | 'system' } = {},
+    opts: { trigger?: 'user' | 'system'; tekrar?: number } = {},
   ): Promise<CitationResult[]> {
     const trigger = opts.trigger ?? 'user';
 
@@ -763,9 +783,10 @@ export class AiCitationService {
     const probeQueries = Array.from(new Set(queries)).slice(0, maxProbes);
 
     const uniqueCompetitors = await this.resolveCompetitors(siteId, site.brain, brand);
+    const tekrar = opts.tekrar ?? tekrarSayisiFor(plan);
 
     const results = await this.measured(trigger, site.user, () => Promise.all(
-      providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors, userId, site.user.role)),
+      providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors, userId, site.user.role, { tekrar })),
     ));
 
     // Havuz kullanan en az bir basarili test varsa kota +1.
@@ -988,8 +1009,16 @@ export class AiCitationService {
     userId?: string,
     /** Site sahibinin rolu — BYOK plan kapisinda ADMIN muafiyeti icin */
     ownerRole?: string,
+    /**
+     * Site olcumu (runForSite): her soru kac kez sorulur. Verilmezse eski
+     * davranis — tek tur, sonucta tekrar/gorunme alani yok (runQueries:
+     * Prompt Lab, urun radari, firsat yeniden olcumu).
+     */
+    olcum: { tekrar?: number } = {},
   ): Promise<CitationResult> {
     const label = PROVIDER_LABELS[provider];
+    const siteOlcumu = olcum.tekrar !== undefined;
+    const istenenTekrar = siteOlcumu ? Math.max(1, Math.floor(olcum.tekrar as number) || 1) : 1;
     // Llama modeli tanimsizken (GROQ_LLAMA_MODEL; Groq varsayilan modeli
     // kapatti — citation-providers.ts) site olcumu de Groq'a gitmez. Eskiden
     // anahtar varsa kaldirilmis modele bosuna istek atiliyor, yoksa musteriye
@@ -1013,44 +1042,62 @@ export class AiCitationService {
         source: resolved.source as 'pool' | 'byok',
       };
     }
-    // Butce kontrolu sadece havuz icin (BYOK kullanicinin kendi parasi)
-    if (resolved.source === 'pool' && await this.isOverBudget(provider, queries.length, userId)) {
-      return {
-        provider, label, available: false, score: null, probes: [],
-        reason: this.poolBudgetReason(provider),
-        source: 'pool',
-      };
+    // Butce kontrolu sadece havuz icin (BYOK kullanicinin kendi parasi).
+    // Planlanan maliyet tur basina: soru x tekrar. Tekrar, butceye (global +
+    // kiraci payi) SIGAN kadar dusurulur, en az 1: yeni sitenin ilk gunu
+    // (onboarding denetimi + otopilot baseline + kullanicinin ilk testi) Claude
+    // kiraci payini N=3 ile asiyordu — N, N=1'in olcebildigi bir asistani
+    // dusurmesin (citation-repeat.ts MALIYET INCELEMESI). Az tekrarli asistanin
+    // gorunme araligi kendiliginden genis cikar.
+    let tur = istenenTekrar;
+    if (resolved.source === 'pool') {
+      while (tur > 0 && await this.isOverBudget(provider, queries.length * tur, userId)) tur--;
+      if (tur === 0) {
+        return {
+          provider, label, available: false, score: null, probes: [],
+          reason: this.poolBudgetReason(provider),
+          source: 'pool',
+        };
+      }
+      if (tur < istenenTekrar) this.log.log(`[${siteId}] ${provider}: havuz butcesi icin tekrar ${istenenTekrar} → ${tur}`);
     }
 
     const host = this.extractHost(url);
     const systemPrompt = this.buildSystemPrompt();
-    let probes: CitationProbe[] = [];
+    const key = resolved.key;
 
-    try {
-      switch (provider) {
-        case 'anthropic':
-          probes = await this.probeAnthropic(resolved.key, host, brand, queries, systemPrompt, competitors);
-          break;
-        case 'gemini':
-          probes = await this.probeGemini(resolved.key, host, brand, queries, systemPrompt, competitors);
-          break;
-        case 'openai':
-          probes = await this.probeOpenAI(resolved.key, host, brand, queries, systemPrompt, competitors);
-          break;
-        case 'perplexity':
-          probes = await this.probePerplexity(resolved.key, host, brand, queries, systemPrompt, competitors);
-          break;
-        case 'xai':
-          probes = await this.probeXai(resolved.key, host, brand, queries, systemPrompt, competitors);
-          break;
-        case 'deepseek':
-          probes = await this.probeDeepseek(resolved.key, host, brand, queries, systemPrompt, competitors);
-          break;
-        case 'meta':
-          probes = await this.probeMeta(resolved.key, host, brand, queries, systemPrompt, competitors);
-          break;
+    // TEKRARLAR BIRBIRINDEN BAGIMSIZ: her tur saglayiciya AYRI istek atar. Bu
+    // katmanda cevap onbellegi yok; istekler onbellek istemez (Anthropic
+    // prompt caching cache_control ister — kullanilmiyor; OpenAI/xAI Responses,
+    // Gemini, Perplexity cevap onbellegi sunmaz) ve her tur yeni istemci +
+    // yeni probe nesneleri uretir. Turlar PARALEL: "Yeniden Test" senkron HTTP
+    // ucu ve Cloudflare 100 sn'de kesiyor; sirali N tur sureyi N katina
+    // cikarirdi. Paralelde sure tek tura yakin kalir (saglayici basina N
+    // eszamanli akis; gecici 429'u withProbeRetry / SDK maxRetries yeniden dener).
+    const turlar = await Promise.allSettled(
+      Array.from({ length: tur }, () => this.probeTur(provider, key, host, brand, queries, systemPrompt, competitors)),
+    );
+    const probes: CitationProbe[] = [];
+    turlar.forEach((t, i) => {
+      if (t.status !== 'fulfilled') return;
+      for (const p of t.value) {
+        // Yerinde damga: answerTexts WeakMap probe NESNESINE bagli — kopya metni kaybederdi
+        if (siteOlcumu && tur > 1) p.tekrar = i + 1;
+        probes.push(p);
       }
-    } catch (err: any) {
+    });
+
+    if (resolved.source === 'pool') {
+      // Bir tur kalici hatayla dusse de basarili turlar saglayiciya gercekten soruldu
+      await this.addCost(provider, measuredOnly(probes).length, userId);
+    }
+
+    const dusen = turlar.find((t): t is PromiseRejectedResult => t.status === 'rejected');
+    if (dusen) {
+      // Turu dusuren yalniz kalici yapilandirma hatasi (ProviderConfigError):
+      // gecici hatalar soru bazinda HATA satiri olur. Bir turda kalici hata =
+      // saglayici kullanilamaz (tek turlu davranisla ayni sonuc).
+      const err = dusen.reason;
       // Kredi bitti: yukleme yapilana kadar bu saglayici HIC olculmez — gozden kacmasin diye ERROR
       if (probeErrorCode(err) === 'billing') this.log.error(`${provider} KREDISI BITTI — saglayici panelinden bakiye yuklenmeli: ${safeErrorText(err)}`);
       else this.log.warn(`${provider} probe failed (whole batch): ${safeErrorText(err)}`);
@@ -1060,10 +1107,6 @@ export class AiCitationService {
         reason: probeErrorExcerpt(err),
         source: resolved.source as 'pool' | 'byok',
       };
-    }
-
-    if (resolved.source === 'pool') {
-      await this.addCost(provider, measuredOnly(probes).length, userId);
     }
 
     // Hicbir soru olculemediyse (hepsi HATA: 429, 503, bos cevap) saglayici
@@ -1078,19 +1121,38 @@ export class AiCitationService {
         provider, label, available: false, score: null, probes,
         reason: outcome.reason ?? 'HATA: unknown',
         source: resolved.source as 'pool' | 'byok',
+        ...(siteOlcumu ? { tekrar: tur, gorunme: null } : {}),
       };
     }
 
     const agg = this.aggregateProbes(probes, brand);
     return {
       provider, label, available: true,
+      // Skor bugunku formulle (citation-score.ts) TUM tekrarlarin probe'larindan
       score: this.scoreFromProbes(probes),
       probes,
       source: resolved.source as 'pool' | 'byok',
       avgPosition: agg.avgPosition,
       sentimentMix: agg.sentimentMix,
       shareOfVoice: agg.shareOfVoice,
+      ...(siteOlcumu ? { tekrar: tur, gorunme: gorunmeAraligi(probes) } : {}),
     };
+  }
+
+  /** Bir saglayiciya tum sorulari BIR KEZ sorar (tek tur) — runProvider her tekrar icin ayri cagirir */
+  private async probeTur(
+    provider: Provider, key: string, host: string, brand: string,
+    queries: string[], systemPrompt: string, competitors: string[],
+  ): Promise<CitationProbe[]> {
+    switch (provider) {
+      case 'anthropic':  return this.probeAnthropic(key, host, brand, queries, systemPrompt, competitors);
+      case 'gemini':     return this.probeGemini(key, host, brand, queries, systemPrompt, competitors);
+      case 'openai':     return this.probeOpenAI(key, host, brand, queries, systemPrompt, competitors);
+      case 'perplexity': return this.probePerplexity(key, host, brand, queries, systemPrompt, competitors);
+      case 'xai':        return this.probeXai(key, host, brand, queries, systemPrompt, competitors);
+      case 'deepseek':   return this.probeDeepseek(key, host, brand, queries, systemPrompt, competitors);
+      case 'meta':       return this.probeMeta(key, host, brand, queries, systemPrompt, competitors);
+    }
   }
 
   // ────────────────────────────────────────────────────────────

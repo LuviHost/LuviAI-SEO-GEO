@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
-import { ContentPivotService, PIVOT_SCAN_LIMIT } from './content-pivot.service.js';
+import { ContentPivotService, PIVOT_SCAN_LIMIT, siralananYazi } from './content-pivot.service.js';
 
 /**
  * Icerik pivotu — yeniden yazilan YAYINDAKI yazi yalniz Tam otomatikte onaysiz
@@ -10,19 +10,19 @@ import { ContentPivotService, PIVOT_SCAN_LIMIT } from './content-pivot.service.j
  * T-A madde 1: bekleme suresi SON canli yazimdan sayilir (yerinde guncelleme
  * publishedAt'i ilerletmez); canli kopyalari yeni metni alamayan yazi icin
  * yeniden yazim baslamaz (nedeni raporlanir); reddedilen otomatik yeniden
- * yazimdan sonra 30 gun beklenir; ayni yazi tek taramada bir kez is alir.
+ * yazimdan sonra 60 gun beklenir; ayni yazi tek taramada bir kez is alir.
  */
 
 vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
 const DAY = 86400000;
-const OLD = new Date(Date.now() - 45 * DAY);
+const OLD = new Date(Date.now() - 75 * DAY);
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY).toISOString();
 /** WordPress'te yayinda, yerinde guncellenebilir canli kopya */
 const WP_LIVE = { targetId: 't-wp', targetType: 'WORDPRESS_REST', ok: true, externalId: '41', externalUrl: 'https://s.example/yazi/', updatedAt: OLD.toISOString() };
 const WP_TARGET = { id: 't-wp', type: 'WORDPRESS_REST', isActive: true };
 // Kural 1: yuksek gosterim, cok dusuk CTR → bayrak
-const LOW_CTR = { impressions: 900, clicks: 2, position: 8 };
+const LOW_CTR = { impressions: 900, clicks: 2, position: 22 };
 const FLAGGED_ARTICLE = { id: 'a1', slug: 'yazi', topic: 'Konu', title: 'Yazı', publishedAt: OLD, publishedTo: [WP_LIVE], performanceMetrics: LOW_CTR, performanceCheckedAt: null };
 
 type Row = Record<string, any>;
@@ -111,8 +111,8 @@ describe('ContentPivotService.scanSite — bekleme suresi SON canli yazimdan', (
     expect((prisma.article.findMany.mock.calls[0] as any)[0].select.publishedTo).toBe(true);
   });
 
-  it('son canli yazimi 40 gun once olan yazi incelenir ve isaretlenir', async () => {
-    const stale = { ...FLAGGED_ARTICLE, publishedTo: [{ ...WP_LIVE, updatedAt: iso(40) }] };
+  it('son canli yazimi 70 gun once olan yazi incelenir ve isaretlenir', async () => {
+    const stale = { ...FLAGGED_ARTICLE, publishedTo: [{ ...WP_LIVE, updatedAt: iso(70) }] };
     const r = await scanWith({ articles: [stale] }).result;
     expect(r.flagged.map((f) => f.articleId)).toEqual(['a1']);
   });
@@ -179,15 +179,15 @@ describe('ContentPivotService.scanSite — canli kopyalar yeni metni alamiyorsa 
 });
 
 describe('ContentPivotService.scanSite — reddedilen otomatik yeniden yazimdan sonra bekleme', () => {
-  it('son 30 gunde editorden gecmeyen deneme: yeniden denenmez, nedeni raporlanir', async () => {
+  it('son 60 gunde editorden gecmeyen deneme: yeniden denenmez, nedeni raporlanir', async () => {
     const r = await scanWith({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: { rejectedRewrite: { at: iso(5), verdict: 'FAIL' } } } }).result;
     expect(r.flagged).toEqual([]);
     expect(r.blocked).toEqual([expect.objectContaining({ articleId: 'a1', block: 'recent_rejected_rewrite' })]);
     expect(r.blocked[0].blockReason).toContain('editör kontrolünden geçmedi');
   });
 
-  it('reddedilen deneme 30 gunden eskiyse yeniden denenir', async () => {
-    const r = await scanWith({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: { rejectedRewrite: { at: iso(31) } } } }).result;
+  it('reddedilen deneme 60 gunden eskiyse yeniden denenir', async () => {
+    const r = await scanWith({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: { rejectedRewrite: { at: iso(61) } } } }).result;
     expect(r.flagged.map((f) => f.articleId)).toEqual(['a1']);
   });
 });
@@ -283,7 +283,7 @@ describe('S4 — atlanan yayin her hafta yeniden yazima yol acmaz', () => {
     expect(r.flagged.map((f) => f.articleId)).toEqual(['a1']);
   });
 
-  it('son otomatik yayin hicbir canli kopyaya yazamadi (liveWriteBlocked, 5 gun once) ve o zamandan beri yazilmadi: 30 gun denenmez', async () => {
+  it('son otomatik yayin hicbir canli kopyaya yazamadi (liveWriteBlocked, 5 gun once) ve o zamandan beri yazilmadi: 60 gun denenmez', async () => {
     const r = await scanWith({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: blockedOutputs(5) } }).result;
     expect(r.flagged).toEqual([]);
     expect(r.blocked).toEqual([expect.objectContaining({ articleId: 'a1', block: 'recent_live_write_blocked' })]);
@@ -291,8 +291,8 @@ describe('S4 — atlanan yayin her hafta yeniden yazima yol acmaz', () => {
     expect(r.blocked[0].blockReason).toContain(`${new Date(Date.now() - 5 * DAY).toISOString().slice(0, 10)}`);
   });
 
-  it('engel 30 gunden eskiyse yeniden denenir', async () => {
-    expect((await scanWith({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: blockedOutputs(31) } }).result).flagged).toHaveLength(1);
+  it('engel 60 gunden eskiyse yeniden denenir', async () => {
+    expect((await scanWith({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: blockedOutputs(61) } }).result).flagged).toHaveLength(1);
   });
 
   it('engelden SONRA bir canli kopyaya yazildiysa (basarili yayin ya da "Elle güncelledim") kayit anlamini yitirir', async () => {
@@ -305,10 +305,10 @@ describe('S4 — atlanan yayin her hafta yeniden yazima yol acmaz', () => {
   it('worker on denetimi: tarama ile is arasinda ayni yazinin otomatik yayini engellendiyse LLM kosmadan durur', async () => {
     const prisma = prismaFor({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: blockedOutputs(0) } });
     const svc = new ContentPivotService(prisma as any, {} as any);
-    expect(await svc.automatedRewriteBlock('a1')).toEqual({ block: 'recent_live_write_blocked', blockReason: expect.stringContaining('30 gün denenmez') });
+    expect(await svc.automatedRewriteBlock('a1')).toEqual({ block: 'recent_live_write_blocked', blockReason: expect.stringContaining('60 gün denenmez') });
     // Okunan alanlar: ajan ciktilari dahil (tek yazi)
     expect((prisma.article.findUnique.mock.calls[0] as any)[0].select).toMatchObject({ publishedTo: true, agentOutputs: true });
-    const fresh = prismaFor({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: blockedOutputs(31) } });
+    const fresh = prismaFor({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: blockedOutputs(61) } });
     expect(await new ContentPivotService(fresh as any, {} as any).automatedRewriteBlock('a1')).toBeNull();
   });
 });
@@ -329,5 +329,24 @@ describe('ContentPivotService — deneme hesabinda otomatik yeniden yazim yok', 
     const prisma = prismaFor({ articles: [FLAGGED_ARTICLE], plan: 'TRIAL' });
     expect(await new ContentPivotService(prisma as any, {} as any).automatedRewriteBlock('a1'))
       .toEqual({ block: 'trial_plan', blockReason: expect.stringContaining('toplam 2 makale') });
+  });
+});
+
+describe('ContentPivotService — Google ilk 15 korumasi (08.11.2026 kanit denetimi)', () => {
+  it('siralananYazi: ilk 15 ve gosterimli yazi korunur; 16+ ya da gosterimsiz korunmaz', () => {
+    expect(siralananYazi({ position: 8, impressions: 900 })).toBe(true);
+    expect(siralananYazi({ position: 15, impressions: 1 })).toBe(true);
+    expect(siralananYazi({ position: 15.4, impressions: 900 })).toBe(false);
+    expect(siralananYazi({ position: 22, impressions: 900 })).toBe(false);
+    expect(siralananYazi({ position: 5, impressions: 0 })).toBe(false);
+    expect(siralananYazi(null)).toBe(false);
+  });
+
+  it('ilk 15teki dusuk CTRli yazi bastan yazilmak icin isaretlenmez; 4-15 kurali artik yok', async () => {
+    const ilk15 = { ...FLAGGED_ARTICLE, performanceMetrics: { impressions: 900, clicks: 2, position: 8 } };
+    const r1 = await scanWith({ articles: [ilk15] }).result;
+    expect(r1.flagged).toEqual([]);
+    const esik = { ...FLAGGED_ARTICLE, performanceMetrics: { impressions: 300, clicks: 30, position: 9 } };
+    expect((await scanWith({ articles: [esik] }).result).flagged).toEqual([]);
   });
 });

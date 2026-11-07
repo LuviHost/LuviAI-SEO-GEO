@@ -16,7 +16,7 @@ import { groupIssues } from './issue-grouping.js';
 import { annotateAuditFixRoutes, withFixRoutes } from './fix-routes.js';
 import { ImageInventoryService } from './image-alt/image-inventory.service.js';
 import { recordSiteNapFromCrawl } from './site-nap.js';
-import { CITATION_MATCH_VERSION } from './host-match.js';
+import { SITE_MEASUREMENT_VERSION } from './host-match.js';
 import { providersWithoutSources } from './citation-sources.js';
 
 /**
@@ -1097,12 +1097,13 @@ export class AuditService {
             providers: providersWithoutSources(citationResults),
             ...(aiSkip ? { skipped: aiSkip } : {}),
             ranAt: new Date().toISOString(),
-            // Olcum yontemi surumu (host-match.ts CITATION_MATCH_VERSION). Eskiden
+            // Olcum yontemi surumu (host-match.ts SITE_MEASUREMENT_VERSION — site
+            // olcumu runForSite: tekrar + aralik, v6; eslesme kurali v5'i icerir). Eskiden
             // yazilmiyordu; checkMethodVersion alan yoksa 1 okudugu icin v3 ile
             // v4 denetimi "ayni yontem" sayiliyor, v4'un anilma/HATA kurali
             // yuzunden degisen skor "kotulesti/iyilesti" ve ai_citation_low
             // "yeni/cozulen" gorunuyordu. Artik farkli surum = metodoloji_degisti.
-            details: { methodVersion: CITATION_MATCH_VERSION },
+            details: { methodVersion: SITE_MEASUREMENT_VERSION },
           } as any,
           crawlCoverage: crawlCoverage as any,
         },
