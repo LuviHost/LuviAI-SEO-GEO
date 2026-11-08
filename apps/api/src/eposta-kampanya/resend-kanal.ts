@@ -17,6 +17,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { EpostaKimlik } from '../prospect/eposta-sablon.js';
 import { type SogukHedef, retUrl, sogukSablonlar, sogukSatir, tikBaglantisiEkle, tikUrl } from './soguk-gonderim.js';
 import { doldur } from './smtp-kanal.js';
+import { GECICI_GERI_DONME } from './eposta-kurallar.js';
 
 export type ResendAyar = {
   apiKey: string;
@@ -150,6 +151,8 @@ export type ResendOlay = {
 /**
  * https://resend.com/docs/webhooks/emails/* — govde: { type, created_at, data: { email_id, to[], bounce?: {type, subType, message} } }.
  * NEDEN suppressed da BOUNCE: adres Resend'in bastirma listesinde (onceki kalici geri donme/sikayet) — bir daha yazilmaz.
+ * NEDEN Transient ayri isaret: gecici geri donme (bounce.type "Transient") satiri yine kapatir ama frene sayilmaz
+ * (GECICI_GERI_DONME); Permanent ve Undetermined kalici sayilir (muhafazakar yon).
  * NEDEN failed HATA: gonderim Resend'de dustu (kota, alan adi); tekrar denenmez, panelde gorunur.
  */
 export function resendOlayEsle(govde: unknown, simdi = new Date()): ResendOlay | null {
@@ -171,7 +174,10 @@ export function resendOlayEsle(govde: unknown, simdi = new Date()): ResendOlay |
     case 'email.delivery_delayed': return { ...temel, sonOlay: 'gecikti', teslim: true };
     case 'email.opened': return { ...temel, sonOlay: 'open', teslim: true, acildi: true };
     case 'email.clicked': return { ...temel, sonOlay: 'click', teslim: true, acildi: true, tiklandi: true };
-    case 'email.bounced': return { ...temel, sonOlay: 'bounce', durum: 'BOUNCE', teslim: true, hata: neden ?? 'Geri döndü' };
+    case 'email.bounced': {
+      const gecici = String(d.bounce?.type ?? '').toLowerCase() === 'transient';
+      return { ...temel, sonOlay: gecici ? GECICI_GERI_DONME : 'bounce', durum: 'BOUNCE', teslim: true, hata: neden ?? 'Geri döndü' };
+    }
     case 'email.suppressed': return { ...temel, sonOlay: 'suppressed', durum: 'BOUNCE', teslim: true, hata: neden ?? 'Resend bastırma listesinde' };
     case 'email.complained': return { ...temel, sonOlay: 'spam', durum: 'SPAM', teslim: true };
     case 'email.failed': return { ...temel, sonOlay: 'failed', durum: 'HATA', hata: neden ?? 'Resend gönderemedi' };

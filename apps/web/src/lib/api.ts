@@ -711,7 +711,7 @@ export interface EpostaOverview {
   sayilar: Partial<Record<EpostaHedefDurum, number>>;
   /** Siradaki ajans disi adreslerin kisisel mail durumu (BEKLIYOR = henuz hazirlanmadi) */
   kisisel?: Partial<Record<'BEKLIYOR' | 'HAZIRLANIYOR' | 'HAZIR' | 'INCELE', number>>;
-  metrik: { gonderilen: number; acilan: number; tiklanan: number; son7: { gonderilen: number; bounce: number; spam: number } };
+  metrik: { gonderilen: number; acilan: number; tiklanan: number; son7: { gonderilen: number; bounce: number; gecici?: number; spam: number } };
   iysPartileri: Array<{ parti: string; adet: number; olusturuldu: string | null }>;
   liste: EpostaHedef[];
   toplamListe: number;

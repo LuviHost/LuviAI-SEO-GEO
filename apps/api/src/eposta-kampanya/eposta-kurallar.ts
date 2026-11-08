@@ -48,16 +48,31 @@ export function turKotasi(k: KotaGirdi): number {
   return Math.max(0, Math.min(k.gunluk - k.bugunGonderilen, k.aylik - k.ayGonderilen, k.turBasi));
 }
 
-export interface FrenGirdi { gonderilen: number; bounce: number; spam: number }
+/**
+ * Gecici geri donme olayi (Mailjet soft bounce, Resend "Transient": kutu dolu, sunucu o an kabul etmedi). Satir yine
+ * BOUNCE olur — o adrese tekrar yazilmaz — ama frene SAYILMAZ: Resend'e gore ileride teslim edilebilir, adres yok demek degil.
+ */
+export const GECICI_GERI_DONME = 'soft_bounce';
+
+/** Fren icin en az bu kadar KALICI geri donme. NEDEN: dusuk hacimde (30 gonderim) tek adres %3,3 eder; tek adres gurultudur. */
+export const FREN_EN_AZ_KALICI = 2;
+
+export interface FrenGirdi {
+  gonderilen: number;
+  /** KALICI geri donme (GECICI_GERI_DONME sayilmaz) */
+  bounce: number;
+  spam: number;
+}
 
 /**
- * Otomatik fren: son 7 gunde geri donme > %3 (en az 30 gonderimde) ya da spam sikayeti > %0,2 (en az 50 gonderimde,
- * ilk sikayette degil — tek sikayet 100 gonderimde %1 olur ve gurultudur; 500'de 1 = %0,2 esik).
- * Donus: durma nedeni ya da null. NEDEN: yuksek bounce/spam Mailjet hesabini ve ranksup.ai alan adi itibarini yakar.
+ * Otomatik fren: son 7 gunde kalici geri donme > %3 ve en az FREN_EN_AZ_KALICI adres (en az 30 gonderimde) ya da spam
+ * sikayeti > %0,2 (en az 50 gonderimde, ilk sikayette degil — tek sikayet 100 gonderimde %1 olur ve gurultudur; 500'de
+ * 1 = %0,2 esik). Resend'in kendi esigi %4 (hesap geneli, sistem e-postalari dahil); %3 ondan once durdurur.
+ * Donus: durma nedeni ya da null. NEDEN: yuksek bounce/spam gonderim hesabini ve ranksup.ai alan adi itibarini yakar.
  */
 export function frenNedeni(f: FrenGirdi, o: { ilkSikayetteDur?: boolean } = {}): string | null {
-  if (f.gonderilen >= 30 && f.bounce / f.gonderilen > 0.03) {
-    return `Son 7 günde geri dönme %${((f.bounce / f.gonderilen) * 100).toFixed(1)} (> %3) — liste gözden geçirilmeden devam etmez`;
+  if (f.gonderilen >= 30 && f.bounce >= FREN_EN_AZ_KALICI && f.bounce / f.gonderilen > 0.03) {
+    return `Son 7 günde kalıcı geri dönme %${((f.bounce / f.gonderilen) * 100).toFixed(1)} (${f.bounce} adres, > %3) — liste gözden geçirilmeden devam etmez`;
   }
   // NEDEN ilk sikayette: Resend esigi %0,08 — dusuk hacimde tek sikayet bile asar ve hesap (sistem e-postalari dahil) kapanabilir
   if (o.ilkSikayetteDur && f.spam > 0) {
@@ -114,7 +129,7 @@ export function olayEsle(e: Record<string, unknown>): OlayGuncelleme | null {
     case 'sent': return { sonOlay: 'sent' };
     case 'open': return { sonOlay: 'open', acildi: true };
     case 'click': return { sonOlay: 'click', tiklandi: true, acildi: true };
-    case 'bounce': return { sonOlay: e.hard_bounce ? 'hard_bounce' : 'soft_bounce', durum: 'BOUNCE', hata };
+    case 'bounce': return { sonOlay: e.hard_bounce ? 'hard_bounce' : GECICI_GERI_DONME, durum: 'BOUNCE', hata };
     case 'blocked': return { sonOlay: 'blocked', durum: 'BOUNCE', hata };
     case 'spam': return { sonOlay: 'spam', durum: 'SPAM' };
     case 'unsub': return { sonOlay: 'unsub', durum: 'RET' };

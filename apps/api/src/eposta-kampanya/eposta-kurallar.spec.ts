@@ -31,6 +31,14 @@ describe('kota ve fren', () => {
     expect(frenNedeni({ gonderilen: 100, bounce: 0, spam: 1 })).toMatch(/spam/);
     expect(frenNedeni({ gonderilen: 40, bounce: 0, spam: 1 })).toBeNull();
   });
+
+  it('fren: tek kalici geri donme %3 ustunde olsa da durmaz, ikincisinde durur', () => {
+    // 30 gonderimde 1 adres = %3,3 — tek adres gurultu
+    expect(frenNedeni({ gonderilen: 30, bounce: 1, spam: 0 })).toBeNull();
+    expect(frenNedeni({ gonderilen: 30, bounce: 2, spam: 0 })).toMatch(/kalıcı geri dönme %6\.7 \(2 adres/);
+    // 2 adres ama %3 altinda → durmaz
+    expect(frenNedeni({ gonderilen: 80, bounce: 2, spam: 0 })).toBeNull();
+  });
 });
 
 describe('Mailjet olaylari', () => {

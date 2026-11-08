@@ -60,6 +60,14 @@ describe('resendOlayEsle', () => {
     expect(resendOlayEsle(olay('email.failed'))).toMatchObject({ durum: 'HATA' });
   });
 
+  it('gecici geri donme satiri kapatir ama ayri isaretlenir; kalici ve belirsiz kalici sayilir', () => {
+    expect(resendOlayEsle(olay('email.bounced', { bounce: { type: 'Transient', subType: 'General', message: 'try later' } })))
+      .toMatchObject({ durum: 'BOUNCE', sonOlay: 'soft_bounce', hata: 'Transient: General: try later' });
+    expect(resendOlayEsle(olay('email.bounced', { bounce: { type: 'Permanent', subType: 'General' } }))).toMatchObject({ durum: 'BOUNCE', sonOlay: 'bounce' });
+    expect(resendOlayEsle(olay('email.bounced', { bounce: { type: 'Undetermined' } }))).toMatchObject({ durum: 'BOUNCE', sonOlay: 'bounce' });
+    expect(resendOlayEsle(olay('email.bounced'))).toMatchObject({ durum: 'BOUNCE', sonOlay: 'bounce' });
+  });
+
   it('teslim olaylari durum degistirmez ama teslim kanitidir; bilinmeyen olay yok sayilir', () => {
     const d = resendOlayEsle(olay('email.delivered'))!;
     expect(d).toMatchObject({ sonOlay: 'delivered', teslim: true });
