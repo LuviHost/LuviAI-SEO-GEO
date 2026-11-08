@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { parseCsv, toCsv } from '../prospect/prospect-utils.js';
 import { kimlikEnv, kimlikSorunlari, mailjetMesaj, mesajDenetimi, type Alici } from '../prospect/eposta-sablon.js';
 import {
-  ACIK_DURUMLAR, KAPALI_DURUMLAR, bizimMesaj, eskiKanalDuraklatmasi, firmaAnahtari, mailjetJsonOku, type IceAktarSatir, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani, tikGecerli,
+  ACIK_DURUMLAR, GECICI_GERI_DONME, KAPALI_DURUMLAR, bizimMesaj, eskiKanalDuraklatmasi, firmaAnahtari, mailjetJsonOku, type IceAktarSatir, frenNedeni, gonderimPenceresinde, iceAktarSatiri, olayEsle, olayZamani, tikGecerli,
   trAyBasi, trGun, trGunBasi, turKotasi,
 } from './eposta-kurallar.js';
 import { kisiselMi, retImzaGecerli, retSirri, sogukPaket, sogukSablonlar, sogukSatir, tikBaglantisiEkle, tikUrl } from './soguk-gonderim.js';
@@ -260,13 +260,20 @@ export class EpostaKampanyaService {
     };
   }
 
+  /**
+   * Fren girdisi. bounce = KALICI geri donme; gecici (GECICI_GERI_DONME) ayri sayilir, frene girmez.
+   * NEDEN sonOlay null da kalici: isaretsiz eski satir muhafazakar yonde sayilir (SQL'de NOT = null'i dislar).
+   */
   private async son7Gun(yedi: Date) {
-    const [gonderilen, bounce, spam] = await Promise.all([
+    const [gonderilen, bounce, gecici, spam] = await Promise.all([
       this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: yedi } } }),
-      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: yedi }, durum: 'BOUNCE' } }),
+      this.prisma.epostaHedef.count({
+        where: { gonderildiAt: { gte: yedi }, durum: 'BOUNCE', OR: [{ sonOlay: null }, { sonOlay: { not: GECICI_GERI_DONME } }] },
+      }),
+      this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: yedi }, durum: 'BOUNCE', sonOlay: GECICI_GERI_DONME } }),
       this.prisma.epostaHedef.count({ where: { gonderildiAt: { gte: yedi }, durum: 'SPAM' } }),
     ]);
-    return { gonderilen, bounce, spam };
+    return { gonderilen, bounce, gecici, spam };
   }
 
   /** firma anahtari → LinkedIn'deki en ileri durum (+ kisi sayisi). Kisi adi DONMEZ. */

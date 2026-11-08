@@ -207,7 +207,7 @@ export default function EpostaKampanyaPage() {
           value={kapanan}
           icon={Ban}
           accent="amber"
-          hint={`Son 7 gün: ${son7.bounce} geri dönme / ${son7.gonderilen} gönderim (${yuzde(son7.bounce, son7.gonderilen)}) · fren %3`}
+          hint={`Son 7 gün: ${son7.bounce} kalıcı geri dönme${son7.gecici ? ` (+${son7.gecici} geçici, frene sayılmaz)` : ''} / ${son7.gonderilen} gönderim (${yuzde(son7.bounce, son7.gonderilen)}) · fren: en az 2 adres ve %3`}
         />
       </div>
 

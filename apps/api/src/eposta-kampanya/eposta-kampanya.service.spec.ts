@@ -129,6 +129,21 @@ describe('EpostaKampanyaService.tick', () => {
     expect((await svc.tick()).neden).toMatch(/geri dönme/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('gecici geri donmeler frene sayilmaz; tek kalici adres de durdurmaz', async () => {
+    // 30 gonderim: 1 kalici + 2 gecici — eskiden 3/30 = %10 ile dururdu
+    const gonderilmis = Array.from({ length: 30 }, (_, i) => ({
+      ...hedef(100 + i, i < 3 ? 'BOUNCE' : 'GONDERILDI'),
+      sonOlay: i === 0 ? 'bounce' : i < 3 ? 'soft_bounce' : 'sent',
+      gonderildiAt: new Date('2026-10-26T08:00:00Z'),
+    }));
+    const p = sahtePrisma([...gonderilmis, hedef(1)]);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ag yok')));
+    const svc = new EpostaKampanyaService(p as any);
+    await svc.setAcik(true);
+    expect((await svc.tick()).neden ?? '').not.toMatch(/geri dönme/);
+    expect(await (svc as any).son7Gun(new Date('2026-10-20T08:00:00Z'))).toMatchObject({ gonderilen: 30, bounce: 1, gecici: 2 });
+  });
 });
 
 describe('Mailjet olaylari', () => {
