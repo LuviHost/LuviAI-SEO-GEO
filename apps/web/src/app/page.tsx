@@ -306,7 +306,7 @@ export default async function LandingPage() {
             <p className="mt-3 text-xs leading-relaxed"><T k="land.footer.tagline" /></p>
           </div>
           <FooterCol title="land.footer.product" links={[['land.nav.pricing', '/pricing'], ['land.footer.use_cases', '/use-cases'], ['land.footer.compare', '/compare']]} />
-          <FooterCol title="land.footer.resources" links={[['nav.guides', '/rehber'], ['land.footer.chatgpt_guide', '/rehber/chatgpt-markam-gorunuyor-mu'], ['land.footer.gbp', '/google-isletme-karnesi']]} />
+          <FooterCol title="land.footer.resources" links={[['nav.guides', '/rehber'], ['land.footer.ai_visibility', '/rehber/yapay-zeka-gorunurlugu'], ['land.footer.chatgpt_guide', '/rehber/chatgpt-markam-gorunuyor-mu'], ['land.footer.gbp', '/google-isletme-karnesi']]} />
           <FooterCol title="land.footer.company" links={[['land.footer.about', '/about'], ['land.footer.help', '/help'], ['land.nav.faq', '/faq']]} />
           <FooterCol title="land.footer.legal" links={[['land.footer.privacy', '/privacy'], ['land.footer.terms', '/terms'], ['land.footer.kvkk', '/kvkk']]} />
         </div>

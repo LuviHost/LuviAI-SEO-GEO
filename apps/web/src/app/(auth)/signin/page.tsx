@@ -44,9 +44,14 @@ function signInErrorText(code: string | undefined): string | null {
   return SIGNIN_ERRORS.get(code) ?? SIGNIN_ERROR_FALLBACK;
 }
 
+// noindex: giris sayfasi aramada sonuc olarak degersiz; kok layout'un canonical'ini (ana sayfa) miras
+// aldigi icin Google onu ana sayfanin kopyasi sayip www kopyasini asil seciyordu (GSC URL denetimi
+// 11.11.2026). follow kalir: sayfadaki baglantilar taranabilir.
 export const metadata = {
   title: 'Giriş yap veya hesap oluştur — RanksUp panele eriş',
   description: 'RanksUp hesabınla giriş yap veya yeni hesap aç. 14 gün ücretsiz deneme, 2 makale, kredi kartı gerekmez. PayTR güvenli ödeme, aylık iptal hakkı.',
+  alternates: { canonical: 'https://ranksup.ai/signin' },
+  robots: { index: false, follow: true },
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {

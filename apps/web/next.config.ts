@@ -30,6 +30,23 @@ const config: NextConfig = {
     const target = process.env.PREVIEW_API_ORIGIN || 'https://ranksup.ai';
     return { beforeFiles: [], afterFiles: [{ source: '/api/:path*', destination: `${target}/api/:path*` }], fallback: [] };
   },
+  /**
+   * www → kok alan adi, kalici (308). NEDEN: www.ranksup.ai 200 donuyordu; canonical kok alan adini
+   * gosterse de Google /help/ai-visibility, /help/auto-pilot, /help/api-keys, /help/billing ve
+   * /signin icin www kopyasini asil secti (Search Console URL denetimi, 11.11.2026). Yalniz
+   * Host = www.ranksup.ai: api.ranksup.ai ve ai.luvihost.com etkilenmez. nginx Host'u oldugu gibi
+   * iletir (proxy_set_header Host $host); www/api/* nginx'te API'ye gider, buraya gelmez.
+   */
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.ranksup.ai' }],
+        destination: 'https://ranksup.ai/:path*',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

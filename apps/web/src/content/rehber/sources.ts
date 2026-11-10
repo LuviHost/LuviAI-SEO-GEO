@@ -8,6 +8,8 @@
 import type { RehberSource } from './types';
 
 const ERISIM = '2026-10-24';
+/** 11.11.2026'da yeniden okunan / yeni eklenen kaynaklar (yapay-zeka-gorunurlugu, ai-bakisi-gorunurluk) */
+const ERISIM_KASIM = '2026-11-11';
 
 export const SRC = {
   openaiBots: {
@@ -51,9 +53,13 @@ export const SRC = {
     id: 'google-tr-blog', title: 'Türkiye’de AI Modu ve AI Bakışı dönemi başlıyor (18 Şubat 2026)', publisher: 'Google Türkiye Blogu',
     url: 'https://blog.google/intl/tr-tr/urun-duyurulari/turkiyede-ai-modu-ve-ai-bakisi-donemi-basliyor/', accessed: ERISIM,
   },
+  // 11.11.2026 yeniden okundu. Verbatim: "yapay zekayla üretilmiş özetler sunarak arama sürecini
+  // kolaylaştırabilir" · "üretken yapay zekanın faydalı olabileceğini belirlediğinde" · "daha ayrıntılı
+  // araştırma için bağlantılar" · "Özellikler devre dışı bırakılamaz." · Web filtresi "AI Bakışı gibi
+  // özellikler olmadan yalnızca metin tabanlı bağlantıları gösterir" · "AI Bakışları'nda hata olabilir ve olacaktır."
   googleTrHelp: {
     id: 'google-tr-help', title: 'Google Arama’daki AI Bakışı özelliği', publisher: 'Google Arama Yardım',
-    url: 'https://support.google.com/websearch/answer/14901683?hl=tr', accessed: ERISIM,
+    url: 'https://support.google.com/websearch/answer/14901683?hl=tr', accessed: ERISIM_KASIM,
   },
   appleBot: {
     id: 'applebot', title: 'About Applebot (Applebot-Extended)', publisher: 'Apple',
@@ -187,6 +193,20 @@ export const SRC = {
   semrush: {
     id: 'semrush', title: 'AI Visibility Toolkit (bilgi bankası)', publisher: 'Semrush',
     url: 'https://www.semrush.com/kb/1493-ai-toolkit', accessed: ERISIM,
+  },
+  //  Semrush KB (11.11.2026 okundu): "The AI Visibility Score reflects how often your brand is mentioned in
+  //   AI-generated answers" "compared to the median number of mentions for your top industry competitors." ·
+  //   Brand Performance "analyzes your Share of Voice, brand sentiment, and the key narratives driving your reputation."
+  semrushScore: {
+    id: 'semrush-score', title: 'AI Visibility Toolkit: AI Visibility Score tanımı (bilgi bankası)', publisher: 'Semrush',
+    url: 'https://www.semrush.com/kb/1493-ai-toolkit', accessed: ERISIM_KASIM,
+  },
+  //  Peec AI dokumani (11.11.2026 okundu, "What Peec AI does"): Visibility "Shows how often your brand gets
+  //   mentioned across AI responses" · Position "Measures where you rank when you do appear, compared with other
+  //   brands." · Sentiment "Captures whether AI describes your brand positively, neutrally, or negatively"
+  peecDocs: {
+    id: 'peec-docs', title: 'Peec AI dokümantasyonu: Visibility, Position, Sentiment', publisher: 'Peec AI',
+    url: 'https://docs.peec.ai/', accessed: ERISIM_KASIM,
   },
   //  Ahrefs (ahrefs.com/brand-radar, ABD'den erisimde USD; Avrupa'da € gosterilebilir): Custom Prompts
   //   "Free for every paid Ahrefs Lite plan and above." "Starts at $50/mo" · AI Visibility Index "Starts at

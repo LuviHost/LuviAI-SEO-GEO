@@ -37,6 +37,11 @@ export default function Page() {
         { name: 'Haftalık karşılaştır', text: 'Otomatik günlük ölçüm yoktur. "Yeniden Test" ile aldığın her ölçüm kaydedilir ve grafiğe eklenir; iki ölçümü yan yana karşılaştırabilirsin.' },
       ]}
     >
+      <p>
+        Yapay zekâ görünürlüğünün ne olduğunu, hangi metriklerle ve nasıl ölçüldüğünü araçtan bağımsız anlatan rehber:{' '}
+        <a href="/rehber/yapay-zeka-gorunurlugu">Yapay zekâ görünürlüğü nedir, nasıl ölçülür?</a>
+      </p>
+
       <h2>Nasıl çalışır?</h2>
       <p>
         RanksUp marka beynindeki sorulardan en fazla 5 tanesini (örn. <em>&ldquo;en iyi KOBİ muhasebe yazılımı nedir?&rdquo;</em>)

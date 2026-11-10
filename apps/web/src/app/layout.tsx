@@ -36,10 +36,13 @@ const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? '';
 
 const SITE_URL = 'https://ranksup.ai';
 // Browser tab + Google snippet için uzun başlık (60 char)
-const TITLE = 'RanksUp — AI çağının pazarlama platformu';
+// 11.11.2026: "AI çağının pazarlama platformu" kimsenin aradığı bir ifade değildi; Search Console'da
+// "ai görünürlüğü / yapay zeka görünürlük / ai görünürlük analizi" sorguları sitede yalnız bir yardım
+// sayfasına düşüyordu (sıra 26-80). Başlık kategoriyi aranan kelimelerle söyler.
+const TITLE = 'RanksUp — Yapay zekâ görünürlük ölçümü, GEO ve SEO';
 // Tüm sayfalarda fallback (max 160 char Google için)
 // "Sıralamanı yükselt" bir sonuç vaadiydi; Kullanım Şartları SEO sonucunu garanti etmiyor.
-const DESCRIPTION = 'AI çağının görünürlük platformu. GEO, SEO, ASO ve Apple Search Ads tek panelde — markanı ChatGPT, Claude ve Gemini cevaplarında ölç, App Store sıralamanı takip et.';
+const DESCRIPTION = 'Markan ChatGPT, Gemini, Claude, Perplexity, Grok ve DeepSeek cevaplarında anılıyor mu? Ölç, rakiplerini gör; GEO, SEO ve ASO tek panelde.';
 // WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
 const OG_TITLE = 'RanksUp — Senin yerine pazarlama yapan AI';
 const OG_DESCRIPTION = 'GEO · SEO · ASO · Apple Search Ads — hepsi tek panel. 14 gün ücretsiz, 2 makale, kart gerekmez.';
