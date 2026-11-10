@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { api, type EpostaHedef, type EpostaHedefDurum, type EpostaOverview } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -462,6 +463,11 @@ function Satir({ h, mesgul, is, duzMetin }: { h: EpostaHedef; mesgul: boolean; i
       <td className="py-2 pr-3 text-xs">{h.linkedin ? `${LINKEDIN[h.linkedin.durum] ?? h.linkedin.durum} · ${h.linkedin.kisi} kişi` : '—'}</td>
       <td className="py-2 text-right">
         <div className="flex justify-end gap-1">
+          {h.web && (
+            <Button asChild variant="ghost" size="sm" title="Bu firma için ücretsiz AI görünürlük karnesi (Karneler sayfasında firma ve alan adı dolu açılır)">
+              <Link href={`/admin/karneler?firma=${encodeURIComponent(h.marka || h.firma)}&host=${encodeURIComponent(h.web)}`}>Karne</Link>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

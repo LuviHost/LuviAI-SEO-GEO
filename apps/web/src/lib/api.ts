@@ -654,6 +654,70 @@ export interface LinkedinTickResult {
 }
 
 
+// ─── Ucretsiz AI gorunurluk karnesi (admin /admin/karneler) ──────────────────
+
+export interface KarneSatiri {
+  id: string;
+  brand: string;
+  host: string;
+  sektor: string;
+  altsektor: string | null;
+  url: string;
+  createdAt: string;
+  /** Ayni alan adinin kacinci olcumu (1 = ilk) */
+  olcumNo: number;
+  soruSayisi: number;
+  olculenCevap: number;
+  anilanCevap: number;
+  atifCevap: number;
+  hataliCevap: number;
+  olculenSaglayici: number;
+  anilanSaglayici: number;
+  maliyetUsd: number;
+  gorulmeSayisi: number;
+  sonGorulmeAt: string | null;
+  linkedinFirma: string | null;
+}
+
+export interface KarneIsi {
+  id: string;
+  brand: string;
+  host: string;
+  soruSayisi: number;
+  durum: 'CALISIYOR' | 'HAZIR' | 'HATA';
+  basladi: string;
+  bitti?: string;
+  hata?: string;
+  karneId?: string;
+}
+
+export interface KarnelerYaniti {
+  karneler: KarneSatiri[];
+  isler: KarneIsi[];
+  tahmin: { saglayici: number; soruBasiTavanUsd: number };
+  secenekler: {
+    sektorler: string[];
+    altSektorler: Record<string, string[]>;
+    tumAltSektorler: string[];
+    soruSiniri: number;
+    ozelEtiket: string;
+  };
+}
+
+export interface KarneBaslatGirdi {
+  brand: string;
+  host: string;
+  /** Banka icin sektor anahtari; `sorular` doluysa karnede gorunen etiket */
+  sektor: string;
+  altsektor?: string | null;
+  /** Satir satir sorular — doluysa soru bankasi kullanilmaz */
+  sorular?: string;
+  rakipler?: string;
+  ayniGunOnay?: boolean;
+}
+
+export type KarneBaslatYaniti = { started: true; is: KarneIsi } | { started: false; reason: string; ayniGun?: boolean };
+
 // ─── Kurumsal e-posta kampanyasi (admin) ─────────────────────────────────────
 
 export type EpostaHedefDurum = 'YENI' | 'IYS_DOSYADA' | 'SIRADA' | 'GONDERILDI' | 'HATA' | 'BOUNCE' | 'RET' | 'SPAM' | 'HARIC' | 'DIS_ARAC';
@@ -2024,6 +2088,16 @@ export const api = {
     request<Array<{ id: string; token: string; url: string; host: string; gorulmeSayisi: number; sonGorulmeAt: string | null; createdAt: string }>>(
       `/intel/linkedin/prospects/${encodeURIComponent(id)}/karneler`,
     ),
+  /** Tum karneler (terminal + panel) ve calisan olcumler */
+  getKarneler: () => request<KarnelerYaniti>('/karneler'),
+  /** Yeni karne olcumu — arka planda 4-6 dk; sonuc listeye duser */
+  karneBaslat: (body: KarneBaslatGirdi) =>
+    request<KarneBaslatYaniti>('/karneler', { method: 'POST', body: JSON.stringify(body) }),
+  /** Ayni sorularla yeniden olc (baska gun ikinci olcum) */
+  karneTekrar: (id: string, ayniGunOnay = false) =>
+    request<KarneBaslatYaniti>(`/karneler/${encodeURIComponent(id)}/tekrar`, { method: 'POST', body: JSON.stringify({ ayniGunOnay }) }),
+  /** Karne HTML'i — gorulme sayaci ARTMAZ */
+  karneOnizleme: (id: string) => request<{ brand: string; html: string }>(`/karneler/${encodeURIComponent(id)}/onizleme`),
   skipLinkedinProspect: (id: string) =>
     request<{ ok?: boolean; status?: LinkedinProspectStatus }>(
       `/intel/linkedin/prospects/${encodeURIComponent(id)}/skip`,

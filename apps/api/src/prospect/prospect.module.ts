@@ -4,6 +4,7 @@ import { AuditModule } from '../audit/audit.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
 import { KarneService } from './karne.service.js';
 import { KarneController } from './karne.controller.js';
+import { KarneAdminController } from './karne-admin.controller.js';
 
 /**
  * Satis oncesi ucretsiz karne: uretim (KarneService) + paylasilabilir sayfa (KarneController).
@@ -11,7 +12,7 @@ import { KarneController } from './karne.controller.js';
  */
 @Module({
   imports: [PrismaModule, AuditModule, SettingsModule],
-  controllers: [KarneController],
+  controllers: [KarneController, KarneAdminController],
   providers: [KarneService],
   exports: [KarneService],
 })
