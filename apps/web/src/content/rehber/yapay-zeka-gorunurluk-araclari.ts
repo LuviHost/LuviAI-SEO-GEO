@@ -13,7 +13,7 @@ import { SRC } from './sources';
 export const article: RehberArticle = {
   slug: 'yapay-zeka-gorunurluk-araclari',
   title: 'Hangi yapay zekâ görünürlük aracı kime uygun? (2026 karşılaştırması)',
-  metaTitle: 'Yapay zekâ görünürlük araçları karşılaştırması',
+  metaTitle: 'Yapay zekâ görünürlük araçları ve fiyatları',
   description:
     'RanksUp, GEON, SEOYEN, Otterly, Peec AI, Profound, Semrush ve Ahrefs Brand Radar: motorlar, başlangıç fiyatı, deneme ve sınırlamalar (24.10.2026).',
   topic: 'Karşılaştırma',

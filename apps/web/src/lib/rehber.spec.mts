@@ -50,8 +50,8 @@ describe('yardimcilar', () => {
 describe('rehber kaydi = rotalar = sitemap', () => {
   const sluglar = REHBER_ARTICLES.map((a) => a.slug);
 
-  it('7 makale, slug tekrari yok', () => {
-    expect(sluglar.length).toBe(7);
+  it('8 makale, slug tekrari yok', () => {
+    expect(sluglar.length).toBe(8);
     expect(new Set(sluglar).size).toBe(sluglar.length);
   });
 

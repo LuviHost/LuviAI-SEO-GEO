@@ -6,20 +6,25 @@ import { SRC } from './sources';
  * (webtekno, 24.04.2026) tek bir ornege dayaniyor ve gozlemi kimin yaptigi belirtilmiyor;
  * iki-kaynak kuralini gecmedi. Stradiji'nin Turkiye AIO orani da tek kaynak oldugu icin yok.
  *
+ * 11.11.2026: "AI Bakışı nedir" ve "kapatılabilir mi" bolumleri eklendi; Search Console'da "ai bakışı"
+ * (sira 43) ve "google ai bakışı" (sira 34) sorgulari bu sayfaya dusuyordu, sayfa tanimi vermiyordu.
+ * Kaynak: Google Arama Yardim (google-tr-help, 11.11.2026 yeniden okundu; alintilar sources.ts'te).
+ *
  * Urun bilgisi kodla dogrulandi: RanksUp AI Bakisi'ni kendisi sorgulamaz; Search Console
  * Uretken AI raporunun tarih tablosu CSV'si Analitik sekmesine yuklenir
  * (components/google-ai-surface-card.tsx, analytics-tab.tsx).
  */
 export const article: RehberArticle = {
   slug: 'ai-bakisi-gorunurluk',
-  title: 'Google AI Bakışı’nda nasıl görünürsün? (Türkiye)',
-  metaTitle: 'Google AI Bakışı’nda nasıl görünülür? (Türkiye)',
+  title: 'Google AI Bakışı nedir, nasıl görünürsün? (Türkiye)',
+  metaTitle: 'Google AI Bakışı nedir, nasıl görünülür?',
   description:
-    'Google AI Bakışı Türkiye’de 18 Şubat 2026’dan itibaren kademeli olarak açıldı. Kaynakların nasıl seçildiği, Google’ın resmi kuralları ve kontrol listesi.',
+    'Google AI Bakışı nedir, Türkiye’de ne zaman açıldı, kapatılabilir mi? Kaynakların nasıl seçildiği, Google’ın resmi kuralları ve kontrol listesi.',
   topic: 'Google',
   answer:
-    'AI Bakışı’nda kaynak olmak için sayfanın Google’da dizine eklenmiş ve snippet ile gösterilmeye uygun olması gerekir; Google bunun dışında teknik şart koymuyor. Gerisi iyi SEO ve soruya doğrudan cevap veren içerikle ilgili.',
+    'Google AI Bakışı, arama sonuçlarında üretken yapay zekâyla hazırlanan, kaynak bağlantılı bir özettir; kaynak olmak için sayfanın dizinde ve snippet’e uygun olması gerekir. Google bunun dışında teknik şart koymuyor. Gerisi iyi SEO ve soruya doğrudan cevap veren içerikle ilgili.',
   quick: [
+    'AI Bakışı, Google Arama’da üretken yapay zekâyla hazırlanan ve kaynaklara bağlantı veren bir özettir.',
     'Türkiye’de 18 Şubat 2026’dan itibaren kademeli olarak açıldı (Google Türkiye blogu).',
     'Tek şart: dizine eklenme ve snippet ile gösterilmeye uygunluk. Görünme garantisi yok.',
     'Kaynaklar Google’ın temel sıralama sistemleriyle ve ilgili alt aramalarla (query fan-out) bulunuyor.',
@@ -27,6 +32,22 @@ export const article: RehberArticle = {
     'Görünürlüğü Search Console’daki Üretken AI performans raporundan izle.',
   ],
   sections: [
+    {
+      id: 'ai-bakisi-nedir',
+      h2: 'Google AI Bakışı nedir?',
+      blocks: [
+        {
+          t: 'p',
+          text: 'AI Bakışı (İngilizcesi AI Overviews), Google Arama’da üretken yapay zekâyla hazırlanan özetlerdir. Google’a göre sistem, üretken yapay zekânın faydalı olacağını belirlediğinde özeti gösterir; özet, daha ayrıntılı araştırma için web’deki kaynaklara bağlantılar içerir. Google aynı sayfada AI Bakışı’nda hata olabileceğini de açıkça yazıyor.',
+          kaynak: ['google-tr-help'],
+        },
+        {
+          t: 'p',
+          text: 'Site sahibi için anlamı şu: özetteki bağlantılar, Google’ın cevabı desteklemek için seçtiği sayfalardır. Bu sayfalardan biri olmak, aramada görünürlüğün yeni bir biçimi. Yapay zekâ asistanlarındaki görünürlüğün tamamını [yapay zekâ görünürlüğü rehberinde](/rehber/yapay-zeka-gorunurlugu) anlattık.',
+          kaynak: ['google-ai-guide'],
+        },
+      ],
+    },
     {
       id: 'turkiyede-ne-zaman-acildi',
       h2: 'AI Bakışı Türkiye’de ne zaman açıldı?',
@@ -118,6 +139,18 @@ export const article: RehberArticle = {
       ],
     },
     {
+      id: 'kapatilabilir-mi',
+      h2: 'AI Bakışı kapatılabilir mi?',
+      blocks: [
+        {
+          t: 'p',
+          text: 'Arama yapan kişi için hayır. Google Arama Yardım’a göre bu özellikler devre dışı bırakılamaz. Arama yaptıktan sonra “Web” filtresini seçersen Google, AI Bakışı gibi özellikler olmadan yalnızca metin tabanlı bağlantıları gösterir.',
+          kaynak: ['google-tr-help'],
+        },
+        { t: 'p', text: 'Site sahibi olarak içeriğinin bu özelliklerde gösterilmesini sınırlamak ise ayrı bir konu; bir sonraki başlıkta anlatıyoruz.' },
+      ],
+    },
+    {
       id: 'ai-bakisini-engellemek',
       h2: 'Sitemi AI Bakışı’ndan çıkarmak istersem ne yapmalıyım?',
       blocks: [
@@ -162,6 +195,10 @@ export const article: RehberArticle = {
       a: 'Google, gösterilen içeriği nosnippet, data-nosnippet, max-snippet ya da noindex ile sınırlamanı öneriyor. Bu kontroller normal arama sonuçlarındaki snippet’ları da etkiler.',
     },
     {
+      q: 'Google AI Bakışı’nı kapatabilir miyim?',
+      a: 'Hayır. Google Arama Yardım’a göre AI Bakışı devre dışı bırakılamaz. Arama yaptıktan sonra Web filtresini seçersen yalnızca metin tabanlı bağlantılar, AI Bakışı olmadan gösterilir.',
+    },
+    {
       q: 'Google-Extended’i engellersem AI Bakışı’ndan çıkar mıyım?',
       a: 'Hayır. Google-Extended, Gemini modellerinin eğitimi ve Gemini uygulamalarındaki grounding için içerik kullanımını yönetir. Google’a göre Google Arama’ya dahil olmayı etkilemez.',
     },
@@ -171,7 +208,7 @@ export const article: RehberArticle = {
     },
   ],
   sources: [SRC.googleTrBlog, SRC.googleTrHelp, SRC.googleAiGuide, SRC.googleAiFeatures, SRC.googleCrawlers],
-  related: ['geo-nedir', 'llms-txt-nedir', 'yapay-zeka-botlari-robots-txt'],
+  related: ['yapay-zeka-gorunurlugu', 'geo-nedir', 'yapay-zeka-botlari-robots-txt'],
   published: '2026-10-24',
   schemaType: 'Article',
 };

@@ -6,6 +6,8 @@ import { SRC } from './sources';
  * ChatGPT / Claude / Gemini / Perplexity'de (api audit/ai-citation.service.ts), en fazla 5 soru,
  * puan 100 / 50 / 0 ve marka adi gecen sorular puana girmez (help/ai-visibility), hesap
  * basina 7 gunde 1 olcum (billing/measurement-allowance.ts).
+ * 11.11.2026: "her soruyu bir kez sorar" eskimisti — 08.11'den beri ucretli planda her soru 3 kez,
+ * denemede 1 kez (api audit/citation-repeat.ts; prod CITATION_TEKRAR tanimsiz = varsayilan 3).
  */
 export const article: RehberArticle = {
   slug: 'chatgpt-markam-gorunuyor-mu',
@@ -108,7 +110,7 @@ export const article: RehberArticle = {
       id: 'ranksup-nasil-olcuyor',
       h2: 'RanksUp bunu nasıl ölçüyor?',
       blocks: [
-        { t: 'p', text: 'RanksUp benzer bir yöntemi altı asistanda otomatik uygular. Bir fark var: elle testte her soruyu 3 kez sormanı öneriyoruz, RanksUp ise her ölçümde her soruyu bir kez sorar ve oynaklığı haftalık ölçümler arasındaki eğilimle izler. Ölçüm şöyle çalışır:' },
+        { t: 'p', text: 'RanksUp benzer bir yöntemi altı asistanda otomatik uygular. Elle testte önerdiğimiz gibi ücretli planlarda her soru her asistana 3 kez, birbirinden bağımsız sorulur; ücretsiz denemede bir kez. Ölçüm şöyle çalışır:' },
         {
           t: 'ul',
           items: [

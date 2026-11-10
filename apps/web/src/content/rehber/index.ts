@@ -11,8 +11,10 @@ import { article as llms } from './llms-txt-nedir';
 import { article as aiBakisi } from './ai-bakisi-gorunurluk';
 import { article as mobil } from './mobil-uygulama-geo';
 import { article as araclar } from './yapay-zeka-gorunurluk-araclari';
+import { article as gorunurluk } from './yapay-zeka-gorunurlugu';
 
-export const REHBER_ARTICLES: readonly RehberArticle[] = [chatgpt, geo, botlar, llms, aiBakisi, mobil, araclar];
+// Kapsayici makale (yapay zeka gorunurlugu nedir) basta: "ai gorunurlugu" sorgulari bunu hedefliyor.
+export const REHBER_ARTICLES: readonly RehberArticle[] = [gorunurluk, chatgpt, geo, botlar, llms, aiBakisi, mobil, araclar];
 
 export function findRehber(slug: string): RehberArticle {
   const a = REHBER_ARTICLES.find((x) => x.slug === slug);
