@@ -1,7 +1,8 @@
 import { Rocket } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
+import { yardimMeta } from '../yardim-meta';
 
-export const metadata = { title: 'Hızlı Başlangıç — RanksUp Help' };
+export const metadata = yardimMeta('getting-started', 'Hızlı başlangıç: 5 dakikada kurulum · RanksUp Yardım', 'RanksUp\'ta hesap aç, ilk siteni ekle ve ilk yapay zekâ görünürlük bulgularını gör: adım adım 5 dakikalık kurulum rehberi.');
 
 // Kodla dogrulandi (Ekim 2026):
 //  - Web'de kayit YALNIZ Google ile (apps/web/src/auth.ts tek saglayici);

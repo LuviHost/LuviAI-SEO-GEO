@@ -1,7 +1,8 @@
 import { CreditCard } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
+import { yardimMeta } from '../yardim-meta';
 
-export const metadata = { title: 'Faturalama — RanksUp Help' };
+export const metadata = yardimMeta('billing', 'Plan, fatura, iptal ve kotalar · RanksUp Yardım', 'RanksUp\'ta plan seçimi, ödeme geçmişi, iptal ve kotalar: Abonelik sayfasından neyi nasıl yönetirsin?');
 
 // Kodla dogrulandi (Ekim 2026):
 //  - Iade kurali Kullanim Sartlari md. 4 ile ayni (terms/page.tsx); eski

@@ -1,7 +1,8 @@
 import { Search } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
+import { yardimMeta } from '../yardim-meta';
 
-export const metadata = { title: 'ASO — Mobil App SEO — RanksUp Help' };
+export const metadata = yardimMeta('aso', 'ASO: App Store ve Google Play sıralama takibi · RanksUp Yardım', 'Uygulamanın App Store ve Google Play\'de hangi anahtar kelimelerde kaçıncı sırada olduğunu her gece ölç; rakip metadata analizi ve öneriler.');
 
 // Metin ürünün gerçek davranışını anlatır (sayılar koddan: AI önerisi en fazla 50,
 // yorum çekimi mağaza başına en fazla 50, sıra ölçüm derinliği App Store ~100 /

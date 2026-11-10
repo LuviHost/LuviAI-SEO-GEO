@@ -1,7 +1,8 @@
 import { Sparkles } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
+import { yardimMeta } from '../yardim-meta';
 
-export const metadata = { title: 'AI Görünürlük — RanksUp Help' };
+export const metadata = yardimMeta('ai-visibility', 'AI görünürlük ölçümü nasıl çalışır? · RanksUp Yardım', 'RanksUp, ChatGPT, Claude, Gemini ve Perplexity cevaplarında markanın anılıp anılmadığını ve sitenin kaynak gösterilip gösterilmediğini nasıl ölçer?');
 
 // Metin urunun gercek davranisini anlatir (Ekim 2026, kodla dogrulandi):
 //  - Olculen asistanlar plans.ts ile ayni 6 ad; Llama uretimde olculmuyor.
