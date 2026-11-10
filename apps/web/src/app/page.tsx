@@ -90,6 +90,8 @@ export default async function LandingPage() {
             <a href="#sonuc" className="hover:text-foreground"><T k="land.nav.results" /></a>
             <a href="#fiyat" className="hover:text-foreground"><T k="land.nav.pricing" /></a>
             <a href="#sss" className="hover:text-foreground"><T k="land.nav.faq" /></a>
+            {/* NEDEN: ana sayfa /rehber'e hic baglanti vermiyordu; rehberler yalniz site haritasindan bulunuyordu (10.11.2026) */}
+            <Link href="/rehber" className="hover:text-foreground"><T k="nav.guides" /></Link>
           </div>
           <div className="flex items-center gap-1.5">
             <LocaleSwitch />
@@ -296,7 +298,7 @@ export default async function LandingPage() {
 
       {/* ─── FOOTER ───────────────────────────────────────────── */}
       <footer className="border-t border-border py-12 text-sm text-muted-foreground">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 sm:px-6 md:grid-cols-4 lg:px-8">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 sm:px-6 md:grid-cols-5 lg:px-8">
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center" aria-label="RanksUp">
               <ThemedWordmark size={20} />
@@ -304,6 +306,7 @@ export default async function LandingPage() {
             <p className="mt-3 text-xs leading-relaxed"><T k="land.footer.tagline" /></p>
           </div>
           <FooterCol title="land.footer.product" links={[['land.nav.pricing', '/pricing'], ['land.footer.use_cases', '/use-cases'], ['land.footer.compare', '/compare']]} />
+          <FooterCol title="land.footer.resources" links={[['nav.guides', '/rehber'], ['land.footer.chatgpt_guide', '/rehber/chatgpt-markam-gorunuyor-mu'], ['land.footer.gbp', '/google-isletme-karnesi']]} />
           <FooterCol title="land.footer.company" links={[['land.footer.about', '/about'], ['land.footer.help', '/help'], ['land.nav.faq', '/faq']]} />
           <FooterCol title="land.footer.legal" links={[['land.footer.privacy', '/privacy'], ['land.footer.terms', '/terms'], ['land.footer.kvkk', '/kvkk']]} />
         </div>

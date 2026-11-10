@@ -1,7 +1,8 @@
 import { Bot } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
+import { yardimMeta } from '../yardim-meta';
 
-export const metadata = { title: 'Auto-Pilot — RanksUp Help' };
+export const metadata = yardimMeta('auto-pilot', 'Otomatik akış ve Auto-Pilot · RanksUp Yardım', 'Otomatik akış site içeriğini takvime göre üretip yayına hazırlar; Apple Search Ads Auto-Pilot her gün düşük performanslı anahtar kelimeleri durdurur.');
 
 // Metin kodla dogrulandi (Ekim 2026):
 //  - ASA Auto-Pilot: asa.cron.ts 04:30 UTC, asa-rules.ts (7 gun, 20+ dokunma,

@@ -1,7 +1,8 @@
 import { Smartphone } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
+import { yardimMeta } from '../yardim-meta';
 
-export const metadata = { title: 'Apple Search Ads + ASC — RanksUp Help' };
+export const metadata = yardimMeta('asa-asc', 'Apple Search Ads ve App Store Connect · RanksUp Yardım', 'Apple Search Ads kampanyası, App Store Connect ile yorum ve sürüm takibi ve düşük performanslı anahtar kelimeleri durduran Auto-Pilot.');
 
 // Kodla dogrulandi (Ekim 2026):
 //  - Private key tarayicida uretilir ama Baglan adiminda sunucuya gider ve

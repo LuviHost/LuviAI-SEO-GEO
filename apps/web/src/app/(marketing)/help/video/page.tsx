@@ -1,7 +1,8 @@
 import { Clapperboard } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
+import { yardimMeta } from '../yardim-meta';
 
-export const metadata = { title: 'RanksUp Video — RanksUp Help' };
+export const metadata = yardimMeta('video', 'RanksUp Video: makale ve site tanıtım videoları · RanksUp Yardım', 'Yayındaki makalenden ya da site sayfandan sitenin adı, logosu ve rengiyle kısa video üret: Reels, Shorts, TikTok ve YouTube için.');
 
 // Kodla dogrulandi (21.10.2026):
 //  - Plan: FEATURE_MIN_PLAN.articleVideo = 'pro' (api billing/plans.ts); aylik hak

@@ -1,7 +1,8 @@
 import { Plug } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
+import { yardimMeta } from '../yardim-meta';
 
-export const metadata = { title: 'Kendi sağlayıcı anahtarın (BYOK) — RanksUp Help' };
+export const metadata = yardimMeta('api-keys', 'Kendi API anahtarınla ölçüm (BYOK) · RanksUp Yardım', 'Kendi OpenAI, Anthropic, Gemini, Perplexity, xAI ya da DeepSeek anahtarınla AI görünürlük ölçümü: kurulum ve kota kuralları.');
 
 // Kodla dogrulandi (Ekim 2026):
 //  - BYOK yalniz Kurumsal (plans.ts FEATURE_MIN_PLAN.byok;
