@@ -1304,7 +1304,9 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(basarisiz).toContain('Ödeme Başarısız');
     expect(basarisiz).not.toMatch(/\bbg-white\b|\b(?:text|bg|border)-(?:slate|gray)-\d+|\bfrom-red-50\b|\bto-brand-50\b/);
     for (const [ad, src] of [['failure', basarisiz], ['success', basarili]] as const) {
-      expect(src, ad).toContain('bg-gradient-to-br from-muted/40 to-brand/5');
+      // 12.11.2026 (vitrin dili ic sayfalarda): zemin duz token rengi; degrade yok
+      expect(src, ad).toContain('min-h-screen flex items-center justify-center bg-muted/40 p-4');
+      expect(src, ad).not.toMatch(/bg-gradient/);
       expect(src, ad).toContain('text-center bg-card border');
       expect(src, ad).toContain('text-muted-foreground');
     }

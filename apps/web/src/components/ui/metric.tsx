@@ -11,43 +11,49 @@ import { DeltaBadge } from '@/components/ui/delta-badge';
  * KANONIK metrik karti — dashboard/page.tsx StatCard DNA'sindan cikarildi.
  * 24 yerel metrik-kart kopyasinin yerini alir; yeni metrik yazan HERKES bunu kullanir.
  *
- * Sozlesme: 14px kart yaricapi (rounded-lg) · 16px pad (p-4) · deger text-metric(-lg)
- * · etiket text-label · sayilar NumberTicker (reduced-motion'i kendi tanir).
+ * Sozlesme: 8px kart yaricapi (rounded-lg) · 16px pad (p-4) · deger text-metric(-lg)
+ * · etiket mono serit (v-rail) · sayilar NumberTicker (reduced-motion'i kendi tanir).
  * Ekim 2026: aksan cubugu + renkli ikon cipi + turuncu deger kaldirildi (her kart
- * turuncuydu, vurgu anlamini yitirmisti); etiket ustte, deger notr Sora, renk
- * yalniz kucuk ikonda.
+ * turuncuydu, vurgu anlamini yitirmisti); etiket ustte, deger notr, renk yalniz
+ * kucuk ikonda. 12.11.2026 (vitrin dili): rakam vitrindeki kanit rakami gibi ince
+ * agirlikli ve siki aralikli Geist; etiket vitrin seridi gibi mono.
  */
 
 const ACCENTS = {
+  // Varsayilan: notr ikon. Vitrinde turuncu tek vurgudur (birincil eylem, secili oge);
+  // her metrik kartinda turuncu ikon o vurguyu olduruyordu.
   brand: {
-    iconBg: 'bg-brand/15',
-    iconText: 'text-brand',
-    bar: 'from-brand to-brand/40',
-    hoverBorder: 'hover:border-brand/40',
+    iconBg: 'bg-muted',
+    iconText: 'text-muted-foreground',
+    bar: 'from-border to-transparent',
+    hoverBorder: 'hover:border-foreground/25',
   },
+  // Durum anlami tasiyan aksanlar token'dan (globals.css --success/--warning/--danger).
+  // Adlar geriye uyum icin duruyor: emerald = iyi, amber = uyari, rose = sorun.
   emerald: {
-    iconBg: 'bg-emerald-500/15',
-    iconText: 'text-emerald-600 dark:text-emerald-400',
-    bar: 'from-emerald-500 to-emerald-500/40',
-    hoverBorder: 'hover:border-emerald-500/40',
+    iconBg: 'bg-success/15',
+    iconText: 'text-success',
+    bar: 'from-success to-success/40',
+    hoverBorder: 'hover:border-success/40',
   },
   amber: {
-    iconBg: 'bg-amber-500/15',
-    iconText: 'text-amber-600 dark:text-amber-400',
-    bar: 'from-amber-500 to-amber-500/40',
-    hoverBorder: 'hover:border-amber-500/40',
+    iconBg: 'bg-warning/15',
+    iconText: 'text-warning',
+    bar: 'from-warning to-warning/40',
+    hoverBorder: 'hover:border-warning/40',
   },
+  // violet bir durum degildi (sus rengi): notr
   violet: {
-    iconBg: 'bg-violet-500/15',
-    iconText: 'text-violet-600 dark:text-violet-400',
-    bar: 'from-violet-500 to-violet-500/40',
-    hoverBorder: 'hover:border-violet-500/40',
+    iconBg: 'bg-muted',
+    iconText: 'text-muted-foreground',
+    bar: 'from-border to-transparent',
+    hoverBorder: 'hover:border-foreground/25',
   },
   rose: {
-    iconBg: 'bg-rose-500/15',
-    iconText: 'text-rose-600 dark:text-rose-400',
-    bar: 'from-rose-500 to-rose-500/40',
-    hoverBorder: 'hover:border-rose-500/40',
+    iconBg: 'bg-danger/15',
+    iconText: 'text-danger',
+    bar: 'from-danger to-danger/40',
+    hoverBorder: 'hover:border-danger/40',
   },
   muted: {
     iconBg: 'bg-muted',
@@ -59,12 +65,12 @@ const ACCENTS = {
 
 export type MetricAccent = keyof typeof ACCENTS;
 
-const metricValue = cva('font-semibold tracking-tight tabular-nums leading-none', {
+const metricValue = cva('tabular-nums', {
   variants: {
     size: {
       sm: 'text-metric',
       md: 'text-metric-lg',
-      lg: 'text-h4 font-semibold',
+      lg: 'text-h3 font-[450] tracking-[-0.05em]',
     },
   },
   defaultVariants: { size: 'md' },
@@ -109,7 +115,7 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        // Landing ile ayni sakin dil: renk yalniz kucuk ikonda; deger notr ve Sora
+        // Vitrinle ayni sakin dil: renk yalniz kucuk ikonda; deger notr
         'group relative flex flex-col rounded-lg border bg-card p-4 transition-colors duration-200',
         a.hoverBorder,
         className,
@@ -117,11 +123,11 @@ export function MetricCard({
       {...props}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="text-label font-medium text-muted-foreground">{label}</div>
+        <div className="v-rail">{label}</div>
         {Icon && <Icon className={cn('h-4 w-4 shrink-0', a.iconText)} aria-hidden />}
       </div>
       <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <div className={cn(metricValue({ size }), 'font-brand text-foreground')}>
+        <div className={cn(metricValue({ size }), 'text-foreground')}>
           {typeof value === 'number' ? (
             <NumberTicker value={value} format={format} prefix={prefix} suffix={suffix} />
           ) : (

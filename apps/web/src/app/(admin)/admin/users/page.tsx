@@ -45,7 +45,7 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold">Kullanıcılar</h1>
+          <h1 className="text-3xl font-[450] tracking-[-0.04em]">Kullanıcılar</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Toplam {users.length} kullanıcı · Filtrelenmiş: {filtered.length}
           </p>

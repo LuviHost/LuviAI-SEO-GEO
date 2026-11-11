@@ -109,15 +109,15 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
 
   return (
     <Card>
-      <CardContent className="p-5 space-y-4">
+      <CardContent className="space-y-4 p-6">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
-            <Bot className="h-5 w-5" aria-hidden />
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground">
+            <Bot className="h-[18px] w-[18px]" aria-hidden />
           </div>
           <div className="flex-1">
-            <h3 className="font-brand font-semibold text-base">AI bot takibi</h3>
-            <p className="text-sm text-muted-foreground mt-0.5 max-w-2xl">
-              Sitenin <code className="bg-muted/60 px-1 py-0.5 rounded text-label">&lt;head&gt;</code> bölümüne aşağıdaki tek satırı yapıştır.
+            <h3 className="text-panel-3">AI bot takibi</h3>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Sitenin <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">&lt;head&gt;</code> bölümüne aşağıdaki tek satırı yapıştır.
               GPTBot, ClaudeBot, PerplexityBot gibi AI botlarının ziyaretleri ve chatgpt.com, perplexity.ai gibi
               AI asistanlarından gelen ziyaretçiler otomatik kaydedilir.
             </p>
@@ -125,23 +125,23 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
         </div>
 
         {/* Snippet box */}
-        <div className="rounded-xl border bg-muted/30 p-3">
+        <div className="rounded-md border p-3">
           <div className="flex items-center gap-2 mb-2">
             <Code className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-            <span className="text-label font-medium text-muted-foreground">
+            <span className="v-rail">
               Bu siteye özel kod
             </span>
-            <span className="text-[10px] font-mono text-muted-foreground ml-auto">site={siteId.slice(0, 12)}…</span>
+            <span className="v-rail ml-auto">site={siteId.slice(0, 12)}…</span>
           </div>
-          <div className="flex items-stretch gap-2">
-            <pre className="flex-1 bg-card border rounded-lg px-3 py-2.5 text-[11px] font-mono overflow-x-auto whitespace-nowrap">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+            <pre className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md bg-muted px-3 py-2.5 font-mono text-xs">
               {snippet}
             </pre>
-            <Button onClick={copy} size="default" className="shrink-0">
+            <Button onClick={copy} size="default" variant="outline" className="shrink-0">
               {copied ? <><Check className="h-4 w-4 mr-1" /> Kopyalandı</> : <><Copy className="h-4 w-4 mr-1" /> Kopyala</>}
             </Button>
           </div>
-          <p className="text-label text-muted-foreground mt-2 leading-relaxed">
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             Kod asenkron yüklenir, sayfa hızını etkilemez. Yalnız bir AI botu ya da AI asistanından gelen ziyaretçi
             tespit edildiğinde kayıt gönderir; kişisel veri toplamaz, yalnız tarayıcı bilgisi ve sayfa adresi kaydedilir.
           </p>
@@ -149,17 +149,17 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
 
         {/* Verification hint */}
         {siteUrl && (
-          <div className="rounded-lg border p-3 flex items-start gap-2">
+          <div className="flex items-start gap-2 rounded-md border p-3">
             <Globe className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" aria-hidden />
             <div className="flex-1 text-sm">
-              <strong>Kurulumu doğrula:</strong>{' '}
-              <span className="text-foreground/80">
+              <strong className="font-medium">Kurulumu doğrula:</strong>{' '}
+              <span className="text-muted-foreground">
                 Kodu yapıştırdıktan sonra{' '}
                 <a
                   href={siteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline decoration-dotted hover:text-brand inline-flex items-center gap-0.5"
+                  className="inline-flex items-center gap-0.5 text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
                 >
                   {siteUrl.replace(/^https?:\/\//, '')}<ExternalLink className="h-3 w-3" />
                 </a>{' '}
@@ -172,10 +172,10 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
 
         {/* Platform talimatları (accordion) */}
         <div className="space-y-2">
-          <p className="text-label font-medium text-muted-foreground">
+          <p className="v-rail">
             Platforma göre kurulum rehberi
           </p>
-          <div className="rounded-lg border divide-y overflow-hidden">
+          <div className="divide-y overflow-hidden rounded-md border">
             {PLATFORMS.map((p) => {
               const expanded = expandedPlatform === p.id;
               return (
@@ -184,8 +184,8 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
                     type="button"
                     onClick={() => setExpandedPlatform(expanded ? null : p.id)}
                     className={cn(
-                      'w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 transition-colors',
-                      expanded && 'bg-muted/30',
+                      'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/50',
+                      expanded && 'bg-muted/50',
                     )}
                   >
                     {p.logo ? <VendorLogo name={p.logo} size={20} alt="" /> : <FileCode className="h-5 w-5 text-muted-foreground" aria-hidden />}
@@ -197,15 +197,15 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
                     )}
                   </button>
                   {expanded && (
-                    <div className="px-4 py-3 bg-card">
+                    <div className="px-4 py-3">
                       <ol className="space-y-2 text-sm">
                         {p.steps.map((step, i) => (
                           <li key={i} className="flex gap-2.5">
-                            <span className="grid place-items-center h-5 w-5 rounded-full bg-brand text-white text-[10px] font-bold shrink-0 mt-0.5">
+                            <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border font-mono text-xs text-muted-foreground">
                               {i + 1}
                             </span>
                             <span
-                              className="text-foreground/85 leading-relaxed"
+                              className="leading-relaxed text-foreground/85"
                               dangerouslySetInnerHTML={{ __html: step }}
                             />
                           </li>

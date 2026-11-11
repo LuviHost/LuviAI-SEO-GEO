@@ -189,7 +189,7 @@ export default function ApiKeysPage() {
           description="Anahtarı her isteğin Authorization başlığında gönder."
           actions={<Button size="sm" variant="outline" onClick={() => copy(CURL_EXAMPLE)}><Copy className="h-4 w-4" aria-hidden /> Kopyala</Button>}
         />
-        <pre className="mt-4 overflow-x-auto rounded-lg border bg-muted/40 p-4 font-mono text-xs leading-relaxed">{CURL_EXAMPLE}</pre>
+        <pre className="mt-4 overflow-x-auto rounded-md border bg-muted/40 p-4 font-mono text-xs leading-relaxed">{CURL_EXAMPLE}</pre>
       </Card>
     </div>
   );

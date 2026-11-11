@@ -150,12 +150,12 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex items-start gap-3 min-w-0">
-                  <div className="h-10 w-10 rounded-xl border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
+                  <div className="h-10 w-10 rounded-md border border-border text-muted-foreground grid place-items-center shrink-0">
                     <Link2 className="h-5 w-5" aria-hidden />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-brand text-sm font-semibold">Apple Search Ads hesabı</h3>
+                      <h3 className="text-panel-3">Apple Search Ads hesabı</h3>
                       {acc.isActive ? (
                         <Badge variant={'success' as any} className="text-label">Aktif</Badge>
                       ) : (
@@ -232,7 +232,7 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
         ))}
         <button
           onClick={() => setShowConnect(true)}
-          className="text-xs text-brand hover:underline inline-flex items-center gap-1"
+          className="text-xs text-muted-foreground transition-colors hover:text-foreground inline-flex items-center gap-1"
         >
           <Plus className="h-3 w-3" /> Başka hesap bağla
         </button>
@@ -242,12 +242,12 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
       {performance && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h4 className="font-brand text-sm font-semibold">Son 30 gün</h4>
-            <span className="text-label text-muted-foreground">
+            <h4 className="text-panel-3">Son 30 gün</h4>
+            <span className="font-mono text-vitrin-rail text-muted-foreground">
               {performance.dailyRows.length} günlük veri
             </span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <MetricCard
               icon={Eye}
               label="Gösterim"
@@ -277,16 +277,16 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
 
       {/* Campaign list */}
       <div>
-        <h4 className="font-brand text-sm font-semibold mb-2">Kampanyalar</h4>
+        <h4 className="text-panel-3 mb-2">Kampanyalar</h4>
         {campaigns.length > 0 && !knownCurrency(performance?.currency) && (
           <p className="text-label text-muted-foreground mb-2">Bütçeler Apple Ads hesabının para birimindedir.</p>
         )}
         {campaigns.length === 0 ? (
-          <div className="rounded-xl border-2 border-dashed border-border p-6 text-center">
+          <div className="rounded-lg border border-dashed border-border p-6 text-center">
             <TrendingUp className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
             <p className="text-sm font-medium">Henüz kampanya yok</p>
             <p className="text-xs text-muted-foreground mt-1">
-              <strong>Yeni kampanya</strong> ile başla; Apple tarafında oluşturduysan <strong>Eşitle</strong> ile buraya getir.
+              <strong className="font-medium">Yeni kampanya</strong> ile başla; Apple tarafında oluşturduysan <strong className="font-medium">Eşitle</strong> ile buraya getir.
             </p>
           </div>
         ) : (
@@ -296,7 +296,7 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                 <CardContent className="p-3 flex items-center justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-semibold text-sm">{c.name}</span>
+                      <span className="text-sm font-medium">{c.name}</span>
                       {/*
                         status = reklamverenin sectigi durum (ENABLED / PAUSED). Apple kampanyayi
                         yine de beklemeye alabilir (displayStatus ON_HOLD: gunluk butce, odeme
@@ -312,7 +312,7 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                       >
                         {c.status === 'ENABLED' ? 'Etkin' : c.status === 'PAUSED' ? 'Duraklatıldı' : c.status}
                       </Badge>
-                      <span className="text-label text-muted-foreground">
+                      <span className="font-mono text-vitrin-rail text-muted-foreground">
                         ID: {c.asaCampaignId}
                       </span>
                     </div>
@@ -330,7 +330,7 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                       : `https://app-ads.apple.com/cm`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-brand hover:underline inline-flex items-center gap-1"
+                    className="text-xs text-muted-foreground transition-colors hover:text-foreground inline-flex items-center gap-1"
                   >
                     <ExternalLink className="h-3 w-3" /> Apple'da aç
                   </a>
@@ -449,19 +449,19 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
 
   return (
     <div className={cn(
-      'mt-3 rounded-lg border-2 transition-colors',
-      enabled ? 'border-success/40 bg-success/5' : 'border-dashed border-border bg-muted/20',
+      'mt-3 rounded-md border transition-colors',
+      enabled ? 'border-success/30 bg-success/5' : 'border-dashed border-border',
     )}>
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full px-3 py-2 flex items-center justify-between text-left"
       >
         <div className="flex items-center gap-2">
-          <div className={cn('h-7 w-7 rounded-full grid place-items-center', enabled ? 'bg-success text-white' : 'bg-muted')}>
+          <div className={cn('h-7 w-7 rounded-md border grid place-items-center', enabled ? 'border-success/40 text-success' : 'border-border text-muted-foreground')}>
             <Bot className="h-3.5 w-3.5" />
           </div>
           <div>
-            <p className="text-sm font-semibold">
+            <p className="text-sm font-medium">
               Otopilot {enabled ? <Badge variant="success" className="ml-1">Açık</Badge> : <Badge variant="secondary" className="ml-1">Kapalı</Badge>}
             </p>
             <p className="text-label text-muted-foreground">
@@ -477,13 +477,13 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
       {expanded && (
         <div className="px-3 pb-3 pt-1 space-y-3 border-t border-border/40">
           <div className="flex items-center justify-between gap-2">
-            <label className="text-xs">Otopilot</label>
+            <label className="text-label text-muted-foreground">Otopilot</label>
             <Button
               size="sm"
               variant={enabled ? 'default' : 'outline'}
               onClick={async () => { const next = !enabled; setEnabled(next); if (!(await save(next))) setEnabled(!next); }}
               disabled={saving}
-              className={enabled ? 'bg-success hover:bg-success/90' : ''}
+              className={enabled ? 'bg-foreground text-background hover:bg-foreground/85 hover:text-background' : ''}
             >
               {enabled ? 'Aktif' : 'Aç'}
             </Button>
@@ -495,7 +495,7 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
               runAutoPilot) — o sutun hesabin para birimini tasir; "(USD)" USD disi hesapta yanlisti.
               Birim biliniyorsa (listAccounts currency) kodu yazilir.
             */}
-            <label className="text-xs font-semibold mb-1 block">
+            <label className="text-label text-muted-foreground mb-1 block">
               Aylık harcama sınırı ({knownCurrency(account.currency) ? account.currency : 'hesap para birimi'})
             </label>
             <div className="flex gap-2">
@@ -529,7 +529,7 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
 
           {lastResult && (
             <div className="rounded-md bg-background/60 border p-2 text-label space-y-1">
-              <p className="font-semibold">Son çalışma{account.autoPilotLastRunAt ? `: ${new Date(account.autoPilotLastRunAt).toLocaleString('tr-TR')}` : ':'}</p>
+              <p className="font-medium">Son çalışma{account.autoPilotLastRunAt ? `: ${new Date(account.autoPilotLastRunAt).toLocaleString('tr-TR')}` : ':'}</p>
               {lastResult.added.length > 0 && <p className="text-success">+ {lastResult.added.length} keyword: {lastResult.added.slice(0, 3).join(', ')}{lastResult.added.length > 3 ? '…' : ''}</p>}
               {lastResult.paused.length > 0 && <p className="text-warning">{lastResult.paused.length} pause: {lastResult.paused.slice(0, 3).join(', ')}{lastResult.paused.length > 3 ? '…' : ''}</p>}
               {lastResult.reason && <p className="text-danger">{lastResult.reason}</p>}
@@ -548,38 +548,38 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
 
 function ConnectScreen({ onConnect }: { onConnect: () => void }) {
   return (
-    <div className="rounded-2xl border bg-card p-8 text-center">
-      <div className="h-16 w-16 rounded-2xl border border-border bg-muted/50 text-foreground/70 grid place-items-center mx-auto mb-4">
-        <Link2 className="h-7 w-7 text-brand-600" />
+    <div className="rounded-lg border bg-card p-8 text-center">
+      <div className="h-11 w-11 rounded-md border border-border text-muted-foreground grid place-items-center mx-auto mb-4">
+        <Link2 className="h-5 w-5" />
       </div>
-      <h3 className="text-lg font-bold mb-2">Apple Search Ads Bağla</h3>
+      <h3 className="text-panel-2 mb-2">Apple Search Ads Bağla</h3>
       <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5">
         App Store arama sonuçlarında ödemeli reklam göster, organik rank'ını boost et.
         Bağlantı için kendi Apple Developer hesabından oluşturduğun API key (.p8) gerek.
       </p>
 
-      <div className="max-w-md mx-auto text-left rounded-lg border bg-muted/30 p-4 mb-5">
-        <p className="text-xs font-semibold mb-2 text-muted-foreground">
+      <div className="max-w-md mx-auto text-left rounded-md border p-4 mb-5">
+        <p className="v-rail mb-2">
           Ön gereksinimler
         </p>
         <ul className="text-xs space-y-1.5">
           <li className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-success mt-0.5 shrink-0" aria-hidden />
-            <span><strong>Apple Developer Program</strong> üyeliği ($99/yıl)</span>
+            <span><strong className="font-medium">Apple Developer Program</strong> üyeliği ($99/yıl)</span>
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-success mt-0.5 shrink-0" aria-hidden />
-            <span><strong>App Store'da yayında</strong> en az 1 iOS app</span>
+            <span><strong className="font-medium">App Store'da yayında</strong> en az 1 iOS app</span>
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-success mt-0.5 shrink-0" aria-hidden />
             <span>
-              <strong>Search Ads Advanced</strong> aktif (ücretsiz aktivasyon, kart şart) —{' '}
+              <strong className="font-medium">Search Ads Advanced</strong> aktif (ücretsiz aktivasyon, kart şart) —{' '}
               <a
                 href="https://app.searchads.apple.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand hover:underline"
+                className="text-foreground underline underline-offset-2"
               >
                 searchads.apple.com
               </a>
@@ -598,14 +598,14 @@ function ConnectScreen({ onConnect }: { onConnect: () => void }) {
           href="https://developer.apple.com/programs/enroll/"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm rounded-md border hover:bg-muted"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-foreground/20 px-4 text-sm font-medium transition-colors duration-200 hover:border-foreground/70"
         >
           <ExternalLink className="h-3.5 w-3.5" /> Henüz Developer hesabım yok
         </a>
       </div>
 
       <p className="text-label text-muted-foreground mt-4 max-w-md mx-auto">
-        Reklam bütçesi <strong>doğrudan senin Apple kartından</strong> kesilir, RanksUp bütçeyi sadece yönetir.
+        Reklam bütçesi <strong className="font-medium">doğrudan senin Apple kartından</strong> kesilir, RanksUp bütçeyi sadece yönetir.
         Her müşteri kendi key'iyle bağlanır — verileri izole tutulur.
       </p>
     </div>
@@ -717,37 +717,37 @@ function ConnectModal({
         </DialogHeader>
 
         {/* Stepper */}
-        <div className="px-6 py-4 border-b">
+        <div className="px-5 py-4 border-b">
           <div className="flex items-center gap-2">
             {[1, 2, 3].map((n) => (
               <div key={n} className="flex items-center gap-2 flex-1">
-                <span className={`h-7 w-7 rounded-full grid place-items-center text-xs font-bold shrink-0 transition-colors ${
-                  step > n ? 'bg-success text-white' :
-                  step === n ? 'bg-brand text-white' :
+                <span className={`h-7 w-7 rounded-md grid place-items-center font-mono text-vitrin-rail shrink-0 transition-colors ${
+                  step > n ? 'bg-success/15 text-success' :
+                  step === n ? 'bg-foreground text-background' :
                   'bg-muted text-muted-foreground'
                 }`}>
                   {step > n ? <CheckCircle2 className="h-4 w-4" /> : n}
                 </span>
-                <span className={`text-xs font-medium ${step === n ? 'text-brand' : step > n ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <span className={`text-xs font-medium ${step === n ? 'text-foreground' : step > n ? 'text-foreground' : 'text-muted-foreground'}`}>
                   {n === 1 ? 'Anahtar üret' : n === 2 ? "Apple'a yapıştır" : 'Bağla'}
                 </span>
-                {n < 3 && <div className={`flex-1 h-0.5 ${step > n ? 'bg-success' : 'bg-muted'}`} />}
+                {n < 3 && <div className={`flex-1 h-px ${step > n ? 'bg-success/60' : 'bg-border'}`} />}
               </div>
             ))}
           </div>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-5 py-5 space-y-4">
           {/* ─── STEP 1: Keypair üret ─── */}
           {step === 1 && (
             <div className="space-y-4">
-              <div className="rounded-lg border bg-muted/30 p-4">
+              <div className="rounded-md border p-4">
                 <p className="text-sm leading-relaxed">
                   {/* Private key Apple Ads cagrilarini imzalamak icin sunucuya gider ve orada
                       AES-256-GCM ile sifrelenip saklanir (asa.service.ts encrypt). Eski metin
                       "RanksUp sunucusu hic gormez" diyordu — dogru degildi. */}
-                  <strong>Tek tık güvenli anahtar üretimi.</strong> RanksUp tarayıcında ES256 anahtar çifti üretir.
-                  Apple’a yalnız public key’i yüklersin; <strong className="text-success">private key Apple’a gönderilmez</strong>.
+                  <strong className="font-medium">Tek tık güvenli anahtar üretimi.</strong> RanksUp tarayıcında ES256 anahtar çifti üretir.
+                  Apple’a yalnız public key’i yüklersin; <strong className="font-medium text-success">private key Apple’a gönderilmez</strong>.
                   Bağla adımında RanksUp’a HTTPS ile iletilir ve Apple Ads çağrılarını imzalamak için AES-256-GCM ile şifrelenerek saklanır.
                 </p>
               </div>
@@ -756,17 +756,17 @@ function ConnectModal({
                 <Button
                   onClick={generateKeypair}
                   disabled={generating}
-                  className="w-full h-12 text-base"
+                  className="w-full h-11"
                 >
                   {generating ? (
-                    <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Üretiliyor…</>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Üretiliyor…</>
                   ) : (
-                    <><Sparkles className="h-5 w-5 mr-2" /> Otomatik Anahtar Üret</>
+                    <><Sparkles className="h-4 w-4 mr-2" /> Otomatik Anahtar Üret</>
                   )}
                 </Button>
               ) : (
                 <>
-                  <div className="rounded-lg border border-success/30 bg-success/5 p-3 flex items-center gap-2">
+                  <div className="rounded-md border border-success/30 bg-success/5 p-3 flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
                     <span className="text-sm">Anahtar üretildi · Public key panoya kopyalandı</span>
                   </div>
@@ -802,16 +802,16 @@ function ConnectModal({
           {step === 2 && (
             <div className="space-y-4">
               {/* Action: Apple sayfasını aç */}
-              <div className="rounded-lg border-2 border-brand/40 bg-brand/5 p-4 space-y-3">
+              <div className="rounded-md border p-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="h-7 w-7 rounded-full bg-brand text-white flex items-center justify-center text-sm font-bold shrink-0">A</div>
+                  <div className="h-7 w-7 rounded-md border border-border flex items-center justify-center font-mono text-vitrin-rail text-muted-foreground shrink-0">A</div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold">Apple'da Public Key kaydet</p>
+                    <p className="text-sm font-medium">Apple'da Public Key kaydet</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Public key zaten panonda. Apple Search Ads'i açıp aşağıdaki adımları izle:</p>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="mt-2 border-brand/40 text-brand hover:bg-brand/10"
+                      className="mt-2"
                       onClick={async () => {
                         try { await navigator.clipboard.writeText(publicKeyPem); toast.success('Public key tekrar kopyalandı'); } catch { /* pano izni yoksa sayfa yine acilir */ }
                         window.open('https://app-ads.apple.com/', '_blank', 'noopener,noreferrer');
@@ -821,10 +821,10 @@ function ConnectModal({
                       Apple Search Ads'i aç + public key'i kopyala
                     </Button>
                     <div className="mt-3 rounded-md bg-background/60 border p-2.5 text-label space-y-2">
-                      <p className="font-semibold text-foreground">Apple "Campaigns" sayfası açıldı mı?</p>
-                      <p className="text-muted-foreground">URL'deki <strong className="text-foreground">app numarasını</strong> (8 haneli) gir → seni doğru API sayfasına götüreyim:</p>
+                      <p className="font-medium text-foreground">Apple "Campaigns" sayfası açıldı mı?</p>
+                      <p className="text-muted-foreground">URL'deki <strong className="font-medium text-foreground">app numarasını</strong> (8 haneli) gir → seni doğru API sayfasına götüreyim:</p>
                       <p className="text-label text-muted-foreground">
-                        Örnek URL: <code className="bg-muted px-1 rounded">…/cm/app/<strong className="text-warning">21849740</strong>/report</code> → bu sayıyı yaz
+                        Örnek URL: <code className="bg-muted px-1 rounded">…/cm/app/<strong className="font-medium text-warning">21849740</strong>/report</code> → bu sayıyı yaz
                       </p>
                       <div className="flex gap-1.5">
                         <Input
@@ -853,7 +853,7 @@ function ConnectModal({
                         </Button>
                       </div>
                       <p className="text-muted-foreground text-label">
-                        Sonra: Public Key kutusuna <strong>Cmd+V</strong> → <strong>Save</strong> → Apple üstte <code>clientId / teamId / keyId</code> verir.
+                        Sonra: Public Key kutusuna <strong className="font-medium">Cmd+V</strong> → <strong className="font-medium">Save</strong> → Apple üstte <code>clientId / teamId / keyId</code> verir.
                       </p>
                     </div>
                   </div>
@@ -861,16 +861,16 @@ function ConnectModal({
               </div>
 
               {/* Action: Apple'ın verdiklerini buraya yapıştır */}
-              <div className="rounded-lg border-2 border-success/40 bg-success/5 p-4 space-y-3">
+              <div className="rounded-md border p-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="h-7 w-7 rounded-full bg-success text-white flex items-center justify-center text-sm font-bold shrink-0">B</div>
+                  <div className="h-7 w-7 rounded-md border border-border flex items-center justify-center font-mono text-vitrin-rail text-muted-foreground shrink-0">B</div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold">Apple'ın verdiği 3 satırı buraya yapıştır</p>
+                    <p className="text-sm font-medium">Apple'ın verdiği 3 satırı buraya yapıştır</p>
                     <p className="text-xs text-muted-foreground mt-0.5">"Generate API Client" sonrası Apple sana şu formda 3 satır verir:</p>
                     <pre className="mt-2 text-label font-mono bg-background/60 border rounded p-2 overflow-x-auto">{`clientId  SEARCHADS.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 teamId    SEARCHADS.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
-                    <p className="text-label text-muted-foreground mt-1.5">↳ O 3 satırı seç, <strong>Cmd+C</strong> ile kopyala, aşağıdaki kutuya <strong>Cmd+V</strong> ile yapıştır</p>
+                    <p className="text-label text-muted-foreground mt-1.5">↳ O 3 satırı seç, <strong className="font-medium">Cmd+C</strong> ile kopyala, aşağıdaki kutuya <strong className="font-medium">Cmd+V</strong> ile yapıştır</p>
                   </div>
                 </div>
 
@@ -884,11 +884,11 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
 
                 {/* PEM yanlış yapıştırma uyarısı */}
                 {appleCredsRaw.includes('BEGIN PUBLIC KEY') && (
-                  <div className="rounded border border-warning/40 bg-warning/5 p-2.5 flex gap-2">
+                  <div className="rounded-md border border-warning/30 bg-warning/5 p-2.5 flex gap-2">
                     <AlertCircle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                     <div className="text-xs">
-                      <p className="font-semibold text-foreground">Yanlış metin yapıştırdın — bu senin <em>public key</em>'in.</p>
-                      <p className="text-muted-foreground mt-0.5">Bu key'i <strong>Apple'a</strong> yapıştırman lazım, buraya değil. Apple sana sonra 3 satır verecek (clientId / teamId / keyId), <strong>onları</strong> buraya yapıştır.</p>
+                      <p className="font-medium text-foreground">Yanlış metin yapıştırdın — bu senin <em>public key</em>'in.</p>
+                      <p className="text-muted-foreground mt-0.5">Bu key'i <strong className="font-medium">Apple'a</strong> yapıştırman lazım, buraya değil. Apple sana sonra 3 satır verecek (clientId / teamId / keyId), <strong className="font-medium">onları</strong> buraya yapıştır.</p>
                     </div>
                   </div>
                 )}
@@ -896,14 +896,14 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
 
               {/* Parse sonuçları */}
               {appleCredsRaw && !appleCredsRaw.includes('BEGIN PUBLIC KEY') && (
-                <div className="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs">
+                <div className="rounded-md border p-3 space-y-2 text-xs">
                   <div className="flex items-center gap-2">
                     {parsedClientId ? (
                       <CheckCircle2 className="h-4 w-4 text-success" />
                     ) : (
                       <AlertCircle className="h-4 w-4 text-warning" />
                     )}
-                    <span className="font-semibold w-20">Client ID:</span>
+                    <span className="font-medium w-20">Client ID:</span>
                     <code className={parsedClientId ? 'text-success' : 'text-warning'}>
                       {parsedClientId || 'bulunamadı — clientId formatı SEARCHADS.xxx olmalı'}
                     </code>
@@ -914,7 +914,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
                     ) : (
                       <AlertCircle className="h-4 w-4 text-warning" />
                     )}
-                    <span className="font-semibold w-20">Team ID:</span>
+                    <span className="font-medium w-20">Team ID:</span>
                     <code className={parsedTeamId ? 'text-success' : 'text-warning'}>
                       {parsedTeamId || 'bulunamadı — teamId satırını da yapıştır (yoksa Client ID kullanılır)'}
                     </code>
@@ -925,7 +925,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
                     ) : (
                       <AlertCircle className="h-4 w-4 text-warning" />
                     )}
-                    <span className="font-semibold w-20">Key ID:</span>
+                    <span className="font-medium w-20">Key ID:</span>
                     <code className={parsedKeyId ? 'text-success' : 'text-warning'}>
                       {parsedKeyId || 'bulunamadı — UUID formatı (8-4-4-4-12 char)'}
                     </code>
@@ -938,8 +938,8 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
           {/* ─── STEP 3: Onay + bağla ─── */}
           {step === 3 && (
             <div className="space-y-4">
-              <div className="rounded-lg border border-success/30 bg-success/5 p-4">
-                <p className="text-sm font-semibold mb-2 text-foreground">Her şey hazır — son onay:</p>
+              <div className="rounded-md border border-success/30 bg-success/5 p-4">
+                <p className="text-sm font-medium mb-2 text-foreground">Her şey hazır — son onay:</p>
                 <div className="space-y-1.5 text-xs font-mono">
                   <div className="flex gap-2"><span className="w-24 text-muted-foreground">Client ID:</span><span className="truncate">{parsedClientId}</span></div>
                   <div className="flex gap-2"><span className="w-24 text-muted-foreground">Team ID:</span><span className="truncate">{parsedTeamId || 'yok — Client ID kullanılacak'}</span></div>
@@ -950,24 +950,24 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
 
               {/* Hata RECOVERY paneli */}
               {errorMode && errorMode.kind === 'invalid_client' && (
-                <div className="rounded-lg border-2 border-danger/40 bg-danger/5 p-4 space-y-3">
+                <div className="rounded-md border border-danger/30 bg-danger/5 p-4 space-y-3">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="h-5 w-5 text-danger shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-foreground">Apple bağlantıyı reddetti: <code className="text-xs">invalid_client</code></p>
+                      <p className="text-sm font-medium text-foreground">Apple bağlantıyı reddetti: <code className="text-xs">invalid_client</code></p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Bu hatanın <strong>tek</strong> sebebi: Apple'da kayıtlı <strong>public key</strong> ile RanksUp'nın imzalamada kullandığı <strong>private key</strong> birbiriyle eşleşmiyor.
+                        Bu hatanın <strong className="font-medium">tek</strong> sebebi: Apple'da kayıtlı <strong className="font-medium">public key</strong> ile RanksUp'nın imzalamada kullandığı <strong className="font-medium">private key</strong> birbiriyle eşleşmiyor.
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-2 text-xs">
-                    <p className="font-semibold">İki olası neden + çözüm:</p>
+                    <p className="font-medium">İki olası neden + çözüm:</p>
 
                     <div className="rounded border bg-background/60 p-2.5 space-y-1">
-                      <p className="font-semibold">🅰 Daha önce başka bir public key kaydetmiştin (örn. openssl ile)</p>
+                      <p className="font-medium"><span className="mr-1.5 inline-grid h-4 w-4 place-items-center rounded border border-border align-[-2px] font-mono text-label leading-none text-muted-foreground">A</span>Daha önce başka bir public key kaydetmiştin (örn. openssl ile)</p>
                       <p className="text-muted-foreground">→ Apple hâlâ ESKİ public key'i tanıyor, ama wizard YENİ private key ile imzalıyor.</p>
-                      <p className="text-muted-foreground"><strong>Çözüm A:</strong> Apple'da o ESKİ public key'i sil → Step 1'deki YENİ public key'i yapıştır → yeni clientId/keyId al → Step 2'ye yapıştır.</p>
+                      <p className="text-muted-foreground"><strong className="font-medium">Çözüm A:</strong> Apple'da o ESKİ public key'i sil → Step 1'deki YENİ public key'i yapıştır → yeni clientId/keyId al → Step 2'ye yapıştır.</p>
                       <Button
                         size="sm"
                         variant="outline"
@@ -979,9 +979,9 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
                     </div>
 
                     <div className="rounded border bg-background/60 p-2.5 space-y-1">
-                      <p className="font-semibold">🅱 Elinde zaten kullandığın bir <code>.p8</code>/<code>.pem</code> private key var</p>
+                      <p className="font-medium"><span className="mr-1.5 inline-grid h-4 w-4 place-items-center rounded border border-border align-[-2px] font-mono text-label leading-none text-muted-foreground">B</span>Elinde zaten kullandığın bir <code>.p8</code>/<code>.pem</code> private key var</p>
                       <p className="text-muted-foreground">→ O zaman wizard'ın ürettiği YENİ key'i değil, ESKİ private key'ini kullanmalıyız.</p>
-                      <p className="text-muted-foreground"><strong>Çözüm B:</strong> Step 1'e dön, "Geliştirici misiniz? Manuel anahtar yapıştır" linkine bas, ESKİ private key'ini yapıştır.</p>
+                      <p className="text-muted-foreground"><strong className="font-medium">Çözüm B:</strong> Step 1'e dön, "Geliştirici misiniz? Manuel anahtar yapıştır" linkine bas, ESKİ private key'ini yapıştır.</p>
                       <Button
                         size="sm"
                         variant="outline"
@@ -1001,10 +1001,10 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
               )}
 
               {errorMode && errorMode.kind === 'other' && (
-                <div className="rounded-lg border border-danger/40 bg-danger/5 p-3 flex gap-2">
+                <div className="rounded-md border border-danger/30 bg-danger/5 p-3 flex gap-2">
                   <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
                   <div className="text-xs">
-                    <p className="font-semibold text-foreground">Bağlantı hatası</p>
+                    <p className="font-medium text-foreground">Bağlantı hatası</p>
                     <p className="font-mono text-label mt-1 break-all">{errorMode.raw}</p>
                   </div>
                 </div>
@@ -1012,7 +1012,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
 
               {!errorMode && (
                 <p className="text-xs text-muted-foreground text-center">
-                  <strong>Bağla</strong> tuşuna basınca RanksUp Apple'a JWT auth çağrısı atar.<br />
+                  <strong className="font-medium">Bağla</strong> tuşuna basınca RanksUp Apple'a JWT auth çağrısı atar.<br />
                   Başarılıysa hesap aktif olur ve kampanya oluşturabilirsin.
                 </p>
               )}
@@ -1032,8 +1032,8 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
 
           {/* Manuel mode (eski form, advanced kullanıcılar için) */}
           {step === 1 && showAdvanced && (
-            <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-              <p className="text-xs font-semibold">Manuel kurulum (openssl ile kendi anahtarını ürettin?)</p>
+            <div className="rounded-md border p-4 space-y-3">
+              <p className="text-xs font-medium">Manuel kurulum (openssl ile kendi anahtarını ürettin?)</p>
               <Input
                 placeholder="Client ID (SEARCHADS.xxx)"
                 value={parsedClientId}
@@ -1073,7 +1073,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
 
         {/* Footer — step navigation */}
         {!showAdvanced && (
-          <div className="border-t px-6 py-4 flex items-center justify-between gap-2">
+          <div className="border-t px-5 py-3 flex items-center justify-between gap-2">
             <Button
               variant="outline"
               onClick={() => step > 1 ? setStep((step - 1) as 1 | 2 | 3) : onClose()}
@@ -1252,15 +1252,15 @@ function NewCampaignModal({
           <DialogDescription>Apple Search Ads&apos;te yeni kampanya — anahtar kelimeler tam eşleşme (EXACT), teklif ortak.</DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-5 py-5 space-y-4">
           {/* AI ile Doldur butonu */}
-          <div className="rounded-xl border-2 border-brand/30 bg-brand/5 p-3">
+          <div className="rounded-md border p-3">
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-full bg-brand text-white grid place-items-center shrink-0">
+              <div className="h-9 w-9 rounded-md border border-border text-muted-foreground grid place-items-center shrink-0">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">AI ile Doldur</p>
+                <p className="text-sm font-medium">AI ile Doldur</p>
                 <p className="text-label text-muted-foreground mt-0.5">
                   ASO Keywords sekmesindeki düşük ranking + yüksek trafik keyword'leri otomatik seç, bid + bütçe öner.
                 </p>
@@ -1272,6 +1272,7 @@ function NewCampaignModal({
               </div>
               <Button
                 size="sm"
+                variant="outline"
                 onClick={() => aiFill()}
                 disabled={suggesting}
                 className="shrink-0"
@@ -1286,13 +1287,13 @@ function NewCampaignModal({
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1 block">Kampanya adı *</label>
+            <label className="text-label text-muted-foreground mb-1 block">Kampanya adı *</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Örn: KobiPratik — KOBİ Kredisi Q1 2026" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold mb-1 block">Günlük bütçe (USD) *</label>
+              <label className="text-label text-muted-foreground mb-1 block">Günlük bütçe (USD) *</label>
               <Input
                 type="number"
                 min={1}
@@ -1302,13 +1303,13 @@ function NewCampaignModal({
               />
             </div>
             <div>
-              <label className="text-xs font-semibold mb-1 block">Ülkeler (virgülle)</label>
+              <label className="text-label text-muted-foreground mb-1 block">Ülkeler (virgülle)</label>
               <Input value={countries} onChange={(e) => setCountries(e.target.value)} placeholder="TR,US,DE" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1 block">Apple App ID (adamId) *</label>
+            <label className="text-label text-muted-foreground mb-1 block">Apple App ID (adamId) *</label>
             <Input
               value={appleAppId}
               onChange={(e) => setAppleAppId(e.target.value)}
@@ -1321,7 +1322,7 @@ function NewCampaignModal({
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1 block">Keyword başına bid (USD)</label>
+            <label className="text-label text-muted-foreground mb-1 block">Keyword başına bid (USD)</label>
             <Input
               type="number"
               min={0.01}
@@ -1335,7 +1336,7 @@ function NewCampaignModal({
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1 block">Keyword'ler (her satıra bir tane)</label>
+            <label className="text-label text-muted-foreground mb-1 block">Keyword'ler (her satıra bir tane)</label>
             <textarea
               value={keywordsText}
               onChange={(e) => setKeywordsText(e.target.value)}
@@ -1349,7 +1350,7 @@ function NewCampaignModal({
           </div>
         </div>
 
-        <div className="border-t px-6 py-4 flex items-center justify-end gap-2">
+        <div className="border-t px-5 py-3 flex items-center justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={submitting}>İptal</Button>
           <Button
             onClick={submit}
@@ -1380,16 +1381,14 @@ function MetricCard({
   subtext?: string;
 }) {
   return (
-    <Card>
-      <CardContent className="p-3">
-        <div className="flex items-center gap-2 mb-1.5">
-          <div className={`h-7 w-7 rounded-lg grid place-items-center border border-border bg-muted/50 text-foreground/70`}>
-            <Icon className="h-4 w-4" />
-          </div>
-          <span className="text-label font-medium text-muted-foreground">{label}</span>
+    <Card className="h-full">
+      <CardContent className="flex h-full flex-col p-4">
+        <div className="flex items-start justify-between gap-3">
+          <span className="v-rail">{label}</span>
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         </div>
-        <div className="text-metric tabular-nums">{value}</div>
-        {subtext && <div className="text-label text-muted-foreground mt-0.5">{subtext}</div>}
+        <div className="mt-3 text-metric-lg tabular-nums">{value}</div>
+        {subtext && <div className="mt-auto pt-2 text-label text-muted-foreground/80">{subtext}</div>}
       </CardContent>
     </Card>
   );

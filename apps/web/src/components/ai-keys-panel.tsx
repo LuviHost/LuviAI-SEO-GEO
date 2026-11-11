@@ -159,7 +159,7 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
 
   if (loading) {
     return (
-      <div className="rounded-lg border p-4">
+      <div className="rounded-lg border bg-card p-6">
         <p className="text-sm text-muted-foreground">AI sağlayıcı durumu yükleniyor…</p>
       </div>
     );
@@ -171,16 +171,16 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
   const byokAllowed = status.plan === BYOK_PLAN;
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="space-y-4 rounded-lg border bg-card p-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <p className="font-brand text-sm font-semibold">AI sağlayıcı anahtarları</p>
+          <p className="text-panel-3">AI sağlayıcı anahtarları</p>
           {/* Kota calistirma basina duser (ai-citation.service runForSite: havuz
               anahtarli bir saglayici olctuyse +1). Kota dolunca yalniz kendi
               anahtari olan saglayicilar kosar; haftalik olcum hakki ise BYOK'ta
               da gecerli (billing/measurement-allowance.ts). */}
-          <p className="text-xs text-muted-foreground mt-0.5">
-            <strong>{planLabel}</strong> planında ayda <strong>{status.quota.limit}</strong> AI görünürlük çalıştırması var; bu ay {status.quota.used} tanesini kullandın.{' '}
+          <p className="mt-1 text-sm text-muted-foreground">
+            <strong className="font-medium text-foreground">{planLabel}</strong> planında ayda <strong className="font-medium text-foreground">{status.quota.limit}</strong> AI görünürlük çalıştırması var; bu ay {status.quota.used} tanesini kullandın.{' '}
             {byokAllowed
               ? 'Bir sağlayıcıya kendi API anahtarını bağlarsan, havuz kotası dolduğunda o sağlayıcı kendi anahtarınla ölçülmeye devam eder; haftalık ölçüm hakkı yine geçerlidir.'
               : `Kendi API anahtarını bağlama (BYOK) ${PLAN_LABELS[BYOK_PLAN]} planına dahildir.`}
@@ -215,16 +215,16 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
                   <VendorLogo name={PROVIDER_TO_VENDOR[p.provider] ?? 'openai'} size={24} className="shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{p.label}</p>
-                    <p className={`text-label ${sourceBadge.cls}`}>{sourceBadge.text}</p>
+                    <p className={`text-xs ${sourceBadge.cls}`}>{sourceBadge.text}</p>
                   </div>
                 </div>
                 {p.hasByok && (
-                  <span className="text-[10px] font-mono text-muted-foreground">{p.byokPrefix}***</span>
+                  <span className="v-rail shrink-0">{p.byokPrefix}***</span>
                 )}
               </div>
 
               {p.byokError && !p.byokVerified && (
-                <p className="text-[10px] text-red-500 leading-snug">Hata: {p.byokError}</p>
+                <p className="text-xs leading-snug text-danger">Hata: {p.byokError}</p>
               )}
 
               {isEditing ? (
@@ -238,9 +238,9 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
                     className="text-xs"
                   />
                   {hint && (
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Anahtar nereden alınır:{' '}
-                      <a href={hint.url} target="_blank" rel="noreferrer" className="underline">
+                      <a href={hint.url} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">
                         {hint.help}
                       </a>
                     </p>
@@ -268,7 +268,7 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
                       <Button size="sm" variant="ghost" onClick={() => retest(p.provider)} disabled={retesting === p.provider}>
                         {retesting === p.provider ? 'Test…' : 'Yeniden Test'}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => remove(p.provider)} className="text-red-500">
+                      <Button size="sm" variant="ghost" onClick={() => remove(p.provider)} className="text-danger hover:bg-danger/10 hover:text-danger">
                         Sil
                       </Button>
                     </>
@@ -284,7 +284,7 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
         })}
       </div>
 
-      <p className="text-label text-muted-foreground border-t pt-2">
+      <p className="border-t pt-3 text-xs text-muted-foreground">
         Anahtarın şifreli saklanır; panelde yalnız ilk 8 karakteri görünür.
         Kendi anahtarınla yapılan sorguların ücreti kendi sağlayıcı hesabına yansır.
       </p>

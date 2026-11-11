@@ -88,8 +88,8 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {/* Range selector + export */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h3 className="text-base font-semibold">Performans raporu</h3>
-          <p className="text-xs text-muted-foreground">
+          <h3 className="text-panel-3">Performans raporu</h3>
+          <p className="v-rail mt-0.5">
             {site?.name} · son {rangeLabel} · {new Date(data.rangeStart).toLocaleDateString('tr-TR')} — {new Date(data.rangeEnd).toLocaleDateString('tr-TR')}
           </p>
         </div>
@@ -151,44 +151,46 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {erisim && <CrawlAccessNotice access={erisim} staleScoreAt={sonBasarili?.ranAt ?? data.audit.ranAt ?? null} />}
       <Card>
         <CardContent className="p-4">
-          <p className="text-sm font-semibold mb-3">Skor özeti</p>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
+          <p className="mb-4 text-panel-3">Skor özeti</p>
+          {/* ui/metric ile ayni dil: mono etiket ustte, ince rakam altta, sola yasli; turuncu rakam yok */}
+          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-3">
+            <div>
+              <p className="v-rail mb-2">SEO Skoru</p>
               {erisim ? (
                 // Son deneme siteye erişemedi: eski skor güncel diye gösterilmez (tarihiyle aşağıda)
-                <div className="text-sm font-semibold leading-snug text-warning py-2" title={erisim.reason}>Ölçülemedi</div>
+                <div className="py-1 text-sm font-medium leading-snug text-warning" title={erisim.reason}>Ölçülemedi</div>
               ) : (
-                <div className="text-metric-lg tabular-nums text-brand">{data.audit.overallScore ?? '—'}<span className="text-sm text-muted-foreground font-normal">/100</span></div>
+                <div className="text-metric-lg tabular-nums">{data.audit.overallScore ?? '—'}<span className="text-sm font-normal tracking-normal text-muted-foreground">/100</span></div>
               )}
-              <p className="text-label text-muted-foreground mt-1">SEO Skoru</p>
               {sonBasarili && sonBasariliTarih && (
-                <p className="text-label text-muted-foreground mt-0.5 leading-tight">Son başarılı tarama ({sonBasariliTarih}): {sonBasarili.overallScore}/100</p>
+                <p className="mt-1 text-xs leading-snug text-muted-foreground">Son başarılı tarama ({sonBasariliTarih}): {sonBasarili.overallScore}/100</p>
               )}
             </div>
-            <div className="text-center">
+            <div>
+              <p className="v-rail mb-2">GEO Skoru</p>
               {erisim ? (
-                <div className="text-sm font-semibold leading-snug text-warning py-2" title={erisim.reason}>Ölçülemedi</div>
+                <div className="py-1 text-sm font-medium leading-snug text-warning" title={erisim.reason}>Ölçülemedi</div>
               ) : geoBlocked ? (
                 // Orneklenen sayfalar erisim engeline takildi (geo-runner.service.ts): skor YOK —
                 // "—" yerine "Olculemedi"; neden ve site sahibinin yapacagi asagida
-                <div className="text-sm font-semibold leading-snug text-warning py-2" title={geoBlocked.reason}>Ölçülemedi</div>
+                <div className="py-1 text-sm font-medium leading-snug text-warning" title={geoBlocked.reason}>Ölçülemedi</div>
               ) : (
-                <div className="text-metric-lg tabular-nums">{data.audit.geoScore ?? '—'}<span className="text-sm text-muted-foreground font-normal">/100</span></div>
+                <div className="text-metric-lg tabular-nums">{data.audit.geoScore ?? '—'}<span className="text-sm font-normal tracking-normal text-muted-foreground">/100</span></div>
               )}
-              <p className="text-label text-muted-foreground mt-1">GEO Skoru</p>
               {sonBasarili && sonBasariliTarih && typeof sonBasarili.geoScore === 'number' && (
-                <p className="text-label text-muted-foreground mt-0.5 leading-tight">Son başarılı tarama ({sonBasariliTarih}): {sonBasarili.geoScore}/100</p>
+                <p className="mt-1 text-xs leading-snug text-muted-foreground">Son başarılı tarama ({sonBasariliTarih}): {sonBasarili.geoScore}/100</p>
               )}
               {!erisim && geoBlocked && (
                 <>
-                  <p className="text-label text-muted-foreground mt-0.5 leading-tight">{geoBlocked.reason}</p>
-                  {geoBlocked.hint && <p className="text-label text-muted-foreground mt-0.5 leading-tight">{geoBlocked.hint}</p>}
+                  <p className="mt-1 text-xs leading-snug text-muted-foreground">{geoBlocked.reason}</p>
+                  {geoBlocked.hint && <p className="mt-1 text-xs leading-snug text-muted-foreground">{geoBlocked.hint}</p>}
                 </>
               )}
               {/* Orneklemin bir kismi engelliyse skor daha az sayfadan hesaplandi — yaninda yazilir */}
-              {geoNote && <p className="text-label text-muted-foreground mt-0.5 leading-tight">{geoNote}</p>}
+              {geoNote && <p className="mt-1 text-xs leading-snug text-muted-foreground">{geoNote}</p>}
             </div>
-            <div className="text-center">
+            <div>
+              <p className="v-rail mb-2">AI Görünürlük</p>
               {/*
                 Olculemeyen skor 0 DEGIL "—" gosterilir ve nedeni yazilir.
                 Sunucu artik hicbir saglayici cevap veremediginde null donuyor;
@@ -196,11 +198,10 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
               */}
               <div className="text-metric-lg tabular-nums">
                 {data.ai.citationScore ?? '—'}
-                <span className="text-sm text-muted-foreground font-normal">/100</span>
+                <span className="text-sm font-normal tracking-normal text-muted-foreground">/100</span>
               </div>
-              <p className="text-label text-muted-foreground mt-1">AI Görünürlük</p>
               {data.ai.citationScore === null && data.ai.citationOlcumYok && (
-                <p className="text-label text-muted-foreground mt-0.5 leading-tight">{data.ai.citationOlcumYok}</p>
+                <p className="mt-1 text-xs leading-snug text-muted-foreground">{data.ai.citationOlcumYok}</p>
               )}
             </div>
           </div>
@@ -214,15 +215,15 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {Array.isArray(data.ai.providers) && data.ai.providers.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm font-semibold mb-3 inline-flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-brand" aria-hidden /> AI sağlayıcı dağılımı
+            <p className="mb-3 inline-flex items-center gap-2 text-panel-3">
+              <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden /> AI sağlayıcı dağılımı
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {data.ai.providers.map((p: any) => (
-                <div key={p.provider} className="rounded-md border p-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium truncate">{p.label}</span>
-                    <span className={`text-base font-bold ${
+                <div key={p.provider} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm">{p.label}</span>
+                    <span className={`text-metric tabular-nums ${
                       !p.available || p.score === null ? 'text-muted-foreground' :
                       p.score >= 60 ? 'text-success' : p.score >= 30 ? 'text-warning' : 'text-danger'
                     }`}>
@@ -239,7 +240,7 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {/* Zaman serisi (basit bar chart) */}
       <Card>
         <CardContent className="p-4">
-          <p className="text-sm font-semibold mb-3">Aktivite trendi</p>
+          <p className="mb-3 text-panel-3">Aktivite trendi</p>
           <SimpleBarChart series={data.timeSeries} />
         </CardContent>
       </Card>
@@ -248,26 +249,26 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {data.search.topQueries?.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm font-semibold mb-3">En çok tıklanan sorgular</p>
+            <p className="mb-3 text-panel-3">En çok tıklanan sorgular</p>
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-label text-muted-foreground border-b">
-                <tr>
-                  <th className="text-left py-2 font-medium">Sorgu</th>
-                  <th className="text-right py-2 font-medium">Tıklama</th>
-                  <th className="text-right py-2 font-medium">Gösterim</th>
-                  <th className="text-right py-2 font-medium">Tıklama oranı</th>
-                  <th className="text-right py-2 font-medium">Sıra</th>
+              <thead>
+                <tr className="border-b font-mono text-vitrin-rail text-muted-foreground">
+                  <th className="py-2.5 pr-3 text-left font-normal">Sorgu</th>
+                  <th className="px-3 py-2.5 text-right font-normal">Tıklama</th>
+                  <th className="px-3 py-2.5 text-right font-normal">Gösterim</th>
+                  <th className="px-3 py-2.5 text-right font-normal">Tıklama oranı</th>
+                  <th className="py-2.5 pl-3 text-right font-normal">Sıra</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {data.search.topQueries.slice(0, 10).map((q: any, i: number) => (
                   <tr key={i}>
-                    <td className="py-2 truncate max-w-[300px]">{q.query}</td>
-                    <td className="text-right tabular-nums text-xs">{formatNum(q.clicks)}</td>
-                    <td className="text-right tabular-nums text-xs">{formatNum(q.impressions)}</td>
-                    <td className="text-right tabular-nums text-xs">{formatPct(q.ctr)}</td>
-                    <td className="text-right tabular-nums text-xs">{formatPos(q.position)}</td>
+                    <td className="max-w-[300px] truncate py-2.5 pr-3">{q.query}</td>
+                    <td className="px-3 text-right tabular-nums">{formatNum(q.clicks)}</td>
+                    <td className="px-3 text-right tabular-nums">{formatNum(q.impressions)}</td>
+                    <td className="px-3 text-right tabular-nums">{formatPct(q.ctr)}</td>
+                    <td className="pl-3 text-right tabular-nums">{formatPos(q.position)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -279,13 +280,13 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
 
       {/* Maliyet */}
       <Card>
-        <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <CardContent className="grid grid-cols-2 gap-x-4 gap-y-5 p-4 md:grid-cols-4">
           <div>
-            <p className="text-label text-muted-foreground">Üretim Maliyeti</p>
+            <p className="v-rail mb-1">Üretim Maliyeti</p>
             <p className="text-metric tabular-nums">${data.articles.totalCost.toFixed(2)}</p>
           </div>
           <div>
-            <p className="text-label text-muted-foreground">Ortalama Editör Skoru</p>
+            <p className="v-rail mb-1">Ortalama Editör Skoru</p>
             <p className="text-metric tabular-nums">{data.articles.avgEditorScore?.toFixed(1) ?? '—'}/60</p>
           </div>
           {/*
@@ -297,16 +298,16 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
             hucrede birbirini yiyemez.
           */}
           <div>
-            <p className="text-label text-muted-foreground">Çözülen Sorun</p>
+            <p className="v-rail mb-1">Çözülen Sorun</p>
             <p className="text-metric tabular-nums text-success">
               {data.audit.karsilastirma ? data.audit.cozulenSayisi : '—'}
             </p>
             {!data.audit.karsilastirma && (
-              <p className="text-label text-muted-foreground leading-tight">Karşılaştırma için en az 2 tarama gerekli</p>
+              <p className="mt-1 text-xs leading-snug text-muted-foreground">Karşılaştırma için en az 2 tarama gerekli</p>
             )}
           </div>
           <div>
-            <p className="text-label text-muted-foreground">Yeni Çıkan Sorun</p>
+            <p className="v-rail mb-1">Yeni Çıkan Sorun</p>
             <p className="text-metric tabular-nums text-warning">
               {data.audit.karsilastirma ? data.audit.yeniCikanSayisi : '—'}
             </p>
@@ -314,19 +315,19 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
           {/* Son taramada yeniden ölçülemeyen eski sorunlar — "Çözülen"e girmez (audit.service.ts) */}
           {data.audit.karsilastirma && olculemeyenSayisi > 0 && (
             <div>
-              <p className="text-label text-muted-foreground">Ölçülemeyen Sorun</p>
+              <p className="v-rail mb-1">Ölçülemeyen Sorun</p>
               <p className="text-metric tabular-nums text-muted-foreground">{olculemeyenSayisi}</p>
-              <p className="text-label text-muted-foreground leading-tight">Son taramada yeniden ölçülemedi; çözülmüş sayılmadı</p>
+              <p className="mt-1 text-xs leading-snug text-muted-foreground">Son taramada yeniden ölçülemedi; çözülmüş sayılmadı</p>
             </div>
           )}
           <div>
-            <p className="text-label text-muted-foreground">Bekleyen Sorun</p>
+            <p className="v-rail mb-1">Bekleyen Sorun</p>
             <p className="text-metric tabular-nums">{data.audit.issuesCount}</p>
           </div>
           <div>
-            <p className="text-label text-muted-foreground">Kullanıcı Taraması</p>
+            <p className="v-rail mb-1">Kullanıcı Taraması</p>
             <p className="text-metric tabular-nums">{data.audit.kullaniciTaramaSayisi ?? '—'}</p>
-            <p className="text-label text-muted-foreground leading-tight">Elle başlatılan (cron/test hariç)</p>
+            <p className="mt-1 text-xs leading-snug text-muted-foreground">Elle başlatılan (cron/test hariç)</p>
           </div>
         </CardContent>
       </Card>
@@ -356,7 +357,7 @@ function SimpleBarChart({ series }: { series: any }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3 text-label text-muted-foreground">
+      <div className="v-rail flex flex-wrap items-center gap-3">
         {SERIES.map((s) => (
           <span key={s.key} className="inline-flex items-center gap-1">
             <span className="h-2 w-3 rounded-sm" style={{ background: s.color }} aria-hidden /> {s.label}
@@ -374,7 +375,7 @@ function SimpleBarChart({ series }: { series: any }) {
                 <div className="w-1.5 rounded-t" style={{ height: `${articlesH}%`, background: SERIES[0].color }} />
                 <div className="w-1.5 rounded-t" style={{ height: `${clicksH}%`, background: SERIES[1].color }} />
               </div>
-              <span className={`text-label text-muted-foreground whitespace-nowrap mt-1 ${i % labelEvery === 0 ? '' : 'invisible'}`}>
+              <span className={`v-rail mt-1 whitespace-nowrap ${i % labelEvery === 0 ? '' : 'invisible'}`}>
                 {d.slice(5)}
               </span>
             </div>

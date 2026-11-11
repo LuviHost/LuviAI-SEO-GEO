@@ -29,6 +29,9 @@ const ACTION_LABEL: Record<AutoFixPreview['action'], { text: string; variant: 's
   refuse: { text: 'Otomatik uygulanamaz', variant: 'warning' },
 };
 
+// Secili secenek: turuncu dolgu degil, metin rengi zemini (sekme / cip ile ayni kural)
+const SECILI = 'border-foreground bg-foreground text-background hover:border-foreground hover:bg-foreground hover:text-background';
+
 type Row = { kind: 'line'; op: 'same' | 'add' | 'del'; text: string } | { kind: 'gap'; count: number };
 
 /** Uzun değişmeyen blokları katla — fark okunur kalsın */
@@ -146,7 +149,7 @@ export function AutoFixPreviewDialog({
 
         <DialogBody className="space-y-4">
           {loadError && !loading ? (
-            <div className="rounded-lg border border-danger/30 bg-danger/5 p-3 text-sm flex items-start gap-2">
+            <div className="rounded-md border border-danger/30 bg-danger/5 p-3 text-sm flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 mt-px shrink-0 text-danger" aria-hidden />
               <span>{loadError}</span>
             </div>
@@ -169,14 +172,14 @@ export function AutoFixPreviewDialog({
               </div>
 
               {isRobots && writable && (
-                <div className="rounded-lg border p-3 space-y-2">
+                <div className="rounded-md border p-3 space-y-2">
                   <div className="text-xs font-medium">İçerik kullanım sinyali (Content-Signal) — AI eğitimi</div>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant={aiTrain === 'yes' ? 'default' : 'outline'} disabled={loading}
+                    <Button size="sm" variant="outline" className={aiTrain === 'yes' ? SECILI : undefined} disabled={loading}
                       onClick={() => { if (aiTrain !== 'yes') { setAiTrain('yes'); load('yes'); } }}>
                       İzin ver (ai-train=yes)
                     </Button>
-                    <Button size="sm" variant={aiTrain === 'no' ? 'default' : 'outline'} disabled={loading}
+                    <Button size="sm" variant="outline" className={aiTrain === 'no' ? SECILI : undefined} disabled={loading}
                       onClick={() => { if (aiTrain !== 'no') { setAiTrain('no'); load('no'); } }}>
                       İzin verme (ai-train=no)
                     </Button>
@@ -203,7 +206,7 @@ export function AutoFixPreviewDialog({
               )}
 
               {rows.length > 0 && (
-                <div className="rounded-md border bg-muted/30 max-h-80 overflow-auto" aria-label="Satır farkı">
+                <div className="rounded-md border bg-muted/40 max-h-80 overflow-auto" aria-label="Satır farkı">
                   <pre className="text-xs font-mono leading-relaxed p-2 min-w-max">
                     {rows.map((r, i) => r.kind === 'gap' ? (
                       <div key={i} className="text-muted-foreground italic px-2 py-0.5">… {r.count} satır değişmedi …</div>
@@ -225,7 +228,7 @@ export function AutoFixPreviewDialog({
               )}
 
               {!preview.canApply && preview.proposed && (
-                <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-2">
+                <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-2">
                   <div className="flex items-start gap-2 text-xs">
                     <AlertTriangle className="h-3.5 w-3.5 mt-px shrink-0 text-warning" aria-hidden />
                     <span>
@@ -241,8 +244,8 @@ export function AutoFixPreviewDialog({
               )}
 
               {preview.canApply && (
-                <label className="flex items-start gap-2 rounded-lg border p-3 text-xs cursor-pointer">
-                  <input type="checkbox" className="mt-0.5" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+                <label className="flex items-start gap-2 rounded-md border p-3 text-xs cursor-pointer">
+                  <input type="checkbox" className="mt-0.5 accent-foreground" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
                   <span>
                     Değişiklikleri inceledim; {preview.filename} dosyası {preview.target?.name ? `"${preview.target.name}" yayın hedefi` : 'yayın hedefi'} üzerinden yazılsın.
                     {preview.current.exists ? ' Mevcut içerik yedeklenir; dosya o günden beri değişmediyse geri alınabilir.' : ''}

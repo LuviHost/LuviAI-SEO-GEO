@@ -82,7 +82,7 @@ export function InfoTooltip({
 
       {open && (
         <div
-          className={`absolute z-50 w-64 max-w-[calc(100vw-2rem)] rounded-lg border bg-card text-card-foreground shadow-lg p-3 text-xs leading-relaxed ${sidePos[side]} pointer-events-auto`}
+          className={`absolute z-50 w-64 max-w-[calc(100vw-2rem)] rounded-lg border bg-card text-card-foreground p-3 text-xs leading-relaxed ${sidePos[side]} pointer-events-auto`}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => {
             if (!('ontouchstart' in window)) setOpen(false);

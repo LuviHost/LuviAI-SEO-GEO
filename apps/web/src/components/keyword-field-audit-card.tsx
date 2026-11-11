@@ -78,8 +78,8 @@ export function KeywordFieldAuditCard({
   return (
     <Card>
       <CardHeader>
-        <h4 className="font-semibold flex items-center gap-2">
-          <KeyRound className="h-4 w-4" /> Anahtar kelime alanı denetimi (App Store)
+        <h4 className="text-panel-3 flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-muted-foreground" /> Anahtar kelime alanı denetimi (App Store)
         </h4>
         <p className="text-xs text-muted-foreground mt-1">
           Bu alan mağazada görünmez. App Store Connect → Uygulama Bilgileri → Anahtar Kelimeler alanını kopyalayıp yapıştır.
@@ -89,8 +89,8 @@ export function KeywordFieldAuditCard({
       <CardContent className="space-y-3">
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label htmlFor="kw-field" className="text-xs font-medium">Anahtar kelimeler</label>
-            <span className={cn('text-label', live.c > 100 ? 'text-danger' : 'text-muted-foreground')}>
+            <label htmlFor="kw-field" className="text-label text-muted-foreground">Anahtar kelimeler</label>
+            <span className={cn('text-label tabular-nums', live.c > 100 ? 'text-danger' : 'text-muted-foreground')}>
               {live.c}/100 karakter · {live.b} bayt
             </span>
           </div>
@@ -103,11 +103,11 @@ export function KeywordFieldAuditCard({
           />
         </div>
         <div>
-          <label htmlFor="kw-subtitle" className="text-xs font-medium">Alt başlık (örtüşme kontrolü için)</label>
+          <label htmlFor="kw-subtitle" className="text-label text-muted-foreground">Alt başlık (örtüşme kontrolü için)</label>
           <Input id="kw-subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} className="mt-1" />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={run} disabled={busy || !keywords.trim()}>
+          <Button size="sm" variant="outline" onClick={run} disabled={busy || !keywords.trim()}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null} Denetle
           </Button>
           {aiKeywordField && aiKeywordField !== keywords && (

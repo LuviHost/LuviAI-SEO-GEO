@@ -68,11 +68,13 @@ export function DataTable<T>({
     setSort((s) => (s?.key === key ? { key, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { key, dir: 'desc' }));
 
   return (
-    <div className={cn('overflow-x-auto', className)}>
+    // relative: sr-only baslik hucreleri (position:absolute) kaydirma kabinin DISINA
+    // konumlanip telefonda sayfayi yatay tasiriyordu (ASO anahtar kelimeler, 390px → 547px)
+    <div className={cn('relative overflow-x-auto', className)}>
       <table className="w-full text-sm">
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
-          <tr className="border-b text-left text-label text-muted-foreground">
+          <tr className="border-b text-left font-mono text-vitrin-rail text-muted-foreground">
             {columns.map((c) => {
               const active = sort?.key === c.key;
               const ariaSort = active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : c.sortValue ? 'none' : undefined;
@@ -82,14 +84,14 @@ export function DataTable<T>({
                   key={c.key}
                   scope="col"
                   aria-sort={ariaSort}
-                  className={cn('px-3 py-2 font-medium', c.align === 'right' && 'text-right', c.hideBelow && HIDE[c.hideBelow], c.className)}
+                  className={cn('px-3 py-2.5 font-normal', c.align === 'right' && 'text-right', c.hideBelow && HIDE[c.hideBelow], c.className)}
                 >
                   {c.sortValue ? (
                     <button
                       type="button"
                       onClick={() => toggle(c.key)}
                       className={cn(
-                        'inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                        'inline-flex items-center gap-1 rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         active && 'text-foreground',
                       )}
                     >

@@ -193,7 +193,7 @@ export function TrialUpgrade() {
           <DialogContent size="sm">
             <DialogHeader>
               <DialogTitle className="inline-flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-brand" aria-hidden />
+                <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden />
                 {popup.title}
               </DialogTitle>
             </DialogHeader>
@@ -227,12 +227,12 @@ export function TrialUpgrade() {
               <DialogDescription>{modal.body}</DialogDescription>
               {modal.checkoutMessage && <p className="rounded-md border bg-muted px-3 py-2 text-sm">{modal.checkoutMessage}</p>}
               <div className="grid gap-2 sm:grid-cols-2">
-                <Link href={TRIAL_UPGRADE_HREF} className="rounded-lg border p-3 text-sm hover:border-brand">
+                <Link href={TRIAL_UPGRADE_HREF} className="rounded-md border p-3 text-sm transition-colors hover:border-foreground/30">
                   <span className="font-medium">Planlar ve fiyatlar</span>
                   {/* 11.11.2026 paket yapisi: satistaki planlar (api plans.ts publicPlans) */}
                   <span className="mt-1 block text-muted-foreground">Başlangıç, Profesyonel ve Kurumsal planlarını karşılaştır.</span>
                 </Link>
-                <Link href={TRIAL_BILLING_HREF} className="rounded-lg border p-3 text-sm hover:border-brand">
+                <Link href={TRIAL_BILLING_HREF} className="rounded-md border p-3 text-sm transition-colors hover:border-foreground/30">
                   <span className="font-medium">Abonelik</span>
                   <span className="mt-1 block text-muted-foreground">Planını ve faturalarını buradan yönet.</span>
                 </Link>

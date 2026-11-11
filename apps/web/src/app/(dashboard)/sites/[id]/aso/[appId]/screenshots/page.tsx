@@ -240,7 +240,7 @@ function SuggestionField({ label, value, limit, multiline }: {
   return (
     <div className="rounded-md border bg-background p-2.5">
       <div className="flex items-center justify-between mb-1">
-        <div className="text-label font-semibold flex items-center gap-1.5">
+        <div className="text-label flex items-center gap-1.5">
           {label}
           <span className={`text-label font-normal ${overLimit ? 'text-danger' : 'text-muted-foreground'}`}>
             ({len}/{limit})
@@ -249,7 +249,7 @@ function SuggestionField({ label, value, limit, multiline }: {
         <button
           onClick={handleCopy}
           className={`text-label px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${
-            copied ? 'border-success text-success bg-success/10' : 'border-border hover:border-brand hover:text-brand'
+            copied ? 'border-success text-success bg-success/10' : 'border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground'
           }`}
         >
           {copied ? <><CheckCircle2 className="h-3 w-3" /> Kopyalandı</> : <><Copy className="h-3 w-3" /> Kopyala</>}
@@ -345,7 +345,7 @@ function LayoutPreview({ config }: { config: LayoutConfig }) {
             x={p.cx - p.w / 2 + 1} y={p.cy - p.h / 2 + 1.5}
             width={p.w - 2} height={p.h - 3}
             rx={1.5}
-            className="fill-brand"
+            className="fill-foreground"
             opacity={0.28}
           />
         </g>
@@ -879,8 +879,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
           </Button>
           {app?.iconUrl && <img src={app.iconUrl} alt="" className="h-8 w-8 rounded-lg" />}
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold">{app?.name} · Screenshot Studio</h2>
-            <p className="text-label text-muted-foreground">{slotCount} slot · mağaza boyutları · AI destekli</p>
+            <h2 className="truncate text-panel-3">{app?.name} · Screenshot Studio</h2>
+            <p className="font-mono text-vitrin-rail text-muted-foreground">{slotCount} slot · mağaza boyutları · AI destekli</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -922,10 +922,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         </StatusBanner>
       </div>
       {bulkExportingAllPresets && bulkExportProgress && (
-        <div className="bg-brand/10 border-b border-brand/30 px-4 py-1.5 text-xs flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-background rounded overflow-hidden">
+        <div className="bg-muted/40 border-b px-4 py-1.5 text-xs flex items-center gap-2">
+          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-brand transition-all"
+              className="h-full rounded-full bg-foreground transition-all"
               style={{ width: `${(bulkExportProgress.current / bulkExportProgress.total) * 100}%` }}
             />
           </div>
@@ -938,16 +938,16 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       <div className="flex flex-1 flex-col lg:flex-row lg:overflow-hidden">
         {/* SLOT NAVIGATOR — her slot için mini Konva render (decorations + phone + text birebir) */}
         <div className="flex gap-2 overflow-x-auto border-b bg-background p-2 lg:block lg:w-32 lg:shrink-0 lg:space-y-1 lg:overflow-y-auto lg:overflow-x-visible lg:border-b-0 lg:border-r">
-          <div className="mb-2 hidden px-1 text-label uppercase tracking-wider text-muted-foreground lg:block">{slotCount} slot</div>
+          <div className="mb-2 hidden px-1 font-mono text-vitrin-rail text-muted-foreground lg:block">{slotCount} slot</div>
           {slots.map((s, i) => (
             <button
               key={i}
               onClick={() => setActiveSlot(i)}
               className={`w-32 shrink-0 lg:w-full p-2 rounded border text-left transition-colors ${
-                activeSlot === i ? 'border-brand bg-brand/10' : 'border-border hover:border-foreground/20'
+                activeSlot === i ? 'border-foreground bg-muted' : 'border-border hover:border-foreground/30'
               }`}
             >
-              <div className="text-xs font-bold mb-1">#{i + 1}</div>
+              <div className="font-mono text-vitrin-rail text-muted-foreground mb-1">#{i + 1}</div>
               <div className="rounded overflow-hidden bg-muted mb-1 relative" style={{ width: '100%' }}>
                 <ScreenshotStage slot={s} width={preset.width} height={preset.height} viewWidth={104} />
                 {!s.screenshotUrl && (
@@ -963,7 +963,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
         {/* CANVAS */}
         <div className="grid flex-1 place-items-center overflow-x-auto p-2 sm:p-4 lg:overflow-auto lg:p-6">
-          <Card className="shadow-2xl">
+          <Card>
             <CardContent className="p-2">
               <ScreenshotStage
                 ref={stageRef}
@@ -996,7 +996,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   key={t.id}
                   onClick={() => setSidebar(t.id as any)}
                   aria-pressed={sidebar === t.id}
-                  className={`p-2 flex flex-col items-center gap-0.5 border-r last:border-r-0 ${sidebar === t.id ? 'bg-brand/10 text-brand' : 'hover:bg-muted/50'}`}
+                  className={`p-2 flex flex-col items-center gap-0.5 border-r last:border-r-0 transition-colors ${sidebar === t.id ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'}`}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   <span className="text-label">{t.label}</span>
@@ -1009,15 +1009,15 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
             {sidebar === 'ai' && (
               <div className="space-y-3">
                 <div>
-                  <h3 className="text-sm font-semibold mb-1">AI ile başlık yaz</h3>
+                  <h3 className="text-panel-3 mb-1">AI ile başlık yaz</h3>
                   <p className="text-xs text-muted-foreground mb-2">{slotCount} görsel için dikkat çeken başlık ve alt başlık üretir.</p>
-                  <Button size="sm" className="w-full" onClick={generateCaptions} disabled={generatingCaptions}>
+                  <Button size="sm" variant="outline" className="w-full" onClick={generateCaptions} disabled={generatingCaptions}>
                     <Sparkles className={`h-4 w-4 mr-1 ${generatingCaptions ? 'animate-spin' : ''}`} />
                     {generatingCaptions ? 'Yazılıyor…' : `${slotCount} başlık üret`}
                   </Button>
                 </div>
                 <div className="border-t pt-3">
-                  <h3 className="text-sm font-semibold mb-1">AI ile arka plan</h3>
+                  <h3 className="text-panel-3 mb-1">AI ile arka plan</h3>
                   <p className="text-xs text-muted-foreground mb-2">Seçili görsel için bir stil seç; arka plan yaklaşık 10 saniyede hazırlanır.</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {(['gradient', 'mesh', 'minimalist', 'bold', 'illustrative'] as const).map(s => (
@@ -1029,7 +1029,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   {slot.background.type === 'image' && (
                     <button
                       onClick={applyCurrentBackgroundToAllSlots}
-                      className="w-full mt-2 text-label py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1"
+                      className="w-full mt-2 text-label py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-foreground/60 hover:bg-muted transition-colors flex items-center justify-center gap-1"
                     >
                       <Copy className="h-3 w-3" /> Bu BG'yi {slotCount} slota uygula
                     </button>
@@ -1040,8 +1040,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 {library.length > 0 && (
                   <div className="border-t pt-3">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                        <ImageIcon className="h-4 w-4 text-success" />
+                      <h3 className="text-panel-3 flex items-center gap-1.5">
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
                         Galeri · {library.length}
                       </h3>
                       <button onClick={loadLibrary} className="text-label text-muted-foreground hover:text-foreground">
@@ -1058,26 +1058,26 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           <div key={item.filename} className="relative group">
                             <button
                               onClick={() => applyLibraryItem(item)}
-                              className="block w-full aspect-[9/19.5] rounded border-2 border-border hover:border-brand overflow-hidden bg-muted"
+                              className="block w-full aspect-[9/19.5] rounded border border-border hover:border-foreground/50 overflow-hidden bg-muted transition-colors"
                               title={`${item.type === 'hand' ? 'El fotoğrafı' : 'Arka plan'} — ${new Date(item.timestamp).toLocaleString('tr-TR')}`}
                             >
                               <img src={fullUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
                               {item.type === 'hand' && (
-                                <span className="absolute top-1 left-1 rounded bg-brand px-1 text-label text-white">
+                                <span className="absolute top-1 left-1 rounded bg-background/85 px-1 text-label text-foreground">
                                   El
                                 </span>
                               )}
                             </button>
                             <button
                               onClick={() => applyLibraryItemToAllSlots(item)}
-                              className="absolute bottom-1 right-1 h-5 w-5 rounded bg-brand text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-brand/80"
+                              className="absolute bottom-1 right-1 h-5 w-5 rounded bg-foreground text-background grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-foreground/80"
                               title={`${slotCount} slota uygula`}
                             >
                               <Copy className="h-3 w-3" />
                             </button>
                             <button
                               onClick={() => deleteLibraryItem(item.filename)}
-                              className="absolute top-1 right-1 h-5 w-5 rounded bg-danger text-white grid place-items-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-danger/90"
+                              className="absolute top-1 right-1 h-5 w-5 rounded bg-danger text-white dark:text-black grid place-items-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-danger/90"
                               title="Sil"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -1097,17 +1097,17 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 {/* Panorama setleri — dekoratif şekiller slot sınırlarını aşar, birleşik tasarım */}
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
-                    <Sparkles className="h-3.5 w-3.5 text-brand" />
-                    <h3 className="text-sm font-semibold">Panorama Setleri</h3>
+                    <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                    <h3 className="text-panel-3">Panorama Setleri</h3>
                   </div>
                   <p className="text-label text-muted-foreground mb-2 leading-snug">
                     Dekoratif şekiller slot sınırlarını aşar — Vatan/Akakçe stilinde birleşik tasarım.
                   </p>
 
                   {/* Slot sayısı + pattern seçici */}
-                  <div className="mb-2.5 rounded border bg-muted/30 p-2">
+                  <div className="mb-2.5 rounded-md border p-2">
                     {/* Slot sayısı */}
-                    <label className="text-label font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                    <label className="v-rail mb-1.5 block">
                       Slot sayısı
                     </label>
                     <div className="grid grid-cols-3 gap-1 mb-2.5">
@@ -1116,11 +1116,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           key={n}
                           onClick={() => setSlotCount(n)}
                           className={`py-1.5 rounded text-center transition-colors ${
-                            slotCount === n ? 'bg-brand text-white' : 'bg-background hover:bg-muted border border-border'
+                            slotCount === n ? 'bg-foreground text-background' : 'bg-background hover:bg-muted border border-border'
                           }`}
                         >
-                          <div className="text-label font-bold leading-tight">{n} slot</div>
-                          <div className={`text-label leading-tight ${slotCount === n ? 'text-white/80' : 'text-muted-foreground'}`}>
+                          <div className="text-label leading-tight">{n} slot</div>
+                          <div className={`text-label leading-tight ${slotCount === n ? 'text-background/70' : 'text-muted-foreground'}`}>
                             {n === 5 ? 'App Store typical' : n === 8 ? 'Play Store max' : 'Apple max'}
                           </div>
                         </button>
@@ -1128,7 +1128,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     </div>
 
                     {/* Pattern seçici — slot sayısına göre dinamik preset'ler */}
-                    <label className="text-label font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                    <label className="v-rail mb-1.5 block">
                       Pattern (toplam {slotCount})
                     </label>
                     <div className="grid grid-cols-2 gap-1 mb-2">
@@ -1160,11 +1160,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                             key={idx}
                             onClick={() => setPanoramaPattern(opt.p as number[])}
                             className={`py-1.5 px-2 rounded text-left transition-colors ${
-                              isActive ? 'bg-brand text-white' : 'bg-background hover:bg-muted border border-border'
+                              isActive ? 'bg-foreground text-background' : 'bg-background hover:bg-muted border border-border'
                             }`}
                           >
-                            <div className="text-label font-bold leading-tight">{opt.label}</div>
-                            <div className={`text-label leading-tight font-mono ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>
+                            <div className="text-label leading-tight">{opt.label}</div>
+                            <div className={`text-label leading-tight font-mono ${isActive ? 'text-background/70' : 'text-muted-foreground'}`}>
                               {opt.p.join('-')}
                             </div>
                           </button>
@@ -1174,7 +1174,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                     {/* Custom pattern input */}
                     <details className="mb-2">
-                      <summary className="text-label font-semibold cursor-pointer text-muted-foreground hover:text-foreground">
+                      <summary className="text-label cursor-pointer text-muted-foreground hover:text-foreground">
                         Özel pattern yaz (toplam {slotCount} olmalı)
                       </summary>
                       <div className="mt-1.5 flex gap-1">
@@ -1207,7 +1207,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       {panoramaPattern.map((groupSize, gi) => (
                         <div
                           key={gi}
-                          className={`rounded-sm ${groupSize === 1 ? 'bg-muted-foreground/40' : 'bg-brand'}`}
+                          className={`rounded-sm ${groupSize === 1 ? 'bg-muted-foreground/40' : 'bg-foreground'}`}
                           style={{ flex: groupSize }}
                           title={`Grup ${gi + 1}: ${groupSize} slot`}
                         />
@@ -1226,14 +1226,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       <button
                         key={t.id}
                         onClick={() => applyPanoramaTheme(t.id)}
-                        className="rounded border-2 border-border hover:border-brand transition-colors text-left overflow-hidden"
+                        className="rounded border border-border hover:border-foreground/50 transition-colors text-left overflow-hidden"
                         title={t.description}
                       >
                         <div className="aspect-[9/16] relative" style={{ background: t.preview }}>
                           <PanoramaPreview theme={t} />
                         </div>
                         <div className="px-2 py-1.5 bg-background">
-                          <div className="text-label font-bold leading-tight">{t.name}</div>
+                          <div className="text-label leading-tight">{t.name}</div>
                           <div className="text-label text-muted-foreground leading-tight mt-0.5 line-clamp-1">{t.description}</div>
                         </div>
                       </button>
@@ -1242,7 +1242,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 </div>
 
                 <div className="border-t pt-3">
-                  <h3 className="text-sm font-semibold mb-1">Renk + Yazı Şablonları</h3>
+                  <h3 className="text-panel-3 mb-1">Renk + Yazı Şablonları</h3>
                   <p className="text-xs text-muted-foreground mb-2">Sadece bg + yazı stili, layout korunur</p>
                   <div className="grid grid-cols-2 gap-2">
                     {TEMPLATES.map(t => (
@@ -1258,11 +1258,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           backgroundIsHand: false,
                           decorations: undefined,
                         })}
-                        className="aspect-[9/16] rounded border-2 border-border hover:border-brand relative overflow-hidden group"
+                        className="aspect-[9/16] rounded border border-border hover:border-foreground/50 transition-colors relative overflow-hidden group"
                         style={{ background: t.solid ?? t.gradient }}
                       >
                         <div className="absolute inset-0 flex items-center justify-center p-2">
-                          <span className="text-label font-bold text-center leading-tight" style={{ color: t.textColor }}>
+                          <span className="text-label font-semibold text-center leading-tight" style={{ color: t.textColor }}>
                             {t.name}
                           </span>
                         </div>
@@ -1276,10 +1276,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
             {sidebar === 'layout' && (
               <div className="space-y-3">
                 {/* Set Tasarımı — AI bg üret + {slotCount} slota uygula + layout dağıt */}
-                <div className="rounded-lg border border-brand/40 bg-brand/5 p-3">
+                <div className="rounded-md border p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <Sparkles className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold">Set Tasarımı (10 Slot Birlikte)</h3>
+                    <h3 className="text-panel-3">Set Tasarımı (10 Slot Birlikte)</h3>
                   </div>
                   <p className="text-label text-muted-foreground mb-2 leading-snug">
                     AI bg üret + {slotCount} slota uygula + App Store akışıyla layout dağıt. Tüm slotlar aynı tasarım dünyasında.
@@ -1301,14 +1301,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   <button
                     onClick={applyAutoLayout}
                     disabled={generatingBg}
-                    className="w-full text-label py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    className="w-full text-label py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-foreground/60 hover:bg-muted transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
                   >
                     <Sparkles className="h-3 w-3" /> Sadece layout dağıt (BG'yi koru)
                   </button>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-semibold mb-1">Layout Preset'leri</h3>
+                  <h3 className="text-panel-3 mb-1">Layout Preset'leri</h3>
                   <p className="text-xs text-muted-foreground mb-2">Aktif slota uygulanır — preview'a tıkla</p>
                   <div className="grid grid-cols-2 gap-2">
                     {LAYOUT_PRESETS.map(p => {
@@ -1320,15 +1320,15 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         <button
                           key={p.id}
                           onClick={() => updateSlot(p.config)}
-                          className={`p-2 rounded border-2 text-left transition-colors ${
-                            isActive ? 'border-brand bg-brand/5' : 'border-border hover:border-foreground/30'
+                          className={`p-2 rounded border text-left transition-colors ${
+                            isActive ? 'border-foreground bg-muted' : 'border-border hover:border-foreground/30'
                           }`}
                           title={p.description}
                         >
                           <div className="mb-1.5">
                             <LayoutPreview config={p.config} />
                           </div>
-                          <div className="text-label font-bold leading-tight">{p.name}</div>
+                          <div className="text-label leading-tight">{p.name}</div>
                           <div className="text-label text-muted-foreground leading-tight mt-0.5">{p.description}</div>
                         </button>
                       );
@@ -1345,7 +1345,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       phoneScale: slot.phoneScale,
                       phoneTilt: slot.phoneTilt,
                     } : {})}
-                    className="w-full text-xs py-2 px-3 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors"
+                    className="w-full text-xs py-2 px-3 rounded border border-dashed border-foreground/30 hover:border-foreground/60 hover:bg-muted transition-colors"
                   >
                     Bu layout'u {slotCount} slota uygula
                   </button>
@@ -1357,13 +1357,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               <div className="space-y-3">
                 {/* Multi-phone composition */}
                 <div>
-                  <label className="text-xs font-medium mb-1.5 block">Telefon Sayısı</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Telefon Sayısı</label>
                   <div className="flex border rounded-md overflow-hidden h-9">
                     {(['single', 'duo', 'trio'] as const).map(layout => (
                       <button
                         key={layout}
                         onClick={() => updateSlot({ phoneLayout: layout })}
-                        className={`flex-1 text-xs ${(slot.phoneLayout ?? 'single') === layout ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
+                        className={`flex-1 text-xs ${(slot.phoneLayout ?? 'single') === layout ? 'bg-foreground text-background' : 'bg-background hover:bg-muted'}`}
                       >
                         {layout === 'single' ? '1 telefon' : layout === 'duo' ? '2 telefon' : '3 telefon'}
                       </button>
@@ -1373,13 +1373,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                 {/* Phone vertical position */}
                 <div>
-                  <label className="text-xs font-medium mb-1.5 block">Dikey Pozisyon</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Dikey Pozisyon</label>
                   <div className="flex border rounded-md overflow-hidden h-9">
                     {(['top', 'center', 'bottom'] as const).map(va => (
                       <button
                         key={va}
                         onClick={() => updateSlot({ phoneVerticalAlign: va })}
-                        className={`flex-1 text-xs ${(slot.phoneVerticalAlign ?? 'center') === va ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
+                        className={`flex-1 text-xs ${(slot.phoneVerticalAlign ?? 'center') === va ? 'bg-foreground text-background' : 'bg-background hover:bg-muted'}`}
                       >
                         {va === 'top' ? 'Üst' : va === 'center' ? 'Orta' : 'Alt'}
                       </button>
@@ -1389,13 +1389,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                 {/* Phone Frame */}
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">Phone Frame</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Phone Frame</label>
                   <div className="grid grid-cols-2 gap-1.5">
                     {PHONE_FRAMES.map(f => (
                       <button
                         key={f.id}
                         onClick={() => updateSlot({ phoneFrameId: f.id })}
-                        className={`p-2 rounded border text-xs transition-colors text-left ${slot.phoneFrameId === f.id ? 'border-brand bg-brand/5' : 'border-border hover:border-foreground/20'}`}
+                        className={`p-2 rounded border text-xs transition-colors text-left ${slot.phoneFrameId === f.id ? 'border-foreground bg-foreground text-background' : 'border-border hover:border-foreground/30'}`}
                       >
                         <div className="text-label font-medium leading-tight">{f.label}</div>
                       </button>
@@ -1405,14 +1405,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                 {/* Frame style — Solid / Glass / Outline (shots.so polish) */}
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">Frame stili</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Frame stili</label>
                   <div className="grid grid-cols-3 gap-1.5">
                     {FRAME_STYLE_OPTIONS.map(opt => (
                       <button
                         key={opt.id}
                         onClick={() => updateSlot({ phoneFrameStyle: opt.id })}
                         title={opt.description}
-                        className={`p-2 rounded border text-xs transition-colors text-center ${(slot.phoneFrameStyle ?? 'solid') === opt.id ? 'border-brand bg-brand/5' : 'border-border hover:border-foreground/20'}`}
+                        className={`p-2 rounded border text-xs transition-colors text-center ${(slot.phoneFrameStyle ?? 'solid') === opt.id ? 'border-foreground bg-foreground text-background' : 'border-border hover:border-foreground/30'}`}
                       >
                         <div className="text-label font-medium">{opt.label}</div>
                       </button>
@@ -1423,7 +1423,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                 {/* Screenshot uploads — duo/trio için 3 ayrı upload */}
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">App Screenshot{(slot.phoneLayout ?? 'single') !== 'single' ? ' #1' : ''}</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">App Screenshot{(slot.phoneLayout ?? 'single') !== 'single' ? ' #1' : ''}</label>
                   <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleScreenshotUpload(e.target.files[0])} className="text-xs w-full" />
                   {slot.screenshotUrl && (
                     <div className="mt-2 flex items-center gap-2">
@@ -1436,7 +1436,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 </div>
                 {(slot.phoneLayout === 'duo' || slot.phoneLayout === 'trio') && (
                   <div>
-                    <label className="text-xs font-medium mb-1.5 block">Screenshot #2</label>
+                    <label className="text-label text-muted-foreground mb-1.5 block">Screenshot #2</label>
                     <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleScreenshot2Upload(e.target.files[0])} className="text-xs w-full" />
                     {slot.screenshot2Url && (
                       <div className="mt-2 flex items-center gap-2">
@@ -1450,7 +1450,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 )}
                 {slot.phoneLayout === 'trio' && (
                   <div>
-                    <label className="text-xs font-medium mb-1.5 block">Screenshot #3</label>
+                    <label className="text-label text-muted-foreground mb-1.5 block">Screenshot #3</label>
                     <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleScreenshot3Upload(e.target.files[0])} className="text-xs w-full" />
                     {slot.screenshot3Url && (
                       <div className="mt-2 flex items-center gap-2">
@@ -1464,13 +1464,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 )}
 
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">Boyut: {Math.round(Math.min(slot.phoneScale, 1.0) * 100)}%</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Boyut: {Math.round(Math.min(slot.phoneScale, 1.0) * 100)}%</label>
                   <input type="range" min="0.4" max="1.0" step="0.05" value={Math.min(slot.phoneScale, 1.0)} onChange={e => updateSlot({ phoneScale: parseFloat(e.target.value) })} className="w-full" />
                 </div>
 
                 {/* Phone drop shadow intensity */}
                 <div>
-                  <label className="text-xs font-medium mb-1.5 block">Telefon gölgesi: {slot.phoneShadow ?? 70}%</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Telefon gölgesi: {slot.phoneShadow ?? 70}%</label>
                   <input type="range" min="0" max="100" step="5" value={slot.phoneShadow ?? 70} onChange={e => updateSlot({ phoneShadow: parseInt(e.target.value) })} className="w-full" />
                 </div>
 
@@ -1499,7 +1499,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium mb-1.5 block">Eğim: {slot.phoneTilt}°</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Eğim: {slot.phoneTilt}°</label>
                   <input type="range" min="-30" max="30" step="1" value={slot.phoneTilt} onChange={e => updateSlot({ phoneTilt: parseInt(e.target.value) })} className="w-full" />
                 </div>
               </div>
@@ -1509,13 +1509,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               <div className="space-y-3">
                 <button
                   onClick={applyCurrentBackgroundToAllSlots}
-                  className="w-full text-xs py-2 px-3 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full text-xs py-2 px-3 rounded border border-dashed border-foreground/30 hover:border-foreground/60 hover:bg-muted transition-colors flex items-center justify-center gap-1.5"
                 >
                   <Copy className="h-3.5 w-3.5" /> Aktif slot BG'sini {slotCount} slota uygula
                 </button>
 
                 <div>
-                  <label className="text-xs font-medium mb-1.5 block">Solid Renkler (Media Markt-style)</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Solid Renkler (Media Markt-style)</label>
                   <div className="grid grid-cols-4 gap-1.5">
                     {SOLID_COLORS.map(c => (
                       <button
@@ -1526,14 +1526,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
                         })}
                         title={c.name}
-                        className="aspect-square rounded border-2 border-border hover:border-brand"
+                        className="aspect-square rounded border border-border transition-colors hover:border-foreground/60"
                         style={{ background: c.value }}
                       />
                     ))}
                   </div>
                 </div>
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">Gradient'ler</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Gradient'ler</label>
                   <div className="grid grid-cols-4 gap-1.5">
                     {GRADIENTS.map(g => (
                       <button
@@ -1543,14 +1543,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           backgroundIsHand: false,
                           phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
                         })}
-                        className="aspect-square rounded border-2 border-border hover:border-brand"
+                        className="aspect-square rounded border border-border transition-colors hover:border-foreground/60"
                         style={{ background: g }}
                       />
                     ))}
                   </div>
                 </div>
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">Custom solid renk</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Custom solid renk</label>
                   <input
                     type="color"
                     value={slot.background.type === 'solid' ? slot.background.value : '#667eea'}
@@ -1563,7 +1563,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   />
                 </div>
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block flex items-center gap-1.5">
+                  <label className="text-label text-muted-foreground mb-1.5 block flex items-center gap-1.5">
                     <Upload className="h-3 w-3" />
                     Background görsel yükle (kendi tasarımın)
                   </label>
@@ -1584,7 +1584,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                 {/* Background overlay — text legibility için */}
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">Background Overlay (yazı okunaklılığı için)</label>
+                  <label className="text-label text-muted-foreground mb-1.5 block">Background Overlay (yazı okunaklılığı için)</label>
                   <div className="grid grid-cols-3 gap-1">
                     {([
                       { id: 'none', label: 'Yok' },
@@ -1596,7 +1596,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       <button
                         key={o.id}
                         onClick={() => updateSlot({ bgOverlay: o.id })}
-                        className={`text-label py-1.5 rounded border ${(slot.bgOverlay ?? 'none') === o.id ? 'border-brand bg-brand/5' : 'border-border'}`}
+                        className={`text-label py-1.5 rounded border transition-colors ${(slot.bgOverlay ?? 'none') === o.id ? 'border-foreground bg-foreground text-background' : 'border-border hover:border-foreground/30'}`}
                       >
                         {o.label}
                       </button>
@@ -1612,39 +1612,39 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
             {sidebar === 'text' && (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Hook (Üst başlık)</label>
+                  <label className="text-label text-muted-foreground mb-1 block">Hook (Üst başlık)</label>
                   <textarea value={slot.hook} onChange={e => updateSlot({ hook: e.target.value })} rows={2} className="w-full text-sm px-3 py-2 rounded border border-input bg-background" placeholder="Saatlerce sürüyordu" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Subtitle (Alt açıklama)</label>
+                  <label className="text-label text-muted-foreground mb-1 block">Subtitle (Alt açıklama)</label>
                   <textarea value={slot.subtitle} onChange={e => updateSlot({ subtitle: e.target.value })} rows={2} className="w-full text-sm px-3 py-2 rounded border border-input bg-background" placeholder="Şimdi tek tıkla, tek panelden" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Yazı pozisyonu</label>
+                  <label className="text-label text-muted-foreground mb-1 block">Yazı pozisyonu</label>
                   <div className="flex gap-1">
                     {(['top', 'bottom'] as const).map(p => (
-                      <button key={p} onClick={() => updateSlot({ textPosition: p })} className={`flex-1 text-xs py-1.5 rounded border ${slot.textPosition === p ? 'border-brand bg-brand/5' : 'border-border'}`}>
+                      <button key={p} onClick={() => updateSlot({ textPosition: p })} className={`flex-1 text-xs py-1.5 rounded border transition-colors ${slot.textPosition === p ? 'border-foreground bg-foreground text-background' : 'border-border hover:border-foreground/30'}`}>
                         {p === 'top' ? 'Üstte' : 'Altta'}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Yazı hizalaması</label>
+                  <label className="text-label text-muted-foreground mb-1 block">Yazı hizalaması</label>
                   <div className="flex gap-1">
                     {(['left', 'center', 'right'] as const).map(a => (
-                      <button key={a} onClick={() => updateSlot({ textAlign: a })} className={`flex-1 text-xs py-1.5 rounded border ${(slot.textAlign ?? 'center') === a ? 'border-brand bg-brand/5' : 'border-border'}`}>
+                      <button key={a} onClick={() => updateSlot({ textAlign: a })} className={`flex-1 text-xs py-1.5 rounded border transition-colors ${(slot.textAlign ?? 'center') === a ? 'border-foreground bg-foreground text-background' : 'border-border hover:border-foreground/30'}`}>
                         {a === 'left' ? 'Sol' : a === 'center' ? 'Orta' : 'Sağ'}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Yazı rengi</label>
+                  <label className="text-label text-muted-foreground mb-1 block">Yazı rengi</label>
                   <input type="color" value={slot.textColor} onChange={e => updateSlot({ textColor: e.target.value })} className="w-full h-10 cursor-pointer rounded border border-input" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Font ailesi</label>
+                  <label className="text-label text-muted-foreground mb-1 block">Font ailesi</label>
                   <select
                     value={slot.fontFamily ?? 'Inter'}
                     onChange={e => updateSlot({ fontFamily: e.target.value })}
@@ -1695,11 +1695,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Hook font: {slot.hookFontSize}px</label>
+                  <label className="text-label text-muted-foreground mb-1 block">Hook font: {slot.hookFontSize}px</label>
                   <input type="range" min="40" max="180" step="4" value={slot.hookFontSize} onChange={e => updateSlot({ hookFontSize: parseInt(e.target.value) })} className="w-full" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Yazı gölgesi: {slot.textShadow ?? 30}%</label>
+                  <label className="text-label text-muted-foreground mb-1 block">Yazı gölgesi: {slot.textShadow ?? 30}%</label>
                   <input type="range" min="0" max="100" step="5" value={slot.textShadow ?? 30} onChange={e => updateSlot({ textShadow: parseInt(e.target.value) })} className="w-full" />
                   <p className="text-label text-muted-foreground mt-0.5">
                     Açık yazı + parlak background'da %50+ ile okunaklılık artar.
@@ -1716,7 +1716,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         <DialogContent size="xl" className="max-w-6xl">
             <DialogHeader className="flex flex-wrap items-center justify-between gap-4 space-y-0">
               <div className="flex items-center gap-3 min-w-0">
-                {app?.iconUrl && <img src={app.iconUrl} alt="" className="h-12 w-12 rounded-xl shadow shrink-0" />}
+                {app?.iconUrl && <img src={app.iconUrl} alt="" className="h-12 w-12 rounded-lg shrink-0" />}
                 <div className="min-w-0">
                   <DialogTitle className="truncate">{app?.name ?? 'Uygulama'} · mağaza önizlemesi</DialogTitle>
                   <DialogDescription>Yayınlamadan önce nasıl göründüğünü gör.</DialogDescription>
@@ -1728,7 +1728,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               </div>
             </DialogHeader>
 
-            <div className="p-6 space-y-6">
+            <div className="px-5 py-5 space-y-6">
               {/* Store-style app header card */}
               {(() => {
                 const meta: any = app?.metadata ?? {};
@@ -1743,14 +1743,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                 if (previewStore === 'IOS') {
                   return (
-                    <div className="rounded-xl bg-gradient-to-b from-muted/40 to-muted/10 p-5 border">
+                    <div className="rounded-lg bg-muted/40 p-5 border">
                       <div className="flex gap-4">
                         {app?.iconUrl
-                          ? <img src={app.iconUrl} alt="" className="h-24 w-24 rounded-2xl shadow-md shrink-0" />
-                          : <div className="h-24 w-24 rounded-2xl bg-muted shrink-0" />
+                          ? <img src={app.iconUrl} alt="" className="h-24 w-24 rounded-lg shrink-0" />
+                          : <div className="h-24 w-24 rounded-lg bg-muted shrink-0" />
                         }
                         <div className="flex-1 min-w-0">
-                          <div className="text-lg font-bold leading-tight truncate">{displayTitle}</div>
+                          <div className="text-lg font-medium tracking-[-0.02em] leading-tight truncate">{displayTitle}</div>
                           {displaySubtitle && (
                             <div className="text-sm text-muted-foreground truncate">{displaySubtitle}</div>
                           )}
@@ -1776,14 +1776,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   );
                 }
                 return (
-                  <div className="rounded-xl bg-gradient-to-b from-emerald-50 to-background dark:from-emerald-950/30 p-5 border">
+                  <div className="rounded-lg border bg-success/5 p-5">
                     <div className="flex gap-4">
                       {app?.iconUrl
-                        ? <img src={app.iconUrl} alt="" className="h-20 w-20 rounded-2xl shadow shrink-0" />
-                        : <div className="h-20 w-20 rounded-2xl bg-muted shrink-0" />
+                        ? <img src={app.iconUrl} alt="" className="h-20 w-20 rounded-lg shrink-0" />
+                        : <div className="h-20 w-20 rounded-lg bg-muted shrink-0" />
                       }
                       <div className="flex-1 min-w-0">
-                        <div className="text-lg font-bold leading-tight">{displayTitle}</div>
+                        <div className="text-lg font-medium tracking-[-0.02em] leading-tight">{displayTitle}</div>
                         {displaySubtitle && (
                           <div className="text-xs text-muted-foreground line-clamp-2">{displaySubtitle}</div>
                         )}
@@ -1809,7 +1809,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
               {/* Screenshots strip */}
               <div>
-                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <h3 className="text-panel-3 mb-2 flex items-center gap-2">
                   <ImageIcon className="h-4 w-4" /> Ekran Görüntüleri ({slots.length})
                 </h3>
                 <div className="overflow-x-auto pb-2 -mx-2 px-2">
@@ -1820,7 +1820,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       return (
                         <div
                           key={i}
-                          className={`shrink-0 ${previewStore === 'IOS' ? 'rounded-[18px]' : 'rounded-lg'} overflow-hidden bg-muted shadow-md ring-1 ring-black/5`}
+                          className={`shrink-0 ${previewStore === 'IOS' ? 'rounded-[18px]' : 'rounded-lg'} overflow-hidden bg-muted ring-1 ring-black/5`}
                           style={{ width: thumbW, height: thumbH }}
                         >
                           <ScreenshotStage slot={s} width={preset.width} height={preset.height} viewWidth={thumbW} />
@@ -1840,10 +1840,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 if (!displayDesc) return null;
                 return (
                   <div>
-                    <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                    <h3 className="text-panel-3 mb-2 flex items-center gap-2">
                       <Type className="h-4 w-4" /> Açıklama (ilk paragraf)
                     </h3>
-                    <div className="rounded-lg border p-4 text-sm leading-relaxed whitespace-pre-wrap">
+                    <div className="rounded-md border p-4 text-sm leading-relaxed whitespace-pre-wrap">
                       {displayDesc.slice(0, 350)}{displayDesc.length > 350 ? '…' : ''}
                     </div>
                   </div>
@@ -1853,7 +1853,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               {/* Analiz + AI Fix */}
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <h3 className="text-panel-3 flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 text-warning" /> Analiz · eksikler ve sorunlar
                   </h3>
                   <Button size="sm" onClick={aiOptimizeMetadata} disabled={optimizing}>
@@ -1878,14 +1878,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                                     : f.severity === 'warning' ? 'border-warning/30 bg-warning/5'
                                     : 'border-info/25 bg-info/5';
                         return (
-                          <div key={i} className={`rounded-lg border ${color} p-3`}>
+                          <div key={i} className={`rounded-md border ${color} p-3`}>
                             <div className="flex items-start gap-2">
                               {f.severity === 'error'
                                 ? <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
                                 : <AlertCircle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                               }
                               <div className="flex-1 min-w-0">
-                                <div className="text-xs font-semibold">{f.label} <span className="text-muted-foreground font-normal">({String(f.current)})</span></div>
+                                <div className="text-xs font-medium">{f.label} <span className="text-muted-foreground font-normal">({String(f.current)})</span></div>
                                 {f.message && <div className="text-xs text-muted-foreground mt-0.5">{f.message}</div>}
                                 {f.recommendation && <div className="text-label mt-1 opacity-80">{f.recommendation}</div>}
                               </div>
@@ -1894,7 +1894,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         );
                       })}
                     {audit.findings.filter(f => (f.store === previewStore || f.store === 'BOTH') && f.severity !== 'ok').length === 0 && (
-                      <div className="rounded-lg border border-success/30 bg-success/5 p-3 text-sm flex items-center gap-2">
+                      <div className="rounded-md border border-success/30 bg-success/5 p-3 text-sm flex items-center gap-2">
                         <CheckCircle2 className="h-4 w-4 text-success" />
                         Tüm metadata alanları temiz görünüyor.
                       </div>
@@ -1919,10 +1919,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       ];
                   const filled = fields.filter((f) => !!f.value);
                   return (
-                  <div className="mt-4 rounded-lg border-2 border-brand bg-brand/5 p-4">
+                  <div className="mt-4 rounded-md border border-foreground/30 p-4">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <div className="text-xs font-bold flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-brand" /> AI önerisi (önizleme yukarıda güncellendi)
+                      <div className="text-xs font-medium flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-muted-foreground" /> AI önerisi (önizleme yukarıda güncellendi)
                       </div>
                       <div className="flex items-center gap-2">
                         <Button

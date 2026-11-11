@@ -87,8 +87,8 @@ function YorumSatiri({ siteId, yorum, onYanitlandi }: {
       <p className="whitespace-pre-line text-sm">{yorum.metin || <span className="text-muted-foreground">(Metinsiz yorum)</span>}</p>
 
       {yorum.yanit ? (
-        <div className="rounded-md border-l-2 border-brand/50 bg-muted/40 px-3 py-2">
-          <p className="text-label font-medium text-muted-foreground">
+        <div className="rounded-md border bg-muted/40 px-3 py-2">
+          <p className="v-rail mb-0.5">
             Yanıtınız{tarihMetni(yorum.yanitTarih) ? ` · ${tarihMetni(yorum.yanitTarih)}` : ''}
           </p>
           <p className="whitespace-pre-line text-sm">{yorum.yanit}</p>
@@ -191,7 +191,7 @@ export function YorumlarSekmesi({ siteId }: { siteId: string }) {
       ) : liste && (
         <>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            {liste.ortalama !== null && <span><span className="font-semibold">{liste.ortalama.toFixed(1)}</span> / 5 ortalama</span>}
+            {liste.ortalama !== null && <span><span className="font-medium tabular-nums">{liste.ortalama.toFixed(1)}</span> / 5 ortalama</span>}
             {liste.toplam !== null && <span>{liste.toplam} yorum</span>}
             <span className={liste.yanitsiz ? 'text-warning' : 'text-muted-foreground'}>{liste.yanitsiz} yanıtsız (yüklenenler içinde)</span>
             <Button size="sm" variant="ghost" onClick={yukle}><RefreshCw className="h-3 w-3" /> Yenile</Button>
@@ -199,7 +199,7 @@ export function YorumlarSekmesi({ siteId }: { siteId: string }) {
           {liste.yorumlar.length === 0 ? (
             <p className="text-sm text-muted-foreground">Henüz yorum yok.</p>
           ) : (
-            <ul className="divide-y rounded-lg border">
+            <ul className="divide-y rounded-md border">
               {yorumlariSirala(liste.yorumlar).map((y) => (
                 <YorumSatiri key={y.reviewId} siteId={siteId} yorum={y} onYanitlandi={(m) => yanitlandi(y.reviewId, m)} />
               ))}

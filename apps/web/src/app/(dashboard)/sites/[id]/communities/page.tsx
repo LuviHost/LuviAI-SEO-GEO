@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import {
   MessagesSquare, RefreshCw, Loader2, ExternalLink, Check, X,
   Copy, Send,
@@ -20,12 +19,13 @@ import { SectionHeader } from '@/components/ui/section-header';
  * AI taslak cevaplar. Otomatik POST YOK: insan onayı esas (spam değil, değer).
  */
 
-const STATUS_BADGE: Record<string, { text: string; cls: string }> = {
-  NEW:      { text: 'Yeni',      cls: 'bg-blue-500/10 text-blue-600 border-blue-500/30' },
-  DRAFTED:  { text: 'Taslak hazır', cls: 'bg-violet-500/10 text-violet-600 border-violet-500/30' },
-  APPROVED: { text: 'Onaylandı', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
-  POSTED:   { text: 'Paylaşıldı', cls: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/40' },
-  IGNORED:  { text: 'Yoksayıldı', cls: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/30' },
+// Durum tonlari ui/badge varyantlarindan (token); "Taslak hazır" notr — sus rengi yok
+const STATUS_BADGE: Record<string, { text: string; variant: 'info' | 'secondary' | 'success' | 'outline' }> = {
+  NEW:      { text: 'Yeni',      variant: 'info' },
+  DRAFTED:  { text: 'Taslak hazır', variant: 'secondary' },
+  APPROVED: { text: 'Onaylandı', variant: 'success' },
+  POSTED:   { text: 'Paylaşıldı', variant: 'success' },
+  IGNORED:  { text: 'Yoksayıldı', variant: 'outline' },
 };
 
 export default function CommunitiesPage() {
@@ -92,23 +92,28 @@ export default function CommunitiesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <SectionHeader icon={MessagesSquare} title="Topluluk Ajanı" description="Reddit'te sektörünle ilgili sorular ve markanın sesiyle hazırlanmış taslak cevaplar. Hiçbir şey senin onayın olmadan paylaşılmaz." />
-        <Button onClick={scan} disabled={scanning}>
-          {scanning ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
-          {scanning ? 'Taranıyor…' : 'Fırsat Tara'}
-        </Button>
-      </div>
+      <SectionHeader
+        icon={MessagesSquare}
+        title="Topluluk Ajanı"
+        description="Reddit'te sektörünle ilgili sorular ve markanın sesiyle hazırlanmış taslak cevaplar. Hiçbir şey senin onayın olmadan paylaşılmaz."
+        actions={
+          <Button size="sm" onClick={scan} disabled={scanning}>
+            {scanning ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4 mr-1.5" aria-hidden />}
+            {scanning ? 'Taranıyor…' : 'Fırsat Tara'}
+          </Button>
+        }
+      />
 
       {loading ? (
         <div className="text-sm text-muted-foreground p-6 text-center">Yükleniyor…</div>
       ) : visible.length === 0 ? (
-        <Card>
-          <CardContent className="p-10 text-center space-y-3">
-            <MessagesSquare className="h-10 w-10 mx-auto text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Henüz fırsat yok — "Fırsat Tara" ile Reddit'te nişinle ilgili soruları bul.</p>
-          </CardContent>
-        </Card>
+        // components/empty-state ile ayni gorunum (kesikli cerceve + notr ikon karosu)
+        <div className="rounded-lg border border-dashed border-border p-8 text-center sm:p-12">
+          <div className="mx-auto mb-5 grid h-11 w-11 place-items-center rounded-md border text-foreground/70">
+            <MessagesSquare className="h-6 w-6" aria-hidden />
+          </div>
+          <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">Henüz fırsat yok — "Fırsat Tara" ile Reddit'te nişinle ilgili soruları bul.</p>
+        </div>
       ) : (
         <div className="space-y-3">
           {visible.map((item) => {
@@ -118,32 +123,32 @@ export default function CommunitiesPage() {
               <Card key={item.id}>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0 space-y-1">
+                    <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className={cn('text-[10px]', badge.cls)}>{badge.text}</Badge>
-                        <Badge variant="outline" className="text-[10px] capitalize">{item.platform}</Badge>
-                        {item.subreddit && <Badge variant="outline" className="text-[10px]">r/{item.subreddit}</Badge>}
-                        <span className="text-[10px] font-mono text-muted-foreground">uyum {item.relevance}/100</span>
+                        <Badge variant={badge.variant}>{badge.text}</Badge>
+                        <Badge variant="outline" className="capitalize">{item.platform}</Badge>
+                        {item.subreddit && <Badge variant="outline">r/{item.subreddit}</Badge>}
+                        <span className="v-rail">uyum {item.relevance}/100</span>
                       </div>
-                      <a href={item.url} target="_blank" rel="noreferrer" className="font-semibold text-sm hover:underline inline-flex items-center gap-1.5">
-                        {item.title} <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                      <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-panel-3 underline-offset-4 hover:underline">
+                        {item.title} <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
                       </a>
-                      {item.snippet && <p className="text-xs text-muted-foreground line-clamp-2">{item.snippet}</p>}
+                      {item.snippet && <p className="line-clamp-2 text-sm text-muted-foreground">{item.snippet}</p>}
                     </div>
                   </div>
 
                   {/* Taslak cevap */}
                   {isEditing ? (
                     <div className="space-y-2">
-                      <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} className="text-xs" />
+                      <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} />
                       <div className="flex gap-2">
                         <Button size="sm" onClick={() => saveDraft(item)}>Kaydet</Button>
                         <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Vazgeç</Button>
                       </div>
                     </div>
                   ) : item.draftReply ? (
-                    <div className="rounded-lg bg-muted/40 p-3 space-y-2">
-                      <p className="text-xs whitespace-pre-wrap">{item.draftReply}</p>
+                    <div className="space-y-3 rounded-md border p-3">
+                      <p className="whitespace-pre-wrap text-sm">{item.draftReply}</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <Button size="sm" variant="outline" onClick={() => copyDraft(item.draftReply)}>
                           <Copy className="h-3.5 w-3.5 mr-1.5" /> Kopyala
@@ -152,7 +157,7 @@ export default function CommunitiesPage() {
                           Düzenle
                         </Button>
                         {item.status !== 'POSTED' && (
-                          <Button size="sm" onClick={() => setStatus(item, 'POSTED')}>
+                          <Button size="sm" variant="secondary" onClick={() => setStatus(item, 'POSTED')}>
                             <Send className="h-3.5 w-3.5 mr-1.5" /> Paylaştım olarak işaretle
                           </Button>
                         )}

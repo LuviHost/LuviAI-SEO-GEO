@@ -9,7 +9,7 @@ import type { TrackedApp } from './types';
 
 /** Uygulama ikonu — yoksa nötr yer tutucu */
 export function AppIcon({ src, size = 'md', className }: { src: string | null | undefined; size?: 'sm' | 'md' | 'lg'; className?: string }) {
-  const dim = { sm: 'h-8 w-8 rounded-lg', md: 'h-12 w-12 rounded-xl', lg: 'h-14 w-14 rounded-xl' }[size];
+  const dim = { sm: 'h-8 w-8 rounded-lg', md: 'h-12 w-12 rounded-lg', lg: 'h-14 w-14 rounded-lg' }[size];
   if (src) return <img src={src} alt="" className={cn(dim, 'shrink-0', className)} />;
   return (
     <div className={cn(dim, 'grid shrink-0 place-items-center bg-muted', className)} aria-hidden>
@@ -77,7 +77,7 @@ export function LinkTabs({
   const pathname = usePathname() ?? '';
   return (
     <nav aria-label={label} className={cn('-mx-1 overflow-x-auto px-1', className)}>
-      <div className="inline-flex h-10 items-center rounded-lg bg-slate-100 p-1 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+      <div className="inline-flex h-10 items-center rounded-md border border-border p-1 text-muted-foreground">
         {items.map((it) => {
           const active = it.exact ? pathname === it.href : pathname === it.href || pathname.startsWith(`${it.href}/`);
           const Icon = it.icon;
@@ -87,17 +87,17 @@ export function LinkTabs({
               href={it.href}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                'inline-flex items-center gap-1.5 whitespace-nowrap rounded px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 active
-                  ? 'bg-white text-slate-900 shadow dark:bg-slate-950 dark:text-slate-50'
-                  : 'hover:text-slate-900 dark:hover:text-slate-100',
+                  ? 'bg-foreground text-background'
+                  : 'hover:text-foreground',
               )}
             >
               {Icon && <Icon className="h-4 w-4" aria-hidden />}
               {it.label}
               {typeof it.count === 'number' && (
-                <span className="rounded-full bg-slate-200 px-1.5 text-label tabular-nums text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                <span className="text-label tabular-nums opacity-70">
                   {it.count}
                 </span>
               )}

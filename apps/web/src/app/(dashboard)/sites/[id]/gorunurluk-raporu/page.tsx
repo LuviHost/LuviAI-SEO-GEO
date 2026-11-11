@@ -10,6 +10,7 @@
  */
 
 import { EmptyState } from '@/components/empty-state';
+import { Button } from '@/components/ui/button';
 import { siteHref } from '@/lib/site-routes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -59,28 +60,24 @@ export default function GorunurlukRaporuPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <div className="flex items-center gap-2 px-4 py-3 border-b bg-background">
+      <div className="flex items-center gap-2 bg-background pb-3">
         <button
           type="button"
           onClick={() => router.back()}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          className="v-rail inline-flex items-center gap-1.5 transition-colors duration-200 hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Geri
+          <ArrowLeft className="h-3 w-3" /> Geri
         </button>
-        <div className="text-sm font-medium ml-2">GEO Karşılaştırma Raporu</div>
+        <div className="ml-2 text-panel-3">GEO Karşılaştırma Raporu</div>
         {html && (
-          <button
-            type="button"
-            onClick={yazdir}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand/90"
-          >
+          <Button type="button" size="sm" onClick={yazdir} className="ml-auto">
             <Printer className="h-4 w-4" /> Yazdır / PDF
-          </button>
+          </Button>
         )}
       </div>
 
       {!a || !b ? (
-        <div className="flex-1 p-6">
+        <div className="flex-1 pt-2">
           <EmptyState
             icon={FileBarChart}
             title="Karşılaştırılacak iki ölçüm seç"
@@ -91,7 +88,9 @@ export default function GorunurlukRaporuPage() {
       ) : hata ? (
         <div className="flex-1 grid place-items-center p-8 text-center">
           <div className="max-w-sm">
-            <AlertTriangle className="h-8 w-8 text-danger mx-auto mb-3" />
+            <span className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-md border border-danger/30 bg-danger/5 text-danger" aria-hidden>
+              <AlertTriangle className="h-5 w-5" />
+            </span>
             <p className="text-sm text-muted-foreground">{hata}</p>
           </div>
         </div>
@@ -106,7 +105,7 @@ export default function GorunurlukRaporuPage() {
           ref={cerceve}
           title="GEO Karşılaştırma Raporu"
           srcDoc={html}
-          className="flex-1 w-full border-0 bg-white"
+          className="w-full flex-1 rounded-lg border border-border bg-white"
           sandbox="allow-same-origin allow-modals allow-popups"
         />
       )}

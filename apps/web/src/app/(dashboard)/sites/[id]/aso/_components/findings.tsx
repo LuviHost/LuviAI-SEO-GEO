@@ -87,7 +87,7 @@ export function FindingsAccordion({ findings }: { findings: AuditFinding[] }) {
         const Icon = m.icon;
         return (
           <details key={sev} className="group" open={sev === 'error' || (sev === 'warning' && !findings.some((f) => f.severity === 'error'))}>
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
               <Icon className={cn('h-4 w-4', m.text)} aria-hidden />
               <span className="text-sm font-medium">{m.label}</span>
               <Badge variant={m.badge} className="px-2 text-label">{list.length}</Badge>

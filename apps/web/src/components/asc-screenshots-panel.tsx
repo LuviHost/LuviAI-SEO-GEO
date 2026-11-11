@@ -118,7 +118,7 @@ export function AscScreenshotsPanel({ siteId, ascAppId }: { siteId: string; ascA
   return (
     <div className="mt-3 pt-3 border-t space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-semibold">Sürüm {data.version?.versionString ?? '—'}</span>
+        <span className="font-medium">Sürüm {data.version?.versionString ?? '—'}</span>
         <Badge variant={editable ? 'success' : 'secondary'}>{data.version?.state ?? 'sürüm yok'}</Badge>
         {!editable && <span className="text-muted-foreground">Bu durumda ekran görüntüsü değişmez — yeni sürüm oluştur.</span>}
       </div>
@@ -138,7 +138,7 @@ export function AscScreenshotsPanel({ siteId, ascAppId }: { siteId: string; ascA
       </p>
 
       <div>
-        <p className="text-xs font-medium mb-2">Mevcut: {existing.length}/{max}</p>
+        <p className="v-rail mb-2">Mevcut: {existing.length}/{max}</p>
         {existing.length === 0 ? (
           <p className="text-xs text-muted-foreground">Bu boyutta görüntü yok.</p>
         ) : (
@@ -161,7 +161,7 @@ export function AscScreenshotsPanel({ siteId, ascAppId }: { siteId: string; ascA
                     type="button"
                     aria-label={`${s.fileName} sil`}
                     onClick={() => setPendingDelete(s.id)}
-                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border grid place-items-center"
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded bg-background border grid place-items-center text-muted-foreground transition-colors hover:text-foreground"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -209,7 +209,7 @@ export function AscScreenshotsPanel({ siteId, ascAppId }: { siteId: string; ascA
               {existing.length > 0 && (
                 <label className="flex items-start gap-2 text-xs">
                   <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} className="mt-0.5" />
-                  <span>Değiştir: mevcut {existing.length} görüntü <strong>kalıcı olarak silinsin</strong>, sonra yüklensin (geri alınamaz).</span>
+                  <span>Değiştir: mevcut {existing.length} görüntü <strong className="font-medium">kalıcı olarak silinsin</strong>, sonra yüklensin (geri alınamaz).</span>
                 </label>
               )}
               {overCapacity && (

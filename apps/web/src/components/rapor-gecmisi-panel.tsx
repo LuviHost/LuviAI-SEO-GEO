@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type RaporKaydi } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { CalendarRange, Download, FileText, Loader2, Play, Printer, Trash2 } from 'lucide-react';
 import { DondurulmusRapor } from './dondurulmus-rapor';
@@ -37,7 +38,7 @@ function donemEtiketi(r: RaporKaydi) {
 function Skor({ deger, sonek = '' }: { deger: number | null; sonek?: string }) {
   if (deger === null || deger === undefined) return <span className="text-muted-foreground">—</span>;
   return (
-    <span className="font-semibold">
+    <span className="font-medium tabular-nums">
       {deger}
       {sonek}
     </span>
@@ -128,7 +129,7 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
       <Card className="print:hidden">
         <CardContent className="p-4 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold mr-1">Rapor çalıştır</p>
+            <p className="mr-1 text-panel-3">Rapor çalıştır</p>
             {HAZIR_DONEMLER.map((d) => (
               <Button
                 key={d.key}
@@ -154,23 +155,13 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
 
           {ozelAcik && (
             <div className="flex flex-wrap items-end gap-2 pt-1">
-              <label className="text-xs">
-                <span className="block text-muted-foreground mb-1">Başlangıç</span>
-                <input
-                  type="date"
-                  value={baslangic}
-                  onChange={(e) => setBaslangic(e.target.value)}
-                  className="border rounded-md px-2 py-1.5 text-sm bg-background"
-                />
+              <label>
+                <span className="mb-1.5 block text-label text-muted-foreground">Başlangıç</span>
+                <Input type="date" value={baslangic} onChange={(e) => setBaslangic(e.target.value)} className="h-9 w-auto" />
               </label>
-              <label className="text-xs">
-                <span className="block text-muted-foreground mb-1">Bitiş</span>
-                <input
-                  type="date"
-                  value={bitis}
-                  onChange={(e) => setBitis(e.target.value)}
-                  className="border rounded-md px-2 py-1.5 text-sm bg-background"
-                />
+              <label>
+                <span className="mb-1.5 block text-label text-muted-foreground">Bitiş</span>
+                <Input type="date" value={bitis} onChange={(e) => setBitis(e.target.value)} className="h-9 w-auto" />
               </label>
               <Button
                 size="sm"
@@ -181,13 +172,13 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
                 Çalıştır
               </Button>
               {baslangic && bitis && !ozelGecerli && (
-                <span className="text-xs text-red-600">Bitiş tarihi başlangıçtan önce olamaz</span>
+                <span className="text-xs text-danger">Bitiş tarihi başlangıçtan önce olamaz</span>
               )}
             </div>
           )}
 
-          <p className="text-[11px] text-muted-foreground">
-            Rapor oluşturulduğu andaki sayılarla <strong>dondurulur</strong> — sonradan açtığında aynı rakamları görürsün.
+          <p className="text-xs text-muted-foreground">
+            Rapor oluşturulduğu andaki sayılarla <strong className="font-medium text-foreground">dondurulur</strong> — sonradan açtığında aynı rakamları görürsün.
           </p>
         </CardContent>
       </Card>
@@ -195,10 +186,10 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
       {/* ── Gecmis ───────────────────────────────────────────── */}
       <Card className="print:hidden">
         <CardContent className="p-4">
-          <p className="text-sm font-semibold mb-3">Rapor geçmişi</p>
+          <p className="mb-3 text-panel-3">Rapor geçmişi</p>
 
           {yukleniyor && <p className="text-sm text-muted-foreground">Yükleniyor…</p>}
-          {hata && <p className="text-sm text-red-600">{hata}</p>}
+          {hata && <p className="text-sm text-danger">{hata}</p>}
 
           {!yukleniyor && !hata && gecmis.length === 0 && (
             <p className="text-sm text-muted-foreground">
@@ -210,22 +201,22 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-label text-muted-foreground border-b">
-                    <th className="py-2 pr-3 font-medium">Oluşturulma</th>
-                    <th className="py-2 pr-3 font-medium">Dönem</th>
-                    <th className="py-2 pr-3 font-medium text-right">SEO</th>
-                    <th className="py-2 pr-3 font-medium text-right">GEO</th>
-                    <th className="py-2 pr-3 font-medium text-right">AI</th>
-                    <th className="py-2 pr-3 font-medium text-right">Tıklama</th>
-                    <th className="py-2 pr-3 font-medium text-right">Makale</th>
-                    <th className="py-2 pr-3 font-medium"></th>
+                  <tr className="border-b text-left font-mono text-vitrin-rail text-muted-foreground">
+                    <th className="py-2.5 pr-3 font-normal">Oluşturulma</th>
+                    <th className="py-2.5 pr-3 font-normal">Dönem</th>
+                    <th className="py-2.5 pr-3 text-right font-normal">SEO</th>
+                    <th className="py-2.5 pr-3 text-right font-normal">GEO</th>
+                    <th className="py-2.5 pr-3 text-right font-normal">AI</th>
+                    <th className="py-2.5 pr-3 text-right font-normal">Tıklama</th>
+                    <th className="py-2.5 pr-3 text-right font-normal">Makale</th>
+                    <th className="py-2.5 font-normal"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {gecmis.map((r) => (
                     <tr
                       key={r.id}
-                      className={`border-b last:border-0 hover:bg-muted/40 ${secili?.id === r.id ? 'bg-muted/60' : ''}`}
+                      className={`border-b transition-colors last:border-0 hover:bg-muted/50 ${secili?.id === r.id ? 'bg-muted' : ''}`}
                     >
                       <td className="py-2 pr-3 whitespace-nowrap">
                         {new Date(r.generatedAt).toLocaleString('tr-TR', {
@@ -233,7 +224,7 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
                         })}
                         {/* Otomatik uretilen raporlar kullanicinin calistirdiklarindan ayirt edilir */}
                         {r.trigger !== 'manual' && (
-                          <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground">
+                          <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                             {r.trigger}
                           </span>
                         )}
@@ -242,9 +233,9 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
                       <td className="py-2 pr-3 text-right"><Skor deger={r.seoScore} /></td>
                       <td className="py-2 pr-3 text-right"><Skor deger={r.geoScore} /></td>
                       <td className="py-2 pr-3 text-right"><Skor deger={r.aiVisibility} /></td>
-                      <td className="py-2 pr-3 text-right">{r.clicks.toLocaleString('tr-TR')}</td>
-                      <td className="py-2 pr-3 text-right">{r.articlesPublished}</td>
-                      <td className="py-2 pr-3">
+                      <td className="py-2 pr-3 text-right tabular-nums">{r.clicks.toLocaleString('tr-TR')}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{r.articlesPublished}</td>
+                      <td className="py-2">
                         <div className="flex items-center justify-end gap-1">
                           <Button size="sm" variant="ghost" onClick={() => raporuAc(r.id)} title="Aç">
                             <FileText className="h-3.5 w-3.5" />
@@ -252,12 +243,12 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
                           <a
                             href={api.getReportByIdCsvUrl(siteId, r.id)}
                             title="CSV indir"
-                            className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-muted"
                           >
                             <Download className="h-3.5 w-3.5" />
                           </a>
                           <Button size="sm" variant="ghost" onClick={() => sil(r.id)} title="Sil">
-                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                            <Trash2 className="h-3.5 w-3.5 text-danger" />
                           </Button>
                         </div>
                       </td>
@@ -275,10 +266,10 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
 
       {secili && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between print:hidden">
-            <p className="text-sm font-semibold">
+          <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+            <p className="text-panel-3">
               {donemEtiketi(secili)} raporu
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
+              <span className="ml-2 font-mono text-vitrin-rail text-muted-foreground">
                 {new Date(secili.generatedAt).toLocaleString('tr-TR')} tarihinde oluşturuldu
               </span>
             </p>

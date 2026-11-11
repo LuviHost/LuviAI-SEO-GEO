@@ -34,7 +34,7 @@ export default function LandingAnalyticsPage() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <h2 className="text-2xl font-[450] tracking-[-0.04em] flex items-center gap-2">
             <BarChart3 className="h-6 w-6 text-brand-600" />
             Landing Analytics
           </h2>
@@ -55,7 +55,7 @@ export default function LandingAnalyticsPage() {
       </div>
 
       {loading && (
-        <div className="rounded-xl border bg-card p-8 grid place-items-center">
+        <div className="rounded-lg border bg-card p-8 grid place-items-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       )}
@@ -74,7 +74,7 @@ export default function LandingAnalyticsPage() {
           {/* Funnel */}
           <Card>
             <CardContent className="p-5">
-              <h3 className="text-base font-bold mb-4 flex items-center gap-2">
+              <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-brand-600" />
                 Funnel
               </h3>
@@ -90,16 +90,16 @@ export default function LandingAnalyticsPage() {
             {/* Top CTAs */}
             <Card>
               <CardContent className="p-5">
-                <h3 className="text-base font-bold mb-3">En çok tıklanan CTA'lar</h3>
+                <h3 className="text-base font-semibold mb-3">En çok tıklanan CTA'lar</h3>
                 {data.topCtas.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Henüz CTA tıklaması yok.</p>
                 ) : (
                   <div className="space-y-2">
                     {data.topCtas.map((c, i) => (
                       <div key={c.id} className="flex items-center gap-3 text-sm">
-                        <span className="text-xs font-bold text-muted-foreground w-5">#{i + 1}</span>
+                        <span className="text-xs font-semibold text-muted-foreground w-5">#{i + 1}</span>
                         <code className="text-xs bg-muted px-1.5 py-0.5 rounded flex-1">{c.id}</code>
-                        <span className="font-bold tabular-nums">{c.count}</span>
+                        <span className="font-semibold tabular-nums">{c.count}</span>
                       </div>
                     ))}
                   </div>
@@ -110,16 +110,16 @@ export default function LandingAnalyticsPage() {
             {/* Top Sections (engagement) */}
             <Card>
               <CardContent className="p-5">
-                <h3 className="text-base font-bold mb-3">En çok görülen section'lar</h3>
+                <h3 className="text-base font-semibold mb-3">En çok görülen section'lar</h3>
                 {data.topSections.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Henüz section görüntülenmesi yok.</p>
                 ) : (
                   <div className="space-y-2">
                     {data.topSections.map((s, i) => (
                       <div key={s.id} className="flex items-center gap-3 text-sm">
-                        <span className="text-xs font-bold text-muted-foreground w-5">#{i + 1}</span>
+                        <span className="text-xs font-semibold text-muted-foreground w-5">#{i + 1}</span>
                         <code className="text-xs bg-muted px-1.5 py-0.5 rounded flex-1">#{s.id}</code>
-                        <span className="font-bold tabular-nums">{s.count}</span>
+                        <span className="font-semibold tabular-nums">{s.count}</span>
                       </div>
                     ))}
                   </div>
@@ -131,7 +131,7 @@ export default function LandingAnalyticsPage() {
           {/* Timeline */}
           <Card>
             <CardContent className="p-5">
-              <h3 className="text-base font-bold mb-3">Günlük trend</h3>
+              <h3 className="text-base font-semibold mb-3">Günlük trend</h3>
               {data.timeline.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Henüz veri yok.</p>
               ) : (
@@ -152,7 +152,7 @@ export default function LandingAnalyticsPage() {
                           <tr key={d.date} className="border-b border-border/40">
                             <td className="py-2 font-mono">{d.date}</td>
                             <td className="py-2 text-right tabular-nums">{d.pageviews}</td>
-                            <td className="py-2 text-right tabular-nums font-bold text-emerald-600">{d.signups}</td>
+                            <td className="py-2 text-right tabular-nums font-semibold text-emerald-600">{d.signups}</td>
                             <td className="py-2 text-right tabular-nums">%{cr}</td>
                           </tr>
                         );
@@ -167,12 +167,12 @@ export default function LandingAnalyticsPage() {
           {/* Event types raw */}
           <Card>
             <CardContent className="p-5">
-              <h3 className="text-base font-bold mb-3">Event türleri (debug)</h3>
+              <h3 className="text-base font-semibold mb-3">Event türleri (debug)</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                 {Object.entries(data.byType).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
                   <div key={type} className="flex items-center justify-between gap-2 rounded border px-2 py-1.5 bg-muted/20">
                     <code className="truncate">{type}</code>
-                    <span className="font-bold tabular-nums">{count}</span>
+                    <span className="font-semibold tabular-nums">{count}</span>
                   </div>
                 ))}
               </div>
@@ -190,7 +190,7 @@ function Metric({ icon: Icon, label, value, color }: { icon: any; label: string;
     purple: 'text-purple-600 bg-purple-500/10',
     amber: 'text-amber-600 bg-amber-500/10',
     emerald: 'text-emerald-600 bg-emerald-500/10',
-    slate: 'text-slate-600 bg-slate-500/10',
+    slate: 'text-muted-foreground bg-muted',
   };
   return (
     <Card>
@@ -199,9 +199,9 @@ function Metric({ icon: Icon, label, value, color }: { icon: any; label: string;
           <div className={`h-7 w-7 rounded-lg grid place-items-center ${colors[color]}`}>
             <Icon className="h-4 w-4" />
           </div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+          <div className="text-[10px] font-semibold text-muted-foreground">{label}</div>
         </div>
-        <div className="text-2xl font-extrabold tabular-nums">{value.toLocaleString('tr-TR')}</div>
+        <div className="text-2xl font-[450] tracking-[-0.04em] tabular-nums">{value.toLocaleString('tr-TR')}</div>
       </CardContent>
     </Card>
   );
@@ -214,12 +214,12 @@ function FunnelStage({ label, count, pct, maxCount }: { label: string; count: nu
       <div className="flex items-center justify-between text-sm mb-1">
         <span className="font-medium">{label}</span>
         <span className="text-xs text-muted-foreground">
-          <span className="font-bold text-foreground tabular-nums">{count}</span> · %{pct}
+          <span className="font-semibold text-foreground tabular-nums">{count}</span> · %{pct}
         </span>
       </div>
       <div className="h-2.5 rounded-full bg-muted overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-brand-500 to-brand-600 transition-all"
+          className="h-full bg-brand transition-all"
           style={{ width: `${widthPct}%` }}
         />
       </div>

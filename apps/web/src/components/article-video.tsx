@@ -38,24 +38,24 @@ export function LockedVideoPreview({ seed, compact = false }: { seed: string; co
   return (
     <div className={cn('relative overflow-hidden rounded-lg border bg-card', compact ? 'min-h-[22rem]' : 'min-h-[30rem]')}>
       <div aria-hidden className="pointer-events-none flex select-none justify-center p-6 blur-sm">
-        <div className="flex aspect-[9/16] w-44 flex-col justify-between rounded-2xl border bg-muted p-4">
-          <div className="h-2 w-2/3 rounded bg-brand/40" />
+        <div className="flex aspect-[9/16] w-44 flex-col justify-between rounded-lg border bg-muted p-4">
+          <div className="h-2 w-2/3 rounded bg-foreground/20" />
           <div className="space-y-2">
             {lines.map((l, i) => (
-              <p key={i} className="text-label leading-snug text-muted-foreground">{l}</p>
+              <p key={i} className="text-xs leading-snug text-muted-foreground">{l}</p>
             ))}
           </div>
-          <div className="h-6 w-full rounded-full bg-brand/30" />
+          <div className="h-6 w-full rounded-md bg-foreground/15" />
         </div>
       </div>
       <div className="absolute inset-0 grid place-items-center bg-background/60 p-4">
-        <div className="w-full max-w-md space-y-3 rounded-lg border bg-card p-5 text-center shadow-sm">
-          <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-brand">
+        <div className="w-full max-w-md space-y-3 rounded-lg border bg-card p-5 text-center">
+          <span className="mx-auto grid h-10 w-10 place-items-center rounded-md border text-muted-foreground">
             <Lock className="h-5 w-5" aria-hidden />
           </span>
-          <h3 className="font-semibold">{ARTICLE_VIDEO_COPY.lockedTitle}</h3>
+          <h3 className="text-panel-3">{ARTICLE_VIDEO_COPY.lockedTitle}</h3>
           <p className="text-sm text-muted-foreground">{ARTICLE_VIDEO_COPY.lockedBody}</p>
-          <p className="text-label text-muted-foreground">{ARTICLE_VIDEO_COPY.lockedNote}</p>
+          <p className="text-xs text-muted-foreground">{ARTICLE_VIDEO_COPY.lockedNote}</p>
           <PlanUpgradeButton size="default" />
         </div>
       </div>
@@ -168,11 +168,11 @@ function TempoPicker({ target, value, onChange }: { target: VideoTarget; value: 
         {VIDEO_TEMPOS.map((t) => (
           <FilterChip key={t} ref={keys.ref(t)} tabIndex={keys.tabIndex(t)} role="radio" aria-checked={value === t} aria-pressed={undefined} selected={value === t} onClick={() => onChange(t)}>
             {VIDEO_TEMPO_LABEL[t]}
-            <span className="text-muted-foreground">· {tempoDurationLabel(target.type, format, t)}</span>
+            <span className="opacity-60">· {tempoDurationLabel(target.type, format, t)}</span>
           </FilterChip>
         ))}
       </div>
-      <p className="text-label text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {VIDEO_TEMPO_HINT[value]} Normal ve yavaşta süre metnin uzunluğuna göre belirlenir; her tempo bir video hakkı kullanır.
       </p>
     </div>
@@ -207,21 +207,21 @@ export function StylePicker({ value, onChange, unavailable = [] }: { value: Vide
               tabIndex={keys.tabIndex(s)}
               onClick={() => onChange(s)}
               className={cn(
-                'group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1',
-                off ? 'cursor-not-allowed opacity-50' : selected ? 'border-brand ring-2 ring-brand/30' : 'border-border hover:border-brand/40',
+                'group flex flex-col overflow-hidden rounded-md border bg-card text-left transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                off ? 'cursor-not-allowed opacity-50' : selected ? 'border-foreground ring-1 ring-foreground' : 'border-border hover:border-foreground/40',
               )}
             >
               <Image src={videoStylePreview(s)} alt="" width={240} height={320} unoptimized className="aspect-[3/4] w-full bg-muted object-cover" />
               <span className="space-y-0.5 p-2">
-                <span className={cn('block text-sm font-medium', selected && 'text-brand')}>{VIDEO_STYLE_LABEL[s]}</span>
-                <span className="block text-label leading-snug text-muted-foreground">{off ? 'Bu stil şu an hazırlanıyor; başka bir stil seç.' : VIDEO_STYLE_HINT[s]}</span>
+                <span className="block text-sm font-medium">{VIDEO_STYLE_LABEL[s]}</span>
+                <span className="block text-xs leading-snug text-muted-foreground">{off ? 'Bu stil şu an hazırlanıyor; başka bir stil seç.' : VIDEO_STYLE_HINT[s]}</span>
               </span>
             </button>
           );
         })}
       </div>
-      <p className="text-label text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Stil yalnız görünümü değiştirir; metin, süre ve müzik aynı kalır. Video sitenin kendi rengi ve logosuyla üretilir; önizlemeler örnek markayla.
       </p>
     </div>
@@ -326,7 +326,7 @@ export function VideoRequestDialog({
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Clapperboard className="h-4 w-4 text-brand" aria-hidden />
+            <Clapperboard className="h-4 w-4 text-muted-foreground" aria-hidden />
             {ARTICLE_VIDEO_COPY.product}
           </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -343,7 +343,7 @@ export function VideoRequestDialog({
                 <div className="space-y-3" aria-busy="true">
                   <Skeleton className="h-10 w-full" />
                   <Skeleton className="h-24 w-full" />
-                  <p className="text-label text-muted-foreground">Sitenin adı, logosu ve rengi okunuyor…</p>
+                  <p className="text-xs text-muted-foreground">Sitenin adı, logosu ve rengi okunuyor…</p>
                 </div>
               ) : loadError ? (
                 <p role="alert" className="text-sm text-danger">{loadError}</p>
@@ -356,13 +356,13 @@ export function VideoRequestDialog({
                   <div className="space-y-1.5">
                     <label htmlFor="video-brand-name" className="text-sm font-medium">Marka adı</label>
                     <Input id="video-brand-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
-                    <p className="text-label text-muted-foreground">Videonun kapanışında logonun yanında görünür.</p>
+                    <p className="text-xs text-muted-foreground">Videonun kapanışında logonun yanında görünür.</p>
                   </div>
 
                   <div className="space-y-2">
                     <span className="text-sm font-medium">Marka rengi</span>
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="h-9 w-9 shrink-0 rounded-lg border" style={{ backgroundColor: swatch }} aria-hidden />
+                      <span className="h-9 w-9 shrink-0 rounded-md border" style={{ backgroundColor: swatch }} aria-hidden />
                       <input
                         type="color"
                         aria-label="Renk seç"
@@ -383,7 +383,7 @@ export function VideoRequestDialog({
                         RanksUp turuncusunu kullan
                       </label>
                     </div>
-                    <p className="text-label text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       <Palette className="mr-1 inline h-3 w-3" aria-hidden />
                       {brand?.primary ? 'Sitenden okunan renk; istersen değiştir.' : 'Sitende belirgin bir marka rengi bulunamadı.'} Yazı renkleri okunurluğa göre otomatik ayarlanır.
                     </p>
@@ -394,7 +394,7 @@ export function VideoRequestDialog({
                     {brand?.logoDataUri ? (
                       <div className="flex flex-wrap items-center gap-4">
                         {/* data: URI (sunucuda en fazla 256 px PNG'ye cevrildi) */}
-                        <img src={brand.logoDataUri} alt="Sitenin logosu" className={cn('h-16 w-16 rounded-lg border bg-white object-contain p-1', !useLogo && 'opacity-30')} />
+                        <img src={brand.logoDataUri} alt="Sitenin logosu" className={cn('h-16 w-16 rounded-md border bg-white object-contain p-1', !useLogo && 'opacity-30')} />
                         <label className="inline-flex items-center gap-2 text-sm">
                           <input type="checkbox" checked={useLogo} onChange={(e) => setUseLogo(e.target.checked)} />
                           Logoyu videoda kullan
@@ -408,17 +408,17 @@ export function VideoRequestDialog({
                     )}
                   </div>
 
-                  <p className="text-label text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Logo ve marka öğeleri yalnızca bu videoyu üretmek için kullanılır.
                     {target.type === 'product' ? ' Ürün görseli ve sayfa içeriği sitenin kendi sayfasından alınır; bunları kullanma hakkın olduğunu onaylarsın.' : ''}
                     {' '}Videoyu nerede yayınlayacağın senin kararın ve sorumluluğundadır (
-                    <Link href="/terms" className="underline">Kullanım Şartları</Link>).
+                    <Link href="/terms" className="underline underline-offset-4 hover:text-foreground">Kullanım Şartları</Link>).
                   </p>
                 </>
               )}
             </DialogBody>
             <DialogFooter className="justify-between">
-              <span className={cn('text-label', exhausted ? 'text-danger' : 'text-muted-foreground')}>
+              <span className={cn('text-xs', exhausted ? 'text-danger' : 'text-muted-foreground')}>
                 {exhausted ? `Bu ayki ${quota!.limit} video hakkını kullandın; hak yeni ayda yenilenir.` : quotaLine(quota)}
               </span>
               <div className="flex gap-2">
@@ -436,8 +436,8 @@ export function VideoRequestDialog({
           </>
         )}
         {!locked && (
-          <p className="px-5 pb-4 text-label text-muted-foreground">
-            Üretilen videolar: <Link href={siteHref(siteId, 'videos')} className="underline">Videolar</Link>
+          <p className="px-5 pb-4 text-xs text-muted-foreground">
+            Üretilen videolar: <Link href={siteHref(siteId, 'videos')} className="underline underline-offset-4 hover:text-foreground">Videolar</Link>
           </p>
         )}
       </DialogContent>

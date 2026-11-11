@@ -20,7 +20,7 @@ export function AdminMobileNav() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="md:hidden text-slate-300 hover:text-white p-1.5 -ml-1.5"
+        className="md:hidden text-muted-foreground hover:text-foreground p-1.5 -ml-1.5"
         aria-label="Menüyü aç"
       >
         <Menu className="h-5 w-5" />
@@ -28,22 +28,22 @@ export function AdminMobileNav() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-50 bg-black/70 md:hidden"
           onClick={() => setOpen(false)}
         >
           <div
-            className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-slate-900 border-r border-slate-800 shadow-xl flex flex-col"
+            className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-background border-r border-border flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between h-14 px-4 border-b border-slate-800">
+            <div className="flex items-center justify-between h-14 px-4 border-b border-border">
               <Link
                 href="/admin"
                 onClick={() => setOpen(false)}
-                className="text-lg font-bold text-slate-100"
+                className="text-lg font-medium tracking-[-0.02em] text-foreground"
               >
                 RanksUp <span className="text-xs text-amber-400 font-normal ml-1">Admin</span>
               </Link>
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white p-1">
+              <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground p-1">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -53,7 +53,7 @@ export function AdminMobileNav() {
                   key={it.href}
                   href={it.href as any}
                   onClick={() => setOpen(false)}
-                  className="block px-3 py-2.5 rounded-md text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                  className="block px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 >
                   {it.label}
                 </Link>

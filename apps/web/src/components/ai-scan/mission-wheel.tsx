@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { animate } from 'animejs';
 import { Check, Brain, Search, Sparkles, Compass, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FuturisticGauge } from './futuristic-gauge';
 import { useReducedMotion } from './use-reduced-motion';
 
 export type MissionTaskKey = 'brain' | 'audit' | 'topics' | 'platform' | 'schedule';
@@ -36,16 +35,15 @@ const TASK_ICON: Record<MissionTaskKey, React.ComponentType<React.SVGProps<SVGSV
   schedule: Calendar,
 };
 
-// Gauge fazlarının pastel tonları — sırasıyla mavi · mor · kırmızı · sarı · yeşil
-// soft = gauge arc rengi (300), mid = label/ring için biraz koyu (400) okunaklılık için
-const TASK_COLOR: Record<MissionTaskKey, { soft: string; mid: string }> = {
-  brain: { soft: '#7dd3fc', mid: '#38bdf8' }, // sky-300 / sky-400
-  audit: { soft: '#fdba74', mid: '#fb923c' }, // brand-300 / brand-400
-  topics: { soft: '#fda4af', mid: '#fb7185' }, // rose-300 / rose-400
-  platform: { soft: '#fcd34d', mid: '#fbbf24' }, // amber-300 / amber-400
-  schedule: { soft: '#86efac', mid: '#4ade80' }, // green-300 / green-400
-};
-
+/**
+ * Kurulum ilerlemesi.
+ *
+ * 12.11.2026 (vitrin dili ic sayfalarda): gokkusagi halkali parlak kure, kalin
+ * baslik ve renkli adim balonlari kaldirildi. Vitrindeki "kanit rakami" gibi tek
+ * buyuk, ince rakam + altinda ince bir cizgi; adimlar gercek bir sira oldugu icin
+ * ince cizgili bes hucre (biten adimin cizgisi turuncuya doner). Ilerleme hesabi,
+ * donen durum cumleleri ve adim listesi AYNI.
+ */
 export function MissionWheel({
   tasks,
   startedAt,
@@ -59,17 +57,17 @@ export function MissionWheel({
 }) {
   const reduced = useReducedMotion();
   const [msgIdx, setMsgIdx] = useState(0);
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   const labelRef = useRef<HTMLDivElement>(null);
   const lastIdxRef = useRef<number>(0);
 
-  // ticking clock (1s) for elapsed
+  // Saniyede bir yeniden ciz: gecen sureden hesaplanan yuzde ilerlesin
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // rotate status message every 3s (skip done/active filter — pure flavor)
+  // Durum cumlesi 3 saniyede bir doner (yalniz bilgi; adimlara bagli degil)
   useEffect(() => {
     const id = setInterval(() => {
       setMsgIdx((i) => (i + 1) % ROTATING_MESSAGES.length);
@@ -77,121 +75,82 @@ export function MissionWheel({
     return () => clearInterval(id);
   }, []);
 
-  // crossfade label on change
+  // Cumle degisince kisa gecis
   useEffect(() => {
     if (reduced || !labelRef.current) return;
     if (lastIdxRef.current !== msgIdx) {
       animate(labelRef.current, {
         opacity: [{ to: 0, duration: 200 }, { to: 1, duration: 400 }],
-        translateY: [{ to: -8, duration: 200 }, { to: 0, duration: 400, ease: 'outQuad' }],
+        translateY: [{ to: -6, duration: 200 }, { to: 0, duration: 400, ease: 'outQuad' }],
       });
       lastIdxRef.current = msgIdx;
     }
   }, [msgIdx, reduced]);
 
   const elapsed = Math.max(0, Date.now() - startedAt);
-  const elapsedSec = Math.floor(elapsed / 1000);
-  const pct = Math.min(95, (elapsed / estimatedMs) * 100);
-  const remainingSec = Math.max(1, Math.ceil((estimatedMs - elapsed) / 1000));
-
   const doneCount = tasks.filter((t) => t.done).length;
   const allDone = doneCount === tasks.length;
+  // Tahmini sureye gore ilerler, %95'te bekler; butun adimlar bitince 100
+  const pct = allDone ? 100 : Math.min(95, (elapsed / estimatedMs) * 100);
 
   return (
     <div className={cn('relative w-full', className)}>
-      {/* center wheel — futuristic HUD gauge */}
-      <div className="relative grid place-items-center py-2 sm:py-4">
-        <FuturisticGauge progressPercent={pct} done={allDone} />
+      {/* Tek buyuk rakam + ince ilerleme cizgisi */}
+      <div
+        className="pt-6 text-center sm:pt-10"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
+        aria-label="Kurulum ilerlemesi"
+      >
+        <p className="text-vitrin-0 tabular-nums">
+          {Math.round(pct)}
+          <span className="text-dim">%</span>
+        </p>
+        <div className="mx-auto mt-8 h-px w-full max-w-md bg-border">
+          <div
+            className="h-px bg-brand-vivid transition-[width] duration-1000 ease-out motion-reduce:transition-none"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
 
-      {/* dynamic status */}
-      <div ref={labelRef} className="text-center mt-6 mb-1">
-        <div className="text-2xl sm:text-3xl font-bold tracking-tight mt-1.5">
+      {/* Donen durum cumlesi */}
+      <div ref={labelRef} className="mt-8 text-center">
+        <p className="text-vitrin-3">
           {allDone ? 'Hazır! Yönlendiriliyorsun…' : ROTATING_MESSAGES[msgIdx]}
-          <span className="inline-block w-3 text-brand motion-safe:animate-pulse ml-0.5">…</span>
-        </div>
+          {!allDone && <span className="text-dim motion-safe:animate-pulse">…</span>}
+        </p>
       </div>
 
-      {/* task pipeline — 5 düğüm, gauge fazlarıyla aynı 5 renk */}
-      <div className="mt-12 max-w-2xl mx-auto px-2 sm:px-6">
-        <div className="relative">
-          {/* Track — arka plan: pastel renklerin yatay geçişi (low opacity) */}
-          <div
-            className="absolute top-5 left-[10%] right-[10%] h-[2px] rounded-full"
-            style={{
-              background: `linear-gradient(to right, ${TASK_COLOR.brain.soft}40, ${TASK_COLOR.audit.soft}40, ${TASK_COLOR.topics.soft}40, ${TASK_COLOR.platform.soft}40, ${TASK_COLOR.schedule.soft}40)`,
-            }}
-          />
-          {/* Track — dolu kısım: pastel-soft gradient (gauge ile aynı ton) */}
-          <div
-            className="absolute top-5 left-[10%] h-[2px] rounded-full transition-all duration-1000 ease-out"
-            style={{
-              width: tasks.length > 1
-                ? `${(doneCount / (tasks.length - 1)) * 80}%`
-                : '0%',
-              maxWidth: '80%',
-              background: `linear-gradient(to right, ${TASK_COLOR.brain.soft}, ${TASK_COLOR.audit.soft}, ${TASK_COLOR.topics.soft}, ${TASK_COLOR.platform.soft}, ${TASK_COLOR.schedule.soft})`,
-              boxShadow: `0 0 6px ${TASK_COLOR.audit.soft}88`,
-            }}
-          />
+      {/* Adimlar — gercek bir sira: bes hucre, biten adimin ust cizgisi turuncu */}
+      <ol className="mx-auto mt-12 grid max-w-3xl sm:grid-cols-5">
+        {tasks.map((t) => {
+          const Icon = TASK_ICON[t.key];
+          return (
+            <li key={t.key} className="relative border-t border-border py-3 sm:pr-3 sm:pt-4">
+              <span
+                className={cn(
+                  'absolute -top-px left-0 h-px bg-brand-vivid transition-[width] duration-700 ease-out motion-reduce:transition-none',
+                  t.done ? 'w-full' : 'w-0',
+                )}
+                aria-hidden
+              />
+              <span className="flex items-center gap-2 font-mono text-vitrin-rail">
+                {t.done ? (
+                  <Check className="h-3.5 w-3.5 shrink-0 text-brand-vivid" strokeWidth={2.5} aria-hidden />
+                ) : (
+                  <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground motion-safe:animate-pulse" aria-hidden />
+                )}
+                <span className={t.done ? 'text-foreground' : 'text-muted-foreground'}>{t.label}</span>
+                <span className="sr-only">{t.done ? '(tamamlandı)' : '(sürüyor)'}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
 
-          {/* Nodes */}
-          <div className="relative flex justify-between items-start">
-            {tasks.map((t) => {
-              const Icon = TASK_ICON[t.key];
-              const c = TASK_COLOR[t.key];
-              return (
-                <div key={t.key} className="flex flex-col items-center gap-2.5 text-center w-1/5">
-                  <div className="relative">
-                    {/* Pulse ring (sadece pending) — task'in pastel rengi */}
-                    {!t.done && (
-                      <span
-                        className="absolute inset-0 rounded-full border-2 motion-safe:animate-ping"
-                        style={{ borderColor: `${c.soft}88` }}
-                      />
-                    )}
-                    <div
-                      className={cn(
-                        'relative h-10 w-10 rounded-full grid place-items-center transition-all duration-500',
-                        t.done ? 'scale-105' : '',
-                      )}
-                      style={
-                        t.done
-                          ? {
-                              background: `linear-gradient(135deg, ${c.soft} 0%, ${c.mid} 100%)`,
-                              boxShadow: `0 4px 16px ${c.soft}88`,
-                            }
-                          : {
-                              backgroundColor: 'white',
-                              border: `1.5px solid ${c.soft}aa`,
-                              boxShadow: `0 2px 10px ${c.soft}33`,
-                            }
-                      }
-                    >
-                      {t.done ? (
-                        <Check className="h-5 w-5 text-white" strokeWidth={3} />
-                      ) : (
-                        <Icon className="h-[18px] w-[18px]" style={{ color: c.mid }} />
-                      )}
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      'text-label leading-tight max-w-[80px] transition-colors duration-500',
-                      t.done ? 'font-semibold' : 'text-muted-foreground',
-                    )}
-                    style={t.done ? { color: c.mid } : undefined}
-                  >
-                    {t.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* footer note */}
       <p className="mt-8 text-center text-xs text-muted-foreground">
         Tarayıcıyı kapatabilirsin — işlem arka planda devam eder. Hazır olunca panele yönlendirileceksin.
       </p>

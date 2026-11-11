@@ -54,7 +54,7 @@ export function DirectCheckoutForm({ checkout }: { checkout: DirectCheckout }) {
     <Card className="mx-auto w-full max-w-md p-6">
       <div className="mb-5">
         <p className="text-label text-muted-foreground">Ödenecek tutar</p>
-        <p className="font-brand text-h4 font-semibold tabular-nums">{checkout.amountText}</p>
+        <p className="text-h4 font-[450] tracking-[-0.04em] tabular-nums">{checkout.amountText}</p>
         <p className="text-sm text-muted-foreground">RanksUp {checkout.planName} · {donem}</p>
       </div>
 

@@ -23,7 +23,7 @@ import Link from 'next/link';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, Send, ExternalLink, Calendar, Clock, FileText, ImageIcon, Wrench, User, Gauge, Settings2, HelpCircle, RotateCw, Copy, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Download, Send, ExternalLink, Calendar, Clock, FileText, ImageIcon, Wrench, User, Gauge, Settings2, HelpCircle, RotateCw, Copy, CheckCircle2 } from 'lucide-react';
 import { api, type PublishedEntryMutation } from '@/lib/api';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,7 +75,7 @@ const STATUS_VARIANT: Record<string, any> = {
   GENERATING: 'warning',
   EDITING: 'warning',
   REVIZE_NEEDED: 'destructive',
-  READY_TO_PUBLISH: 'default',
+  READY_TO_PUBLISH: 'success',
   PUBLISHED: 'success',
   FAILED: 'destructive',
   ARCHIVED: 'outline',
@@ -572,15 +572,15 @@ ${body}
         <div>
           <Link
             href={siteHref(siteId, 'articles') as any}
-            className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            className="v-rail inline-flex items-center gap-1.5 transition-colors duration-200 hover:text-foreground"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden />
+            <ArrowLeft className="h-3 w-3" aria-hidden />
             İçerikler
           </Link>
           <div className="mt-3">
-            <h2 className="text-h6 font-semibold leading-snug">{article.title || article.topic}</h2>
-            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-              <PlanLockBadge />
+            <h2 className="text-panel-2">{article.title || article.topic}</h2>
+            <div className="v-rail mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <PlanLockBadge className="font-sans" />
               {article.pillar && <span>{article.pillar}</span>}
             </div>
           </div>
@@ -606,17 +606,17 @@ ${body}
       <div>
         <Link
           href={siteHref(siteId, 'articles') as any}
-          className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          className="v-rail inline-flex items-center gap-1.5 transition-colors duration-200 hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" aria-hidden />
+          <ArrowLeft className="h-3 w-3" aria-hidden />
           İçerikler
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap mt-3">
           <div className="flex-1 min-w-0">
             {/* Tek h1 layout'taki PageHeader'da — makale basligi h2 (text-h6 ustune cikmaz) */}
-            <h2 className="text-h6 font-semibold leading-snug">{article.title}</h2>
-            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-              <Badge variant={STATUS_VARIANT[article.status] ?? 'outline'}>{label(ARTICLE_STATUS_LABEL, article.status)}</Badge>
+            <h2 className="text-panel-2">{article.title}</h2>
+            <div className="v-rail mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <Badge className="font-sans" variant={STATUS_VARIANT[article.status] ?? 'outline'}>{label(ARTICLE_STATUS_LABEL, article.status)}</Badge>
               {article.persona && (
                 <span className="inline-flex items-center gap-1">
                   <User className="h-3 w-3" aria-hidden />
@@ -714,7 +714,7 @@ ${body}
               <ul className="mt-2 space-y-1">
                 {blockers.map((b: any, i: number) => (
                   <li key={i} className="text-xs text-foreground">
-                    <span className="font-semibold text-danger">Engel:</span> {b.detail}
+                    <span className="font-medium text-danger">Engel:</span> {b.detail}
                     {b.excerpt && <span className="text-muted-foreground font-mono"> — &quot;{b.excerpt}&quot;</span>}
                   </li>
                 ))}
@@ -724,7 +724,7 @@ ${body}
               <ul className="mt-2 space-y-1">
                 {warnings.map((w: any, i: number) => (
                   <li key={i} className="text-xs text-foreground">
-                    <span className="font-semibold text-warning">Uyarı:</span> {w.detail}
+                    <span className="font-medium text-warning">Uyarı:</span> {w.detail}
                     {w.excerpt && <span className="text-muted-foreground font-mono"> — &quot;{w.excerpt}&quot;</span>}
                   </li>
                 ))}
@@ -758,8 +758,8 @@ ${body}
         <CardContent className="p-5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h3 className="font-semibold mb-1">Yayınla</h3>
-              <p className="text-xs text-muted-foreground">
+              <h3 className="mb-1 text-panel-3">Yayınla</h3>
+              <p className="text-sm text-muted-foreground">
                 {targets.length === 0
                   ? 'Henüz yayın hedefi yok. Önce site ayarlarından bir hedef ekle.'
                   : `${selectedTargets.size} / ${targets.length} hedef seçildi`}
@@ -803,8 +803,8 @@ ${body}
                     title={yayinda && t.isActive ? 'Yazı bu hedefte yayında. Seçimi kaldırırsan bu yayın oraya yazmaz.' : undefined}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${
                       checked
-                        ? 'bg-brand text-white border-brand'
-                        : 'bg-card border-border hover:border-brand/50'
+                        ? 'bg-foreground text-background border-foreground'
+                        : 'border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground'
                     } ${!t.isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {t.name} <span className="opacity-75">· {targetTypeLabel(t.type)}</span>
@@ -829,10 +829,10 @@ ${body}
       {publishedTo.length > 0 && (
         <Card>
           <CardHeader>
-            <h3 className="font-semibold">Yayın Geçmişi</h3>
+            <h3 className="text-panel-3">Yayın Geçmişi</h3>
           </CardHeader>
           <CardContent className="p-0">
-            <ul className="divide-y">
+            <ul className="divide-y border-t">
               {/* Kayit PublishResult bicimi (externalUrl, publishedAt/updatedAt) — lib/publish-result.ts */}
               {publishedTo.map((entry, i) => {
                 const p = publishedEntryView(entry, (id) => targets.find((t) => t.id === id)?.name);
@@ -854,7 +854,7 @@ ${body}
                 // goremez, kayit unutulmadan oraya yeniden yayin yapilamaz (canForgetEntry)
                 const forgettable = !!targetId && !showBlock && canForgetEntry(entry, target);
                 return (
-                  <li key={`${targetId ?? 'kayit'}-${i}`} className="p-4 space-y-3 text-sm">
+                  <li key={`${targetId ?? 'kayit'}-${i}`} className="space-y-3 px-6 py-4 text-sm">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div className="min-w-0">
                         <div className="font-medium flex flex-wrap items-center gap-2">
@@ -865,7 +865,7 @@ ${body}
                           {p.trashedAt && <Badge variant="secondary">Çöp kutusunda görüldü</Badge>}
                           {p.missingAt && <Badge variant="secondary">Bulunamadı</Badge>}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="v-rail mt-0.5">
                           {p.publishedAt ? new Date(p.publishedAt).toLocaleString('tr-TR') : ''}
                           {p.updatedAt ? ` · güncellendi: ${new Date(p.updatedAt).toLocaleString('tr-TR')}` : ''}
                         </div>
@@ -875,7 +875,7 @@ ${body}
                           href={p.url}
                           target="_blank"
                           rel="noopener"
-                          className="text-brand hover:underline inline-flex items-center gap-1 text-xs break-all"
+                          className="inline-flex items-center gap-1 break-all font-mono text-vitrin-rail text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                         >
                           {p.url} <ExternalLink className="h-3 w-3 shrink-0" />
                         </a>
@@ -923,7 +923,7 @@ ${body}
                             </Button>
                           )}
                           {!memo && reason === 'republishable' && (
-                            <Button size="sm" onClick={() => publish({ targetIds: [targetId] })} disabled={publishing || busy}>
+                            <Button size="sm" variant="secondary" onClick={() => publish({ targetIds: [targetId] })} disabled={publishing || busy}>
                               <Send className="h-3.5 w-3.5" aria-hidden /> Bu hedefe yeniden yayınla
                             </Button>
                           )}
@@ -938,7 +938,7 @@ ${body}
                           {p.manualUpdatePending && (
                             <Button
                               size="sm"
-                              variant={memo || reason === 'republishable' ? 'outline' : 'default'}
+                              variant={memo || reason === 'republishable' ? 'outline' : 'secondary'}
                               onClick={() => markEntryUpdated(targetId, p.name)}
                               disabled={busy}
                             >
@@ -1007,7 +1007,7 @@ ${body}
             <Card>
               <CardContent className="p-4 sm:p-8">
                 <div
-                  className="prose prose-sm sm:prose dark:prose-invert max-w-none prose-headings:scroll-mt-20 prose-h2:mt-6 sm:prose-h2:mt-8 prose-img:rounded-lg break-words"
+                  className="prose prose-sm prose-neutral max-w-none break-words dark:prose-invert sm:prose prose-headings:scroll-mt-20 prose-headings:font-medium prose-headings:tracking-[-0.03em] prose-h2:mt-6 prose-img:rounded-lg sm:prose-h2:mt-8"
                   dangerouslySetInnerHTML={{ __html: renderedHtml }}
                 />
               </CardContent>
@@ -1040,10 +1040,10 @@ ${body}
           {article.schemaMarkup && (
             <Card>
               <CardHeader>
-                <h3 className="font-semibold">Schema.org Markup (JSON-LD)</h3>
+                <h3 className="text-panel-3">Schema.org Markup (JSON-LD)</h3>
               </CardHeader>
               <CardContent>
-                <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+                <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs">
                   {JSON.stringify(article.schemaMarkup, null, 2)}
                 </pre>
               </CardContent>
@@ -1053,14 +1053,14 @@ ${body}
           {(article.internalLinks as any[])?.length > 0 && (
             <Card>
               <CardHeader>
-                <h3 className="font-semibold">İç Linkler ({(article.internalLinks as any[]).length})</h3>
+                <h3 className="text-panel-3">İç Linkler ({(article.internalLinks as any[]).length})</h3>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-1.5 text-sm">
                   {(article.internalLinks as any[]).map((l, i) => (
                     <li key={i} className="flex items-center gap-2">
                       <span className="font-mono text-xs text-muted-foreground">{l.url}</span>
-                      <span className="text-muted-foreground">→</span>
+                      <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
                       <span>{l.anchor}</span>
                     </li>
                   ))}
@@ -1076,7 +1076,7 @@ ${body}
               {fallbackFaqs.map((f: any, i: number) => (
                 <Card key={i}>
                   <CardContent className="p-4">
-                    <h4 className="font-semibold text-sm mb-2">Q: {f.q ?? f.question}</h4>
+                    <h4 className="mb-2 text-panel-3">Q: {f.q ?? f.question}</h4>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.a ?? f.answer}</p>
                   </CardContent>
                 </Card>
@@ -1138,13 +1138,13 @@ function Field({
 }) {
   return (
     <div>
-      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+      <div className="v-rail mb-1">{label}</div>
       <div
         className={`${mono ? 'font-mono text-xs' : ''} ${
           multiline ? 'whitespace-pre-wrap' : ''
         } text-foreground/90`}
       >
-        {value || <span className="text-muted-foreground italic">—</span>}
+        {value || <span className="text-muted-foreground">—</span>}
       </div>
     </div>
   );

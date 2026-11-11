@@ -188,7 +188,7 @@ export default function OpportunitiesPage() {
       <SectionHeader
         icon={Lightbulb}
         title="İçerik Fırsatları"
-        description={<>AI aramalarında <strong>kaybettiğin</strong> sorgular fırsata dönüşür: makale üret → yayınla → yeniden ölç → kanıtı gör.</>}
+        description={<>AI aramalarında <strong className="font-medium text-foreground">kaybettiğin</strong> sorgular fırsata dönüşür: makale üret → yayınla → yeniden ölç → kanıtı gör.</>}
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => setShowDismissed((v) => !v)} aria-pressed={showDismissed}>
@@ -216,15 +216,17 @@ export default function OpportunitiesPage() {
           ))}
         </div>
       ) : visible.length === 0 ? (
-        <Card>
-          <CardContent className="p-10 text-center space-y-3">
-            <Lightbulb className="h-10 w-10 mx-auto text-muted-foreground/40" aria-hidden />
-            <p className="text-sm text-muted-foreground">
-              Henüz fırsat yok. Önce <Link href={siteHref(site.id, 'geoLab')} className="underline">GEO Lab</Link>&apos;de
-              sorgularını çalıştır, sonra &quot;Fırsatları tara&quot;ya bas.
-            </p>
-          </CardContent>
-        </Card>
+        // components/empty-state ile ayni gorunum (kesikli cerceve + notr ikon karosu); metin baglanti
+        // tasidigi icin (EmptyState yalniz duz metin alir) elde cizilir
+        <div className="rounded-lg border border-dashed border-border p-8 text-center sm:p-12">
+          <div className="mx-auto mb-5 grid h-11 w-11 place-items-center rounded-md border text-foreground/70">
+            <Lightbulb className="h-6 w-6" aria-hidden />
+          </div>
+          <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
+            Henüz fırsat yok. Önce <Link href={siteHref(site.id, 'geoLab')} className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground">GEO Lab</Link>&apos;de
+            sorgularını çalıştır, sonra &quot;Fırsatları tara&quot;ya bas.
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
           {visible.map((item) => {
@@ -237,11 +239,11 @@ export default function OpportunitiesPage() {
             return (
               <Card key={item.id} className={cn(item.status === 'DISMISSED' && 'opacity-50')}>
                 <CardContent className="p-4 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                    <div className="min-w-0 flex-1 space-y-1.5">
                       {/* Tek rozet (kapsama) + sade meta satiri — eskiden 3-4 minik rozet yan yanaydi */}
-                      <div className="flex items-center gap-2 flex-wrap text-label text-muted-foreground">
-                        <Badge variant={cov.variant} className="text-label">{cov.text}</Badge>
+                      <div className="v-rail flex flex-wrap items-center gap-2">
+                        <Badge variant={cov.variant} className="font-sans">{cov.text}</Badge>
                         <span className="inline-flex items-center gap-1">
                           <SrcIcon className="h-3 w-3" aria-hidden />{src.text}
                         </span>
@@ -250,40 +252,40 @@ export default function OpportunitiesPage() {
                           <span className="tabular-nums">· öncelik {item.score}/100</span>
                         )}
                       </div>
-                      <div className="font-semibold text-sm">{item.title}</div>
+                      <div className="text-panel-3">{item.title}</div>
                       <div className="text-xs text-muted-foreground">
                         Sorgu: <span className="font-mono">"{item.query}"</span>
                         {typeof meta.citedRate === 'number' && (
-                          <> · son 14 günde alıntılanma: <strong>{formatPct(meta.citedRate, 0)}</strong> ({meta.cited}/{meta.total})</>
+                          <> · son 14 günde alıntılanma: <strong className="font-medium text-foreground">{formatPct(meta.citedRate, 0)}</strong> ({meta.cited}/{meta.total})</>
                         )}
                       </div>
                       {providersLost.length > 0 && (
-                        <div className="text-label text-muted-foreground">
+                        <div className="text-xs text-muted-foreground">
                           Kaybedilen sağlayıcılar: {providersLost.join(', ')}
                         </div>
                       )}
                       {item.article && (
                         <div className="text-xs">
                           → Makale:{' '}
-                          <Link href={`${siteHref(site.id, 'articles')}/${item.article.id}`} className="underline text-brand">
+                          <Link href={`${siteHref(site.id, 'articles')}/${item.article.id}`} className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground">
                             {item.article.title}
                           </Link>{' '}
                           <span className="text-muted-foreground">({label(ARTICLE_STATUS_LABEL, item.article.status)})</span>
                         </div>
                       )}
                       {remeasureResult && (
-                        <div className="text-xs rounded-md bg-muted/50 px-2.5 py-1.5 inline-block">
+                        <div className="inline-block rounded-md bg-muted px-2.5 py-1.5 text-xs">
                           Yeniden ölçüm:{' '}
                           {remeasureResult.before
                             ? <>{remeasureResult.before.cited}/{remeasureResult.before.total} → </>
                             : <span className="text-muted-foreground">(öncesiyle kıyaslanamaz — ölçüm yöntemi değişti) </span>}
-                          <strong>{remeasureResult.after?.cited}/{remeasureResult.after?.total}</strong>
+                          <strong className="font-medium">{remeasureResult.after?.cited}/{remeasureResult.after?.total}</strong>
                           {typeof remeasureResult.dayCount === 'number' && (
                             <> · {remeasureResult.dayCount} gün / {(remeasureResult.followUpsDone ?? 0) + 1} ölçüm</>
                           )}
                           {remeasureResult.verdict === 'PRELIMINARY' && (
                             <span
-                              className="ml-1.5 rounded-full border border-warning/30 bg-warning/10 text-warning px-1.5 py-0.5 text-label font-semibold"
+                              className="ml-1.5 rounded bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
                               title="Kesin hüküm için en az 2 farklı günde 6 ölçüm gerekir — tek günün tek koşumu AI cevaplarının günlük oynaklığını yansıtmaz. Takip ölçümleri sonraki günlerde otomatik koşar, kotanı tüketmez."
                             >
                               ön sonuç — ölçüm birikiyor
@@ -296,12 +298,12 @@ export default function OpportunitiesPage() {
                       )}
                     </div>
 
-                    <div className="flex flex-col gap-1.5 shrink-0">
+                    <div className="flex shrink-0 flex-row flex-wrap gap-1.5 sm:flex-col">
                       {(item.status === 'OPEN' || item.status === 'PLANNED') && !item.articleId && articleAllowance.locked && (
-                        <LockedGenerateButton lock={articleAllowance} />
+                        <LockedGenerateButton lock={articleAllowance} variant="outline" />
                       )}
                       {(item.status === 'OPEN' || item.status === 'PLANNED') && !item.articleId && !articleAllowance.locked && (
-                        <Button size="sm" onClick={() => generate(item)} disabled={busy !== null}>
+                        <Button size="sm" variant="secondary" onClick={() => generate(item)} disabled={busy !== null}>
                           {busy === item.id ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 mr-1.5" />}
                           Makale üret
                         </Button>

@@ -29,12 +29,13 @@ const ACTIVITY_ICON: Record<ActivityEvent['type'], React.ComponentType<{ classNa
   auto_fix: Wand2,
 };
 
+// Olay turu bir DURUM degil: ikon kutulari notr. Yalniz "yayinlandi" basari tonu tasir.
 const ACTIVITY_TONE: Record<ActivityEvent['type'], string> = {
   article_published: 'bg-success/10 text-success',
-  article_generated: 'bg-brand/10 text-brand',
-  audit_run: 'bg-info/10 text-info',
-  social_post: 'bg-brand/10 text-brand',
-  auto_fix: 'bg-warning/10 text-warning',
+  article_generated: 'border border-border text-muted-foreground',
+  audit_run: 'border border-border text-muted-foreground',
+  social_post: 'border border-border text-muted-foreground',
+  auto_fix: 'border border-border text-muted-foreground',
 };
 
 export function RecentActivity({ articles, audit, siteId }: { articles: any[]; audit: any; siteId: string }) {
@@ -102,10 +103,10 @@ export function RecentActivity({ articles, audit, siteId }: { articles: any[]; a
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3">
-        <h3 className="inline-flex items-center gap-2 text-sm font-semibold">
-          <Activity className="h-4 w-4 text-brand" aria-hidden /> Son aktivite
+        <h3 className="inline-flex items-center gap-2 text-panel-3">
+          <Activity className="h-4 w-4 text-muted-foreground" aria-hidden /> Son aktivite
         </h3>
-        <span className="text-label text-muted-foreground">son {sorted.length} olay</span>
+        <span className="v-rail">son {sorted.length} olay</span>
       </div>
       <motion.ul variants={staggerContainer} initial="hidden" animate="show" className="divide-y">
         {sorted.map((event, i) => {
@@ -121,9 +122,9 @@ export function RecentActivity({ articles, audit, siteId }: { articles: any[]; a
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{event.title}</span>
-                  <span className="block truncate text-label text-muted-foreground">{event.meta}</span>
+                  <span className="block truncate text-label font-normal text-muted-foreground">{event.meta}</span>
                 </span>
-                <span className="shrink-0 text-label text-muted-foreground">{timeAgo(event.timestamp)}</span>
+                <span className="v-rail shrink-0">{timeAgo(event.timestamp)}</span>
               </Link>
             </motion.li>
           );

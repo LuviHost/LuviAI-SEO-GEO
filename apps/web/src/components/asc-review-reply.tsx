@@ -74,7 +74,7 @@ export function AscReviewReply({
   return (
     <div className="mt-2 space-y-2">
       {review.response && (
-        <div className="rounded border-l-2 border-brand/40 bg-background p-2">
+        <div className="rounded border-l-2 border-foreground/30 bg-background p-2">
           <div className="flex items-center gap-2 mb-0.5">
             <span className="text-label font-medium">Yanıtımız</span>
             <Badge variant={review.response.state === 'PUBLISHED' ? 'success' : 'secondary'}>
@@ -119,7 +119,7 @@ export function AscReviewReply({
           <label className="flex items-start gap-2 text-xs">
             <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5" />
             <span>
-              Bu yanıt App Store&apos;da <strong>herkese açık</strong> yayınlanır
+              Bu yanıt App Store&apos;da <strong className="font-medium">herkese açık</strong> yayınlanır
               {review.response ? ' ve önceki yanıtımızın yerine geçer' : ''}. Metni okudum.
             </span>
           </label>

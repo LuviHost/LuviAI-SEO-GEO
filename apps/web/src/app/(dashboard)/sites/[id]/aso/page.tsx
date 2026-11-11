@@ -116,12 +116,12 @@ export default function AsoPage() {
             const href = `${base}/${app.id}`;
             return (
               <motion.li key={app.id} variants={fadeUp}>
-                <Card className="relative h-full transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-brand/40">
+                <Card className="relative h-full transition-colors duration-200 hover:border-foreground/30 focus-within:ring-2 focus-within:ring-ring">
                   <CardContent className="flex h-full flex-col gap-3 p-4">
                     <div className="flex items-start gap-3">
                       <AppIcon src={app.iconUrl} size="lg" />
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-sm font-semibold">
+                        <h3 className="truncate text-panel-3">
                           {/* Tüm kart tıklanabilir: bağlantı kartı örter, düğmeler üstte kalır */}
                           <Link href={href} className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none">
                             {app.name}
@@ -135,28 +135,28 @@ export default function AsoPage() {
                     <dl className="grid grid-cols-2 gap-2 border-t pt-3 text-label">
                       {app.iosRating != null && (
                         <div>
-                          <dt className="text-muted-foreground">iOS puanı</dt>
+                          <dt className="font-mono text-vitrin-rail text-muted-foreground">iOS puanı</dt>
                           <dd className="text-metric"><Rating value={app.iosRating} /></dd>
                         </div>
                       )}
                       {app.androidRating != null && (
                         <div>
-                          <dt className="text-muted-foreground">Android puanı</dt>
+                          <dt className="font-mono text-vitrin-rail text-muted-foreground">Android puanı</dt>
                           <dd className="text-metric"><Rating value={app.androidRating} /></dd>
                         </div>
                       )}
                       <div>
-                        <dt className="text-muted-foreground">Anahtar kelime</dt>
+                        <dt className="font-mono text-vitrin-rail text-muted-foreground">Anahtar kelime</dt>
                         <dd className="text-metric tabular-nums">{formatNum(app._count?.keywords ?? 0)}</dd>
                       </div>
                       <div>
-                        <dt className="text-muted-foreground">Yorum</dt>
+                        <dt className="font-mono text-vitrin-rail text-muted-foreground">Yorum</dt>
                         <dd className="text-metric tabular-nums">{formatNum(app._count?.reviews ?? 0)}</dd>
                       </div>
                     </dl>
 
                     <div className="relative z-10 mt-auto flex gap-1.5 border-t pt-3">
-                      <Button asChild size="sm" className="h-8 flex-1">
+                      <Button asChild size="sm" variant="outline" className="h-8 flex-1">
                         <Link href={href}>Aç</Link>
                       </Button>
                       <DropdownMenu modal={false}>

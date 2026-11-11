@@ -99,7 +99,7 @@ export default function AdminQueuePage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Queue Monitor</h1>
+          <h1 className="text-2xl font-[450] tracking-[-0.04em]">Queue Monitor</h1>
           <p className="text-xs text-muted-foreground mt-1">
             BullMQ kuyruğu — gerçek zamanlı (5sn refresh). Job state'leri, delayed timer, retry/promote/remove.
           </p>
@@ -148,18 +148,18 @@ export default function AdminQueuePage() {
               key={s}
               onClick={() => setActiveTab(s)}
               className={cn(
-                'rounded-xl border p-3 text-left transition-all hover:shadow-sm',
+                'rounded-lg border p-3 text-left transition-all',
                 isActive ? `ring-2 ${cfg.ring}` : 'border-border',
                 isActive && cfg.bg,
               )}
             >
               <div className="flex items-center gap-1.5 mb-2">
                 <Icon className={cn('h-3.5 w-3.5', cfg.color, s === 'active' && 'animate-spin')} />
-                <span className={cn('text-[10px] font-mono uppercase tracking-widest', cfg.color)}>
+                <span className={cn('text-[10px] font-mono', cfg.color)}>
                   {cfg.label}
                 </span>
               </div>
-              <div className={cn('text-3xl font-bold tabular-nums', cfg.color)}>{value}</div>
+              <div className={cn('text-3xl font-[450] tracking-[-0.04em] tabular-nums', cfg.color)}>{value}</div>
             </button>
           );
         })}

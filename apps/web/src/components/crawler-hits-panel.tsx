@@ -7,6 +7,7 @@ import { Bot, Upload, RefreshCw, Sparkle, ShieldCheck, ShieldAlert, AlertTriangl
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { buildBotRows, ingestNotices, normalizeCounts, sourceLabel, unknownText, unverifiedText } from '@/lib/crawler-verification';
+import { CHART } from '@/lib/chart-colors';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -23,12 +24,20 @@ import { Button } from '@/components/ui/button';
  */
 const MAX_LOG_BYTES = 1_000_000;
 
+// Bot kategorisi bir VERI serisidir: renk grafik paletinden (lib/chart-colors.ts), sinif adindan degil.
+// Amac dagilimi cubugu da ayni eslesmeyi kullanir (eskiden iki yerde farkli renklerdi).
 const CATEGORY_COLOR: Record<string, string> = {
-  'ai-search': 'bg-purple-500',
-  'training': 'bg-pink-500',
-  'classic-search': 'bg-blue-500',
-  'social': 'bg-green-500',
+  'ai-search': CHART[3],
+  'training': CHART[4],
+  'classic-search': CHART[2],
+  'social': CHART[5],
 };
+const CATEGORY_FALLBACK = CHART[8];
+
+/** ui/metric MetricCard ile ayni kutu (durum ikonu etiketin solunda kaldigi icin elle) */
+const TILE = 'rounded-lg border bg-card p-4';
+const TILE_VALUE = 'mt-3 text-metric-lg tabular-nums';
+const TILE_HINT = 'mt-2 text-label font-normal text-muted-foreground/80';
 
 /**
  * AI Crawler Hits Panel — sunucu logundan AI bot trafigini gosterir.
@@ -106,18 +115,18 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <p className="text-sm font-semibold inline-flex items-center gap-2">
+            <p className="text-panel-3 inline-flex items-center gap-2">
               <Bot className="h-4 w-4 text-muted-foreground" /> AI Crawler Trafiği
             </p>
             {/* Google-Extended yazilmaz: ayri bir HTTP kullanici ajani yok, yalniz robots.txt
                 belirteci — sunucu logunda hic gorunmez
                 (https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) */}
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               GPTBot · OAI-SearchBot · ClaudeBot · PerplexityBot sitenizi taradı mı?
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <label className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border rounded-md cursor-pointer hover:bg-muted">
+            <label className="inline-flex h-9 items-center gap-2 rounded-md border border-foreground/20 px-3 text-sm font-medium cursor-pointer transition-colors duration-200 hover:border-foreground/70 focus-within:ring-2 focus-within:ring-ring">
               <Upload className="h-3.5 w-3.5" />
               {uploading ? 'Yükleniyor…' : 'Log Upload'}
               <input type="file" accept=".log,.txt" className="hidden" onChange={onFileChange} disabled={uploading} />
@@ -141,17 +150,15 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
           <>
             {/* İlk ziyaret alarmı */}
             {newBotIds.length > 0 && (
-              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/[0.06] p-3 flex items-start gap-2.5">
-                <div className="h-7 w-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0">
-                  <Sparkle className="h-4 w-4" />
-                </div>
+              <div className="rounded-lg border border-success/25 bg-success/5 p-4 flex items-start gap-3 [&_strong]:font-medium">
+                <Sparkle className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                  <p className="font-medium">
                     {newBotIds.length === 1 ? 'Yeni AI bot ziyareti!' : `${newBotIds.length} yeni AI bot ziyareti!`}
                   </p>
-                  <p className="text-xs text-foreground/80 mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-1 [&_strong]:text-foreground">
                     Son {NEW_THRESHOLD_DAYS} gün içinde sitenizi <strong>ilk kez</strong> taramaya başladılar:{' '}
-                    <span className="font-semibold">{newBotLabels.join(', ')}</span>
+                    <span className="font-medium text-foreground">{newBotLabels.join(', ')}</span>
                     {newBotIds.length > newBotLabels.length && ` ve ${newBotIds.length - newBotLabels.length} bot daha`}.
                   </p>
                 </div>
@@ -160,58 +167,60 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
 
             {/* Kaynak sagligi: eski kod IP gondermiyor / 429 ile dusen istek */}
             {notices.codeUpdate && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/[0.06] p-3 flex items-start gap-2.5 text-xs">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-start gap-3 text-sm">
+                <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" aria-hidden />
                 <p>
                   {notices.codeUpdate}{' '}
-                  <Link href={`/sites/${siteId}/crawler-live`} className="font-semibold underline underline-offset-2">Kurulum kodunu aç</Link>
+                  <Link href={`/sites/${siteId}/crawler-live`} className="font-medium underline underline-offset-4">Kurulum kodunu aç</Link>
                 </p>
               </div>
             )}
             {notices.throttled && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/[0.06] p-3 flex items-start gap-2.5 text-xs">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 flex items-start gap-3 text-sm">
+                <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" aria-hidden />
                 <p>{notices.throttled}</p>
               </div>
             )}
 
             {/* Manset: dogrulanmis ziyaret; taklit olabilecekler ve dogrulanamayanlar ayri */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="rounded-md border border-emerald-500/40 p-3">
-                <p className="text-label text-muted-foreground inline-flex items-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Doğrulanmış bot ziyareti
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className={TILE}>
+                <p className="v-rail flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden /> Doğrulanmış bot ziyareti
                 </p>
-                <p className="text-2xl font-bold mt-1">{verification.verified.toLocaleString('tr-TR')}</p>
-                <p className="text-label text-muted-foreground mt-0.5">IP adresi sağlayıcının resmi listesinde (son 30 gün)</p>
+                <p className={TILE_VALUE}>{verification.verified.toLocaleString('tr-TR')}</p>
+                <p className={TILE_HINT}>IP adresi sağlayıcının resmi listesinde (son 30 gün)</p>
               </div>
-              <div className="rounded-md border p-3">
-                <p className="text-label text-muted-foreground inline-flex items-center gap-1">
-                  <ShieldAlert className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" /> Taklit olabilir
+              <div className={TILE}>
+                <p className="v-rail flex items-center gap-1.5">
+                  <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden /> Taklit olabilir
                 </p>
-                <p className="text-2xl font-bold mt-1">{verification.unverified.toLocaleString('tr-TR')}</p>
-                <p className="text-label text-muted-foreground mt-0.5">Kendini AI botu olarak tanıtıyor, IP adresi sağlayıcıya ait değil</p>
+                <p className={TILE_VALUE}>{verification.unverified.toLocaleString('tr-TR')}</p>
+                <p className={TILE_HINT}>Kendini AI botu olarak tanıtıyor, IP adresi sağlayıcıya ait değil</p>
               </div>
-              <div className="rounded-md border p-3">
-                <p className="text-label text-muted-foreground">Doğrulanamadı</p>
-                <p className="text-2xl font-bold mt-1">{verification.unknown.toLocaleString('tr-TR')}</p>
-                <p className="text-label text-muted-foreground mt-0.5">
+              <div className={TILE}>
+                <p className="v-rail">Doğrulanamadı</p>
+                <p className={TILE_VALUE}>{verification.unknown.toLocaleString('tr-TR')}</p>
+                <p className={TILE_HINT}>
                   IP bilgisi yok (eski kurulum kodu ya da eski kayıt) veya bot resmi liste yayımlamıyor
                 </p>
               </div>
             </div>
-            <p className="text-label text-muted-foreground">
+            <p className="text-label font-normal text-muted-foreground">
               Toplam {totalHits.toLocaleString('tr-TR')} istek AI botu kullanıcı ajanı taşıyordu; yalnızca IP adresi doğrulananlar
               gerçek bot ziyareti sayılır.
               {lastEventAt && <> Son kayıt: {new Date(lastEventAt).toLocaleString('tr-TR')} ({sourceLabel(data.ingestHealth?.lastEventSource)}).</>}
             </p>
 
             {verification.verified > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {Object.entries(byCategory).map(([cat, count]) => (
-                  <div key={cat} className="rounded-md border p-3 text-center">
-                    <div className={`h-1.5 w-full rounded-full ${CATEGORY_COLOR[cat] ?? 'bg-muted'} mb-2`} />
-                    <p className="text-2xl font-bold">{(count as number).toLocaleString('tr-TR')}</p>
-                    <p className="text-label text-muted-foreground capitalize">{cat.replace('-', ' ')} · doğrulanmış</p>
+                  <div key={cat} className={TILE}>
+                    <p className="v-rail flex items-center gap-1.5 capitalize">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: CATEGORY_COLOR[cat] ?? CATEGORY_FALLBACK }} aria-hidden />
+                      {cat.replace('-', ' ')} · doğrulanmış
+                    </p>
+                    <p className="mt-3 text-metric tabular-nums">{(count as number).toLocaleString('tr-TR')}</p>
                   </div>
                 ))}
               </div>
@@ -219,28 +228,28 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
 
             {/* Clarity-style: Bot purpose split + Pages crawled coverage */}
             {(data.purposeSplit || data.coverage) && (
-              <div className="grid md:grid-cols-2 gap-2">
+              <div className="grid md:grid-cols-2 gap-3 [&_strong]:font-medium [&_strong]:text-foreground">
                 {/* Purpose split bar — dogrulanmis ziyaretlerden (taklit UA dagilimi bozmasin) */}
                 {data.purposeSplit && verification.verified > 0 && (
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs font-semibold mb-2">Bot Amaç Dağılımı <span className="font-normal text-muted-foreground">(doğrulanmış ziyaretler)</span></p>
-                    <div className="flex h-2 rounded-full overflow-hidden bg-muted mb-2">
-                      <div className="bg-blue-500" style={{ width: `${data.purposeSplit.aiSearchPct}%` }} title={`AI Search %${data.purposeSplit.aiSearchPct}`} />
-                      <div className="bg-purple-500" style={{ width: `${data.purposeSplit.trainingPct}%` }} title={`Training %${data.purposeSplit.trainingPct}`} />
-                      <div className="bg-emerald-500" style={{ width: `${data.purposeSplit.classicSearchPct}%` }} title={`Classic %${data.purposeSplit.classicSearchPct}`} />
-                      <div className="bg-slate-500" style={{ width: `${data.purposeSplit.otherPct}%` }} />
+                  <div className={TILE}>
+                    <p className="v-rail mb-3">Bot Amaç Dağılımı <span>(doğrulanmış ziyaretler)</span></p>
+                    <div className="flex h-2 rounded-full overflow-hidden bg-muted mb-3">
+                      <div style={{ width: `${data.purposeSplit.aiSearchPct}%`, backgroundColor: CATEGORY_COLOR['ai-search'] }} title={`AI Search %${data.purposeSplit.aiSearchPct}`} />
+                      <div style={{ width: `${data.purposeSplit.trainingPct}%`, backgroundColor: CATEGORY_COLOR['training'] }} title={`Training %${data.purposeSplit.trainingPct}`} />
+                      <div style={{ width: `${data.purposeSplit.classicSearchPct}%`, backgroundColor: CATEGORY_COLOR['classic-search'] }} title={`Classic %${data.purposeSplit.classicSearchPct}`} />
+                      <div style={{ width: `${data.purposeSplit.otherPct}%`, backgroundColor: CATEGORY_FALLBACK }} />
                     </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
-                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" />AI Search %{data.purposeSplit.aiSearchPct}</span>
-                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-purple-500" />Training %{data.purposeSplit.trainingPct}</span>
-                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Classic %{data.purposeSplit.classicSearchPct}</span>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-label font-normal text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: CATEGORY_COLOR['ai-search'] }} />AI Search %{data.purposeSplit.aiSearchPct}</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: CATEGORY_COLOR['training'] }} />Training %{data.purposeSplit.trainingPct}</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: CATEGORY_COLOR['classic-search'] }} />Classic %{data.purposeSplit.classicSearchPct}</span>
                     </div>
                   </div>
                 )}
                 {/* Page coverage */}
                 {data.coverage && (
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs font-semibold mb-2">Sayfa Tarama Kapsamı</p>
+                  <div className={TILE}>
+                    <p className="v-rail mb-3">Sayfa Tarama Kapsamı</p>
                     {/* Oran = site haritasindaki sayfalardan EN AZ BIR bot ziyareti gorenler /
                         site haritasindaki sayfalar (crawler-analytics.service.ts computeCoverage).
                         Eskiden pay botlarin istedigi tum tekil yollardi (robots.txt, feed,
@@ -248,30 +257,30 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
                         API'den gelir. partial: ziyaret listesi eksik, oran alt sinir. */}
                     {typeof data.coverage.pagesCrawledPct === 'number' && typeof data.coverage.sitePagesTotal === 'number' && data.coverage.sitePagesTotal > 0 ? (
                       <>
-                        <div className="flex items-baseline gap-2 mb-1">
-                          <span className="text-2xl font-bold">
+                        <div className="flex items-baseline gap-2 mb-2">
+                          <span className="text-metric-lg tabular-nums">
                             {data.coverage.partial ? 'en az ' : ''}%{data.coverage.pagesCrawledPct}
                           </span>
-                          <span className="text-label text-muted-foreground">ziyaret edildi</span>
+                          <span className="text-label font-normal text-muted-foreground">ziyaret edildi</span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-1.5">
-                          <div className="h-full bg-gradient-to-r from-brand-500 to-brand-600" style={{ width: `${data.coverage.pagesCrawledPct}%` }} />
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-2">
+                          <div className="h-full rounded-full bg-foreground" style={{ width: `${data.coverage.pagesCrawledPct}%` }} />
                         </div>
-                        <p className="text-label text-muted-foreground">
+                        <p className="text-label font-normal text-muted-foreground">
                           Site haritasındaki {data.coverage.sitePagesTotal.toLocaleString('tr-TR')} sayfanın{' '}
                           {/* Eski API (gecis aninda) sitemapPagesVisited dondurmez */}
                           <strong>{Number(data.coverage.sitemapPagesVisited ?? data.coverage.uniquePathsVisited ?? 0).toLocaleString('tr-TR')}</strong> tanesini en az bir bot ziyaret etti.
                         </p>
                         {data.coverage.partial && (
-                          <p className="text-label text-muted-foreground mt-1">
+                          <p className="text-label font-normal text-muted-foreground mt-1">
                             Ziyaret edilen adreslerin yalnızca bir kısmı kayıtlı (yüklenen loglardan her bot için günde en çok ziyaret edilen 10 adres saklanır); gerçek oran daha yüksek olabilir.
                           </p>
                         )}
                       </>
                     ) : (
                       <>
-                        <p className="text-xs"><strong>{data.coverage.uniquePathsVisited}</strong> tekil adres ziyaret edildi</p>
-                        <p className="text-label text-muted-foreground mt-1">
+                        <p className="text-sm"><strong>{data.coverage.uniquePathsVisited}</strong> tekil adres ziyaret edildi</p>
+                        <p className="text-label font-normal text-muted-foreground mt-1">
                           {data.coverage.unavailableText
                             ?? (data.coverage.sitePagesTotal === 0
                               ? 'Site haritasında sayfa bulunamadı, oran hesaplanamıyor.'
@@ -285,11 +294,11 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
             )}
 
             {/* Bot bazinda dagilim */}
-            <div className="rounded-md border">
-              <div className="px-3 py-2 border-b bg-muted/30">
-                <p className="text-xs font-semibold">Bot Dağılımı (son 30 gün)</p>
+            <div className="rounded-lg border">
+              <div className="px-4 py-2.5 border-b">
+                <p className="v-rail">Bot Dağılımı (son 30 gün)</p>
               </div>
-              <div className="divide-y text-xs max-h-[400px] overflow-y-auto">
+              <div className="divide-y text-sm max-h-[400px] overflow-y-auto">
                 {botRows.map((row) => {
                   // Cubuk dogrulanmis ziyaretin paydasi; taklit hacmi buyuk bot ustte cikmaz
                   const pct = verification.verified > 0 ? (row.verified / verification.verified) * 100 : 0;
@@ -298,32 +307,32 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
                     <div
                       key={row.bot}
                       className={cn(
-                        'px-3 py-2 transition-colors',
-                        recent && 'bg-emerald-500/[0.05]',
+                        'px-4 py-2.5 transition-colors',
+                        recent && 'bg-success/5',
                       )}
                     >
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className={`h-2 w-2 rounded-full shrink-0 ${(row.category && CATEGORY_COLOR[row.category]) || 'bg-muted'}`} />
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: (row.category && CATEGORY_COLOR[row.category]) || CATEGORY_FALLBACK }} />
                           <span className="font-medium truncate">{row.label}</span>
                           {recent && (
-                            <span className="inline-flex items-center gap-0.5 text-label font-medium px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
+                            <span className="inline-flex items-center gap-1 text-label px-1.5 py-0.5 rounded bg-success/10 text-success shrink-0">
                               <Sparkle className="h-2.5 w-2.5" /> Yeni
                             </span>
                           )}
                         </div>
-                        <span className="font-mono text-label shrink-0" title="Doğrulanmış ziyaret">
+                        <span className="font-mono text-vitrin-rail text-muted-foreground shrink-0" title="Doğrulanmış ziyaret">
                           {row.verified.toLocaleString('tr-TR')} doğrulanmış
                         </span>
                       </div>
                       <div className="h-1 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full ${(row.category && CATEGORY_COLOR[row.category]) || 'bg-muted-foreground'}`} style={{ width: `${pct}%` }} />
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: (row.category && CATEGORY_COLOR[row.category]) || CATEGORY_FALLBACK }} />
                       </div>
                       {row.unverified > 0 && (
-                        <p className="text-label text-amber-700 dark:text-amber-400 mt-1">{unverifiedText(row.bot, row.unverified)}</p>
+                        <p className="text-label font-normal text-warning mt-1.5">{unverifiedText(row.bot, row.unverified)}</p>
                       )}
                       {row.unknown > 0 && (
-                        <p className="text-label text-muted-foreground mt-0.5">
+                        <p className="text-label font-normal text-muted-foreground mt-0.5">
                           {unknownText(row.unknown, { hasMethod: row.hasMethod, needsCodeUpdate: !!data.ingestHealth?.needsCodeUpdate })}
                         </p>
                       )}

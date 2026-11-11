@@ -56,7 +56,7 @@ export default function ReportPage() {
         </div>
 
         <TabsContent value="donem" forceMount className={`${HIDE_INACTIVE} print:block`}>
-          <p className="mb-3 text-label text-muted-foreground print:hidden">SEO · GEO · ASO · ASA</p>
+          <p className="v-rail mb-3 print:hidden">SEO · GEO · ASO · ASA</p>
           <RaporGecmisiPanel siteId={site.id} />
         </TabsContent>
 

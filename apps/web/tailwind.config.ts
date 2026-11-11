@@ -54,8 +54,9 @@ const config: Config = {
         // Dashboard analitik olcegi (02.09.2026 "temiz analitik UI"):
         // metrik degeri / etiket / filtre — TEK sozlesme, sayfa sayfa degisen
         // text-2xl/3xl + font-bold/semibold karmasasinin yerine.
-        'metric':    ['1.125rem',  { lineHeight: '1.5rem', letterSpacing: '-0.006em', fontWeight: '600' }],
-        'metric-lg': ['1.75rem',   { lineHeight: '2rem',   letterSpacing: '-0.02em',  fontWeight: '600' }],
+        // 12.11.2026 (vitrin dili panelde): rakamlar vitrindeki gibi ince ve siki aralikli
+        'metric':    ['1.25rem',   { lineHeight: '1.75rem', letterSpacing: '-0.03em', fontWeight: '500' }],
+        'metric-lg': ['clamp(1.5rem, 2.4vw, 2.125rem)', { lineHeight: '1.15', letterSpacing: '-0.045em', fontWeight: '450' }],
         'label':     ['0.75rem',   { lineHeight: '1rem',   fontWeight: '500' }],
         'filter':    ['0.8125rem', { lineHeight: '1rem',   fontWeight: '500' }],
         // Vitrin (ana sayfa, 11.11.2026): buyuk, siki aralikli, ince agirlikli Geist.
@@ -67,6 +68,12 @@ const config: Config = {
         'vitrin-2':    ['clamp(2.125rem, 4.4vw, 4rem)',    { lineHeight: '1.06', letterSpacing: '-0.055em', fontWeight: '450' }],
         'vitrin-3':    ['clamp(1.25rem, 1.9vw, 1.625rem)', { lineHeight: '1.2',  letterSpacing: '-0.035em', fontWeight: '500' }],
         'vitrin-rail': ['0.75rem',                         { lineHeight: '1rem', letterSpacing: '0.01em',   fontWeight: '400' }],
+        // Panel basliklari (12.11.2026): vitrin basliklarinin yogun ekrana uyan boyutlari —
+        // ayni Geist, ayni ince agirlik ve siki aralik. 1 = sayfa basligi (h1),
+        // 2 = bolum basligi (h2), 3 = kart / satir basligi (h3).
+        'panel-1': ['clamp(1.625rem, 2.3vw, 2.125rem)', { lineHeight: '1.1',  letterSpacing: '-0.045em', fontWeight: '450' }],
+        'panel-2': ['1.25rem',                          { lineHeight: '1.3',  letterSpacing: '-0.03em',  fontWeight: '500' }],
+        'panel-3': ['1rem',                             { lineHeight: '1.35', letterSpacing: '-0.02em',  fontWeight: '500' }],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -84,6 +91,8 @@ const config: Config = {
           foreground: 'hsl(var(--popover-foreground))',
         },
         border: 'hsl(var(--border))',
+        // Girdi kutusu cercevesi: kart cizgisinden bir ton belirgin
+        input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar))',
@@ -114,9 +123,10 @@ const config: Config = {
           950: '#0b0b0d',
         },
         brand: {
-          DEFAULT: '#f97316',  // orange-500 (mevcut)
-          // Koyu vitrinde kullanilan doygun turuncu (globals.css --brand-vivid);
-          // vitrin disinda DEFAULT ile ayni ton
+          // 12.11.2026: tek turuncu. bg-brand / text-brand artik vitrinin doygun
+          // turuncusunu (globals.css --brand-vivid, #FF5800) okur; eskiden sabit #f97316.
+          // Ustune yazi SIYAH yazilir (beyaz ~3:1, siyah ~6:1).
+          DEFAULT: 'hsl(var(--brand-vivid) / <alpha-value>)',
           vivid: 'hsl(var(--brand-vivid) / <alpha-value>)',
           50:  '#fff7ed',
           100: '#ffedd5',

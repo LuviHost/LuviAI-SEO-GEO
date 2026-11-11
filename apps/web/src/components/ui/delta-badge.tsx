@@ -27,10 +27,10 @@ export function DeltaBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-label tabular-nums',
+        'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-label tabular-nums',
         iyi === null && 'bg-muted text-muted-foreground',
-        iyi === true && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-        iyi === false && 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+        iyi === true && 'bg-success/10 text-success',
+        iyi === false && 'bg-danger/10 text-danger',
         className,
       )}
     >

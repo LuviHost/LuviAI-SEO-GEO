@@ -17,6 +17,8 @@ import {
   RefreshCw,
   ShieldAlert,
   FileX,
+  Check,
+  AlertTriangle,
 } from 'lucide-react';
 
 /**
@@ -99,10 +101,10 @@ export function BulkSnippetScan({
     <Card>
       <CardContent className="p-5 space-y-4">
         <div>
-          <h3 className="font-semibold text-base inline-flex items-center gap-2">
+          <h3 className="text-panel-3 inline-flex items-center gap-2">
             <Globe className="h-4 w-4 text-muted-foreground" /> Toplu Sayfa Tarama
           </h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+          <p className="text-sm text-muted-foreground mt-1 max-w-2xl [&_strong]:font-medium [&_strong]:text-foreground">
             Site adresini gir → tüm alt sayfalar otomatik taranır → her birinin Title, Meta, OG, Twitter, Schema durumu tablo olarak çıkar.
             Tek tıkla istediğin sayfaya odaklanıp AI ile snippet üretirsin. <strong>Ücretsiz</strong> (AI çağrısı yapmaz).
           </p>
@@ -119,7 +121,7 @@ export function BulkSnippetScan({
           <select
             value={maxPages}
             onChange={(e) => setMaxPages(parseInt(e.target.value, 10))}
-            className="rounded-md border bg-card px-2 py-2 text-sm"
+            className="h-10 rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             disabled={loading}
           >
             <option value={10}>10 sayfa</option>
@@ -156,7 +158,7 @@ export function BulkSnippetScan({
           ].filter(Boolean).join('; ');
           return (
             <div className="space-y-2">
-              <div className={cn('grid gap-2', chips === 3 ? 'grid-cols-3' : chips === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-5')}>
+              <div className={cn('grid gap-3', chips === 3 ? 'grid-cols-3' : chips === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-5')}>
                 <SummaryChip label="Taranan" value={result.totalScanned} accent="brand" />
                 <SummaryChip
                   label="Ort. Skor"
@@ -186,18 +188,18 @@ export function BulkSnippetScan({
         {result && result.pages.length > 0 && (
           <div className="rounded-lg border overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/30 text-muted-foreground border-b">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium w-[35%]">URL</th>
-                    <th className="text-left px-3 py-2 font-medium">Skor</th>
-                    <th className="text-left px-3 py-2 font-medium">Title</th>
-                    <th className="text-left px-3 py-2 font-medium">Meta</th>
-                    <th className="text-center px-2 py-2 font-medium">OG</th>
-                    <th className="text-center px-2 py-2 font-medium">TW</th>
-                    <th className="text-center px-2 py-2 font-medium">Schema</th>
-                    <th className="text-center px-2 py-2 font-medium">FAQ</th>
-                    <th className="text-right px-3 py-2 font-medium">Aksiyon</th>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b font-mono text-vitrin-rail text-muted-foreground">
+                    <th className="text-left px-3 py-2.5 font-normal w-[35%]">URL</th>
+                    <th className="text-left px-3 py-2.5 font-normal">Skor</th>
+                    <th className="text-left px-3 py-2.5 font-normal">Title</th>
+                    <th className="text-left px-3 py-2.5 font-normal">Meta</th>
+                    <th className="text-center px-2 py-2.5 font-normal">OG</th>
+                    <th className="text-center px-2 py-2.5 font-normal">TW</th>
+                    <th className="text-center px-2 py-2.5 font-normal">Schema</th>
+                    <th className="text-center px-2 py-2.5 font-normal">FAQ</th>
+                    <th className="text-right px-3 py-2.5 font-normal">Aksiyon</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -207,8 +209,8 @@ export function BulkSnippetScan({
                     .map((row) => unmeasured(row) ? (
                       <UnmeasuredRow key={row.url} row={row} />
                     ) : (
-                      <tr key={row.url} className="hover:bg-muted/20 transition-colors">
-                        <td className="px-3 py-2 font-mono text-[11px] truncate max-w-[260px]" title={row.url}>
+                      <tr key={row.url} className="hover:bg-muted/50 transition-colors">
+                        <td className="px-3 py-2 font-mono text-vitrin-rail truncate max-w-[260px]" title={row.url}>
                           {row.url.replace(/^https?:\/\//, '')}
                         </td>
                         <td className="px-3 py-2">
@@ -229,9 +231,9 @@ export function BulkSnippetScan({
                             size="sm"
                             variant="outline"
                             onClick={() => onPickUrl(row.url)}
-                            className="h-7 text-[11px]"
+                            className="h-7 px-2.5 text-xs"
                           >
-                            <Sparkles className="h-3 w-3 mr-1 text-brand" /> Üret
+                            <Sparkles className="h-3 w-3 mr-1" /> Üret
                           </Button>
                         </td>
                       </tr>
@@ -262,19 +264,19 @@ function UnmeasuredRow({ row }: { row: ScanRow }) {
   const reason = blocked ? row.issues?.[0] : (row.failReason ?? row.issues?.[0]);
   const Icon = blocked ? ShieldAlert : FileX;
   return (
-    <tr className="bg-muted/10">
-      <td className="px-3 py-2 font-mono text-label truncate max-w-[260px]" title={row.url}>
+    <tr className="bg-muted/30">
+      <td className="px-3 py-2 font-mono text-vitrin-rail text-muted-foreground truncate max-w-[260px]" title={row.url}>
         {row.url.replace(/^https?:\/\//, '')}
       </td>
       <td className="px-3 py-2" colSpan={7}>
-        <span className="inline-flex items-center gap-1 text-label font-semibold text-muted-foreground" title={reason || undefined}>
+        <span className="inline-flex items-center gap-1 text-label text-muted-foreground" title={reason || undefined}>
           <Icon className="h-3 w-3" aria-hidden /> {blocked ? 'Erişilemedi' : 'Okunamadı'}
         </span>
-        {reason && <span className="ml-2 text-label text-muted-foreground">{reason}</span>}
+        {reason && <span className="ml-2 text-label font-normal text-muted-foreground">{reason}</span>}
       </td>
       <td className="px-3 py-2 text-right">
-        <Button size="sm" variant="outline" disabled className="h-7 text-label" title="Sayfa okunamadığı için snippet üretilemez">
-          <Sparkles className="h-3 w-3 mr-1 text-brand" /> Üret
+        <Button size="sm" variant="outline" disabled className="h-7 px-2.5 text-xs" title="Sayfa okunamadığı için snippet üretilemez">
+          <Sparkles className="h-3 w-3 mr-1" /> Üret
         </Button>
       </td>
     </tr>
@@ -282,57 +284,60 @@ function UnmeasuredRow({ row }: { row: ScanRow }) {
 }
 
 function SummaryChip({ label, value, accent, hint }: { label: string; value: string | number; accent: string; hint?: string }) {
-  const colors: Record<string, string> = {
-    brand: 'border-brand/30 bg-brand/5 text-brand',
-    muted: 'border-border bg-muted/40 text-muted-foreground',
-    emerald: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
-    amber: 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400',
-    rose: 'border-rose-500/30 bg-rose-500/5 text-rose-700 dark:text-rose-400',
+  const dots: Record<string, string | null> = {
+    brand: null,
+    muted: 'bg-muted-foreground/50',
+    emerald: 'bg-success',
+    amber: 'bg-warning',
+    rose: 'bg-danger',
   };
   return (
-    <div className={cn('rounded-lg border px-3 py-2', colors[accent])}>
-      <div className="text-label font-semibold opacity-80">{label}</div>
-      <div className="text-xl font-bold tabular-nums leading-tight mt-0.5">{value}</div>
-      {hint && <div className="text-label opacity-80 mt-0.5">{hint}</div>}
+    <div className="rounded-lg border bg-card p-4">
+      <div className="v-rail flex items-center gap-1.5">
+        {dots[accent] && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dots[accent])} aria-hidden />}
+        {label}
+      </div>
+      <div className="mt-3 text-metric-lg tabular-nums">{value}</div>
+      {hint && <div className="mt-2 text-label font-normal text-muted-foreground/80">{hint}</div>}
     </div>
   );
 }
 
 function ScorePill({ score }: { score: number }) {
   const color =
-    score >= 70 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' :
-    score >= 40 ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30' :
-    'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30';
+    score >= 70 ? 'bg-success/10 text-success' :
+    score >= 40 ? 'bg-warning/10 text-warning' :
+    'bg-danger/10 text-danger';
   return (
-    <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-bold tabular-nums', color)}>
+    <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-label tabular-nums', color)}>
       {score}
     </span>
   );
 }
 
 function TitleStatus({ row }: { row: ScanRow }) {
-  if (!row.title) return <span className="text-rose-500 inline-flex items-center gap-0.5"><XCircle className="h-3 w-3" /> yok</span>;
+  if (!row.title) return <span className="text-label font-normal text-danger inline-flex items-center gap-1"><XCircle className="h-3 w-3" /> yok</span>;
   const ok = row.titleLength >= 20 && row.titleLength <= 65;
   return (
-    <span className={cn('text-[10px] font-mono', ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
-      {row.titleLength}ch {ok ? '✓' : '⚠'}
+    <span className={cn('inline-flex items-center gap-1 font-mono text-vitrin-rail', ok ? 'text-success' : 'text-warning')}>
+      {row.titleLength}ch {ok ? <Check className="h-3 w-3" aria-hidden /> : <AlertTriangle className="h-3 w-3" aria-hidden />}
     </span>
   );
 }
 
 function MetaStatus({ row }: { row: ScanRow }) {
-  if (!row.metaDescription) return <span className="text-rose-500 inline-flex items-center gap-0.5"><XCircle className="h-3 w-3" /> yok</span>;
+  if (!row.metaDescription) return <span className="text-label font-normal text-danger inline-flex items-center gap-1"><XCircle className="h-3 w-3" /> yok</span>;
   const ok = row.metaDescriptionLength >= 140 && row.metaDescriptionLength <= 160;
   return (
-    <span className={cn('text-[10px] font-mono', ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
-      {row.metaDescriptionLength}ch {ok ? '✓' : '⚠'}
+    <span className={cn('inline-flex items-center gap-1 font-mono text-vitrin-rail', ok ? 'text-success' : 'text-warning')}>
+      {row.metaDescriptionLength}ch {ok ? <Check className="h-3 w-3" aria-hidden /> : <AlertTriangle className="h-3 w-3" aria-hidden />}
     </span>
   );
 }
 
 function BoolDot({ ok, muted = false }: { ok: boolean; muted?: boolean }) {
-  if (ok) return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mx-auto" />;
+  if (ok) return <CheckCircle2 className="h-3.5 w-3.5 text-success mx-auto" />;
   return muted
     ? <span className="text-muted-foreground/40">—</span>
-    : <XCircle className="h-3.5 w-3.5 text-rose-400 mx-auto" />;
+    : <XCircle className="h-3.5 w-3.5 text-danger mx-auto" />;
 }

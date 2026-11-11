@@ -57,7 +57,7 @@ export default function AdminLeadsPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold">AI Test Leadleri</h1>
+          <h1 className="text-3xl font-[450] tracking-[-0.04em]">AI Test Leadleri</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Üye olmadan yapılan anonim AI görünürlük testleri (citation-check)
           </p>
@@ -73,15 +73,15 @@ export default function AdminLeadsPage() {
       {/* Özet istatistik */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <Card><CardContent className="pt-6">
-          <div className="text-3xl font-bold">{data?.total ?? '—'}</div>
+          <div className="text-3xl font-[450] tracking-[-0.04em]">{data?.total ?? '—'}</div>
           <div className="text-sm text-muted-foreground">Toplam test</div>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
-          <div className="text-3xl font-bold text-brand-600">{data?.uniqueDomains ?? '—'}</div>
+          <div className="text-3xl font-[450] tracking-[-0.04em] text-brand-600">{data?.uniqueDomains ?? '—'}</div>
           <div className="text-sm text-muted-foreground">Tekil domain (lead)</div>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
-          <div className="text-3xl font-bold text-green-600">{data?.today ?? '—'}</div>
+          <div className="text-3xl font-[450] tracking-[-0.04em] text-green-600">{data?.today ?? '—'}</div>
           <div className="text-sm text-muted-foreground">Bugün</div>
         </CardContent></Card>
       </div>
@@ -96,7 +96,7 @@ export default function AdminLeadsPage() {
             <div className="p-10 text-center text-muted-foreground text-sm">Henüz test kaydı yok.</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+              <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Domain / Marka</th>
                   <th className="px-4 py-3 font-medium">Niche</th>

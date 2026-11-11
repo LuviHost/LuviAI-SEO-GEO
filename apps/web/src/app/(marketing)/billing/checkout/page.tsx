@@ -22,7 +22,7 @@ export default function CheckoutPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
-      <h1 className="mb-2 text-center font-brand text-h4 font-semibold tracking-tight">Ödeme</h1>
+      <h1 className="mb-2 text-center text-h4 font-[450] tracking-[-0.04em]">Ödeme</h1>
       <p className="mb-8 text-center text-sm text-muted-foreground">Güvenli ödeme · PayTR</p>
       {checkout === undefined ? null : checkout ? (
         <DirectCheckoutForm checkout={checkout} />

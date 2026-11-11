@@ -135,9 +135,9 @@ export default function SettingsPage() {
       <SectionHeader icon={SettingsIcon} title="Ayarlar" description="Site adını, sektörünü ve dilini düzenle; gerekirse marka beynini yeniden üret." />
 
       {/* Form */}
-      <div className="rounded-2xl border bg-card p-6 space-y-5">
+      <div className="rounded-lg border bg-card p-6 space-y-5">
         <div>
-          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+          <label className="mb-1.5 block text-label text-muted-foreground">
             Site adı
           </label>
           <Input
@@ -148,15 +148,15 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+          <label className="mb-1.5 block text-label text-muted-foreground">
             URL
           </label>
           <Input value={site.url} disabled className="font-mono text-sm" />
-          <p className="text-[10px] text-muted-foreground mt-1">URL değiştirilemez. Yeni URL için yeni site oluştur.</p>
+          <p className="mt-1.5 text-xs text-muted-foreground">URL değiştirilemez. Yeni URL için yeni site oluştur.</p>
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+          <label className="mb-1.5 block text-label text-muted-foreground">
             Sektör
           </label>
           <select
@@ -171,13 +171,13 @@ export default function SettingsPage() {
                 setCustomNiche('');
               }
             }}
-            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground transition-colors focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
           >
             {NICHES.filter(n => n !== 'diğer').map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
             <option value="diğer">diğer</option>
-            <option value="custom">✍️ Kendim yazayım…</option>
+            <option value="custom">Kendim yazayım…</option>
           </select>
           {useCustomNiche && (
             <Input
@@ -187,9 +187,9 @@ export default function SettingsPage() {
               className="mt-2"
             />
           )}
-          <p className="text-[10px] text-muted-foreground mt-1.5">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             Sektörü doğru seçmek AI görünürlük testlerinde daha anlamlı sorular üretir.{' '}
-            <strong>“Diğer”</strong> seçilirse AI asistanlarına genel sorular gider ve anılma şansı düşer.
+            <strong className="font-medium text-foreground">“Diğer”</strong> seçilirse AI asistanlarına genel sorular gider ve anılma şansı düşer.
           </p>
         </div>
 
@@ -197,28 +197,28 @@ export default function SettingsPage() {
             (ör. futbol canlı skor platformu "haber/medya"ya düşüyordu). Rakip ve
             sorgu üreten tüm modüller ÖNCE bu alanı kullanır. */}
         <div>
-          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
-            Özel kategori <span className="font-normal text-label">(Ürün Radarı ve rakip tespiti bunu kullanır)</span>
+          <label className="mb-1.5 block text-label text-muted-foreground">
+            Özel kategori <span className="font-normal">(Ürün Radarı ve rakip tespiti bunu kullanır)</span>
           </label>
           <Input
             value={specificCategory}
             onChange={(e) => setSpecificCategory(e.target.value)}
             placeholder="Örn: futbol canlı skor platformu, tüplü dalış okulu, B2B SaaS analitik"
           />
-          <p className="text-[10px] text-muted-foreground mt-1.5">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             Boş bırakırsan marka beyni üretilirken otomatik doldurulur. Yukarıdaki geniş niş etiketiyle
-            çelişirse <strong>bu alan kazanır</strong> — rakiplerin doğru bulunması için en kritik alan.
+            çelişirse <strong className="font-medium text-foreground">bu alan kazanır</strong> — rakiplerin doğru bulunması için en kritik alan.
           </p>
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+          <label className="mb-1.5 block text-label text-muted-foreground">
             Dil
           </label>
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground transition-colors focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="tr">Türkçe</option>
             <option value="en">English</option>
@@ -227,30 +227,29 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex items-center gap-3 pt-2">
-          <Button
-            onClick={save}
-            disabled={!isDirty || saving}
-            className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
-          >
+          <Button onClick={save} disabled={!isDirty || saving}>
             <Save className="h-4 w-4 mr-1.5" />
             {saving ? 'Kaydediliyor…' : 'Kaydet'}
           </Button>
           {isDirty && (
-            <span className="text-xs text-amber-600 dark:text-amber-400">● Değişiklik var, kaydetmedin</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-warning">
+              <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden />
+              Değişiklik var, kaydetmedin
+            </span>
           )}
         </div>
       </div>
 
       {/* Marka beyni yeniden uretimi */}
-      <div className={`rounded-xl border bg-card p-6 transition-colors ${brainJustReady ? 'border-success/40 bg-success/5' : ''}`}>
-        <div className="flex items-start gap-4">
-          <div className={`h-10 w-10 rounded-xl border grid place-items-center shrink-0 ${
-            brainJustReady ? 'bg-success/10 text-success' : 'bg-muted/50 text-foreground/70'
+      <div className={`rounded-lg border bg-card p-6 transition-colors ${brainJustReady ? 'border-success/30 bg-success/5' : ''}`}>
+        <div className="flex items-start gap-3">
+          <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border ${
+            brainJustReady ? 'border-success/30 text-success' : 'border-border text-muted-foreground'
           }`}>
-            {brainJustReady ? <CheckCircle2 className="h-5 w-5" aria-hidden /> : <Brain className={`h-5 w-5 ${regenerating ? 'motion-safe:animate-pulse' : ''}`} aria-hidden />}
+            {brainJustReady ? <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden /> : <Brain className={`h-[18px] w-[18px] ${regenerating ? 'motion-safe:animate-pulse' : ''}`} aria-hidden />}
           </div>
-          <div className="flex-1">
-            <h3 className="font-brand font-semibold mb-1">
+          <div className="min-w-0 flex-1">
+            <h3 className="mb-1 text-panel-3">
               {brainJustReady ? 'Marka beyni güncellendi' : regenerating ? 'Marka beyni üretiliyor…' : 'Marka beynini yeniden üret'}
             </h3>
             <p className="text-sm text-muted-foreground mb-3">
@@ -271,8 +270,8 @@ export default function SettingsPage() {
 
       <div className="text-sm text-muted-foreground">
         Daha kapsamlı ayar için{' '}
-        <Link href={`/sites/${site.id}/connections`} className="text-brand-600 hover:underline">Bağlantılar</Link>{' '}veya{' '}
-        <Link href={`/sites/${site.id}/autopilot`} className="text-brand-600 hover:underline">Otomatik Akış</Link>{' '}
+        <Link href={`/sites/${site.id}/connections`} className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground">Bağlantılar</Link>{' '}veya{' '}
+        <Link href={`/sites/${site.id}/autopilot`} className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground">Otomatik Akış</Link>{' '}
         sayfalarına bak.
       </div>
     </div>

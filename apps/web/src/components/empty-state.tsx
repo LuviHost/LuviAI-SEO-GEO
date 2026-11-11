@@ -37,11 +37,11 @@ export function EmptyState({
   };
 
   return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center sm:p-12">
-      <div className={cn('mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl border bg-card', iconColor[accent] ?? iconColor.brand)}>
+    <div className="rounded-lg border border-dashed border-border p-8 text-center sm:p-12">
+      <div className={cn('mx-auto mb-5 grid h-11 w-11 place-items-center rounded-md border', iconColor[accent] ?? iconColor.brand)}>
         <Icon className="h-6 w-6" />
       </div>
-      <h3 className="mb-2 font-brand text-h5 font-semibold tracking-tight">{title}</h3>
+      <h3 className="mb-2 text-panel-2">{title}</h3>
       {description && (
         <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5 leading-relaxed">
           {description}
@@ -81,8 +81,8 @@ export function RelatedLinks({
   links: Array<{ href: string; label: string; description?: string; icon?: React.ComponentType<React.SVGProps<SVGSVGElement>> }>;
 }) {
   return (
-    <div className="rounded-xl border bg-muted/20 p-5 mt-6">
-      <p className="mb-3 font-brand text-sm font-semibold text-foreground">{title}</p>
+    <div className="mt-6 rounded-lg border p-5">
+      <p className="v-rail mb-3">{title}</p>
       <div className="grid sm:grid-cols-2 gap-2">
         {links.map((link) => {
           const Icon = link.icon;
@@ -90,17 +90,17 @@ export function RelatedLinks({
             <Link
               key={link.href}
               href={link.href as any}
-              className="group flex items-start gap-3 rounded-lg p-3 hover:bg-card hover:border-brand/30 border border-transparent transition-all"
+              className="group flex items-start gap-3 rounded-md border border-transparent p-3 transition-colors duration-200 hover:border-border hover:bg-muted/50"
             >
               {Icon && (
-                <div className="h-9 w-9 rounded-lg bg-card border grid place-items-center text-foreground/70 shrink-0 transition-colors group-hover:text-brand">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border text-muted-foreground transition-colors group-hover:text-foreground">
                   <Icon className="h-4 w-4" />
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-medium">{link.label}</span>
-                  <ArrowRight className="h-3 w-3 text-muted-foreground/60 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
+                  <ArrowRight className="h-3 w-3 text-muted-foreground/60 transition-all group-hover:translate-x-0.5 group-hover:text-foreground" />
                 </div>
                 {link.description && (
                   <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{link.description}</p>

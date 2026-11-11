@@ -21,6 +21,8 @@ const twMerge = extendTailwindMerge({
             // Koyu vitrin olcegi (tailwind.config fontSize): eksikken
             // cn('text-vitrin-rail', 'text-brand-vivid') boyutu siliyordu
             'vitrin-0', 'vitrin-1', 'vitrin-2', 'vitrin-3', 'vitrin-rail',
+            // Panel baslik olcegi (12.11.2026)
+            'panel-1', 'panel-2', 'panel-3',
           ],
         },
       ],

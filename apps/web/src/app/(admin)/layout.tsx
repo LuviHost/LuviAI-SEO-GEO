@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* ── Ana içerik alanı ── */}
       <div className="flex-1 min-w-0 lg:ml-64">
         {/* Üst bar — sadece sağdaki user actions */}
-        <header className="sticky top-0 z-20 bg-background/85 backdrop-blur-xl border-b">
+        <header className="sticky top-0 z-20 bg-background border-b">
           <div className="h-14 px-4 sm:px-6 flex items-center justify-end gap-2">
             <span className="text-xs text-muted-foreground hidden md:inline truncate max-w-[200px] font-mono">
               {session.user.email}

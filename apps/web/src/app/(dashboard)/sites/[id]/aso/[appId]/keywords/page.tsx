@@ -305,7 +305,7 @@ export default function AsoKeywordsPage() {
       cell: (k) => checking.has(k.id) ? (
         <Loader2 className="ml-auto h-3.5 w-3.5 animate-spin text-muted-foreground" aria-label="Ölçülüyor" />
       ) : k.currentRank != null ? (
-        <span className="font-semibold">#{k.currentRank}</span>
+        <span className="font-medium">#{k.currentRank}</span>
       ) : (
         <span
           className="text-muted-foreground"
@@ -384,12 +384,12 @@ export default function AsoKeywordsPage() {
         onSubmit={(e) => { e.preventDefault(); addKeyword(); }}
       >
         <div className="min-w-[200px] flex-1">
-          <label htmlFor="kw-new" className="mb-1 block text-label">Anahtar kelime ekle</label>
+          <label htmlFor="kw-new" className="mb-1 block text-label text-muted-foreground">Anahtar kelime ekle</label>
           <Input id="kw-new" value={newKeyword} onChange={(e) => setNewKeyword(e.target.value)} placeholder="ör. bütçe takibi" />
         </div>
         {bothStores && (
           <div>
-            <label htmlFor="kw-store" className="mb-1 block text-label">Mağaza</label>
+            <label htmlFor="kw-store" className="mb-1 block text-label text-muted-foreground">Mağaza</label>
             <select
               id="kw-store"
               value={keywordStore}
@@ -458,8 +458,8 @@ export default function AsoKeywordsPage() {
         <Card>
           <CardContent className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Sparkles className="h-4 w-4 text-brand" aria-hidden />
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden />
                 AI önerileri
                 <span className="font-normal text-muted-foreground">· {aiSuggestions.length} kelime · {STORE_LABEL[keywordStore]} mağazasına eklenir</span>
               </div>
@@ -479,27 +479,27 @@ export default function AsoKeywordsPage() {
                   <button
                     type="button"
                     onClick={() => addAiKeyword(r.keyword)}
-                    className="group inline-flex h-8 items-center gap-1.5 rounded-chip border px-2.5 text-filter transition-colors hover:border-brand/40 hover:bg-brand/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    className="group inline-flex h-8 items-center gap-1.5 rounded-chip border px-2.5 text-filter transition-colors hover:border-foreground/40 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     title={`Uygunluk ${r.relevance}/10 · ${r.source === 'competitor' ? 'rakipten' : 'AI önerisi'}`}
                   >
                     <span className="font-medium">{r.keyword}</span>
                     <span className="text-label text-muted-foreground">uygunluk {r.relevance}/10</span>
                     {r.source === 'competitor' && <Badge variant="secondary" className="px-1.5 text-label">rakipten</Badge>}
-                    <Plus className="h-3.5 w-3.5 text-muted-foreground group-hover:text-brand" aria-hidden />
+                    <Plus className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground" aria-hidden />
                   </button>
                 </li>
               ))}
             </ul>
             {aiSuggestions.length > 18 && (
-              <button type="button" onClick={() => setShowAllAi(!showAllAi)} className="text-label text-brand hover:underline">
+              <button type="button" onClick={() => setShowAllAi(!showAllAi)} className="text-label text-muted-foreground transition-colors hover:text-foreground">
                 {showAllAi ? 'Daha az göster' : `Tümünü göster (${aiSuggestions.length})`}
               </button>
             )}
           </CardContent>
         </Card>
       ) : keywords.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-3">
-          <Sparkles className="h-4 w-4 shrink-0 text-brand" aria-hidden />
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
+          <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <p className="min-w-[200px] flex-1 text-sm">
             Yeni kelime fikri mi lazım? AI uygulamanı ve rakiplerinin metinlerini inceleyip en fazla 50 öneri çıkarır; rakip uygulama adları ve fiyat/“en iyi” gibi mağaza kurallarına aykırı terimler ayıklanır.
           </p>
@@ -520,7 +520,7 @@ export default function AsoKeywordsPage() {
       ) : (
         <Card>
           <CardContent className="space-y-2 p-0">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2 text-label text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2 font-mono text-vitrin-rail text-muted-foreground">
               <span>Sütunlar:</span>
               {COLUMN_HELP.map((c) => (
                 <InfoTooltip key={c.label} text={c.text} side="bottom">
@@ -528,7 +528,9 @@ export default function AsoKeywordsPage() {
                 </InfoTooltip>
               ))}
             </div>
+            {/* relative: sr-only başlık hücresi (İşlemler) kaydırma kabının dışına taşıp mobilde sayfayı yatay kaydırmasın */}
             <DataTable
+              className="relative"
               caption="Takip edilen anahtar kelimeler"
               columns={columns}
               rows={keywords}

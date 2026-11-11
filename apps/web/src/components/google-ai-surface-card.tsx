@@ -106,10 +106,10 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-brand" aria-hidden /> Google üretken AI görünümleri (AI Overviews + AI Mode)
+            <h3 className="text-panel-3 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /> Google üretken AI görünümleri (AI Overviews + AI Mode)
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
+            <p className="text-xs text-muted-foreground mt-1 max-w-2xl [&_strong]:font-medium [&_strong]:text-foreground">
               Google bu veriyi API ile vermiyor. Search Console → Performans → <strong>Üretken AI</strong> raporu → Dışa aktar → <strong>tarih tablosu (CSV)</strong> dosyasını yükle. Yalnız gösterim gelir; AI Overviews / AI Mode ayrımı yok.
             </p>
           </div>
@@ -122,7 +122,7 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
         </CardHeader>
         <CardContent>
           {preview && (
-            <div className="mb-4 rounded-lg border p-3 text-sm space-y-1.5 bg-muted/30">
+            <div className="mb-4 rounded-md border p-3 text-sm space-y-1.5 bg-muted/40">
               <div className="font-medium">Önizleme — {fileName}</div>
               <div className="text-xs text-muted-foreground">
                 {preview.rows} gün · {preview.from} → {preview.to} · toplam {formatNum(preview.totalImpressions)} gösterim
@@ -146,12 +146,12 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
               <div className="flex items-baseline gap-4 mb-3 flex-wrap">
                 <div>
                   <div className="text-metric-lg tabular-nums">{formatNum(series.totals.last28)}</div>
-                  <div className="text-label text-muted-foreground">son 28 gün AI gösterimi</div>
+                  <div className="v-rail mt-1">son 28 gün AI gösterimi</div>
                 </div>
                 {series.totals.deltaPct !== null && (
                   <Badge variant={series.totals.deltaPct >= 0 ? 'success' : 'warning'}>{series.totals.deltaPct >= 0 ? '+' : ''}{series.totals.deltaPct}% önceki 28 güne göre</Badge>
                 )}
-                {series.lastImportAt && <span className="text-label text-muted-foreground">son yükleme {new Date(series.lastImportAt).toLocaleDateString('tr-TR')}</span>}
+                {series.lastImportAt && <span className="v-rail">son yükleme {new Date(series.lastImportAt).toLocaleDateString('tr-TR')}</span>}
               </div>
               <ChartContainer height={208}>
                 <LineChart data={series.series}>
@@ -175,7 +175,7 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
       {aiMode && aiMode.summary?.total > 0 && (
         <Card>
           <CardHeader>
-            <h3 className="font-semibold">AI Mode'dan gelmiş olabilecek sorgular <span className="text-xs font-normal text-muted-foreground">(sezgisel tahmin · son {aiMode.days} gün)</span></h3>
+            <h3 className="text-panel-3">AI Mode'dan gelmiş olabilecek sorgular <span className="text-xs font-normal tracking-normal text-muted-foreground">(sezgisel tahmin · son {aiMode.days} gün)</span></h3>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
               {aiMode.summary.likely}/{aiMode.summary.total} sorgu (%{aiMode.summary.sharePct}) soru kalıbı + uzun kuyruk ya da "iyi sırada ama tıklanmıyor" deseni taşıyor. {aiMode.note}
             </p>
@@ -190,7 +190,7 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
                     <span className="font-medium min-w-0 truncate">{q.query}</span>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {q.signals.map((sg: string) => <Badge key={sg} variant="secondary" className="text-label">{SIGNAL_LABEL[sg] ?? sg}</Badge>)}
-                      <span className="text-label text-muted-foreground tabular-nums">{formatNum(q.impressions)} gösterim · {formatNum(q.clicks)} tık{q.position !== null ? ` · sıra ${q.position}` : ''}</span>
+                      <span className="text-label font-normal text-muted-foreground tabular-nums">{formatNum(q.impressions)} gösterim · {formatNum(q.clicks)} tık{q.position !== null ? ` · sıra ${q.position}` : ''}</span>
                     </div>
                   </div>
                 ))}
@@ -203,7 +203,7 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
       {/* ── Preferred Sources rehberi (enjeksiyon yok — kopyala-yapıştır) ── */}
       <Card>
         <CardHeader>
-          <h3 className="font-semibold">Google "Tercih Edilen Kaynak" butonu</h3>
+          <h3 className="text-panel-3">Google "Tercih Edilen Kaynak" butonu</h3>
           <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
             Okuyucular seni <em>tercih edilen kaynak</em> olarak seçerse Google Top Stories'te öne çıkarsın ve AI Overviews / AI Mode'da "tercih edilen" rozeti alabilirsin (600 bin+ kaynak seçildi). Butonu site chrome'una (başlık/altbilgi, takip modülü) koy — makale gövdesine değil.
           </p>
@@ -213,11 +213,11 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>Uygunluk: yalnız alan adı / alt alan adı seviyesinde (alt dizin olmaz) ve sitenin Google'ın kaynak aracında listelenmiş olması gerekir. Buton görünmüyorsa siten henüz listelenmemiş olabilir — o zaman alttaki bağlantıyı kullan.</span>
           </div>
-          <pre className="text-label font-mono rounded-md border bg-muted/40 p-3 overflow-x-auto whitespace-pre">{snippet}</pre>
+          <pre className="font-mono text-vitrin-rail rounded-md border bg-muted/40 p-3 overflow-x-auto whitespace-pre">{snippet}</pre>
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={() => copy(snippet)}><Copy className="h-3.5 w-3.5 mr-1.5" /> Kodu kopyala</Button>
             <Button size="sm" variant="outline" onClick={() => copy(deepLink)}><Copy className="h-3.5 w-3.5 mr-1.5" /> Bağlantıyı kopyala</Button>
-            <a href={deepLink} target="_blank" rel="noreferrer" className="text-xs underline text-brand inline-flex items-center gap-1">{deepLink} <ExternalLink className="h-3 w-3" /></a>
+            <a href={deepLink} target="_blank" rel="noreferrer" className="font-mono text-vitrin-rail text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground inline-flex items-center gap-1 break-all">{deepLink} <ExternalLink className="h-3 w-3" /></a>
           </div>
         </CardContent>
       </Card>

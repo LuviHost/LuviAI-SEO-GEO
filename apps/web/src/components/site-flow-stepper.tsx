@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   CheckCircle2, Circle, ExternalLink, Plus, Trash2,
-  Sparkles, FileText, Zap, Plug, OctagonAlert, Eye, Download, Copy, Info,
+  Sparkles, FileText, Zap, Plug, OctagonAlert, Eye, Download, Copy, Info, Check, XCircle,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -303,25 +303,25 @@ export function AuditStepBody({
 
       {/* Önce skor, hemen altında birincil eylem — eskiden en altta kalıyordu */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border p-3 text-center">
-          <div className="text-metric-lg tabular-nums text-brand">{audit.overallScore}</div>
-          <div className="text-label text-muted-foreground mt-1">Site skoru / 100</div>
+        <div className="flex flex-col-reverse justify-between gap-3 rounded-lg border bg-card p-3 sm:p-4">
+          <div className="text-metric-lg tabular-nums">{audit.overallScore}</div>
+          <div className="v-rail">Site skoru / 100</div>
         </div>
-        <div className="rounded-lg border p-3 text-center">
+        <div className="flex flex-col-reverse justify-between gap-3 rounded-lg border bg-card p-3 sm:p-4">
           {geoBlocked ? (
             // Orneklenen sayfalar engele takildi: skor YOK — "—" yerine neden (asagidaki not)
-            <div className="text-sm font-semibold leading-snug text-warning pt-1.5" title={geoBlocked.reason}>Ölçülemedi</div>
+            <div className="text-panel-3 text-warning" title={geoBlocked.reason}>Ölçülemedi</div>
           ) : (
             <div className="text-metric-lg tabular-nums">{audit.geoScore ?? '—'}</div>
           )}
-          <div className="text-label text-muted-foreground mt-1">AI arama / 100</div>
+          <div className="v-rail">AI arama / 100</div>
         </div>
-        <div className="rounded-lg border p-3 text-center">
-          <div className="text-metric-lg tabular-nums text-danger">
+        <div className="flex flex-col-reverse justify-between gap-3 rounded-lg border bg-card p-3 sm:p-4">
+          <div className="text-metric-lg tabular-nums">
             {failedCount}
-            <span className="text-base text-muted-foreground font-normal">/{totalCount}</span>
+            <span className="text-base tracking-normal text-muted-foreground font-normal">/{totalCount}</span>
           </div>
-          <div className="text-label text-muted-foreground mt-1">Sorunlu kontrol ({issues.length} bulgu)</div>
+          <div className="v-rail">Sorunlu kontrol ({issues.length} bulgu)</div>
         </div>
       </div>
 
@@ -350,9 +350,9 @@ export function AuditStepBody({
       )}
 
       {fixable.length > 0 && (
-        <div className="rounded-lg border border-brand/25 bg-brand/5 divide-y divide-brand/15">
+        <div className="rounded-lg border divide-y">
           {bulkFixable.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="text-sm font-medium">{bulkFixable.length} sorun tek tıkla düzeltilebilir</p>
                 <p className="text-xs text-muted-foreground">
@@ -374,7 +374,7 @@ export function AuditStepBody({
             </div>
           )}
           {robotsFixable.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="text-sm font-medium">robots.txt: {robotsFixable.length} sorun</p>
                 <p className="text-xs text-muted-foreground">
@@ -395,12 +395,12 @@ export function AuditStepBody({
         const warnings = issues.filter((i: any) => i.severity === 'warning');
         const top = [...critical, ...warnings].slice(0, 6);
         return (
-          <div className="rounded-lg border border-danger/25 bg-danger/5 p-3 space-y-2">
-            <p className="flex items-center gap-2 text-sm font-semibold">
+          <div className="rounded-lg border border-danger/30 bg-danger/5 p-4 space-y-2">
+            <p className="flex items-center gap-2 text-sm font-medium">
               <OctagonAlert className="h-4 w-4 text-danger" aria-hidden />
               {critical.length} kritik · {warnings.length} uyarı bulundu
             </p>
-            <ul className="space-y-1.5 text-xs">
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
               {top.map((i: any, idx: number) => (
                 <li key={idx} className="flex items-start gap-2 leading-relaxed">
                   <span
@@ -410,7 +410,7 @@ export function AuditStepBody({
                   <span className="flex-1">
                     {i.description}
                     {i.fixRoute === 'auto_fix' && !isUnverifiedCheck(audit, i.checkId) && (
-                      <Badge variant="warning" className="ml-1.5 px-1.5 py-0 text-label">
+                      <Badge variant="outline" className="ml-1.5 px-1.5 py-0 text-label">
                         {isRobotsFixKey(i.checkId) ? 'önizlemeli' : 'otomatik'}
                       </Badge>
                     )}
@@ -418,7 +418,7 @@ export function AuditStepBody({
                 </li>
               ))}
               {issues.length > top.length && (
-                <li className="text-muted-foreground italic pl-4">+{issues.length - top.length} ek bulgu…</li>
+                <li className="pl-3.5 text-label font-normal">+{issues.length - top.length} ek bulgu…</li>
               )}
             </ul>
           </div>
@@ -433,10 +433,10 @@ export function AuditStepBody({
       {lastApplied.length > 0 && (
         <div className="rounded-lg border border-success/25 bg-success/5 p-4">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <p className="flex items-center gap-1.5 text-sm font-semibold text-success">
-              <CheckCircle2 className="h-4 w-4" aria-hidden /> Son yüklenen dosyalar ({lastApplied.length})
+            <p className="flex items-center gap-1.5 text-sm font-medium">
+              <CheckCircle2 className="h-4 w-4 text-success" aria-hidden /> Son yüklenen dosyalar ({lastApplied.length})
             </p>
-            <span className="text-label text-muted-foreground">dosyalar yayın hedefine yüklendi</span>
+            <span className="v-rail">dosyalar yayın hedefine yüklendi</span>
           </div>
           <ul className="space-y-2">
             {lastApplied.map((item) => {
@@ -460,7 +460,7 @@ export function AuditStepBody({
                           </Badge>
                         )}
                       </div>
-                      <div className="text-label text-muted-foreground font-mono truncate">
+                      <div className="font-mono text-vitrin-rail text-muted-foreground truncate">
                         {item.url ?? `/${filename}`}
                       </div>
                     </div>
@@ -506,7 +506,7 @@ export function AuditStepBody({
               );
             })}
           </ul>
-          <p className="flex items-start gap-1.5 text-label text-muted-foreground mt-3">
+          <p className="flex items-start gap-1.5 text-label font-normal text-muted-foreground mt-3">
             <Info className="h-3.5 w-3.5 mt-px shrink-0" aria-hidden />
             Görüntüle/İndir → backend&apos;in ürettiği gerçek dosya. &quot;Yayınlanan dosya&quot; → yayın hedefindeki canlı sürüm (cross-origin nedeniyle indirilemez, sadece açılır).
           </p>
@@ -560,9 +560,9 @@ export function AuditStepBody({
 
       {/* 14 nokta kontrol listesi — varsayilan olarak acik, her satirda durum */}
       <div className="rounded-lg border">
-        <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
-          <span className="text-sm font-semibold">14 SEO + GEO kontrol noktası</span>
-          <span className="text-label text-muted-foreground">Var · Eksik · Yok</span>
+        <div className="px-4 py-2.5 border-b flex items-center justify-between gap-3">
+          <span className="v-rail">14 SEO + GEO kontrol noktası</span>
+          <span className="v-rail">Var · Eksik · Yok</span>
         </div>
         <div className="divide-y text-sm">
           {Object.entries(checks).filter(([, v]: any) => v?.name && v?.id !== 'ai_citations').map(([k, v]: any) => {
@@ -579,7 +579,7 @@ export function AuditStepBody({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{v.name}</span>
-                          <span className="text-label font-semibold text-muted-foreground">DOĞRULANAMADI</span>
+                          <span className="font-mono text-vitrin-rail text-muted-foreground">Doğrulanamadı</span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                           {v.details.unverifiedReason}
@@ -587,7 +587,7 @@ export function AuditStepBody({
                         </p>
                       </div>
                     </div>
-                    <span className="font-mono text-xs font-bold shrink-0 text-muted-foreground" title="Skora dahil edilmedi">—</span>
+                    <span className="font-mono text-vitrin-rail shrink-0 text-muted-foreground" title="Skora dahil edilmedi">—</span>
                   </div>
                 </div>
               );
@@ -603,7 +603,7 @@ export function AuditStepBody({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{v.name}</span>
-                          <span className="text-label font-semibold text-muted-foreground">BİLGİ · {v.found ? 'VAR' : 'YOK'}</span>
+                          <span className="font-mono text-vitrin-rail text-muted-foreground">Bilgi · {v.found ? 'var' : 'yok'}</span>
                           {fixable && <Badge variant="outline" className="px-1.5 py-0 text-label">otomatik</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
@@ -611,7 +611,7 @@ export function AuditStepBody({
                         </p>
                       </div>
                     </div>
-                    <span className="font-mono text-xs font-bold shrink-0 text-muted-foreground" title="Genel skora dahil edilmedi">—</span>
+                    <span className="font-mono text-vitrin-rail shrink-0 text-muted-foreground" title="Genel skora dahil edilmedi">—</span>
                   </div>
                 </div>
               );
@@ -630,20 +630,20 @@ export function AuditStepBody({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{v.name}</span>
-                        <span className={`text-label font-semibold ${stateCls}`}>
-                          {ok ? 'VAR' : v.found ? 'EKSİK' : 'YOK'}
+                        <span className={`font-mono text-vitrin-rail ${stateCls}`}>
+                          {ok ? 'Var' : v.found ? 'Eksik' : 'Yok'}
                         </span>
                         {fixable && (isRobotsFixKey(k) ? (
                           // robots.txt toplu yazilmaz: onizleme + onay (AutoFixPreviewDialog)
                           <button
                             type="button"
                             onClick={() => setRobotsPreviewKey(k)}
-                            className="rounded bg-warning/10 px-1.5 py-0 text-label font-semibold text-warning hover:bg-warning/20"
+                            className="rounded border border-border px-1.5 py-0 text-label text-foreground transition-colors hover:border-foreground/40"
                           >
                             önizle ve uygula
                           </button>
                         ) : (
-                          <Badge variant="warning" className="px-1.5 py-0 text-label">otomatik</Badge>
+                          <Badge variant="outline" className="px-1.5 py-0 text-label">otomatik</Badge>
                         ))}
                       </div>
                       {firstIssue && (
@@ -653,7 +653,7 @@ export function AuditStepBody({
                       )}
                     </div>
                   </div>
-                  <span className={`font-mono text-xs font-bold shrink-0 ${scoreTone(v.score)}`}>{v.score}/100</span>
+                  <span className={`font-mono text-vitrin-rail shrink-0 ${scoreTone(v.score)}`}>{v.score}/100</span>
                 </div>
               </div>
             );
@@ -668,8 +668,8 @@ export function AuditStepBody({
         <div className="rounded-lg border p-4">
           <div className="flex items-start justify-between gap-3 mb-2">
             <div className="min-w-0">
-              <p className="text-sm font-semibold">AI Arama Görünürlüğü {aiFromRun ? '(son test)' : '(otomatik)'}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-panel-3">AI Arama Görünürlüğü {aiFromRun ? '(son test)' : '(otomatik)'}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {aiFromRun
                   ? `${aiView.providers.filter((p) => p.available && typeof p.score === 'number').length} AI asistanında ölçüldü${aiAt ? ` · ${aiAt}` : ''}`
                   : ai.measured
@@ -678,15 +678,15 @@ export function AuditStepBody({
               </p>
             </div>
             {aiFromRun || ai.measured ? (
-              <span className="text-metric-lg tabular-nums text-brand shrink-0">{aiView.score}/100</span>
+              <span className="text-metric-lg tabular-nums shrink-0">{aiView.score}/100</span>
             ) : (
-              <span className="text-sm font-semibold text-muted-foreground shrink-0">Ölçülmedi</span>
+              <span className="text-sm font-medium text-muted-foreground shrink-0">Ölçülmedi</span>
             )}
           </div>
           {(aiFromRun || !ai.measured) && (
             <p className="text-xs text-muted-foreground mb-2">
               {aiFromRun ? 'Taramadan sonra yapılan en son testin sonucu. Tüm ölçümler ve soru bazında cevaplar ' : 'AI görünürlük ölçümlerin '}
-              <Link href={siteHref(siteId, 'visibility')} className="underline hover:text-foreground">AI Görünürlük</Link>{' '}
+              <Link href={siteHref(siteId, 'visibility')} className="underline decoration-border underline-offset-4 hover:text-foreground">AI Görünürlük</Link>{' '}
               sayfasında tutulur.
             </p>
           )}
@@ -699,7 +699,7 @@ export function AuditStepBody({
                       <EngineLogo provider={p.provider} size={16} />
                       <span className="truncate">{PROVIDER_LABELS[p.provider] ?? p.label}</span>
                     </span>
-                    <span className={`text-sm font-bold ${
+                    <span className={`text-sm font-medium tabular-nums ${
                       p.score === null ? 'text-muted-foreground' :
                       p.score >= 60 ? 'text-success' :
                       p.score >= 30 ? 'text-warning' : 'text-danger'
@@ -708,7 +708,7 @@ export function AuditStepBody({
                     </span>
                   </div>
                   {!p.available && p.reason && (
-                    <p className="text-label text-muted-foreground mt-1 leading-snug">{displayProbeText(p.reason)}</p>
+                    <p className="text-label font-normal text-muted-foreground mt-1 leading-snug">{displayProbeText(p.reason)}</p>
                   )}
                 </div>
               ))}
@@ -840,25 +840,25 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
     <div className="rounded-lg border p-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold">On-Page Snippet Üretici</p>
+          <p className="text-sm font-medium">On-Page Snippet Üretici</p>
           <p className="text-xs text-muted-foreground mt-0.5">Eksik canonical, meta description, OG tag, JSON-LD vb. için AI ile snippet üretir. Sayfanı bozmadan kendi panelinden yapıştırırsın (Yoast custom field, Webflow Page Settings, statik HTML <code>&lt;head&gt;</code> vb.).</p>
         </div>
       </div>
       <div className="mt-3 flex gap-2 flex-wrap">
         <Input placeholder="Sayfa URL (boşsa anasayfa)" value={pageUrl} onChange={e => setPageUrl(e.target.value)} className="flex-1 min-w-[260px]" />
-        <Button size="sm" onClick={generate} disabled={loading}>
+        <Button variant="secondary" onClick={generate} disabled={loading}>
           {loading ? 'Üretiliyor…' : 'Snippet Üret'}
         </Button>
       </div>
 
       {snippets && snippets.length > 0 && (
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-blue-500/30 bg-blue-500/5 p-2.5">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 p-3">
           <div className="text-xs">
             <p className="font-medium">Otomatik yazım (deneysel)</p>
             <p className="text-muted-foreground mt-0.5">
               WordPress (Yoast/RankMath), Webflow veya Shopify default target'ı varsa otomatik yazar.{' '}
               {/* Hedefler Yayin Hedefleri sayfasinda; Baglantilar'da hedef ekleme yok */}
-              <Link href={siteHref(siteId, 'publishTargets')} className="underline text-blue-600 hover:text-blue-700">
+              <Link href={siteHref(siteId, 'publishTargets')} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">
                 Publish target ekle/düzenle →
               </Link>
             </p>
@@ -870,8 +870,11 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
       )}
 
       {applyResult && (
-        <div className={`mt-2 rounded-md border p-2.5 text-xs ${applyResult.ok ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
-          <p className="font-medium">{applyResult.ok ? '✓ Yazıldı' : '✗ Yazılamadı'} — adapter: {applyResult.adapter}</p>
+        <div className={`mt-2 rounded-md border p-3 text-xs ${applyResult.ok ? 'border-success/25 bg-success/5' : 'border-danger/30 bg-danger/5'}`}>
+          <p className="flex items-center gap-1.5 font-medium">
+            {applyResult.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden /> : <XCircle className="h-3.5 w-3.5 shrink-0 text-danger" aria-hidden />}
+            {applyResult.ok ? 'Yazıldı' : 'Yazılamadı'} — adapter: {applyResult.adapter}
+          </p>
           {applyResult.applied?.length > 0 && (
             <p className="text-muted-foreground mt-1">Uygulanan: {applyResult.applied.join(', ')}</p>
           )}
@@ -884,13 +887,13 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
       )}
 
       {snippets && snippets.length > 0 && resolvedUrl && (
-        <div className="mt-3 rounded-md border border-brand-500/30 bg-brand-500/5 p-2.5">
+        <div className="mt-3 rounded-md border bg-muted/40 p-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="text-xs">
               <p className="font-medium">Statik HTML auto-write (FTP/SFTP/cPanel için)</p>
               <p className="text-muted-foreground mt-0.5">
                 Önce "Önizle" — sayfanın <code>&lt;head&gt;</code>'ine snippet'ler ekleniyor, diff gösterilir. Onay sonrası canlı dosya overwrite.{' '}
-                <Link href={siteHref(siteId, 'publishTargets')} className="underline text-brand-700 hover:text-brand-800">
+                <Link href={siteHref(siteId, 'publishTargets')} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">
                   FTP/SFTP/cPanel target ekle →
                 </Link>
               </p>
@@ -907,11 +910,11 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
 
           {staticPreview && (
             <div className="mt-2 space-y-2">
-              <p className="text-[11px]">
-                Uygulanacak: <span className="font-mono text-green-600">{staticPreview.applied?.join(', ') || '(yok)'}</span>
-                {staticPreview.skipped?.length > 0 && <> · atlanacak: <span className="font-mono text-yellow-600">{staticPreview.skipped.map((s: any) => s.type).join(', ')}</span></>}
+              <p className="text-xs">
+                Uygulanacak: <span className="font-mono text-success">{staticPreview.applied?.join(', ') || '(yok)'}</span>
+                {staticPreview.skipped?.length > 0 && <> · atlanacak: <span className="font-mono text-warning">{staticPreview.skipped.map((s: any) => s.type).join(', ')}</span></>}
               </p>
-              <details className="text-[11px]">
+              <details className="text-xs">
                 <summary className="cursor-pointer">Head diff göster</summary>
                 <div className="grid grid-cols-2 gap-2 mt-1.5">
                   <div>
@@ -920,7 +923,7 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
                   </div>
                   <div>
                     <p className="font-medium mb-1">Yeni &lt;head&gt;</p>
-                    <pre className="bg-green-500/5 p-2 rounded overflow-auto max-h-60 whitespace-pre-wrap break-all">{staticPreview.diff?.after?.slice(0, 2500) || '—'}</pre>
+                    <pre className="bg-success/5 p-2 rounded overflow-auto max-h-60 whitespace-pre-wrap break-all">{staticPreview.diff?.after?.slice(0, 2500) || '—'}</pre>
                   </div>
                 </div>
               </details>
@@ -933,8 +936,8 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
               <span className="font-medium text-foreground">Otomatik yazılmadı:</span> {writeResult.error ?? 'Sayfa dosyası doğrulanamadı; snippet\'leri elle uygula.'}
             </div>
           ) : (
-            <div className={`mt-2 text-[11px] rounded p-2 ${writeResult.ok ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-              {writeResult.ok ? '✓' : '✗'} {writeResult.ok
+            <div className={`mt-2 flex items-start gap-1.5 text-xs rounded p-2 ${writeResult.ok ? 'bg-success/10' : 'bg-danger/10'}`}>
+              {writeResult.ok ? <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0 text-success" aria-hidden /> : <XCircle className="mt-px h-3.5 w-3.5 shrink-0 text-danger" aria-hidden />} {writeResult.ok
                 ? `Dosya yazıldı: ${writeResult.remoteDir}/${writeResult.filename} — uygulanan: ${writeResult.applied?.join(', ')}`
                 : (writeResult.error ?? 'Bilinmeyen hata')}
             </div>
@@ -944,22 +947,22 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
 
       {snippets && (
         <div className="mt-3 space-y-2">
-          {resolvedUrl && <p className="text-[11px] text-muted-foreground">Hedef: <span className="font-mono">{resolvedUrl}</span></p>}
-          {snippets.length === 0 && <p className="text-xs text-muted-foreground">Bu sayfa için eksik tag yok ✓</p>}
+          {resolvedUrl && <p className="text-xs text-muted-foreground">Hedef: <span className="font-mono">{resolvedUrl}</span></p>}
+          {snippets.length === 0 && <p className="flex items-center gap-1.5 text-xs text-muted-foreground">Bu sayfa için eksik tag yok <Check className="h-3.5 w-3.5 text-success" aria-hidden /></p>}
           {snippets.map((s: any, i: number) => (
             <div key={i} className="rounded-md border">
-              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b">
                 <div>
-                  <span className="text-xs font-semibold">{labelFor(s.type)}</span>
-                  <span className="text-[11px] text-muted-foreground ml-2">{s.insertLocation}</span>
+                  <span className="text-sm font-medium">{labelFor(s.type)}</span>
+                  <span className="v-rail ml-2">{s.insertLocation}</span>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => copy(i, s.generatedSnippet)}>
-                  {copied === i ? '✓ Kopyalandı' : 'Kopyala'}
+                  {copied === i ? <><Check className="h-3.5 w-3.5" aria-hidden /> Kopyalandı</> : 'Kopyala'}
                 </Button>
               </div>
               <div className="px-3 py-2">
-                <p className="text-[11px] text-muted-foreground mb-1.5">{s.reason}</p>
-                <pre className="text-[11px] bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all font-mono">{s.generatedSnippet}</pre>
+                <p className="text-xs text-muted-foreground mb-1.5">{s.reason}</p>
+                <pre className="text-vitrin-rail bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all font-mono">{s.generatedSnippet}</pre>
               </div>
             </div>
           ))}
@@ -1067,16 +1070,16 @@ export function CompetitorsStepBody({
               <SiteFavicon url={c.url} name={c.name} size="sm" className="mt-0.5" />
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-sm">{c.name}</div>
-                <a href={c.url} target="_blank" rel="noopener" className="text-xs text-muted-foreground hover:text-brand inline-flex items-center gap-1">
+                <a href={c.url} target="_blank" rel="noopener" className="font-mono text-vitrin-rail text-muted-foreground transition-colors hover:text-foreground inline-flex items-center gap-1">
                   {c.url} <ExternalLink className="h-3 w-3" />
                 </a>
                 {(c.strengths?.length || c.weaknesses?.length) ? (
                   <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-2 sm:gap-4">
                     {c.strengths?.length ? (
-                      <div><dt className="font-medium text-success">Güçlü yanları</dt><dd className="text-muted-foreground">{c.strengths.join(', ')}</dd></div>
+                      <div><dt className="v-rail mb-0.5 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden />Güçlü yanları</dt><dd className="text-muted-foreground">{c.strengths.join(', ')}</dd></div>
                     ) : null}
                     {c.weaknesses?.length ? (
-                      <div><dt className="font-medium text-warning">Açıkları</dt><dd className="text-muted-foreground">{c.weaknesses.join(', ')}</dd></div>
+                      <div><dt className="v-rail mb-0.5 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden />Açıkları</dt><dd className="text-muted-foreground">{c.weaknesses.join(', ')}</dd></div>
                     ) : null}
                   </dl>
                 ) : null}
@@ -1089,8 +1092,8 @@ export function CompetitorsStepBody({
         </ul>
       )}
 
-      <div className="rounded-lg border p-3 space-y-2">
-        <div className="text-xs font-semibold text-muted-foreground">Manuel ekle</div>
+      <div className="rounded-lg border p-4 space-y-3">
+        <div className="v-rail">Manuel ekle</div>
         <div className="flex gap-2 flex-wrap">
           <Input placeholder="Marka adı" value={draftName} onChange={(e) => setDraftName(e.target.value)} className="flex-1 min-w-[140px]" />
           <Input placeholder="https://rakip.com" value={draftUrl} onChange={(e) => setDraftUrl(e.target.value)} className="flex-[2] min-w-[200px]" />

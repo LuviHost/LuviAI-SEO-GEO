@@ -2,6 +2,7 @@ import { ExternalLink, MapPin, Star } from 'lucide-react';
 import type { GbpDenetim } from '@/lib/api';
 import { MADDE_DURUM, TON_METIN, maddeleriSirala, puanEtiketi } from '@/lib/google-isletme';
 import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
@@ -28,12 +29,12 @@ export function DenetimKarti({ sonuc, not }: { sonuc: GbpDenetim; not?: React.Re
     <div className="space-y-4">
       <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
         <div className="flex shrink-0 items-baseline gap-1" aria-label={`Profil puanı ${sonuc.puan} / 100`}>
-          <span className={cn('font-brand text-h2 font-semibold tabular-nums', TON_METIN[ton])}>{sonuc.puan}</span>
+          <span className={cn('text-h2 font-[450] tracking-[-0.04em] tabular-nums', TON_METIN[ton])}>{sonuc.puan}</span>
           <span className="text-sm text-muted-foreground">/ 100</span>
         </div>
         <div className="min-w-0 flex-1 space-y-1">
-          <p className={cn('text-sm font-semibold', TON_METIN[ton])}>{etiket}</p>
-          <p className="truncate font-brand text-h6 font-semibold">{o.ad || 'İşletme'}</p>
+          <p className={cn('text-sm font-medium', TON_METIN[ton])}>{etiket}</p>
+          <p className="truncate text-h6 font-medium tracking-[-0.02em]">{o.ad || 'İşletme'}</p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             {o.kategori && <span>{o.kategori}</span>}
             <span className="inline-flex items-center gap-1">
@@ -52,7 +53,7 @@ export function DenetimKarti({ sonuc, not }: { sonuc: GbpDenetim; not?: React.Re
             href={o.mapsUri}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted/50 sm:self-center"
+            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'shrink-0 self-start sm:self-center')}
           >
             Google Haritalar’da aç <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </a>

@@ -195,12 +195,12 @@ export default function DashboardPage() {
 function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
   const host = String(site.url ?? '').replace(/^https?:\/\//, '').replace(/\/$/, '');
   return (
-    <Card className="group relative flex flex-wrap items-center gap-4 p-4 transition-all hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-apple-md focus-within:ring-2 focus-within:ring-brand/40 motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+    <Card className="group relative flex flex-wrap items-center gap-4 p-4 transition-colors duration-200 hover:border-foreground/30 focus-within:ring-2 focus-within:ring-ring">
       <SiteFavicon url={site.url} name={site.name} />
 
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex flex-wrap items-center gap-2">
-          <h3 className="truncate font-brand font-semibold">
+          <h3 className="truncate text-panel-3">
             <Link
               href={siteHref(site.id, 'overview')}
               className="after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none"
@@ -215,7 +215,7 @@ function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
             href={site.url}
             target="_blank"
             rel="noopener"
-            className="relative z-10 inline-flex max-w-full items-center gap-1 truncate hover:text-brand"
+            className="relative z-10 inline-flex max-w-full items-center gap-1 truncate transition-colors hover:text-foreground"
           >
             <span className="truncate">{host}</span>
             <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
@@ -226,7 +226,7 @@ function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        <span className="hidden items-center gap-1 text-label text-muted-foreground transition-colors group-hover:text-brand sm:inline-flex" aria-hidden>
+        <span className="hidden items-center gap-1 text-label text-muted-foreground transition-colors group-hover:text-foreground sm:inline-flex" aria-hidden>
           Aç <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>
         <button
@@ -263,7 +263,7 @@ function DeleteSiteDialog({
         <DialogHeader>
           <DialogTitle>Siteyi sil</DialogTitle>
           <DialogDescription>
-            <strong className="text-foreground">{expected}</strong> ile birlikte aşağıdakilerin tamamı silinir. Bu işlem geri alınamaz.
+            <strong className="font-medium text-foreground">{expected}</strong> ile birlikte aşağıdakilerin tamamı silinir. Bu işlem geri alınamaz.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">

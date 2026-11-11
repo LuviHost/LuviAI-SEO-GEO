@@ -99,7 +99,6 @@ function onboardingGecmis(site: any): boolean {
 }
 /** signup_complete yalniz bir kez gonderilsin */
 const SIGNUP_EVENT_KEY = 'luvi_signup_tracked';
-
 export default function OnboardingPage() {
   return (
     <Suspense fallback={null}>
@@ -336,21 +335,21 @@ function InputStage({
 
   return (
     <div className="relative max-w-2xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
-      <p className="mb-3 flex items-center justify-center gap-1.5 text-label text-brand">
+      <p className="v-rail mb-4 flex items-center justify-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5" aria-hidden /> İlk siteni ekle
       </p>
 
-      <h1 className="mb-3 text-center text-h4 font-semibold tracking-tight sm:text-h3">
+      <h1 className="mb-3 text-center text-panel-1">
         Tek tek adımları unut.
       </h1>
-      <p className="mx-auto mb-8 max-w-lg text-center text-base text-muted-foreground sm:text-lg">
+      <p className="mx-auto mb-8 max-w-lg text-center text-base text-muted-foreground">
         Sadece site adresini gir. AI markanı, rakiplerini ve hedef kitleni tespit edip
-        SEO + GEO skorunu hesaplar ve içerik takvimini hazırlar — ortalama <span className="font-semibold text-foreground">60–90 sn</span>.
+        SEO + GEO skorunu hesaplar ve içerik takvimini hazırlar — ortalama <span className="font-medium text-foreground">60–90 sn</span>.
       </p>
 
-      <div className="rounded-lg border border-brand/30 bg-card/80 p-1 shadow-apple-md backdrop-blur-sm focus-within:border-brand/60">
+      <div className="rounded-lg border border-input bg-card p-1 transition-colors duration-200 focus-within:border-foreground/50">
         <div className="flex items-center gap-2 p-1">
-          <Globe className="ml-3 h-5 w-5 shrink-0 text-brand/70" aria-hidden />
+          <Globe className="ml-3 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
           <Input
             type="url"
             inputMode="url"
@@ -364,7 +363,7 @@ function InputStage({
             autoFocus
             className="h-14 border-0 bg-transparent px-2 text-lg focus-visible:ring-0 focus-visible:ring-offset-0"
           />
-          <Button onClick={submit} disabled={!valid || creating} size="lg" className="mr-1 h-12 shrink-0 px-5">
+          <Button onClick={submit} disabled={!valid || creating} size="lg" className="mr-1 h-12 shrink-0 px-3 sm:px-5">
             {creating ? (
               <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> Başlatılıyor…</>
             ) : (
@@ -378,15 +377,15 @@ function InputStage({
         {showHint ? 'Bu bir alan adına benzemiyor — ör. siteniz.com' : 'https:// yazmana gerek yok.'}
       </p>
 
-      <ul className="mt-8 grid grid-cols-1 gap-3 text-center sm:grid-cols-3">
+      <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[
           { title: 'Marka beyni', sub: 'Marka sesi, persona ve rakip analizi' },
           { title: 'SEO + GEO skoru', sub: '14 SEO kontrolü ve AI atıf analizi' },
           { title: 'Hazır içerik takvimi', sub: 'İlk başlıklar otomatik planlanır' },
         ].map((f) => (
-          <li key={f.title} className="rounded-lg border bg-card/60 p-3 backdrop-blur-sm">
-            <p className="text-sm font-semibold">{f.title}</p>
-            <p className="mt-0.5 text-label text-muted-foreground">{f.sub}</p>
+          <li key={f.title} className="rounded-lg border bg-card p-4">
+            <p className="text-sm font-medium">{f.title}</p>
+            <p className="mt-1 text-label font-normal text-muted-foreground">{f.sub}</p>
           </li>
         ))}
       </ul>
@@ -592,7 +591,7 @@ function MissionStage({
 
   return (
     <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
-      <p className="mb-2 text-center text-label text-brand">Siten hazırlanıyor</p>
+      <p className="v-rail mb-2 text-center">Siten hazırlanıyor</p>
 
       <MissionWheel tasks={tasks} startedAt={startedAtRef.current} estimatedMs={ESTIMATED_TOTAL_MS} />
 
@@ -616,7 +615,7 @@ function MissionStage({
       {/* Ilk bulgular — asamalar bittikce AI'nin bulduklarini aninda goster */}
       {findings.length > 0 && (
         <div className="mx-auto mt-6 max-w-2xl space-y-2">
-          <p className="mb-2 text-center text-label text-muted-foreground">İlk bulgular</p>
+          <p className="v-rail mb-2 text-center">İlk bulgular</p>
           <motion.ul variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {findings.map((f) => {
               const Icon = f.icon;
@@ -627,15 +626,15 @@ function MissionStage({
                   className={cn(
                     'flex items-center gap-3 rounded-lg border bg-card p-3',
                     f.wide && 'sm:col-span-2',
-                    f.highlight && 'border-brand/40 bg-brand/5',
+                    f.highlight && 'border-foreground/30',
                   )}
                 >
-                  <span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-md', f.highlight ? 'bg-brand/15 text-brand' : 'bg-muted text-muted-foreground')}>
+                  <span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-md border', f.highlight ? 'border-foreground/30 text-foreground' : 'border-border text-muted-foreground')}>
                     <Icon className="h-4 w-4" aria-hidden />
                   </span>
                   <div className="min-w-0">
-                    <p className={cn('text-label', f.highlight ? 'text-brand' : 'text-muted-foreground')}>{f.label}</p>
-                    <p className="truncate text-sm font-semibold">{f.value}</p>
+                    <p className="font-mono text-vitrin-rail text-muted-foreground">{f.label}</p>
+                    <p className="truncate text-sm font-medium">{f.value}</p>
                   </div>
                 </motion.li>
               );
@@ -700,7 +699,7 @@ function MissionStage({
 function BootingNote() {
   return (
     <div className="mx-auto flex max-w-2xl items-center justify-center gap-2 py-16 text-sm text-muted-foreground" role="status">
-      <Loader2 className="h-4 w-4 animate-spin text-brand motion-reduce:animate-none" aria-hidden />
+      <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />
       Hazırlanıyor…
     </div>
   );

@@ -8,19 +8,21 @@ import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InfoTooltip } from '@/components/info-tooltip';
+import { SectionHeader } from '@/components/ui/section-header';
 import {
   type GeoScoreCardData, type GeoScorePillar,
   isPillarMeasured, measuredSummary, pillarScoreText, pillarUnmeasuredReason, UNMEASURED_LABEL,
 } from '@/lib/geo-score-card';
 
-// Durum tonlari token'dan
+// Durum tonlari token'dan. Renk yalniz puanin kendisinde: cip ve kart cercevesi notr kalir
+// (alti renkli zeminli cip yan yana durunca vurgu anlamini yitiriyordu).
 const STATUS_COLOR: Record<string, string> = {
-  great: 'text-success bg-success/10 border-success/30',
-  good: 'text-info bg-info/10 border-info/30',
-  warning: 'text-warning bg-warning/10 border-warning/30',
-  critical: 'text-danger bg-danger/10 border-danger/30',
+  great: 'text-success',
+  good: 'text-info',
+  warning: 'text-warning',
+  critical: 'text-danger',
   // Olculemeyen sutun: 0 degil, notr (kirmizi yalan olurdu)
-  unmeasured: 'text-muted-foreground bg-muted/40 border-border',
+  unmeasured: 'text-muted-foreground',
 };
 
 const GRADE_COLOR: Record<string, string> = {
@@ -28,7 +30,7 @@ const GRADE_COLOR: Record<string, string> = {
   'A': 'text-success',
   'B': 'text-info',
   'C': 'text-warning',
-  'D': 'text-brand',
+  'D': 'text-warning',
   'F': 'text-danger',
 };
 
@@ -74,28 +76,31 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
   return (
     <Card>
       <CardContent className="p-4 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h3 className="text-sm font-semibold inline-flex items-center gap-2">
-              <Award className="h-4 w-4 text-brand" aria-hidden />
-              <InfoTooltip term="GEO Score">GEO skoru</InfoTooltip>
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Sitenin{' '}
-              <InfoTooltip term="GEO">
-                <span className="underline decoration-dotted cursor-help">AI search engine</span>
-              </InfoTooltip>
-              'lerde görünürlük seviyesi · 6 sütun · ağırlıklı ortalama
-            </p>
-            {summary && <p className="text-xs text-muted-foreground mt-0.5">{summary}</p>}
-          </div>
-          <Button size="sm" variant="outline" onClick={load}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1" aria-hidden /> Yenile
-          </Button>
-        </div>
+        <SectionHeader
+          as="h3"
+          icon={Award}
+          title={<InfoTooltip term="GEO Score">GEO skoru</InfoTooltip>}
+          description={
+            <>
+              <p>
+                Sitenin{' '}
+                <InfoTooltip term="GEO">
+                  <span className="underline decoration-dotted cursor-help">AI search engine</span>
+                </InfoTooltip>
+                'lerde görünürlük seviyesi · 6 sütun · ağırlıklı ortalama
+              </p>
+              {summary && <p className="mt-0.5 text-label font-normal">{summary}</p>}
+            </>
+          }
+          actions={
+            <Button size="sm" variant="outline" onClick={load}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1" aria-hidden /> Yenile
+            </Button>
+          }
+        />
 
         {/* Ozet: not + skor + 6 sutun puani; kontrol ayrintilari katli */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border bg-muted/20 p-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-md border p-4">
           {/* Genel skor null: hicbir sutun olculemedi — 0/F gosterilmez */}
           {data.overallScore === null ? (
             <div className="flex items-baseline gap-3">
@@ -116,12 +121,12 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
           )}
           <div className="flex flex-1 flex-wrap gap-2">
             {data.pillars.map((p) => (
-              <span key={p.id} className={`inline-flex items-center gap-1.5 rounded-chip border px-2 py-1 text-xs ${STATUS_COLOR[statusOf(p)] ?? ''}`}>
-                <span className="font-medium text-foreground">{p.name}</span>
+              <span key={p.id} className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs">
+                <span className="text-foreground">{p.name}</span>
                 {isPillarMeasured(p) ? (
-                  <span className="font-semibold tabular-nums">{p.score}</span>
+                  <span className={`font-mono tabular-nums ${STATUS_COLOR[statusOf(p)] ?? ''}`}>{p.score}</span>
                 ) : (
-                  <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1 text-muted-foreground">
                     — {UNMEASURED_LABEL}
                     <InfoTooltip text={pillarUnmeasuredReason(p)} />
                   </span>
@@ -131,18 +136,18 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
           </div>
         </div>
 
-        <details className="group rounded-lg border">
+        <details className="group rounded-md border">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
             Sütun ayrıntıları
             <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
           </summary>
           <div className="grid grid-cols-1 gap-3 border-t p-3 md:grid-cols-2 lg:grid-cols-3">
             {data.pillars.map((p) => (
-              <div key={p.id} className="rounded-lg border p-3">
+              <div key={p.id} className="rounded-md border p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-label">{p.name}</span>
+                  <span className="v-rail">{p.name}</span>
                   {isPillarMeasured(p) ? (
-                    <span className={`text-metric tabular-nums ${(STATUS_COLOR[p.status] ?? '').split(' ')[0]}`}>{p.score}</span>
+                    <span className={`text-metric tabular-nums ${STATUS_COLOR[p.status] ?? ''}`}>{p.score}</span>
                   ) : (
                     <span className="text-label text-muted-foreground">{pillarScoreText(p)}</span>
                   )}
@@ -166,7 +171,7 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
                               <X className="h-3 w-3 text-danger mt-0.5 shrink-0" aria-label="eksik" />}
                       <div className="flex-1 min-w-0">
                         <span className="font-medium">{c.name}</span>
-                        {c.unverified && <span className="text-muted-foreground font-semibold"> · doğrulanamadı</span>}
+                        {c.unverified && <span className="font-medium text-muted-foreground"> · doğrulanamadı</span>}
                         <span className="text-muted-foreground"> — {c.detail}</span>
                       </div>
                     </li>
@@ -179,8 +184,8 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
 
         {/* Recommendations */}
         {data.recommendations && data.recommendations.length > 0 && (
-          <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
-            <p className="text-sm font-semibold flex items-center gap-2 mb-2">
+          <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+            <p className="text-sm font-medium flex items-center gap-2 mb-2">
               <AlertTriangle className="h-4 w-4 text-warning" aria-hidden /> Öncelikli tavsiyeler
             </p>
             <ul className="space-y-1 text-xs">

@@ -44,7 +44,7 @@ const STATUS_META: Record<string, { label: string; icon: any; cls: string }> = {
   CONFIRMED: { label: 'Doğrulandı', icon: CheckCircle2, cls: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/25' },
   CONTESTED: { label: 'Çekişmeli', icon: Scale, cls: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/25' },
   EMERGING: { label: 'Yeni sinyal', icon: Sprout, cls: 'text-sky-600 dark:text-sky-400 bg-sky-500/10 border-sky-500/25' },
-  STALE: { label: 'Bayat', icon: Clock, cls: 'text-slate-500 bg-slate-500/10 border-slate-500/25' },
+  STALE: { label: 'Bayat', icon: Clock, cls: 'text-muted-foreground bg-muted border-border' },
 };
 
 const GRADE_LABEL: Record<string, string> = {
@@ -129,7 +129,7 @@ export default function AdminIntelPage() {
       {/* ── Başlık ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
+          <h1 className="text-2xl font-[450] tracking-[-0.04em] flex items-center gap-2">
             <Radar className="h-6 w-6 text-primary" />
             Sektör İstihbaratı
           </h1>
@@ -169,7 +169,7 @@ export default function AdminIntelPage() {
                   <Icon className="h-3.5 w-3.5" />
                   {meta.label}
                 </div>
-                <div className="text-3xl font-semibold mt-2 tabular-nums">{claims[s] ?? 0}</div>
+                <div className="text-3xl font-[450] tracking-[-0.04em] mt-2 tabular-nums">{claims[s] ?? 0}</div>
               </CardContent>
             </Card>
           );
@@ -233,7 +233,7 @@ function Stat({ label, value, muted }: { label: string; value: number; muted?: b
   return (
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn('text-lg font-semibold tabular-nums', muted && 'text-muted-foreground')}>{value}</div>
+      <div className={cn('text-lg font-medium tracking-[-0.02em] tabular-nums', muted && 'text-muted-foreground')}>{value}</div>
     </div>
   );
 }
@@ -285,7 +285,7 @@ function ClaimsTab({ onChange }: { onChange: () => void }) {
             key={v}
             onClick={() => setStatus(v)}
             className={cn(
-              'px-2.5 py-1 rounded-full text-xs border transition-colors',
+              'px-2.5 py-1 rounded text-xs border transition-colors',
               status === v ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted',
             )}
           >
@@ -652,7 +652,7 @@ function SourcesTab({ sources, disabled, onChange }: { sources: any[]; disabled:
                     )}
                   </td>
                   <td className="px-3 py-2 text-xs">{TIER_LABEL[s.tier] ?? s.tier}</td>
-                  <td className="px-3 py-2 text-xs uppercase text-muted-foreground">{s.kind}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{s.kind}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{s.weight}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">{s.intervalHours}sa</td>
                   <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{s._count?.items ?? 0}</td>
@@ -774,7 +774,7 @@ function FeedTab() {
             key={v}
             onClick={() => setStatus(v)}
             className={cn(
-              'px-2.5 py-1 rounded-full text-xs border transition-colors',
+              'px-2.5 py-1 rounded text-xs border transition-colors',
               status === v ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted',
             )}
           >

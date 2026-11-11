@@ -122,7 +122,7 @@ export default function VisibilityPage() {
             title="GEO yol haritası"
             description="AI mevcut sonuçlarını okur, ne yapman gerektiğini önerir."
             actions={
-              <Button size="sm" onClick={runRoadmap} disabled={roadmapLoading || measurementBlocked}>
+              <Button size="sm" variant="outline" onClick={runRoadmap} disabled={roadmapLoading || measurementBlocked}>
                 {roadmapLoading ? (
                   <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden /> Analiz ediliyor</>
                 ) : (
@@ -135,28 +135,30 @@ export default function VisibilityPage() {
 
         {!roadmap && !roadmapLoading && (
           <div className="p-8 text-center text-sm text-muted-foreground">
-            <Compass className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" aria-hidden />
-            <p>&quot;AI önerisi al&quot;a bas — alıntı testi çalışır ve uygulanabilir 5 öneri üretilir.</p>
+            <span className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-md border text-foreground/70" aria-hidden>
+              <Compass className="h-5 w-5" />
+            </span>
+            <p className="mx-auto max-w-xl">&quot;AI önerisi al&quot;a bas — alıntı testi çalışır ve uygulanabilir 5 öneri üretilir.</p>
           </div>
         )}
 
         {roadmap && (
           <div className="p-5 space-y-4">
-            <div className="rounded-lg bg-muted/30 p-3 border-l-4 border-brand">
+            <div className="rounded-md border bg-muted/40 p-3">
               <p className="text-sm font-medium">{roadmap.summary}</p>
             </div>
             <div className="space-y-2">
-              <p className="text-label text-muted-foreground">Eylem listesi</p>
+              <p className="v-rail">Eylem listesi</p>
               {/* Satirlar tiklanabilir degil — yaniltici ChevronRight kaldirildi */}
               <ol className="space-y-2">
                 {roadmap.actions.map((a, i) => (
-                  <li key={i} className="rounded-lg border bg-background p-3 flex items-start gap-3">
-                    <span className="h-6 w-6 rounded-full bg-brand/15 text-brand grid place-items-center text-xs font-bold shrink-0" aria-hidden>
+                  <li key={i} className="rounded-md border bg-background p-3 flex items-start gap-3">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-muted font-mono text-vitrin-rail text-muted-foreground" aria-hidden>
                       {i + 1}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <p className="text-sm font-semibold">{a.title}</p>
+                        <p className="text-sm font-medium">{a.title}</p>
                         <Badge variant={EFFORT[a.effort]?.variant ?? 'secondary'} className="text-label">
                           {EFFORT[a.effort]?.text ?? a.effort}
                         </Badge>
@@ -193,32 +195,36 @@ export default function VisibilityPage() {
 
         {!perPage && !perPageLoading && (
           <div className="p-8 text-center text-sm text-muted-foreground">
-            <FileText className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" aria-hidden />
-            <p>&quot;Analiz et&quot; → AI cevaplarında sitenden hangi sayfaların alıntılandığını ve alıntıyı hangi sorgunun tetiklediğini gösterir.</p>
+            <span className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-md border text-foreground/70" aria-hidden>
+              <FileText className="h-5 w-5" />
+            </span>
+            <p className="mx-auto max-w-xl">&quot;Analiz et&quot; → AI cevaplarında sitenden hangi sayfaların alıntılandığını ve alıntıyı hangi sorgunun tetiklediğini gösterir.</p>
           </div>
         )}
 
         {perPage && perPage.totalCites === 0 && (
           <div className="p-8 text-center text-sm text-muted-foreground">
-            <FileText className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" aria-hidden />
-            <p>Henüz alıntı alan sayfa yok. AI cevabında URL&apos;inin geçmesi için sorulara doğrudan cevap veren, rakam ve karşılaştırma içeren sayfalar ve arama botlarının (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot) robots.txt&apos;te engelli olmaması yardımcı olur.</p>
+            <span className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-md border text-foreground/70" aria-hidden>
+              <FileText className="h-5 w-5" />
+            </span>
+            <p className="mx-auto max-w-xl">Henüz alıntı alan sayfa yok. AI cevabında URL&apos;inin geçmesi için sorulara doğrudan cevap veren, rakam ve karşılaştırma içeren sayfalar ve arama botlarının (Googlebot, Bingbot, OAI-SearchBot, PerplexityBot, Claude-SearchBot) robots.txt&apos;te engelli olmaması yardımcı olur.</p>
           </div>
         )}
 
         {perPage && perPage.totalCites > 0 && (
           <div className="p-5 grid md:grid-cols-2 gap-5">
             {/* En çok alıntılanan sayfalar */}
-            <div>
-              <p className="flex items-center gap-1.5 text-label text-muted-foreground mb-2.5">
+            <div className="min-w-0">
+              <p className="v-rail mb-2.5 flex items-center gap-1.5">
                 <Star className="h-3.5 w-3.5" aria-hidden /> En çok alıntılanan sayfalar
               </p>
               <ol className="space-y-1.5">
                 {perPage.topPages.map((p, i) => (
-                  <li key={p.url} className="rounded-lg border bg-background p-2.5 flex items-center gap-3">
-                    <span className="h-6 w-6 rounded-full bg-brand/10 text-brand grid place-items-center text-label font-bold shrink-0" aria-hidden>
+                  <li key={p.url} className="rounded-md border bg-background p-2.5 flex items-center gap-3">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-muted font-mono text-vitrin-rail text-muted-foreground" aria-hidden>
                       {i + 1}
                     </span>
-                    <code className="flex-1 text-xs font-mono truncate" title={p.url}>{p.url}</code>
+                    <code className="min-w-0 flex-1 truncate font-mono text-xs" title={p.url}>{p.url}</code>
                     <Badge variant="success" className="text-label shrink-0">{formatNum(p.cites)} alıntı</Badge>
                   </li>
                 ))}
@@ -226,15 +232,15 @@ export default function VisibilityPage() {
             </div>
 
             {/* Alıntıyı tetikleyen sorgular */}
-            <div>
-              <p className="flex items-center gap-1.5 text-label text-muted-foreground mb-2.5">
+            <div className="min-w-0">
+              <p className="v-rail mb-2.5 flex items-center gap-1.5">
                 <Target className="h-3.5 w-3.5" aria-hidden /> Alıntıyı tetikleyen sorgular
               </p>
               <div className="space-y-1.5">
                 {perPage.groundingQueries.slice(0, 10).map((q, i) => (
-                  <div key={i} className="rounded-lg border bg-background p-2.5">
+                  <div key={i} className="rounded-md border bg-background p-2.5">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-medium flex-1 truncate">{q.query}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium">{q.query}</span>
                       <Badge variant="secondary" className="text-label shrink-0">{formatNum(q.cites)} alıntı</Badge>
                     </div>
                     {q.pages.length > 0 && (
@@ -253,10 +259,10 @@ export default function VisibilityPage() {
             </div>
 
             {/* Özet — site ölçümü her soruyu birden fazla kez sorar (api audit/citation-repeat.ts); alıntılar tüm tekrarlardan sayılır */}
-            <div className="md:col-span-2 mt-2 rounded-lg bg-muted/30 p-3 text-center text-xs">
-              <strong className="text-sm tabular-nums">{formatNum(perPage.totalCites)}</strong> toplam alıntı (tekrarlar dahil) ·{' '}
-              <strong className="tabular-nums">{formatNum(perPage.pages.length)}</strong> sayfa alıntılandı ·{' '}
-              <strong className="tabular-nums">{formatNum(perPage.groundingQueries.length)}</strong> farklı sorgu tetikledi
+            <div className="min-w-0 md:col-span-2 mt-2 rounded-md border bg-muted/40 p-3 text-center text-xs text-muted-foreground">
+              <strong className="font-medium tabular-nums text-foreground">{formatNum(perPage.totalCites)}</strong> toplam alıntı (tekrarlar dahil) ·{' '}
+              <strong className="font-medium tabular-nums text-foreground">{formatNum(perPage.pages.length)}</strong> sayfa alıntılandı ·{' '}
+              <strong className="font-medium tabular-nums text-foreground">{formatNum(perPage.groundingQueries.length)}</strong> farklı sorgu tetikledi
             </div>
           </div>
         )}

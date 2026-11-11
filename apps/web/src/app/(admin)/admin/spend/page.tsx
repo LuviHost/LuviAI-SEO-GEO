@@ -79,11 +79,11 @@ export default function AdminSpendPage() {
   return (
     <div className="space-y-5 p-6">
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 grid place-items-center">
+        <div className="h-10 w-10 rounded-lg bg-emerald-500/10 text-emerald-600 grid place-items-center">
           <DollarSign className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <h2 className="text-2xl font-bold">AI Spend</h2>
+          <h2 className="text-2xl font-[450] tracking-[-0.04em]">AI Spend</h2>
           <p className="text-sm text-muted-foreground">
             Tüm AI sağlayıcı çağrılarının token + maliyet kaydı (LibreChat Transaction pattern).
           </p>
@@ -193,7 +193,7 @@ export default function AdminSpendPage() {
           <div className="pt-6 mt-6 border-t">
             <div className="flex items-center gap-2 mb-3">
               <Shield className="h-5 w-5 text-purple-600" />
-              <h2 className="text-xl font-bold">Spend Cap Monitoring</h2>
+              <h2 className="text-xl font-[450] tracking-[-0.04em]">Spend Cap Monitoring</h2>
               <span className="text-xs text-muted-foreground">(Plan başına aylık USD cap durumu — 2026-05 premium pricing)</span>
             </div>
 
@@ -209,7 +209,7 @@ export default function AdminSpendPage() {
               <CardContent className="p-0">
                 <div className="overflow-auto">
                   <table className="w-full text-sm">
-                    <thead className="border-b bg-muted/30 text-xs uppercase text-muted-foreground">
+                    <thead className="border-b bg-muted/30 text-xs text-muted-foreground">
                       <tr>
                         <th className="text-left p-3">Kullanıcı</th>
                         <th className="text-left p-3">Plan</th>
@@ -238,7 +238,7 @@ export default function AdminSpendPage() {
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">{u.name ?? u.email.split('@')[0]}</span>
                                 {u.isGrandfathered && (
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold uppercase">GF</span>
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold">GF</span>
                                 )}
                               </div>
                               <div className="text-xs text-muted-foreground truncate max-w-[200px]">{u.email}</div>
@@ -266,7 +266,7 @@ export default function AdminSpendPage() {
                             <td className="p-3 text-right text-xs tabular-nums">{u.articlesUsedThisMonth}</td>
                             <td className="p-3 text-right text-xs tabular-nums">{u.videosUsedThisMonth}</td>
                             <td className="p-3 text-center">
-                              <span className={cn('px-2 py-0.5 text-[10px] rounded-full border font-bold uppercase tracking-wider', riskColors[u.risk])}>
+                              <span className={cn('px-2 py-0.5 text-[10px] rounded border font-semibold', riskColors[u.risk])}>
                                 {riskLabel[u.risk]}
                               </span>
                             </td>
@@ -320,8 +320,8 @@ function StatCard({
             <Icon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
-            <p className="text-2xl font-bold tabular-nums">{value}</p>
+            <p className="text-[10px] text-muted-foreground/70">{label}</p>
+            <p className="text-2xl font-[450] tracking-[-0.04em] tabular-nums">{value}</p>
           </div>
         </div>
       </CardContent>

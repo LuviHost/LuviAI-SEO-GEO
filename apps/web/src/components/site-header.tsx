@@ -24,7 +24,7 @@ export function SiteHeader() {
           <BrandWordmark size={23} />
         </Link>
 
-        <nav className="hidden md:flex items-center gap-9 text-[13px] text-neutral-600 dark:text-neutral-300">
+        <nav className="hidden md:flex items-center gap-9 text-[13px] text-muted-foreground">
           <Link href="/pricing" className="hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.pricing')}</Link>
           <Link href="/use-cases" className="hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.use_cases')}</Link>
           <Link href="/compare" className="hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.compare')}</Link>
@@ -39,7 +39,7 @@ export function SiteHeader() {
           {isAuthed ? (
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-foreground text-background text-[13px] font-medium transition-all duration-300 ease-apple hover:scale-[1.03] active:scale-[0.97] shadow-apple"
+              className="inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-foreground text-background text-[13px] font-medium transition-all duration-300 ease-apple"
             >
               {t('nav.dashboard')}
             </Link>
@@ -47,13 +47,13 @@ export function SiteHeader() {
             <>
               <Link
                 href="/signin"
-                className="hidden sm:inline-flex items-center px-3 h-9 text-[13px] text-neutral-600 dark:text-neutral-300 hover:text-foreground transition-colors duration-300 ease-apple"
+                className="hidden sm:inline-flex items-center px-3 h-9 text-[13px] text-muted-foreground hover:text-foreground transition-colors duration-300 ease-apple"
               >
                 {t('nav.login')}
               </Link>
               <Link
                 href="/signin?callbackUrl=/onboarding"
-                className="inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-foreground text-background text-[13px] font-medium transition-all duration-300 ease-apple hover:scale-[1.03] active:scale-[0.97] shadow-apple"
+                className="inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-foreground text-background text-[13px] font-medium transition-all duration-300 ease-apple"
               >
                 {t('nav.signup')}
                 <ArrowRight className="h-3 w-3" />

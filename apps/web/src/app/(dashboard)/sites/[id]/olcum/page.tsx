@@ -49,9 +49,9 @@ function HedefDetayi({ h }: { h: OlcumHedef }) {
     <Card>
       <CardContent className="space-y-3 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium">{h.ad}</p>
-          <Badge variant={h.rakip ? 'outline' : 'brand'}>{h.rakip ? 'Rakip' : 'Siz'}</Badge>
-          <a href={h.url} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-muted-foreground underline-offset-2 hover:underline">
+          <p className="text-panel-3">{h.ad}</p>
+          <Badge variant={h.rakip ? 'outline' : 'secondary'}>{h.rakip ? 'Rakip' : 'Siz'}</Badge>
+          <a href={h.url} target="_blank" rel="noopener noreferrer nofollow" className="font-mono text-vitrin-rail text-muted-foreground transition-colors hover:text-foreground">
             {h.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
           </a>
         </div>
@@ -60,7 +60,7 @@ function HedefDetayi({ h }: { h: OlcumHedef }) {
         ) : (
           <>
             <div>
-              <p className="mb-1 text-sm font-medium">Görünen dönüşüm olayları</p>
+              <p className="v-rail mb-2">Görünen dönüşüm olayları</p>
               {olaylar.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Dışarıdan görünen dönüşüm olayı yok. Analitik panelinin içinde tanımlı olabilir; bu dışarıdan görünmez.</p>
               ) : (
@@ -150,7 +150,7 @@ export default function OlcumPage() {
         title="Ölçüm Altyapısı"
         description="Sitenizde ve rakiplerinizde hangi analitik ve reklam araçlarının kurulu olduğu ve hangi dönüşümlerin ölçüldüğü. Herkese açık dosyalardan okunur."
         actions={
-          <Button onClick={tara} disabled={starting || calisiyor}>
+          <Button size="sm" onClick={tara} disabled={starting || calisiyor}>
             {starting || calisiyor ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             {calisiyor ? 'Taranıyor…' : data ? 'Yeniden tara' : 'Taramayı başlat'}
           </Button>
@@ -195,7 +195,7 @@ export default function OlcumPage() {
         {data?.atlananRakipler?.length ? (
           <StatusBanner tone="info" title={`İlk 10 rakip tarandı, ${data.atlananRakipler.length} rakip taranmadı`}>
             Taranmayanlar: {data.atlananRakipler.join(', ')}. Sıra{' '}
-            <Link href={siteHref(site.id, 'competitors')} className="text-brand underline underline-offset-2">Rakipler</Link>{' '}
+            <Link href={siteHref(site.id, 'competitors')} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Rakipler</Link>{' '}
             sayfasındaki sıradır; ilgisiz olanları oradan kaldırabilirsiniz.
           </StatusBanner>
         ) : null}
@@ -203,7 +203,7 @@ export default function OlcumPage() {
         {!calisiyor && data && rakipSayisi === 0 && (
           <StatusBanner tone="info" title="Rakip karşılaştırması için rakip ekleyin">
             Rakip listeniz boş ya da adres içermiyor.{' '}
-            <Link href={siteHref(site.id, 'competitors')} className="text-brand underline underline-offset-2">Rakipler</Link>{' '}
+            <Link href={siteHref(site.id, 'competitors')} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Rakipler</Link>{' '}
             sayfasına adresleriyle ekleyip yeniden tarayın.
           </StatusBanner>
         )}
@@ -213,31 +213,31 @@ export default function OlcumPage() {
             <CardContent className="overflow-x-auto p-0">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="p-3 font-medium">Araç</th>
+                  <tr className="border-b text-left font-mono text-vitrin-rail text-muted-foreground">
+                    <th className="px-4 py-2.5 font-normal">Araç</th>
                     {hedefler.map((h) => (
-                      <th key={h.url} className="p-3 text-center font-medium">
+                      <th key={h.url} className="px-3 py-2.5 text-center font-normal">
                         {h.rakip ? h.ad : 'Siz'}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y">
                   {tablo.map((s, i) => (
-                    <tr key={s.kod} className="border-b border-border/60 last:border-0">
-                      <td className="p-3">
-                        {(i === 0 || tablo[i - 1].tur !== s.tur) && <span className="block text-xs text-muted-foreground">{TUR_ADI[s.tur]}</span>}
+                    <tr key={s.kod}>
+                      <td className="px-4 py-2.5">
+                        {(i === 0 || tablo[i - 1].tur !== s.tur) && <span className="v-rail mb-0.5 block">{TUR_ADI[s.tur]}</span>}
                         {s.ad}
                       </td>
                       {s.hucreler.map((v, j) => (
-                        <td key={hedefler[j].url} className="p-3 text-center"><Hucre deger={v} /></td>
+                        <td key={hedefler[j].url} className="px-3 py-2.5 text-center"><Hucre deger={v} /></td>
                       ))}
                     </tr>
                   ))}
-                  <tr className="border-t border-border">
-                    <td className="p-3 font-medium">Görünen dönüşüm olayı</td>
+                  <tr>
+                    <td className="px-4 py-2.5 font-medium">Görünen dönüşüm olayı</td>
                     {hedefler.map((h) => (
-                      <td key={h.url} className="p-3 text-center tabular-nums">{h.durum === 'tamam' ? donusumOlaylari(h.rapor).length : '—'}</td>
+                      <td key={h.url} className="px-3 py-2.5 text-center tabular-nums">{h.durum === 'tamam' ? donusumOlaylari(h.rapor).length : '—'}</td>
                     ))}
                   </tr>
                 </tbody>

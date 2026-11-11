@@ -130,7 +130,7 @@ export function AscTab({ siteId }: { siteId: string }) {
                 <button
                   type="button"
                   onClick={async () => { await api.acknowledgeAscAlert(a.id); refresh(); }}
-                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="Uyarıyı kapat"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -147,12 +147,12 @@ export function AscTab({ siteId }: { siteId: string }) {
             <CardContent className="space-y-3 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-muted/50 text-foreground/70" aria-hidden>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground" aria-hidden>
                     <KeyRound className="h-4 w-4" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">App Store Connect</span>
+                      <span className="text-panel-3">App Store Connect</span>
                       <Badge variant="success" className="px-2 text-label">Aktif</Badge>
                     </div>
                     <p className="mt-0.5 font-mono text-label text-muted-foreground">Issuer: {acc.issuerId.slice(0, 8)}… · Anahtar: {acc.keyId.slice(0, 8)}…</p>
@@ -181,12 +181,12 @@ export function AscTab({ siteId }: { siteId: string }) {
               ) : (
                 <ul className="space-y-2 sm:pl-12">
                   {acc.apps.map((app) => (
-                    <li key={app.id} className="rounded-lg border bg-background p-3">
+                    <li key={app.id} className="rounded-md border bg-background p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                            <span className="truncate text-sm font-semibold">{app.name}</span>
+                            <span className="truncate text-sm font-medium">{app.name}</span>
                             {app.latestVersion && <Badge variant="outline" className="px-1.5 text-label">v{app.latestVersion}</Badge>}
                           </div>
                           <p className="mt-0.5 font-mono text-label text-muted-foreground">{app.bundleId} · {app.appleAppId}</p>
@@ -263,7 +263,7 @@ export function AscReviewsPanel({ ascAppId, className }: { ascAppId: string; cla
   return (
     <div className={cn('mt-3 space-y-2.5 border-t pt-3', className)}>
       <div className="flex items-center gap-2 text-sm">
-        <span className="font-semibold">{data.appName} yorumları</span>
+        <span className="font-medium">{data.appName} yorumları</span>
         {data.avgRating && <span className="text-muted-foreground">· ort. {data.avgRating} · {reviews.length} yorum</span>}
       </div>
       {reviews.length === 0 ? (
@@ -300,10 +300,10 @@ export function AscReviewsPanel({ ascAppId, className }: { ascAppId: string; cla
 function AscConnectScreen({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="rounded-lg border bg-card p-8 text-center">
-      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-xl border border-border bg-muted/50 text-foreground/70" aria-hidden>
+      <div className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-md border border-border text-muted-foreground" aria-hidden>
         <Package className="h-6 w-6" />
       </div>
-      <h3 className="mb-2 text-h6 font-semibold">App Store Connect&apos;i bağla</h3>
+      <h3 className="mb-2 text-panel-2">App Store Connect&apos;i bağla</h3>
       <p className="mx-auto mb-5 max-w-md text-sm text-muted-foreground">
         Yorumlara yanıt, sürüm takibi, metadata ve ekran görüntüsü yükleme için Apple geliştirici hesabını bir kez bağla.
         Uygulamaların App Store kimliğiyle otomatik eşleşir.
@@ -358,25 +358,25 @@ function AscConnectDialog({
           <DialogDescription>Apple geliştirici hesabından bir API anahtarı (.p8) gerekir.</DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">
-          <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+          <div className="rounded-md border p-3 text-sm">
             <p className="mb-1 font-medium">Bilgileri nereden alırım?</p>
             <ol className="list-decimal space-y-0.5 pl-4 text-muted-foreground">
-              <li><a href="https://appstoreconnect.apple.com/access/integrations/api" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">App Store Connect → Users and Access → Integrations → App Store Connect API</a></li>
+              <li><a href="https://appstoreconnect.apple.com/access/integrations/api" target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-2">App Store Connect → Users and Access → Integrations → App Store Connect API</a></li>
               <li>"Generate API Key" — App Manager rolü</li>
               <li>Issuer ID (üstte), Key ID (yeni satır) ve .p8 dosyası</li>
               <li>Üçünü aşağıya yapıştır</li>
             </ol>
           </div>
           <div>
-            <label htmlFor="asc-issuer" className="mb-1 block text-label">Issuer ID</label>
+            <label htmlFor="asc-issuer" className="mb-1 block text-label text-muted-foreground">Issuer ID</label>
             <Input id="asc-issuer" value={issuerId} onChange={(e) => setIssuerId(e.target.value)} placeholder="69a6de8a-1234-…" className="font-mono" required />
           </div>
           <div>
-            <label htmlFor="asc-key" className="mb-1 block text-label">Key ID</label>
+            <label htmlFor="asc-key" className="mb-1 block text-label text-muted-foreground">Key ID</label>
             <Input id="asc-key" value={keyId} onChange={(e) => setKeyId(e.target.value)} placeholder="2X9XYZ12AB" className="font-mono" required />
           </div>
           <div>
-            <label htmlFor="asc-pem" className="mb-1 block text-label">.p8 özel anahtar</label>
+            <label htmlFor="asc-pem" className="mb-1 block text-label text-muted-foreground">.p8 özel anahtar</label>
             <Textarea
               id="asc-pem"
               value={privateKeyPem}

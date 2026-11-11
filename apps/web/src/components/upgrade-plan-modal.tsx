@@ -182,16 +182,16 @@ export function UpgradePlanModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 overflow-y-auto"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-card border rounded-xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto">
+      <div className="bg-popover text-popover-foreground border rounded-lg max-w-5xl w-full max-h-[92vh] overflow-y-auto">
         {/* Iframe acildiysa odeme ekrani */}
         {iframeUrl ? (
           <div className="flex flex-col h-[85vh]">
             <div className="flex items-center justify-between p-4 border-b">
               <div>
-                <p className="font-semibold">Güvenli Ödeme · PayTR</p>
+                <p className="text-panel-3">Güvenli Ödeme · PayTR</p>
                 <p className="text-xs text-muted-foreground">{polling && 'Ödeme bekleniyor… ekran otomatik kapanacak.'}</p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => { setIframeUrl(null); }}>
@@ -204,13 +204,13 @@ export function UpgradePlanModal({
           <div className="p-6 sm:p-8">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <h2 className="text-2xl font-bold">Plan Yükselt</h2>
+                <h2 className="text-panel-2">Plan Yükselt</h2>
                 {reason && <p className="text-sm text-muted-foreground mt-1">{reason}</p>}
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="text-muted-foreground hover:text-foreground p-2"
+                className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 aria-label="Kapat"
               >
                 ✕
@@ -219,13 +219,13 @@ export function UpgradePlanModal({
 
             {/* Cycle toggle */}
             <div className="flex justify-center mb-6">
-              <div className="inline-flex bg-muted rounded-full p-1">
+              <div className="inline-flex rounded-md border border-border p-1">
                 <button
                   type="button"
                   onClick={() => setCycle('monthly')}
                   className={cn(
-                    'px-5 py-1.5 rounded-full text-sm font-medium transition-colors',
-                    cycle === 'monthly' ? 'bg-brand text-white' : 'text-muted-foreground',
+                    'px-5 py-1.5 rounded text-sm font-medium transition-colors',
+                    cycle === 'monthly' ? 'bg-foreground text-background' : 'text-muted-foreground',
                   )}
                 >
                   Aylık
@@ -234,13 +234,13 @@ export function UpgradePlanModal({
                   type="button"
                   onClick={() => setCycle('annual')}
                   className={cn(
-                    'px-5 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
-                    cycle === 'annual' ? 'bg-brand text-white' : 'text-muted-foreground',
+                    'px-5 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1.5',
+                    cycle === 'annual' ? 'bg-foreground text-background' : 'text-muted-foreground',
                   )}
                 >
                   {/* Yillik = 10 ay fiyati (plans.ts annual_usd = monthly_usd * 10), indirim ~%17:
                       eski "-20%" yanlisti; fiyat sayfasi ve Kullanim Sartlari ile ayni ifade */}
-                  Yıllık <span className="text-[10px] bg-green-500/20 text-green-600 rounded-full px-1.5 py-0.5">%17 indirim</span>
+                  Yıllık <span className={cn('font-mono text-vitrin-rail', cycle === 'annual' ? 'opacity-70' : 'text-brand-vivid')}>%17 indirim</span>
                 </button>
               </div>
             </div>
@@ -251,7 +251,7 @@ export function UpgradePlanModal({
               <div
                 id="upgrade-purchase-closed"
                 role="status"
-                className="mb-4 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm"
+                className="mb-4 flex items-start gap-3 rounded-md border border-warning/30 bg-warning/5 p-4 text-sm"
               >
                 <AlertCircle className="h-5 w-5 mt-0.5 shrink-0 text-warning" aria-hidden />
                 <p>
@@ -272,27 +272,27 @@ export function UpgradePlanModal({
                   <div
                     key={p.id}
                     className={cn(
-                      'rounded-lg border-2 p-4 flex flex-col transition-colors',
-                      p.popular ? 'border-brand bg-brand/5' : 'hover:border-brand/40',
+                      'rounded-lg border p-4 flex flex-col transition-colors',
+                      p.popular ? 'border-foreground/40 bg-muted/40' : 'hover:border-foreground/30',
                     )}
                   >
                     {p.popular && (
-                      <div className="text-[10px] font-bold tracking-wide bg-brand text-white rounded-full px-2 py-0.5 self-start mb-2">
+                      <div className="font-mono text-vitrin-rail text-brand self-start mb-2">
                         EN POPÜLER
                       </div>
                     )}
-                    <h3 className="font-bold text-lg">{p.name}</h3>
+                    <h3 className="text-panel-2">{p.name}</h3>
                     <div className="mt-2">
-                      <span className="text-3xl font-bold">${price.toLocaleString('en-US')}</span>
+                      <span className="text-metric-lg tabular-nums">${price.toLocaleString('en-US')}</span>
                       <span className="text-sm text-muted-foreground">/ay</span>
                     </div>
                     {cycle === 'annual' && (
-                      <p className="text-[10px] text-green-600 mt-0.5">Yıllık ödeme · ${p.annual.toLocaleString('en-US')}/yıl</p>
+                      <p className="font-mono text-vitrin-rail text-muted-foreground mt-0.5">Yıllık ödeme · ${p.annual.toLocaleString('en-US')}/yıl</p>
                     )}
                     <ul className="mt-3 space-y-1.5 text-xs flex-1">
                       {(p.features ?? []).slice(0, 6).map((f, i) => (
                         <li key={i} className="flex items-start gap-2">
-                          <span className="text-green-500 shrink-0">✓</span>
+                          <span className="text-success shrink-0">✓</span>
                           <span>{f}</span>
                         </li>
                       ))}
@@ -311,7 +311,7 @@ export function UpgradePlanModal({
               })}
             </div>
 
-            <p className="text-center text-[11px] text-muted-foreground mt-4">
+            <p className="text-center text-xs text-muted-foreground mt-4">
               💳 PayTR güvenli ödeme · ✅ İstediğin zaman iptal · 🇹🇷 KDV dahil
             </p>
           </div>

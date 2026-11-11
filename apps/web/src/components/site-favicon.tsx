@@ -16,7 +16,7 @@ export function SiteFavicon({ url, name, size = 'md', className }: {
   const [failed, setFailed] = useState(false);
   let origin: string | null = null;
   try { origin = url ? new URL(url).origin : null; } catch { origin = null; }
-  const box = size === 'lg' ? 'h-12 w-12 rounded-xl' : size === 'sm' ? 'h-8 w-8 rounded-md' : 'h-11 w-11 rounded-lg';
+  const box = size === 'lg' ? 'h-12 w-12 rounded-lg' : size === 'sm' ? 'h-8 w-8 rounded-md' : 'h-11 w-11 rounded-lg';
   const img = size === 'lg' ? 'h-7 w-7' : size === 'sm' ? 'h-4 w-4' : 'h-6 w-6';
   return (
     <span

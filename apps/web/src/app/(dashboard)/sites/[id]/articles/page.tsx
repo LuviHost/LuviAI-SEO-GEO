@@ -94,7 +94,7 @@ export default function ArticlesPage() {
               onClick={() => setFilter(filter === f.key ? null : f.key)}
             >
               {f.label}
-              <span className="tabular-nums text-muted-foreground">{formatNum(f.count)}</span>
+              <span className="tabular-nums opacity-60">{formatNum(f.count)}</span>
             </FilterChip>
           ))}
         </div>
@@ -137,7 +137,6 @@ export default function ArticlesPage() {
       {isFullyEmpty ? (
         <EmptyState
           icon={Sparkles}
-          accent="amber"
           title={running ? 'Konu motoru çalışıyor…' : 'Henüz içerik yok'}
           description={
             running

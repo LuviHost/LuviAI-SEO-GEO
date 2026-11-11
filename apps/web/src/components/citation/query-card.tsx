@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Check, X, Minus, Lock, ArrowRight } from 'lucide-react';
+import { Check, X, Minus, Lock, ArrowRight, ChevronDown } from 'lucide-react';
+import { buttonVariants } from '@/components/ui/button';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import type { api } from '@/lib/api';
 
@@ -86,16 +87,16 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
 
   if (q.locked) {
     return (
-      <div className="bg-muted/30 rounded-2xl border p-4 sm:p-5 relative overflow-hidden">
+      <div className="rounded-lg border bg-card p-4 sm:p-5 relative overflow-hidden">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-muted text-muted-foreground text-xs font-bold">
+            <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded border border-border font-mono text-vitrin-rail text-muted-foreground">
               {idx + 1}
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium leading-relaxed">{q.query}</p>
               {catLabel && (
-                <span className="inline-block mt-1.5 text-label font-medium text-brand-600 bg-brand-500/10 px-1.5 py-0.5 rounded">
+                <span className="inline-block mt-1.5 font-mono text-vitrin-rail text-muted-foreground border border-border px-1.5 py-0.5 rounded">
                   {catLabel}
                 </span>
               )}
@@ -109,7 +110,7 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
         <div className="flex items-center gap-3 flex-wrap" aria-label={labels.lockedHint}>
           {Array.from({ length: Math.max(0, Math.min(q.totalProviders, 7)) }).map((_, i) => (
             <div key={i} className="flex flex-col items-center gap-1">
-              <div className="w-11 h-11 rounded-xl bg-muted/60 ring-1 ring-border animate-pulse" />
+              <div className="w-11 h-11 rounded-md bg-muted/60 ring-1 ring-border animate-pulse motion-reduce:animate-none" />
               <div className="h-2 w-9 rounded bg-muted/60" />
             </div>
           ))}
@@ -120,10 +121,10 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
   }
 
   return (
-    <div className="bg-muted/30 rounded-2xl border p-4 sm:p-5">
+    <div className="rounded-lg border bg-card p-4 sm:p-5">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
+          <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded bg-foreground font-mono text-vitrin-rail text-background">
             {idx + 1}
           </span>
           <div className="flex-1 min-w-0">
@@ -131,13 +132,13 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
             {(catLabel || q.brandInQuery) && (
             <span className="inline-flex items-center gap-1.5 mt-1.5">
               {catLabel && (
-                <span className="text-label font-medium text-brand-600 bg-brand-500/10 px-1.5 py-0.5 rounded">
+                <span className="font-mono text-vitrin-rail text-muted-foreground border border-border px-1.5 py-0.5 rounded">
                   {catLabel}
                 </span>
               )}
               {q.brandInQuery && (
                 <span
-                  className="text-label font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
+                  className="font-mono text-vitrin-rail text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
                   title={lang === 'tr'
                     ? 'Soruda marka adı geçiyor — burada anılmak beklenen sonuç, görünürlük skoruna katılmaz'
                     : 'The query contains the brand name — a mention here is expected and excluded from the visibility score'}
@@ -152,8 +153,8 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
         <div className="shrink-0 text-right">
           {/* Markali soruda yesil sayi gosterme: 7/7 "basari" gibi okunuyordu,
               oysa soruda adi gecen markanin anilmasi beklenen sonuc. */}
-          <div className={q.brandInQuery ? 'font-semibold text-base text-muted-foreground' : 'font-bold text-lg'}>
-            <span className={!q.brandInQuery && q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>{q.citedCount}</span>
+          <div className={q.brandInQuery ? 'text-metric tabular-nums text-muted-foreground' : 'text-metric tabular-nums'}>
+            <span className={!q.brandInQuery && q.citedCount > 0 ? 'text-success' : 'text-muted-foreground'}>{q.citedCount}</span>
             <span className="text-muted-foreground"> / {q.totalProviders}</span>
           </div>
         </div>
@@ -169,13 +170,13 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
             const hint = lang === 'tr' ? `${short}: bu soruda yanıt alınamadı, ölçüme girmedi` : `${short}: no answer for this query, not counted`;
             return (
               <div key={p.provider} className="flex flex-col items-center gap-1" title={hint}>
-                <div className="relative w-11 h-11 rounded-xl grid place-items-center bg-muted/30 border border-dashed border-border opacity-60">
+                <div className="relative w-11 h-11 rounded-md grid place-items-center bg-muted/30 border border-dashed border-border opacity-60">
                   {logo && <VendorLogo name={logo} size={22} />}
                   <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background bg-muted text-muted-foreground">
                     <Minus className="h-3 w-3" strokeWidth={3} aria-hidden />
                   </div>
                 </div>
-                <span className="text-label font-semibold text-muted-foreground/70">{short}</span>
+                <span className="text-label text-muted-foreground/70">{short}</span>
                 <span className="sr-only">{hint}</span>
               </div>
             );
@@ -183,13 +184,13 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
           const ok = p.cited || p.brandMentioned;
           return (
             <div key={p.provider} className="flex flex-col items-center gap-1">
-              <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-emerald-500/10 ring-2 ring-emerald-500/40' : 'bg-muted/60 ring-1 ring-border'}`}>
+              <div className={`relative w-11 h-11 rounded-md grid place-items-center ${ok ? 'bg-success/10 ring-1 ring-success/50' : 'bg-muted/60 ring-1 ring-border'}`}>
                 {logo && <VendorLogo name={logo} size={22} />}
-                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/40 text-white'}`}>
+                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-success text-background' : 'bg-muted text-muted-foreground'}`}>
                   {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
                 </div>
               </div>
-              <span className="text-label font-semibold text-muted-foreground">{short}</span>
+              <span className="text-label text-muted-foreground">{short}</span>
             </div>
           );
         })}
@@ -224,21 +225,21 @@ export function UnlockCta({ lockedCount, unlockedCount, domain, onNavigate, labe
     .replace('{open}', String(unlockedCount ?? 0))
     .replace('{locked}', String(lockedCount));
   return (
-    <div className="rounded-2xl border-2 border-brand-500/40 bg-brand-500/5 p-5 text-center">
-      <div className="inline-grid place-items-center w-10 h-10 rounded-full bg-brand-500/10 mb-3">
-        <Lock className="h-5 w-5 text-brand-600" />
+    <div className="rounded-lg border bg-card p-5 text-center">
+      <div className="inline-grid place-items-center w-10 h-10 rounded-md border border-border text-muted-foreground mb-3">
+        <Lock className="h-5 w-5" />
       </div>
-      <h5 className="font-bold text-base mb-1.5">{labels.title.replace('{n}', String(lockedCount))}</h5>
+      <h5 className="text-panel-3 mb-1.5">{labels.title.replace('{n}', String(lockedCount))}</h5>
       <p className="text-xs text-muted-foreground mb-4 leading-relaxed max-w-md mx-auto">{body}</p>
       <Link
         href={`/signin?callbackUrl=${encodeURIComponent(`/unlock?domain=${encodeURIComponent(domain)}`)}`}
         onClick={onNavigate}
-        className="inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-6 py-2.5 text-sm font-bold rounded-lg transition-colors"
+        className={buttonVariants()}
       >
         {labels.cta}
         <ArrowRight className="h-4 w-4" />
       </Link>
-      <p className="text-[11px] text-muted-foreground/80 mt-2.5">{labels.note}</p>
+      <p className="text-xs text-muted-foreground/80 mt-2.5">{labels.note}</p>
     </div>
   );
 }
@@ -267,11 +268,11 @@ function ResponsesToggle({
     <div className="mt-4">
       <button
         onClick={onToggle}
-        className="text-xs font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1.5 transition-colors"
+        className="text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
         type="button"
       >
         {isOpen ? labels.hide : labels.show}
-        <span className={`inline-block transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden />
       </button>
 
       {isOpen && (
@@ -282,9 +283,9 @@ function ResponsesToggle({
             return (
               <div
                 key={p.provider}
-                className={`rounded-lg p-3 text-xs leading-relaxed ${ok ? 'bg-emerald-500/5 ring-1 ring-emerald-500/20' : 'bg-muted/40 ring-1 ring-border'}`}
+                className={`rounded-md border p-3 text-xs leading-relaxed ${ok ? 'border-success/25 bg-success/5' : 'border-border bg-muted/40'}`}
               >
-                <div className="flex items-center gap-1.5 mb-1.5 font-semibold">
+                <div className="flex items-center gap-1.5 mb-1.5 font-medium">
                   {PROVIDER_LOGOS[p.provider] && <VendorLogo name={PROVIDER_LOGOS[p.provider]} size={14} />}
                   <span>{PROVIDER_SHORT[p.provider] || p.label}</span>
                   <span className="text-muted-foreground font-normal">· {labels.aiAnswer}</span>
@@ -309,7 +310,7 @@ function highlightBrand(text: string, brand: string) {
   const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
   return parts.map((part, i) =>
     part.toLowerCase() === brand.toLowerCase() ? (
-      <strong key={i} className="text-foreground font-bold">
+      <strong key={i} className="text-foreground font-medium">
         {part}
       </strong>
     ) : (

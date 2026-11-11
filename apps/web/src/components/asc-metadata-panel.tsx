@@ -175,7 +175,7 @@ export function AscMetadataPanel({
   return (
     <div className="mt-3 pt-3 border-t space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-semibold">Sürüm {snap.version?.versionString ?? '—'}</span>
+        <span className="font-medium">Sürüm {snap.version?.versionString ?? '—'}</span>
         <Badge variant={snap.version?.editable ? 'success' : 'secondary'}>{snap.version?.state ?? 'sürüm yok'}</Badge>
         <span className="text-muted-foreground">App bilgisi:</span>
         <Badge variant={snap.appInfo?.editable ? 'success' : 'secondary'}>{snap.appInfo?.state ?? '—'}</Badge>
@@ -200,8 +200,8 @@ export function AscMetadataPanel({
               return (
                 <div key={f.key}>
                   <div className="flex items-center justify-between mb-1">
-                    <label htmlFor={`asc-${f.key}`} className="text-xs font-medium">{f.label}</label>
-                    <span className={cn('text-label', n > f.limit ? 'text-danger' : 'text-muted-foreground')}>{n}/{f.limit}</span>
+                    <label htmlFor={`asc-${f.key}`} className="text-label text-muted-foreground">{f.label}</label>
+                    <span className={cn('text-label tabular-nums', n > f.limit ? 'text-danger' : 'text-muted-foreground')}>{n}/{f.limit}</span>
                   </div>
                   <Comp
                     id={`asc-${f.key}`}
@@ -217,11 +217,11 @@ export function AscMetadataPanel({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={makePlan} disabled={busy !== null || Object.keys(changed).length === 0}>
+            <Button size="sm" variant="outline" onClick={makePlan} disabled={busy !== null || Object.keys(changed).length === 0}>
               {busy === 'plan' ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Eye className="h-4 w-4 mr-1" />} Farkı gör
             </Button>
             {Object.keys(changed).length > 0 && (
-              <Button size="sm" variant="outline" onClick={() => { setDraft({ ...current }); setPlan(null); }}>Değişiklikleri sıfırla</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setDraft({ ...current }); setPlan(null); }}>Değişiklikleri sıfırla</Button>
             )}
           </div>
         </>
@@ -236,7 +236,7 @@ export function AscMetadataPanel({
 
       {plan && (
         <div className="rounded-md border p-3 space-y-3">
-          <p className="text-xs font-semibold">Değişiklik planı (henüz hiçbir şey yazılmadı)</p>
+          <p className="text-xs font-medium">Değişiklik planı (henüz hiçbir şey yazılmadı)</p>
           {plan.changes.length === 0 ? (
             <p className="text-xs text-muted-foreground">Değişiklik yok.</p>
           ) : (
@@ -281,7 +281,7 @@ export function AscMetadataPanel({
 
       {history.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold">Geçmiş</p>
+          <p className="v-rail">Geçmiş</p>
           {history.map((h: any) => (
             <div key={h.id} className="rounded border p-2 text-xs flex items-start justify-between gap-2">
               <div className="min-w-0 space-y-0.5">

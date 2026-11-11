@@ -178,12 +178,12 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
           <Card>
             <CardContent className="p-4 flex items-start gap-4 flex-wrap">
               <div className="min-w-[120px]">
-                <div className="text-label text-muted-foreground mb-1">Markasız tıklama payı</div>
+                <div className="v-rail mb-3">Markasız tıklama payı</div>
                 <div className="text-metric-lg tabular-nums">
                   {overview.brandSplit.unbrandedClickSharePct !== null ? `%${overview.brandSplit.unbrandedClickSharePct}` : '—'}
                 </div>
               </div>
-              <div className="flex-1 min-w-[240px] text-xs text-muted-foreground leading-relaxed">
+              <div className="flex-1 min-w-[240px] text-xs text-muted-foreground leading-relaxed [&_strong]:font-medium [&_strong]:text-foreground">
                 <div>
                   <strong>{formatNum(overview.brandSplit.unbranded.clicks)}</strong> markasız ·{' '}
                   <strong>{formatNum(overview.brandSplit.branded.clicks)}</strong> markalı tıklama
@@ -221,7 +221,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <h3 className="font-semibold">Son 30 gün — tıklama ve gösterim</h3>
+            <h3 className="text-panel-3">Son 30 gün — tıklama ve gösterim</h3>
             <Button size="sm" variant="outline" onClick={triggerSnapshot} disabled={refreshing}>
               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
               {refreshing ? 'Yenileniyor…' : 'Yenile'}
@@ -248,8 +248,8 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
       <TabsContent value="sayfalar" className="space-y-4">
         <Card>
           <CardHeader>
-            <h3 className="font-semibold flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-brand" aria-hidden /> En iyi performans gösteren makaleler
+            <h3 className="text-panel-3 flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-muted-foreground" aria-hidden /> En iyi performans gösteren makaleler
             </h3>
           </CardHeader>
           <CardContent className="p-0">
@@ -262,7 +262,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
                 {topArticles.map((a) => (
                   <div key={a.id} className="px-5 py-3 flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm truncate">{a.title}</h4>
+                      <h4 className="font-medium text-sm truncate">{a.title}</h4>
                       <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 mt-1">
                         <span>{formatNum(a.clicks)} tıklama</span>
                         <span>{formatNum(a.impressions)} gösterim</span>
@@ -279,8 +279,8 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
 
         <Card>
           <CardHeader>
-            <h3 className="font-semibold flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-success" aria-hidden /> Yükselen sorgular (son 7 gün)
+            <h3 className="text-panel-3 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden /> Yükselen sorgular (son 7 gün)
             </h3>
             {trending[0]?.from && trending[0]?.to && (
               <p className="text-xs text-muted-foreground">
@@ -330,7 +330,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
             {gaSummary.topPages?.length > 0 && (
               <Card>
                 <CardHeader>
-                  <h3 className="font-semibold">En çok ziyaret edilen sayfalar</h3>
+                  <h3 className="text-panel-3">En çok ziyaret edilen sayfalar</h3>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="divide-y">
@@ -371,8 +371,8 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
 
         <Card>
           <CardHeader>
-            <h3 className="font-semibold flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-warning" aria-hidden /> İyileştirme önerileri
+            <h3 className="text-panel-3 flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-muted-foreground" aria-hidden /> İyileştirme önerileri
             </h3>
           </CardHeader>
           <CardContent className="p-0">
@@ -449,12 +449,12 @@ function AnalyticsEmptyState({
   // Hiç bağlı değil → birincil aksiyon: GSC bağla
   if (!isGscConnected) {
     return (
-      <Card>
-        <CardContent className="p-10 sm:p-12 text-center">
-          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-brand/10 grid place-items-center border border-brand/20">
-            <BarChart3 className="h-6 w-6 text-brand" />
+      <Card className="border-dashed bg-transparent">
+        <CardContent className="p-8 sm:p-12 text-center">
+          <div className="mx-auto mb-5 grid h-11 w-11 place-items-center rounded-md border text-foreground/70">
+            <BarChart3 className="h-6 w-6" />
           </div>
-          <h3 className="text-h6 font-semibold mb-1">Analitik henüz aktif değil</h3>
+          <h3 className="text-panel-2 mb-2">Analitik henüz aktif değil</h3>
           <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
             Performans verisini görmek için önce Google Search Console'u bağla.
             Bağlandıktan ~24 saat sonra ilk veri görünür.
@@ -469,7 +469,7 @@ function AnalyticsEmptyState({
             </Button>
 
           </div>
-          <p className="text-label text-muted-foreground mt-5">
+          <p className="v-rail mt-5">
             OAuth · sadece okuma izni · istediğin zaman bağlantıyı kesebilirsin
           </p>
         </CardContent>
@@ -480,12 +480,12 @@ function AnalyticsEmptyState({
   // Bağlı ama property seçilmemiş
   if (isGscConnected && !hasGscProperty) {
     return (
-      <Card>
-        <CardContent className="p-10 sm:p-12 text-center">
-          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-warning/10 grid place-items-center border border-warning/20">
-            <BarChart3 className="h-6 w-6 text-warning" />
+      <Card className="border-dashed bg-transparent">
+        <CardContent className="p-8 sm:p-12 text-center">
+          <div className="mx-auto mb-5 grid h-11 w-11 place-items-center rounded-md border text-warning">
+            <BarChart3 className="h-6 w-6" />
           </div>
-          <h3 className="text-h6 font-semibold mb-1">GSC bağlandı — şimdi mülk seç</h3>
+          <h3 className="text-panel-2 mb-2">GSC bağlandı — şimdi mülk seç</h3>
           <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
             Google Search Console hesabın bağlı, ama hangi mülkün verisinin çekileceğini henüz seçmedin.
             Bağlantılar sayfasından mülkü seç, sonra geri gel.
@@ -500,15 +500,15 @@ function AnalyticsEmptyState({
 
   // Bağlı + property var, ama henüz veri çekilmedi (snapshot otomatik tetiklenir)
   return (
-    <Card>
-      <CardContent className="p-10 sm:p-12 text-center">
-        <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-success/10 grid place-items-center border border-success/20 relative">
-          <BarChart3 className="h-6 w-6 text-success" />
+    <Card className="border-dashed bg-transparent">
+      <CardContent className="p-8 sm:p-12 text-center">
+        <div className="mx-auto mb-5 grid h-11 w-11 place-items-center rounded-md border text-success relative">
+          <BarChart3 className="h-6 w-6" />
           {refreshing && (
-            <span className="absolute -inset-1 rounded-2xl border-2 border-success/40 animate-pulse" />
+            <span className="absolute -inset-1 rounded-md border border-success/40 animate-pulse" />
           )}
         </div>
-        <h3 className="text-h6 font-semibold mb-1">
+        <h3 className="text-panel-2 mb-2">
           {refreshing ? 'Veri çekiliyor…' : 'GSC bağlı — ilk veri yolda'}
         </h3>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">
@@ -516,7 +516,7 @@ function AnalyticsEmptyState({
             ? 'Google Search Console\'dan veri otomatik çekiliyor. Bu birkaç saniye sürebilir.'
             : 'Mülkünde henüz indekslenmiş veri olmayabilir. Veri görünmeye başladığında otomatik gelir (~24 saat).'}
         </p>
-        <div className="flex items-center justify-center gap-2 mt-5 text-label text-muted-foreground">
+        <div className="v-rail flex items-center justify-center gap-2 mt-5">
           <span className={`h-1.5 w-1.5 rounded-full ${refreshing ? 'bg-success animate-pulse' : 'bg-muted-foreground/40'}`} />
           {refreshing ? 'Veri çekiliyor' : 'GSC bağlı'}
         </div>

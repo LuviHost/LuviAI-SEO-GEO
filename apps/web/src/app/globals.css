@@ -3,47 +3,52 @@
 @tailwind utilities;
 
 @layer base {
-  /* .rapor-kagit: musteri raporu belgesi koyu temali panelde de ACIK tema
+  /* ─── PANEL + GENEL TOKEN'LAR (12.11.2026: vitrin dili ic sayfalarda) ─────
+     Herkese acik sayfalarin koyu vitrini (asagidaki .vitrin blogu) artik panelin
+     de dili: notr zemin (lacivert/slate tonu YOK), ince cizgi, golge yok, 8px
+     yaricap, tek doygun turuncu. Koyu tema vitrinle AYNI degerleri tasir; acik
+     tema ayni dilin beyaz zeminli karsiligidir (secenek olarak kalir).
+
+     .rapor-kagit: musteri raporu belgesi koyu temali panelde de ACIK tema
      token'lariyla cizilir ve basilir (kagit belge). Ayni bildirim blogu: acik
      degerler tek yerde kalir, html.dark'in degerlerini belgenin alt agacinda ezer. */
   :root,
   .rapor-kagit {
     --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --foreground: 0 0% 7%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 0 0% 7%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 0 0% 7%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 21 90% 53%;
+    --border: 0 0% 89%;
+    --input: 0 0% 80%;
+    --ring: 21 100% 50%;
 
-    --radius: 0.875rem; /* 14px kart yaricapi — analitik UI sozlesmesi (eski 12px) */
+    --radius: 0.5rem; /* 8px — vitrinle ayni (eski 14px) */
 
-    /* Sidebar yuzeyi — planin TEK bilincli gorsel degisikligi (02.09.2026):
-       light temada sidebar aydinlanir ("temiz analitik" geregi), dark eski goruntusunde. */
+    /* Kenar cubugu sayfa zeminiyle AYNI yuzey; ayrimi yalniz ince cizgi yapar */
     --sidebar: 0 0% 100%;
-    --sidebar-foreground: 222 47% 11%;
-    --sidebar-muted: 215 16% 47%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-hover: 210 40% 96%;
+    --sidebar-foreground: 0 0% 7%;
+    --sidebar-muted: 0 0% 40%;
+    --sidebar-border: 0 0% 89%;
+    --sidebar-hover: 0 0% 95%;
 
     /* Grafik paleti — TEK kaynak (recharts hsl(var(--chart-N)) okur; dark blok override eder).
        Sira: 1 marka turuncusu, sonra ayirt edilebilirlik icin uzak tonlar. */
-    --chart-1: 24 95% 53%;   /* brand orange */
+    --chart-1: 21 100% 50%;  /* marka turuncusu */
     --chart-2: 160 84% 39%;  /* emerald */
     --chart-3: 217 91% 60%;  /* blue */
     --chart-4: 258 90% 66%;  /* violet */
     --chart-5: 199 89% 48%;  /* sky */
     --chart-6: 0 84% 60%;    /* red */
     --chart-7: 43 96% 56%;   /* amber */
-    --chart-8: 215 16% 57%;  /* slate — "diger" */
+    --chart-8: 0 0% 55%;     /* notr gri — "diger" */
 
     /* Durum tonlari — rozet, serit, durum metni TEK kaynak (eskiden ekran ekran
        amber/rose/emerald/blue siniflari). AI yuzeyleri ayri renk ALMAZ: marka. */
@@ -55,28 +60,48 @@
     /* Landing: AI cevabinda markanin anildigi yeri isaretleyen fosforlu kalem */
     --highlighter: 31 97% 83%;
 
-    /* Vitrin token'larinin vitrin DISINDAKI karsiliklari (brand / muted-foreground) */
-    --brand-vivid: 24 95% 53%;
-    --dim: 215 16% 47%;
+    /* Tek doygun turuncu (#FF5800) — bg-brand / text-brand de bunu okur (tailwind.config) */
+    --brand-vivid: 21 100% 50%;
+    /* Iki tonlu basliklarin sonuk ikinci satiri */
+    --dim: 0 0% 58%;
+
+    color-scheme: light;
   }
 
   .dark {
-    /* Sidebar dark: eski slate-950 gorunumu birebir */
-    --sidebar: 222 84% 5%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-muted: 215 16% 57%;
-    --sidebar-border: 217 33% 17%;
-    --sidebar-hover: 217 33% 17%;
+    /* Vitrinle ayni sahne: #090909 zemin, #111 kart, %17 cizgi */
+    --background: 0 0% 3.5%;
+    --foreground: 0 0% 97%;
+
+    --card: 0 0% 6.5%;
+    --card-foreground: 0 0% 97%;
+
+    /* Golge yok: acilir menu ve diyalog karttan bir ton acik zeminle ayrisir */
+    --popover: 0 0% 8.5%;
+    --popover-foreground: 0 0% 97%;
+
+    --muted: 0 0% 11%;
+    --muted-foreground: 30 4% 64%;
+
+    --border: 0 0% 17%;
+    --input: 0 0% 22%;
+    --ring: 20 100% 60%;
+
+    --sidebar: 0 0% 3.5%;
+    --sidebar-foreground: 0 0% 97%;
+    --sidebar-muted: 30 4% 58%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-hover: 0 0% 10%;
 
     /* Dark: ayni tonlar, parlaklik +6-8 puan (koyu zeminde okunurluk) */
-    --chart-1: 24 95% 58%;
+    --chart-1: 21 100% 55%;
     --chart-2: 160 74% 47%;
     --chart-3: 217 91% 66%;
     --chart-4: 258 90% 72%;
     --chart-5: 199 89% 56%;
     --chart-6: 0 84% 66%;
     --chart-7: 43 96% 62%;
-    --chart-8: 215 16% 65%;
+    --chart-8: 0 0% 62%;
 
     --success: 152 55% 52%;
     --warning: 38 92% 58%;
@@ -84,21 +109,10 @@
     --info: 213 94% 68%;
     --highlighter: 21 72% 30%;
 
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --brand-vivid: 21 100% 50%;
+    --dim: 0 0% 44%;
 
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 21 90% 53%;
+    color-scheme: dark;
   }
 
   /* ─── VITRIN — ana sayfanin koyu, duz sahnesi (11.11.2026) ───────────────

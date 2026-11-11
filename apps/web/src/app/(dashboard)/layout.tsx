@@ -73,8 +73,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {open ? <X aria-hidden /> : <Menu aria-hidden />}
         </Button>
         <Link href="/dashboard" className="inline-flex items-center" aria-label="RanksUp — Sitelerim">
-          <span className="dark:hidden"><BrandWordmark size={18} /></span>
-          <span className="hidden dark:inline"><BrandWordmark size={18} reversed /></span>
+          <span className="dark:hidden"><BrandWordmark size={18} accent="hsl(var(--brand-vivid))" /></span>
+          <span className="hidden dark:inline"><BrandWordmark size={18} reversed accent="hsl(var(--brand-vivid))" /></span>
         </Link>
         <Button
           variant="ghost"
@@ -104,9 +104,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <div className="space-y-3 border-t border-sidebar-border p-4">
+          {/* Arama / komut paleti (⌘K) — masaustu; telefonda ust cubuktaki dugme */}
+          <button
+            type="button"
+            onClick={openCommandPalette}
+            aria-label="Komut paletini aç (⌘K)"
+            className="hidden w-full items-center gap-2 rounded-md border border-sidebar-border px-3 py-1.5 font-mono text-vitrin-rail text-sidebar-muted transition-colors duration-200 hover:border-foreground/30 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex"
+          >
+            <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>Ara</span>
+            <kbd className="ml-auto rounded border border-sidebar-border px-1.5 py-0.5">⌘K</kbd>
+          </button>
           <UserMenu />
           <div className="flex items-center justify-between">
-            <LocaleSwitch />
+            <LocaleSwitch quiet />
             <div className="flex items-center gap-1">
               <NotificationBell />
               <ThemeToggle />
@@ -117,7 +128,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Arka perde */}
       {open && (
-        <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setOpen(false)} aria-hidden />
+        <div className="fixed inset-0 z-40 bg-black/70 md:hidden" onClick={() => setOpen(false)} aria-hidden />
       )}
 
       <main className="flex-1 overflow-x-hidden p-4 pt-16 sm:p-6 sm:pt-16 md:p-10">

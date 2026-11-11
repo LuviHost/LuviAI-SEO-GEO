@@ -11,6 +11,7 @@ import { finishOAuthConnect, oauthCallbackErrorText } from '@/lib/oauth-connect'
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GoogleAdsOAuthCard, MetaAdsOAuthCard } from '@/components/ads-lab-panel';
@@ -169,8 +170,8 @@ export function PublishTargetsManager({
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h3 className="font-brand font-semibold">Bağlı hedefler</h3>
-            <p className="text-xs text-muted-foreground mt-1">
+            <h3 className="text-panel-3">Bağlı hedefler</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               Birden fazla hedef ekleyebilir, birini varsayılan yapabilirsin.
             </p>
           </div>
@@ -205,13 +206,13 @@ export function PublishTargetsManager({
               return (
                 <li
                   key={t.id}
-                  className="p-4 flex items-center justify-between gap-3 flex-wrap hover:bg-muted/30"
+                  className="flex flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/50"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <BrandIcon type={meta?.type ?? t.type} fallback={meta?.icon} className="h-6 w-6" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium">{t.name}</span>
+                        <span className="text-panel-3">{t.name}</span>
                         {t.isDefault && (
                           <Badge variant="brand">Varsayılan</Badge>
                         )}
@@ -219,7 +220,7 @@ export function PublishTargetsManager({
                           <Badge variant="secondary">Pasif</Badge>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="v-rail mt-0.5">
                         {meta?.label ?? t.type}
                         {t.lastUsedAt && ` · son kullanım ${new Date(t.lastUsedAt).toLocaleDateString('tr-TR')}`}
                       </div>
@@ -245,7 +246,7 @@ export function PublishTargetsManager({
                       size="sm"
                       variant="outline"
                       onClick={() => remove(t.id, t.name)}
-                      className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+                      className="text-danger hover:border-danger/50 hover:bg-danger/10"
                       title="Sil"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -259,11 +260,11 @@ export function PublishTargetsManager({
 
         {/* Catalog — collapse panel, "+ Yeni Hedef" tıklayınca açılır */}
         {showCatalog && !loading && (
-          <div className="border-t bg-muted/20 p-4 space-y-3">
+          <div className="space-y-3 border-t p-4">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div>
-                <p className="text-sm font-semibold">Hedef tipini seç</p>
-                <p className="text-[11px] text-muted-foreground">14 farklı yayın hedefi destekleniyor</p>
+                <p className="text-panel-3">Hedef tipini seç</p>
+                <p className="text-xs text-muted-foreground">14 farklı yayın hedefi destekleniyor</p>
               </div>
               <Button size="sm" variant="ghost" onClick={() => setShowCatalog(false)}>
                 <XCircle className="h-4 w-4 mr-1" /> Kapat
@@ -274,12 +275,12 @@ export function PublishTargetsManager({
                 <button
                   key={c.type}
                   onClick={() => setAdding(c)}
-                  className="text-left p-3 border rounded-lg bg-card hover:border-brand hover:bg-brand/5 transition-colors flex items-start gap-3"
+                  className="flex items-start gap-3 rounded-md border p-3 text-left transition-colors hover:border-foreground/30 hover:bg-muted"
                 >
                   <BrandIcon type={c.type} fallback={c.icon} className="h-7 w-7 shrink-0" />
                   <div className="min-w-0">
-                    <div className="font-medium text-sm">{c.label}</div>
-                    <div className="text-[11px] text-muted-foreground line-clamp-2 leading-snug">
+                    <div className="text-sm font-medium">{c.label}</div>
+                    <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
                       {c.description}
                     </div>
                   </div>
@@ -562,17 +563,17 @@ function TargetForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <Card className="w-full max-w-xl my-4 sm:my-8 max-h-[95vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <Card className="my-4 flex max-h-[95vh] w-full max-w-xl flex-col overflow-hidden bg-popover sm:my-8">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <span className="text-3xl">{catalog.icon}</span>
+              <BrandIcon type={catalog.type} fallback={catalog.icon} className="mt-0.5 h-8 w-8 shrink-0" />
               <div>
-                <h3 className="font-bold">
+                <h3 className="text-panel-3">
                   {existing ? `${catalog.label} — Düzenle` : `${catalog.label} ekle`}
                 </h3>
-                <p className="text-xs text-muted-foreground">{catalog.description}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">{catalog.description}</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5">
@@ -580,7 +581,7 @@ function TargetForm({
                 <button
                   type="button"
                   onClick={() => setShowGuide(true)}
-                  className="text-xs px-2.5 py-1 rounded-full border border-brand/30 bg-brand/5 text-brand hover:bg-brand/10 transition-colors inline-flex items-center gap-1"
+                  className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
                   title="Adım adım rehber"
                 >
                   <Activity className="h-3 w-3" /> Rehber
@@ -596,16 +597,16 @@ function TargetForm({
           {/* Step-by-step rehber overlay — ilk açılışta otomatik */}
           {showGuide && guide && (
             <div
-              className="absolute inset-0 z-10 bg-card/95 backdrop-blur-sm overflow-y-auto p-5 animate-[fadeInUp_320ms_ease-out]"
+              className="absolute inset-0 z-10 overflow-y-auto bg-popover p-5 animate-[fadeInUp_320ms_ease-out]"
               style={{ animation: 'fadeInUp 320ms ease-out' }}
             >
               <style>{`@keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } } @keyframes stepIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }`}</style>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl">{catalog.icon}</span>
+                  <BrandIcon type={catalog.type} fallback={catalog.icon} className="h-7 w-7 shrink-0" />
                   <div>
-                    <p className="font-bold text-sm">{guide.title}</p>
-                    <p className="text-[11px] text-muted-foreground">Adım adım kurulum</p>
+                    <p className="text-panel-3">{guide.title}</p>
+                    <p className="text-xs text-muted-foreground">Adım adım kurulum</p>
                   </div>
                 </div>
                 <button
@@ -627,7 +628,7 @@ function TargetForm({
                       animation: `stepIn 360ms ease-out ${i * 80}ms both`,
                     }}
                   >
-                    <span className="grid place-items-center h-6 w-6 rounded-full bg-brand text-white text-[11px] font-bold shrink-0">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded border font-mono text-xs text-muted-foreground">
                       {i + 1}
                     </span>
                     <span className="text-sm leading-relaxed text-foreground/90 pt-0.5">{step}</span>
@@ -637,10 +638,10 @@ function TargetForm({
 
               {guide.tip && (
                 <div
-                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 mb-4"
+                  className="mb-4 rounded-md border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground"
                   style={{ animation: `stepIn 360ms ease-out ${guide.steps.length * 80}ms both` }}
                 >
-                  <strong>İpucu:</strong> {guide.tip}
+                  <strong className="font-medium text-warning">İpucu:</strong> {guide.tip}
                 </div>
               )}
 
@@ -648,7 +649,7 @@ function TargetForm({
                 <Button variant="outline" size="sm" onClick={dismissGuide}>
                   Atla
                 </Button>
-                <Button size="sm" onClick={dismissGuide}>
+                <Button size="sm" variant="secondary" onClick={dismissGuide}>
                   Anladım, devam et →
                 </Button>
               </div>
@@ -656,7 +657,7 @@ function TargetForm({
           )}
 
           <div>
-            <label className="block text-xs font-medium mb-1">Hedef adı *</label>
+            <label className="mb-1.5 block text-label text-muted-foreground">Hedef adı *</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -666,11 +667,11 @@ function TargetForm({
 
           {catalog.fields.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-2">
+              <h4 className="v-rail mb-2">
                 Bağlantı Bilgileri
               </h4>
               {existing && (
-                <p className="text-[11px] text-muted-foreground mb-2">
+                <p className="mb-2 text-xs text-muted-foreground">
                   Mevcut giriş bilgilerini değiştirmek istemiyorsan boş bırak; yalnız doldurduğun alanlar güncellenir.
                 </p>
               )}
@@ -704,7 +705,7 @@ function TargetForm({
 
           {catalog.configFields.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-2">
+              <h4 className="v-rail mb-2">
                 Yayın Ayarları
               </h4>
               <div className="space-y-3">
@@ -729,11 +730,11 @@ function TargetForm({
             />
             <span>Varsayılan yayın hedefi yap</span>
             <CheckCircle2
-              className={`h-4 w-4 ml-auto ${isDefault ? 'text-green-500' : 'text-muted-foreground/30'}`}
+              className={`h-4 w-4 ml-auto ${isDefault ? 'text-success' : 'text-muted-foreground/30'}`}
             />
           </label>
         </CardContent>
-        <div className="px-4 sm:px-6 py-4 flex justify-end gap-2 border-t bg-muted/30 shrink-0">
+        <div className="flex shrink-0 justify-end gap-2 border-t px-4 py-4 sm:px-6">
           <Button variant="outline" onClick={onClose} disabled={saving}>
             İptal
           </Button>
@@ -762,15 +763,15 @@ function FormField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium mb-1">
-        {field.label} {field.required && <span className="text-red-500">*</span>}
+      <label className="mb-1.5 block text-label text-muted-foreground">
+        {field.label} {field.required && <span className="text-danger">*</span>}
       </label>
       {field.type === 'select' ? (
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className="w-full h-9 px-3 rounded-md border bg-card text-sm disabled:opacity-50"
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground transition-colors focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
         >
           {(field.options ?? []).map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -779,13 +780,13 @@ function FormField({
           ))}
         </select>
       ) : field.type === 'textarea' ? (
-        <textarea
+        <Textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder ?? field.placeholder}
           disabled={disabled}
           rows={4}
-          className="w-full px-3 py-2 rounded-md border bg-card text-sm font-mono disabled:opacity-50"
+          className="font-mono"
         />
       ) : (
         <Input
@@ -797,7 +798,7 @@ function FormField({
         />
       )}
       {field.hint && (
-        <p className="text-[11px] text-muted-foreground mt-1">{field.hint}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{field.hint}</p>
       )}
     </div>
   );
@@ -919,11 +920,13 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <BarChart3 className="h-5 w-5 text-brand" />
-            <div>
-              <h2 className="font-semibold">Google Search Console</h2>
-              <p className="text-xs text-muted-foreground mt-1">
+          <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground" aria-hidden>
+              <BarChart3 className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-panel-3">Google Search Console</h2>
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
                 Konu önerilerine gerçek arama verisini katar ve Performans sekmesini açar. İsteğe bağlı; bağlamasan da RanksUp çalışır.
                 Not: Search Console AI cevaplarında görünüp görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez — RanksUp bunu AI asistanlarına (ChatGPT, Gemini, Claude, Perplexity; Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek) doğrudan sorarak ölçer; GSC bunun yanına Google'daki gerçek tıklamayı koyar (markalı/markasız ayrımıyla).
               </p>
@@ -942,7 +945,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
         ) : connected ? (
           <div className="space-y-3">
             <div className="space-y-2">
-              <div className="text-xs font-semibold text-muted-foreground">
+              <div className="v-rail">
                 Seçili mülk
               </div>
               {loadingProps ? (
@@ -952,7 +955,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
                   value={site.gscPropertyUrl ?? ''}
                   onChange={(e) => selectProperty(e.target.value)}
                   disabled={savingProp}
-                  className="w-full bg-card border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground transition-colors focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {!site.gscPropertyUrl && <option value="">— Property seç —</option>}
                   {properties.map((p) => (
@@ -962,13 +965,13 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
                   ))}
                 </select>
               ) : properties && properties.length === 0 ? (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-danger">
                   Bu Google hesabı GSC'de hiçbir property'e erişim sahibi değil.
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">Yükleniyor…</p>
               )}
-              <div className="text-xs text-muted-foreground">
+              <div className="v-rail">
                 Bağlandı: {new Date(site.gscConnectedAt).toLocaleString('tr-TR')}
               </div>
             </div>
@@ -988,7 +991,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
               Sitenin Google Search Console hesabını bağla; RanksUp <strong>{site?.url}</strong> property'sinin
               tıklama, gösterim ve sıralama verisini çeker.
             </p>
-            <Button onClick={connect} disabled={busy}>
+            <Button variant="outline" onClick={connect} disabled={busy}>
               <Link2 className="h-4 w-4 mr-2" />
               {busy ? 'Yönlendiriliyor…' : 'Google ile Bağla'}
             </Button>
@@ -1109,11 +1112,13 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <Activity className="h-5 w-5 text-brand" />
-            <div>
-              <h2 className="font-semibold">Google Analytics</h2>
-              <p className="text-xs text-muted-foreground mt-1">
+          <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground" aria-hidden>
+              <Activity className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-panel-3">Google Analytics</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Hemen çıkma oranı, oturum süresi ve dönüşüm verisi konu önerilerini iyileştirir. İsteğe bağlı.
               </p>
             </div>
@@ -1131,7 +1136,7 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
         ) : connected ? (
           <div className="space-y-3">
             <div className="space-y-2">
-              <div className="text-xs font-semibold text-muted-foreground">
+              <div className="v-rail">
                 Seçili mülk
               </div>
               {loadingProps ? (
@@ -1141,7 +1146,7 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
                   value={site.gaPropertyId ?? ''}
                   onChange={(e) => selectProperty(e.target.value)}
                   disabled={savingProp}
-                  className="w-full bg-card border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground transition-colors focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {!site.gaPropertyId && <option value="">— Property seç —</option>}
                   {properties.map((p) => (
@@ -1151,13 +1156,13 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
                   ))}
                 </select>
               ) : properties && properties.length === 0 ? (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-danger">
                   Bu Google hesabı GA4'te hiçbir property'e erişim sahibi değil.
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">Yükleniyor…</p>
               )}
-              <div className="text-xs text-muted-foreground">
+              <div className="v-rail">
                 Bağlandı: {new Date(site.gaConnectedAt).toLocaleString('tr-TR')}
               </div>
             </div>
@@ -1176,7 +1181,7 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
             <p className="text-muted-foreground">
               Sitenin GA4 property'sini bağla; RanksUp bounce/oturum/conversion verisini çeker, makale önerisinde kullanır.
             </p>
-            <Button onClick={connect} disabled={busy}>
+            <Button variant="outline" onClick={connect} disabled={busy}>
               <Link2 className="h-4 w-4 mr-2" />
               {busy ? 'Yönlendiriliyor…' : 'Google ile Bağla'}
             </Button>
@@ -1218,8 +1223,8 @@ function AdsAccountsCard({ siteId }: { siteId: string }) {
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="font-semibold">Reklam Hesapları</h2>
-            <p className="text-xs text-muted-foreground mt-1">
+            <h2 className="text-panel-3">Reklam Hesapları</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
               Google Ads + Meta Ads — tek tıkla bağla, otomatik kampanya yönetimi için kullanılır.
               <br />
               Bu hesaplar bağlandığında <strong>Ads Lab</strong> sekmesindeki kampanya wizard'ı aktif olur.

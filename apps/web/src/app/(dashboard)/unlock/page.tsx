@@ -3,10 +3,14 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowRight, Loader2, AlertCircle, Unlock, Lock, Check } from 'lucide-react';
+import { ArrowRight, Loader2, Unlock, Lock, Check } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { QueryCard } from '@/components/citation/query-card';
+import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBanner } from '@/components/ui/status-banner';
+import { cn } from '@/lib/utils';
 import { UNLOCK_DOMAIN_KEY } from '@/lib/unlock-return';
 
 type UnlockResult = Awaited<ReturnType<typeof api.publicCitationUnlock>>;
@@ -88,7 +92,7 @@ export default function UnlockPage() {
     <Suspense
       fallback={
         <div className="max-w-xl mx-auto p-10 text-center">
-          <Loader2 className="h-10 w-10 mx-auto animate-spin text-brand-600" />
+          <Loader2 className="h-6 w-6 mx-auto animate-spin text-muted-foreground motion-reduce:animate-none" />
         </div>
       }
     >
@@ -139,7 +143,7 @@ function UnlockView() {
     return (
       <div className="max-w-xl mx-auto p-8 text-center">
         <p className="text-sm text-muted-foreground mb-4">{c.missingDomain}</p>
-        <Link href="/" className="inline-flex bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-colors">
+        <Link href="/" className={buttonVariants()}>
           {c.backHome}
         </Link>
       </div>
@@ -152,11 +156,11 @@ function UnlockView() {
   if (needsPayment) {
     return (
       <div className="max-w-lg mx-auto p-6 sm:p-10">
-        <div className="bg-muted/30 rounded-2xl border p-6 sm:p-8 text-center">
-          <div className="inline-grid place-items-center w-12 h-12 rounded-full bg-brand-500/10 mb-4">
-            <Lock className="h-6 w-6 text-brand-600" />
+        <div className="rounded-lg border bg-card p-6 sm:p-8 text-center">
+          <div className="inline-grid place-items-center w-11 h-11 rounded-md border border-border text-muted-foreground mb-4">
+            <Lock className="h-5 w-5" />
           </div>
-          <h1 className="text-xl font-bold mb-2">{c.payTitle}</h1>
+          <h1 className="text-panel-2 mb-2">{c.payTitle}</h1>
           <p className="text-sm text-muted-foreground leading-relaxed mb-5">
             {c.payBody.replace('{domain}', domain)}
           </p>
@@ -164,7 +168,7 @@ function UnlockView() {
           <ul className="text-sm text-left space-y-2 mb-6 max-w-sm mx-auto">
             {[c.payBullet1, c.payBullet2, c.payBullet3].map((b) => (
               <li key={b} className="flex items-start gap-2">
-                <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
+                <Check className="h-4 w-4 text-success shrink-0 mt-0.5" strokeWidth={2} />
                 <span>{b}</span>
               </li>
             ))}
@@ -178,12 +182,12 @@ function UnlockView() {
             onClick={() => {
               try { localStorage.setItem(UNLOCK_DOMAIN_KEY, domain); } catch { /* noop */ }
             }}
-            className="w-full inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors"
+            className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
           >
             {c.payCta}
             <ArrowRight className="h-4 w-4" />
           </Link>
-          <Link href="/" className="mt-3 inline-flex text-xs font-semibold text-muted-foreground hover:text-foreground">
+          <Link href="/" className="mt-3 inline-flex text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
             {c.payBack}
           </Link>
         </div>
@@ -194,14 +198,8 @@ function UnlockView() {
   if (error) {
     return (
       <div className="max-w-xl mx-auto p-8">
-        <div className="flex items-start gap-3 p-4 rounded-xl border border-[#C43C2E]/40 bg-[#C43C2E]/10 text-[#C43C2E] dark:text-[#E8907F] text-sm">
-          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-          <div>
-            <div className="font-bold mb-0.5">{c.errorTitle}</div>
-            <div>{error}</div>
-          </div>
-        </div>
-        <Link href="/" className="mt-4 inline-flex text-sm font-semibold text-brand-600 hover:underline">
+        <StatusBanner tone="danger" title={c.errorTitle}>{error}</StatusBanner>
+        <Link href="/" className="mt-4 inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">
           {c.backHome}
         </Link>
       </div>
@@ -211,28 +209,24 @@ function UnlockView() {
   if (!result) {
     return (
       <div className="max-w-xl mx-auto p-10 text-center">
-        <Loader2 className="h-10 w-10 mx-auto mb-5 animate-spin text-brand-600" />
-        <p className="font-bold text-base mb-1">{c.running}</p>
+        <Loader2 className="h-6 w-6 mx-auto mb-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        <p className="text-panel-3 mb-1">{c.running}</p>
         <p className="text-sm text-muted-foreground">{c.runningSub}</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="inline-grid place-items-center w-10 h-10 rounded-full bg-brand-500/10 shrink-0">
-          <Unlock className="h-5 w-5 text-brand-600" />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold truncate">
-            {c.title} — {result.brand}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {c.subtitle.replace('{n}', String(result.queries.length))} · {result.domain}
-          </p>
-        </div>
-      </div>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <PageHeader
+        leading={
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border text-muted-foreground" aria-hidden>
+            <Unlock className="h-5 w-5" />
+          </span>
+        }
+        title={<>{c.title} — {result.brand}</>}
+        description={<>{c.subtitle.replace('{n}', String(result.queries.length))} · {result.domain}</>}
+      />
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
@@ -258,10 +252,10 @@ function UnlockView() {
         </div>
 
         <div className="lg:col-span-1 space-y-4">
-          <h4 className="text-sm font-semibold text-muted-foreground">
+          <h4 className="v-rail">
             {c.competitorHeader}
           </h4>
-          <div className="bg-muted/30 rounded-2xl border p-5">
+          <div className="rounded-lg border bg-card p-5">
             {result.competitorRanking.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">{c.competitorEmpty}</p>
             ) : (
@@ -269,21 +263,21 @@ function UnlockView() {
                 {result.competitorRanking.slice(0, 8).map((comp, idx) => (
                   <div
                     key={comp.name + idx}
-                    className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-brand-500/10 ring-1 ring-brand-500/30' : ''}`}
+                    className={`flex items-center gap-3 p-2 rounded-md ${comp.isBrand ? 'bg-muted' : ''}`}
                   >
                     <span
-                      className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-brand-600 text-white' : 'bg-muted text-foreground'}`}
+                      className={`inline-grid place-items-center w-6 h-6 rounded font-mono text-vitrin-rail shrink-0 ${comp.isBrand ? 'bg-foreground text-background' : 'border border-border text-muted-foreground'}`}
                     >
                       {idx + 1}
                     </span>
                     <span className="flex-1 text-sm font-medium truncate">
                       {comp.name}
                       {comp.isBrand && (
-                        <span className="text-brand-600 text-xs ml-1.5 font-bold">{c.youLabel}</span>
+                        <span className="text-brand text-xs ml-1.5 font-medium">{c.youLabel}</span>
                       )}
                     </span>
                     <span
-                      className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-brand-600' : 'text-muted-foreground'}`}
+                      className={`text-sm font-medium tabular-nums shrink-0 ${comp.isBrand ? 'text-foreground' : 'text-muted-foreground'}`}
                     >
                       {comp.pct}%
                     </span>
@@ -295,7 +289,7 @@ function UnlockView() {
 
           <Link
             href={`/onboarding?url=${encodeURIComponent(`https://${result.domain}`)}&new=1`}
-            className="w-full inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors"
+            className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
           >
             {c.addSite}
             <ArrowRight className="h-4 w-4" />

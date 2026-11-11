@@ -38,11 +38,11 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 };
 
 const IMPACT_BADGE: Record<string, { text: string; cls: string }> = {
-  high:   { text: 'YÜKSEK ETKİ', cls: 'bg-danger/10 text-danger border-danger/30' },
-  medium: { text: 'ORTA ETKİ',   cls: 'bg-warning/10 text-warning border-warning/30' },
-  low:    { text: 'DÜŞÜK ETKİ',  cls: 'bg-muted text-muted-foreground border-border' },
+  high:   { text: 'Yüksek etki', cls: 'border-foreground/30 text-foreground' },
+  medium: { text: 'Orta etki',   cls: 'border-border text-muted-foreground' },
+  low:    { text: 'Düşük etki',  cls: 'border-border text-muted-foreground/70' },
   // Puansız bilgi kontrolü — skora girmez
-  info:   { text: 'BİLGİ',       cls: 'bg-info/10 text-info border-info/30' },
+  info:   { text: 'Bilgi',       cls: 'border-border bg-muted text-muted-foreground' },
 };
 
 /** Metodoloji rozetleri — skor sürümü değiştikçe önceki taramalarla puan farkı açıklanır */
@@ -97,7 +97,7 @@ function Gauge({ score }: { score: number }) {
       {score > 0 && (
         <path d={`M 10 60 A 50 50 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)}`} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" />
       )}
-      <text x="60" y="52" textAnchor="middle" className="fill-current" style={{ fontSize: 26, fontWeight: 700 }}>{score}</text>
+      <text x="60" y="52" textAnchor="middle" className="fill-current" style={{ fontSize: 26, fontWeight: 450, letterSpacing: '-0.045em' }}>{score}</text>
       <text x="60" y="66" textAnchor="middle" className="fill-current opacity-50" style={{ fontSize: 8 }}>/ 100</text>
     </svg>
   );
@@ -186,7 +186,7 @@ export default function AgentReadinessPage() {
           title="Ajan Hazırlığı"
           description={<>AI ajanları siteni kullanabiliyor mu? 4 seviyede, haftada bir otomatik test edilir. GEO görünürlüğü ölçer; bu ekran ajanların sitende iş yapabilmesini ölçer.</>}
         />
-        <Button onClick={runScan} disabled={running}>
+        <Button variant={data ? 'default' : 'outline'} onClick={runScan} disabled={running}>
           {running ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
           {running ? 'Taranıyor…' : 'Testleri Çalıştır'}
         </Button>
@@ -195,7 +195,9 @@ export default function AgentReadinessPage() {
       {!data ? (
         <Card>
           <CardContent className="p-10 text-center space-y-3">
-            <Bot className="h-10 w-10 mx-auto text-muted-foreground/40" />
+            <span className="mx-auto grid h-11 w-11 place-items-center rounded-md border text-foreground/70" aria-hidden>
+              <Bot className="h-5 w-5" />
+            </span>
             <p className="text-sm text-muted-foreground">Henüz tarama yok. İlk taramayı başlat — genellikle yarım dakikadan kısa sürer.</p>
             <Button onClick={runScan} disabled={running}>
               {running ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
@@ -207,11 +209,11 @@ export default function AgentReadinessPage() {
         <>
           {/* Erişim engeli — skor yerine neden ve çözüm */}
           {unmeasured && (
-            <Card className="border-warning/40">
+            <Card className="border-warning/30 bg-warning/5">
               <CardContent className="p-5 space-y-2">
                 <div className="flex items-center gap-2">
                   <ShieldAlert className="h-5 w-5 text-warning" />
-                  <span className="font-semibold">{data.status === 'blocked' ? 'Sitene erişimimiz engellendi' : 'Sitene ulaşılamadı'}</span>
+                  <span className="font-medium">{data.status === 'blocked' ? 'Sitene erişimimiz engellendi' : 'Sitene ulaşılamadı'}</span>
                 </div>
                 {access?.reason && <p className="text-sm">{access.reason}</p>}
                 {access?.hint && <p className="text-sm text-muted-foreground">{access.hint}</p>}
@@ -235,7 +237,7 @@ export default function AgentReadinessPage() {
                   ) : (
                     <Gauge score={data.overallScore} />
                   )}
-                  <div className={cn('text-sm font-semibold mt-1', STATUS_LABEL[data.status]?.cls)}>
+                  <div className={cn('text-sm font-medium mt-1', STATUS_LABEL[data.status]?.cls)}>
                     {STATUS_LABEL[data.status]?.text ?? data.status}
                   </div>
                   <div className="text-label text-muted-foreground mt-0.5">
@@ -255,9 +257,9 @@ export default function AgentReadinessPage() {
 
                 <div className="flex-1 min-w-[260px] grid sm:grid-cols-2 gap-3">
                   {stance && (
-                    <div className="rounded-lg border p-3">
-                      <div className="text-xs text-muted-foreground mb-1">robots.txt AI duruşu</div>
-                      <div className="text-sm font-semibold">
+                    <div className="rounded-md border p-3">
+                      <div className="v-rail mb-1.5">robots.txt AI duruşu</div>
+                      <div className="text-sm font-medium">
                         <span className="text-success">{stance.allow} izinli</span>
                         <span className="text-muted-foreground mx-1.5">·</span>
                         <span className="text-danger">{stance.block} engelli</span>
@@ -272,14 +274,14 @@ export default function AgentReadinessPage() {
                     </div>
                   )}
                   {data.agentsAllowed !== null && data.agentsAllowed !== undefined && (
-                    <div className="rounded-lg border p-3">
-                      <div className="text-xs text-muted-foreground mb-1">Ziyaret edebilen AI ajanı</div>
-                      <div className="text-sm font-semibold">{data.agentsAllowed}/{data.agentsTotal}</div>
+                    <div className="rounded-md border p-3">
+                      <div className="v-rail mb-1.5">Ziyaret edebilen AI ajanı</div>
+                      <div className="text-metric tabular-nums">{data.agentsAllowed}/{data.agentsTotal}</div>
                     </div>
                   )}
                   {Array.isArray(data.nextUpToFix) && data.nextUpToFix.length > 0 && (
-                    <div className="rounded-lg border p-3 sm:col-span-2">
-                      <div className="text-xs text-muted-foreground mb-1.5">Sıradaki düzeltmeler</div>
+                    <div className="rounded-md border p-3 sm:col-span-2">
+                      <div className="v-rail mb-1.5">Sıradaki düzeltmeler</div>
                       <div className="flex flex-wrap gap-1.5">
                         {data.nextUpToFix.map((f: any) => (
                           <Badge key={f.checkId} variant="warning">
@@ -289,7 +291,7 @@ export default function AgentReadinessPage() {
                       </div>
                     </div>
                   )}
-                  <div className="rounded-lg border p-3 sm:col-span-2 text-xs text-muted-foreground flex items-start gap-2">
+                  <div className="rounded-md border p-3 sm:col-span-2 text-xs text-muted-foreground flex items-start gap-2">
                     <Info className="h-3.5 w-3.5 mt-px shrink-0" aria-hidden />
                     <span>
                       auth.md, API kataloğu, A2A ajan kartı ve MCP sunucu kartı yalnız sitende o arayüz varsa puanlanır; yoksa &quot;BİLGİ&quot; olarak gösterilir ve skoru düşürmez.
@@ -313,7 +315,7 @@ export default function AgentReadinessPage() {
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-semibold text-sm">{level.title}</span>
+                      <span className="text-panel-3">{level.title}</span>
                       {!level.applicable && (
                         <Badge variant="outline" className="text-label">Bu site için geçerli değil</Badge>
                       )}
@@ -339,7 +341,7 @@ export default function AgentReadinessPage() {
                       const open = openCheck === check.id;
                       const state = stateOf(check);
                       return (
-                        <div key={check.id} className="rounded-lg border">
+                        <div key={check.id} className="rounded-md border">
                           <button
                             type="button"
                             onClick={() => setOpenCheck(open ? null : check.id)}
@@ -352,7 +354,7 @@ export default function AgentReadinessPage() {
                               <div className="text-xs text-muted-foreground truncate">{check.statusText}</div>
                             </div>
                             {state === 'blocked' ? (
-                              <Badge variant="outline" className="text-label shrink-0 bg-warning/10 text-warning border-warning/30">ÖLÇÜLEMEDİ</Badge>
+                              <Badge variant="outline" className="text-label shrink-0 bg-warning/10 text-warning border-warning/30">Ölçülemedi</Badge>
                             ) : (
                               <Badge variant="outline" className={cn('text-label shrink-0', IMPACT_BADGE[check.impact]?.cls)}>
                                 {IMPACT_BADGE[check.impact]?.text}
@@ -382,27 +384,27 @@ export default function AgentReadinessPage() {
 
                               {/* Nasıl yapılır */}
                               <div>
-                                <div className="text-label font-medium text-muted-foreground mb-1">Nasıl düzeltilir</div>
+                                <div className="v-rail mb-1">Nasıl düzeltilir</div>
                                 <p className="text-xs leading-relaxed">{check.howTo}</p>
                               </div>
 
                               {/* Elle kullanım şablonu (auth.md) — her bilinmeyen değer yer tutucu */}
                               {check.manualTemplate && (
                                 <div className="space-y-1.5">
-                                  <div className="text-label font-medium text-muted-foreground">Elle kullanım şablonu ({check.manualTemplate.filename})</div>
+                                  <div className="v-rail">Elle kullanım şablonu ({check.manualTemplate.filename})</div>
                                   <p className="text-xs text-muted-foreground">{check.manualTemplate.note}</p>
-                                  <pre className="rounded-md bg-muted/40 p-3 text-xs font-mono max-h-56 overflow-auto whitespace-pre-wrap">{check.manualTemplate.content}</pre>
+                                  <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 font-mono text-xs">{check.manualTemplate.content}</pre>
                                 </div>
                               )}
 
                               {/* Denetim detayı — FETCH/PARSE/CONCLUDE */}
                               {Array.isArray(check.audit) && check.audit.length > 0 && (
                                 <div>
-                                  <div className="text-label font-medium text-muted-foreground mb-1">Denetim Detayı</div>
-                                  <div className="rounded-md bg-muted/40 divide-y divide-border/50">
+                                  <div className="v-rail mb-1">Denetim Detayı</div>
+                                  <div className="divide-y rounded-md border">
                                     {check.audit.map((step: any, i: number) => (
                                       <div key={i} className="flex items-start gap-3 px-3 py-2">
-                                        <span className="text-label font-mono font-bold text-muted-foreground w-20 shrink-0 pt-0.5">{step.step}</span>
+                                        <span className="w-20 shrink-0 pt-0.5 font-mono text-vitrin-rail text-muted-foreground">{step.step}</span>
                                         <span className="text-xs font-mono flex-1 break-all">{step.detail}</span>
                                         {step.ok
                                           ? <Check className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" />

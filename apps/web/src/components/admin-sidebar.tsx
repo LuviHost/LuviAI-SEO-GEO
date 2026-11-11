@@ -62,7 +62,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
       {/* Mobile hamburger — sticky top-left */}
       <button
         onClick={() => setOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-30 h-9 w-9 rounded-lg bg-background border shadow grid place-items-center hover:bg-muted"
+        className="lg:hidden fixed top-3 left-3 z-30 h-9 w-9 rounded-md bg-background border grid place-items-center hover:bg-muted"
         aria-label="Menüyü aç"
       >
         <Menu className="h-4 w-4" />
@@ -71,7 +71,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
       {/* Backdrop (mobile) */}
       {open && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 z-40 bg-black/70"
           onClick={() => setOpen(false)}
         />
       )}
@@ -84,9 +84,10 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
       >
         {/* Logo */}
         <div className="h-14 px-4 flex items-center justify-between border-b shrink-0">
-          <Link href="/admin" className="flex items-center gap-2 font-bold" onClick={() => setOpen(false)}>
-            <BrandWordmark size={20} />
-            <span className="text-[9px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-600 dark:text-brand-400">
+          <Link href="/admin" className="flex items-center gap-2 font-semibold" onClick={() => setOpen(false)}>
+            <span className="dark:hidden"><BrandWordmark size={20} accent="hsl(var(--brand-vivid))" /></span>
+            <span className="hidden dark:inline"><BrandWordmark size={20} reversed accent="hsl(var(--brand-vivid))" /></span>
+            <span className="rounded border border-border px-1.5 py-0.5 font-mono text-vitrin-rail text-muted-foreground">
               Admin
             </span>
           </Link>
@@ -103,7 +104,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
         <nav className="flex-1 overflow-y-auto p-3 space-y-5">
           {SECTIONS.map((sec) => (
             <div key={sec.label}>
-              <p className="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+              <p className="mb-1.5 px-2.5 font-mono text-vitrin-rail text-muted-foreground">
                 {sec.label}
               </p>
               <div className="space-y-0.5">
@@ -115,15 +116,14 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
                       key={item.href}
                       href={item.href as any}
                       onClick={() => setOpen(false)}
-                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                      className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-filter transition-colors duration-200 ${
                         active
-                          ? 'bg-gradient-to-r from-brand-500/15 to-brand-500/5 text-brand-700 dark:text-brand-400 font-semibold'
+                          ? 'bg-muted text-foreground'
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       }`}
                     >
-                      <item.icon className={`h-4 w-4 shrink-0 ${active ? 'text-brand-600' : ''}`} />
+                      <item.icon className={`h-4 w-4 shrink-0 ${active ? 'text-brand' : ''}`} />
                       <span className="truncate">{item.label}</span>
-                      {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-brand-500" />}
                     </Link>
                   );
                 })}
@@ -134,13 +134,13 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
 
         {/* Footer — user email */}
         <div className="border-t p-3 shrink-0">
-          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/40">
-            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white grid place-items-center text-[10px] font-bold">
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <div className="grid h-7 w-7 place-items-center rounded-full bg-muted text-xs font-medium text-foreground">
               {(userEmail[0] || 'A').toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold truncate">{userEmail}</p>
-              <p className="text-[10px] text-muted-foreground">Admin</p>
+              <p className="truncate text-xs font-medium">{userEmail}</p>
+              <p className="font-mono text-vitrin-rail text-muted-foreground">Admin</p>
             </div>
           </div>
         </div>

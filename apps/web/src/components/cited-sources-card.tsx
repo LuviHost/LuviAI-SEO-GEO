@@ -32,7 +32,7 @@ function Providers({ list }: { list: string[] }) {
   return (
     <ul className="flex flex-wrap items-center gap-1" aria-label="Alıntılayan asistanlar">
       {list.map((p) => (
-        <li key={p} className="grid h-6 w-6 place-items-center rounded-full border bg-card" title={providerName(p)}>
+        <li key={p} className="grid h-6 w-6 place-items-center rounded-full border border-border bg-white" title={providerName(p)}>
           <EngineLogo provider={p} size={14} />
           <span className="sr-only">{providerName(p)}</span>
         </li>
@@ -51,7 +51,7 @@ const COLUMNS: Column<CitedDomainRow>[] = [
     header: 'Alan adı',
     sortValue: (r) => r.domain,
     cell: (r) => (
-      <div className="min-w-0 max-w-xs space-y-1">
+      <div className="min-w-0 max-w-[15rem] space-y-1 sm:max-w-xs">
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-medium truncate">{r.domain}</span>
           <span className="sm:hidden"><TypeBadge type={r.type} /></span>
@@ -136,7 +136,7 @@ export function CitedSourcesCard({ siteId }: { siteId: string }) {
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="space-y-3 border-b">
+      <CardHeader className="space-y-3 border-b p-5">
         <SectionHeader
           as="h3"
           icon={BookOpen}
@@ -207,8 +207,8 @@ export function CitedSourcesCard({ siteId }: { siteId: string }) {
               {data.placements.length > 0 && (
                 <section aria-labelledby="nerede-yer-al" className="space-y-3">
                   <div>
-                    <h4 id="nerede-yer-al" className="flex items-center gap-2 text-sm font-semibold">
-                      <MapPin className="h-4 w-4 text-brand" aria-hidden /> Nerede yer almalısın
+                    <h4 id="nerede-yer-al" className="flex items-center gap-2 text-panel-3">
+                      <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden /> Nerede yer almalısın
                     </h4>
                     <p className="mt-0.5 text-label text-muted-foreground">
                       {data.placementMinAnswers >= 2
@@ -219,11 +219,11 @@ export function CitedSourcesCard({ siteId }: { siteId: string }) {
                   </div>
                   <ol className="space-y-2">
                     {data.placements.map((p, i) => (
-                      <li key={p.domain} className="flex items-start gap-3 rounded-lg border bg-background p-3">
-                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold" aria-hidden>{i + 1}</span>
+                      <li key={p.domain} className="flex items-start gap-3 rounded-md border bg-background p-3">
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-muted font-mono text-vitrin-rail text-muted-foreground" aria-hidden>{i + 1}</span>
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-semibold">{p.domain}</span>
+                            <span className="text-sm font-medium">{p.domain}</span>
                             <TypeBadge type={p.type} />
                             <span className="text-label text-muted-foreground">{formatNum(p.answers)} cevap</span>
                             <Providers list={p.providers} />
@@ -272,7 +272,7 @@ export function CitedSourcesCard({ siteId }: { siteId: string }) {
 
           {/* Eski olcumler: cevap metninde gecen alan adlari — alinti degil, ayri */}
           {data?.legacyMentionedDomains && (
-            <details className="rounded-lg border bg-muted/20 p-3 text-sm">
+            <details className="rounded-md border bg-muted/40 p-3 text-sm">
               <summary className="cursor-pointer font-medium">Eski ölçümler: cevap metninde geçen alan adları</summary>
               <p className="mt-2 text-label text-muted-foreground">{data.legacyMentionedDomains.note}</p>
               <ul className="mt-2 flex flex-wrap gap-1.5">

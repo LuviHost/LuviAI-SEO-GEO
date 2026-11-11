@@ -184,7 +184,7 @@ export function CookieConsent({ gtmId, clarityId, gaId }: { gtmId?: string; clar
       aria-describedby="cookie-consent-body"
       className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 md:max-w-md z-50 focus:outline-none"
     >
-      <div className="bg-card border rounded-xl shadow-2xl p-5 relative">
+      <div className="bg-card border rounded-lg p-5 relative">
         <button
           type="button"
           onClick={undecided ? () => choose('denied') : () => setOpen(false)}
@@ -193,7 +193,7 @@ export function CookieConsent({ gtmId, clarityId, gaId }: { gtmId?: string; clar
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
-        <h2 id="cookie-consent-title" className="font-bold mb-2 pr-6">{d.title}</h2>
+        <h2 id="cookie-consent-title" className="font-semibold mb-2 pr-6">{d.title}</h2>
         <p id="cookie-consent-body" className="text-sm text-muted-foreground mb-2">{d.body}</p>
         <p className="text-sm text-muted-foreground mb-4">
           {d.changeBefore}

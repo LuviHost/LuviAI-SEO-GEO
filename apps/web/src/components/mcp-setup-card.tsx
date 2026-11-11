@@ -50,15 +50,15 @@ export function McpSetupCard() {
 
   return (
     <Card>
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 grid place-items-center">
-              <Plug2 className="h-4.5 w-4.5" />
+      <CardContent className="space-y-4 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground">
+              <Plug2 className="h-[18px] w-[18px]" aria-hidden />
             </div>
-            <div>
-              <div className="text-sm font-semibold">RanksUp MCP sunucusu</div>
-              <p className="text-xs text-muted-foreground">
+            <div className="min-w-0">
+              <div className="text-panel-3">RanksUp MCP sunucusu</div>
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
                 Claude Code, Cursor ya da özel başlık gönderebilen kendi ajanından RanksUp verini sorgula: siteler, denetim, GEO skor kartı,
                 AI görünürlük ölçümleri, içerik fırsatları, aksiyon planı ve ASO. API anahtarıyla bağlanır; Kurumsal planda açıktır.
               </p>
@@ -70,17 +70,17 @@ export function McpSetupCard() {
         </div>
 
         {open && (
-          <div className="space-y-3 pt-2 border-t text-xs">
+          <div className="space-y-4 border-t pt-4 text-sm">
             <div>
-              <div className="font-semibold mb-1">1. API anahtarı oluştur</div>
+              <div className="mb-1 font-medium">1. API anahtarı oluştur</div>
               <p className="text-muted-foreground">
-                <Link href="/api-keys" className="underline">API Anahtarları</Link> sayfasından yeni bir anahtar üret (<code className="font-mono">luvi_…</code>).
+                <Link href="/api-keys" className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground">API Anahtarları</Link> sayfasından yeni bir anahtar üret (<code className="font-mono">luvi_…</code>).
                 Varsayılan anahtar yalnızca okur. {mcpScopeGuideText()} Anahtarın yetkileri sonradan değiştirilemez.
               </p>
             </div>
             <div>
-              <div className="font-semibold mb-1 flex items-center gap-1.5"><Bot className="h-3.5 w-3.5" /> 2. Claude Code</div>
-              <div className="rounded-md bg-muted/60 p-2.5 font-mono text-label break-all flex items-start gap-2">
+              <div className="mb-1 flex items-center gap-1.5 font-medium"><Bot className="h-3.5 w-3.5 text-muted-foreground" aria-hidden /> 2. Claude Code</div>
+              <div className="flex items-start gap-2 break-all rounded-md bg-muted p-2.5 font-mono text-xs">
                 <span className="flex-1">{claudeCmd}</span>
                 <button type="button" onClick={() => copy(claudeCmd)} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="Komutu kopyala">
                   <Copy className="h-3.5 w-3.5" />
@@ -89,32 +89,32 @@ export function McpSetupCard() {
               <p className="text-muted-foreground mt-1">Kontrol: terminalde <code className="font-mono">claude mcp list</code>, Claude Code içinde <code className="font-mono">/mcp</code>.</p>
             </div>
             <div>
-              <div className="font-semibold mb-1">3. Cursor ve özel başlık gönderebilen diğer istemciler</div>
+              <div className="mb-1 font-medium">3. Cursor ve özel başlık gönderebilen diğer istemciler</div>
               <p className="text-muted-foreground">
                 Sunucu türü: Streamable HTTP · URL: <code className="font-mono">{MCP_URL}</code> ·
                 Başlık: <code className="font-mono">Authorization: Bearer luvi_…</code>
               </p>
             </div>
-            <div className="flex items-start gap-1.5 rounded-md border border-border/60 bg-muted/30 p-2.5 text-muted-foreground">
-              <Info className="h-3.5 w-3.5 mt-px shrink-0" aria-hidden />
+            <div className="flex items-start gap-2 rounded-md border p-3 text-muted-foreground">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <p>
                 ChatGPT ve claude.ai özel bağlayıcıları şimdilik bağlanamaz: ikisi de OAuth istiyor, RanksUp henüz OAuth desteklemiyor
                 (claude.ai’de başlıkla kimlik doğrulama yalnız sınırlı bir betada açık).
               </p>
             </div>
             <div>
-              <div className="font-semibold mb-1">4. Dene</div>
-              <p className="text-muted-foreground italic">
+              <div className="mb-1 font-medium">4. Dene</div>
+              <p className="text-muted-foreground">
                 &quot;RanksUp&apos;taki sitelerimi listele; GEO skoru en düşük olanın aksiyon planını özetle.&quot;
               </p>
             </div>
             <p>
-              <a href={SETUP_GUIDE_URL} target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-medium text-brand hover:underline">
+              <a href={SETUP_GUIDE_URL} target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground">
                 Tam kurulum rehberi (Cursor yapılandırması, sorun giderme) <ExternalLink className="h-3 w-3" aria-hidden />
               </a>
             </p>
-            <div className="pt-2 border-t">
-              <div className="font-semibold mb-1">Bonus: Looker Studio / BI bağlantısı (ajanslar için)</div>
+            <div className="border-t pt-4">
+              <div className="mb-1 font-medium">Bonus: Looker Studio / BI bağlantısı (ajanslar için)</div>
               <p className="text-muted-foreground">
                 Aynı API anahtarıyla düz-tablo veri uçları: <code className="font-mono">{API_BASE.replace(/\/$/, '')}/api/looker/mention-rate?site_id=…</code>,{' '}
                 <code className="font-mono">/api/looker/citations</code>, <code className="font-mono">/api/looker/prompts</code>,{' '}

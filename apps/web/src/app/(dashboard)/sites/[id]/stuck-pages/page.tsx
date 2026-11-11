@@ -29,6 +29,7 @@ import {
 import { cn } from '@/lib/utils';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/empty-state';
 import { siteHref } from '@/lib/site-routes';
 import { formatNum, formatPct } from '@/lib/format';
 import {
@@ -85,7 +86,7 @@ function ScoreBadge({ score }: { score: number }) {
     ? 'bg-warning/10 text-warning border-warning/30'
     : NEUTRAL_CLS;
   return (
-    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium', cls)}>
+    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium', cls)}>
       <TrendingDown className="h-3 w-3" aria-hidden /> Öncelik {score}
     </span>
   );
@@ -148,22 +149,22 @@ function StuckPageCard({
   const canRevert = page.status === 'RECOVERED' && !!page.articleId && lastRecovery && !lastRecovery.revertedAt;
 
   return (
-    <Card className={cn('transition-all', expanded && 'ring-2 ring-brand/30', selected && 'ring-2 ring-brand/50 bg-brand/[0.02]')}>
+    <Card className={cn('transition-colors', expanded && 'border-foreground/30', selected && 'border-foreground bg-muted/40')}>
       <CardContent className="p-5">
-        <div className="flex items-start gap-4">
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-3 sm:flex-nowrap">
           {selectable && (
             <input
               type="checkbox"
               checked={selected}
               onChange={onSelect}
-              className="mt-1 h-4 w-4 rounded border-2 border-muted-foreground/30 text-brand focus:ring-2 focus:ring-brand/30 cursor-pointer shrink-0"
+              className="mt-1 h-4 w-4 rounded border border-input accent-foreground focus:ring-2 focus:ring-ring cursor-pointer shrink-0"
               aria-label="Bu sayfayi sec"
             />
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span
-                className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium', status.cls)}
+                className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium', status.cls)}
                 title={getStatusHint(page.status)}
               >
                 {status.text}
@@ -173,7 +174,7 @@ function StuckPageCard({
               </span>
               {page.articleId === null && (
                 <span
-                  className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium', NEUTRAL_CLS)}
+                  className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium', NEUTRAL_CLS)}
                   title="Bu sayfa RanksUp ile değil, sitende elle yazılmış. Otomatik güncelleme yalnız FTP / SFTP / cPanel ile bağlı statik HTML sitelerde, sayfanın dosyası doğrulanınca yapılır. WordPress ve diğer içerik yönetim sistemlerinde sayfa otomatik yazılmaz; öneriler elle uygulanır."
                 >
                   <AlertTriangle className="h-3 w-3" /> RanksUp dışı
@@ -181,15 +182,15 @@ function StuckPageCard({
               )}
               {isProposal && (
                 <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium bg-info/10 text-info border-info/30"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium bg-info/10 text-info border-info/30"
                   title="Değişiklik önerileri hazırlandı ama sitene yazılmadı. Detay'dan görüp sayfana elle uygula."
                 >
                   <Lightbulb className="h-3 w-3" aria-hidden /> Öneri hazır
                 </span>
               )}
             </div>
-            <h3 className="font-semibold text-base truncate">{page.title || page.url}</h3>
-            <a href={page.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:underline truncate block">
+            <h3 className="text-panel-3 truncate">{page.title || page.url}</h3>
+            <a href={page.url} target="_blank" rel="noreferrer" className="font-mono text-vitrin-rail text-muted-foreground hover:text-foreground truncate block mt-0.5">
               {page.url}
             </a>
             {queued && (
@@ -203,45 +204,45 @@ function StuckPageCard({
                 <span className="font-medium">Son deneme:</span> {outcomeNote.text}
               </p>
             )}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-sm">
               <div>
-                <div className="text-muted-foreground inline-flex items-center gap-1">
+                <div className="v-rail inline-flex items-center gap-1">
                   Pozisyon
                   <InfoTooltip text={`Google'da ortalama sıralama. Şu an #${Math.round(page.position)}. Top 3'e çıkması hedefleniyor — biraz iyileştirmeyle ulaşılabilir mesafede.`} />
                 </div>
-                <div className="font-semibold">#{Math.round(page.position)}</div>
+                <div className="mt-0.5 font-medium tabular-nums">#{Math.round(page.position)}</div>
               </div>
               <div>
-                <div className="text-muted-foreground inline-flex items-center gap-1">
+                <div className="v-rail inline-flex items-center gap-1">
                   Gösterim (30g)
                   <InfoTooltip text="Son 30 günde Google arama sonuçlarında bu sayfa kaç kez gösterildi. Yüksek = sayfa zaten görünüyor, sadece tıklama almıyor." />
                 </div>
-                <div className="font-semibold tabular-nums">{formatNum(page.impressions)}</div>
+                <div className="mt-0.5 font-medium tabular-nums">{formatNum(page.impressions)}</div>
               </div>
               <div>
-                <div className="text-muted-foreground inline-flex items-center gap-1">
+                <div className="v-rail inline-flex items-center gap-1">
                   Tıklama oranı
                   <InfoTooltip text={`Görenlerin yüzde kaçı tıkladı. Pozisyon #${Math.round(page.position)} için beklenen CTR ~%${expectedCtrFor(page.position).toFixed(1)}. Şu anki: %${(page.ctr * 100).toFixed(2)}. Aradaki fark = kayıp potansiyel.`} />
                 </div>
-                <div className="font-semibold tabular-nums">{formatPct(page.ctr, 2)}</div>
+                <div className="mt-0.5 font-medium tabular-nums">{formatPct(page.ctr, 2)}</div>
               </div>
               <div>
-                <div className="text-muted-foreground inline-flex items-center gap-1">
+                <div className="v-rail inline-flex items-center gap-1">
                   Tıklama
                   <InfoTooltip text="Son 30 günde gerçek tıklama sayısı (Search Console). Düzeltmenin etkisi 30 gün sonra otomatik ölçülür." />
                 </div>
-                <div className="font-semibold tabular-nums">{formatNum(page.clicks)}</div>
+                <div className="mt-0.5 font-medium tabular-nums">{formatNum(page.clicks)}</div>
               </div>
             </div>
             {Array.isArray(page.topQueries) && page.topQueries.length > 0 && (
               <div className="mt-3">
-                <div className="flex items-center gap-1 text-label text-muted-foreground mb-1.5">
+                <div className="v-rail flex items-center gap-1 mb-1.5">
                   <span>En çok gösterim alan sorgular</span>
                   <InfoTooltip text="Bu sayfanın çıktığı arama terimleri (GSC son 30 gün). AI recovery bu sorgulara optimize cümle önerileri üretir." />
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {page.topQueries.slice(0, 5).map((q) => (
-                    <span key={q} className="text-label px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                    <span key={q} className="text-label font-normal px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {q}
                     </span>
                   ))}
@@ -249,10 +250,10 @@ function StuckPageCard({
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-1.5 shrink-0">
+          <div className="flex w-full flex-row flex-wrap gap-1.5 shrink-0 sm:w-auto sm:flex-col">
             {canRecover && page.articleId && (
               <Button
-                onClick={onRecover} disabled={busy} size="sm" className="gap-1.5"
+                onClick={onRecover} disabled={busy} size="sm" variant="secondary" className="gap-1.5"
                 title="Cümle düzeyinde düzenleme, yaklaşık 30 saniye. Başlık, adres ve yapı korunur; yalnız eksik anahtar kelimeler doğal akışta eklenir. RanksUp yazıyı takılı adreste güvenle güncelleyemezse (yazı sitende değiştirilmiş, kayıtlı adres takılı adresle eşleşmiyor ya da yayın hedefi yerinde güncellemeyi desteklemiyor) değişiklikler yalnız öneri olarak kaydedilir."
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -263,7 +264,7 @@ function StuckPageCard({
               <Link
                 href={siteHref(page.siteId, 'publishTargets') as any}
                 title="RanksUp dışı bir sayfanın otomatik güncellenmesi için statik HTML sitende FTP / SFTP / cPanel yayın hedefi gerekir. WordPress ve diğer içerik yönetim sistemlerinde sayfa otomatik yazılmaz."
-                className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-dashed border-brand/40 text-brand hover:bg-brand/10 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium border border-foreground/20 text-foreground hover:border-foreground/70 transition-colors duration-200"
               >
                 <Send className="h-3.5 w-3.5" aria-hidden /> Yayın hedefi bağla
               </Link>
@@ -336,7 +337,7 @@ function StuckPageCard({
                 </div>
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {lastRecovery.edits.map((e: any, i: number) => (
-                    <div key={i} className="rounded-lg border bg-muted/30 p-3 text-xs">
+                    <div key={i} className="rounded-md border bg-muted/30 p-3 text-xs">
                       <div className="text-danger line-through">{e.before}</div>
                       <div className="text-success mt-1">+ {e.after}</div>
                       {e.reason && <div className="mt-1.5 text-muted-foreground italic">{e.reason}</div>}
@@ -348,7 +349,7 @@ function StuckPageCard({
             {paragraph && (
               <div className="space-y-1 text-xs">
                 <div className="font-medium">{copy.paragraphLabel}</div>
-                <div className="rounded-lg border bg-muted/30 p-3 text-success">+ {paragraph}</div>
+                <div className="rounded-md border bg-muted/30 p-3 text-success">+ {paragraph}</div>
               </div>
             )}
             {lastRecovery.revertedAt && (
@@ -801,7 +802,7 @@ export default function StuckPagesPage() {
             {!showGuide && (
               <>
                 {' · '}
-                <button type="button" onClick={restoreGuide} className="text-brand hover:underline">
+                <button type="button" onClick={restoreGuide} className="text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground/40">
                   Nasıl çalışır?
                 </button>
               </>
@@ -818,16 +819,16 @@ export default function StuckPagesPage() {
 
       {/* "Nasıl çalışır" guide — dismissible, localStorage persist */}
       {showGuide && (
-        <Card className="bg-muted/20">
+        <Card>
           <CardContent className="p-5">
-            <div className="flex items-start gap-3 mb-4">
-              <Lightbulb className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" aria-hidden />
+            <div className="flex items-center gap-2.5 mb-4">
+              <Lightbulb className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
               <div className="flex-1">
-                <p className="font-brand font-semibold text-sm">Nasıl çalışır?</p>
+                <p className="text-panel-3">Nasıl çalışır?</p>
               </div>
               <button
                 onClick={dismissGuide}
-                className="h-7 w-7 rounded-full grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                className="h-7 w-7 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 aria-label="Rehberi kapat"
               >
                 <X className="h-3.5 w-3.5" />
@@ -839,21 +840,21 @@ export default function StuckPagesPage() {
                 return (
                   <div key={i} className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg border border-border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
+                      <div className="h-7 w-7 rounded-md border border-border text-muted-foreground grid place-items-center shrink-0">
                         <Icon className="h-3.5 w-3.5" />
                       </div>
-                      <p className="text-sm font-medium tracking-[-0.01em]">{s.title}</p>
+                      <p className="text-sm font-medium">{s.title}</p>
                     </div>
                     <p className="text-xs text-muted-foreground leading-[1.55]">{s.body}</p>
                   </div>
                 );
               })}
             </div>
-            <div className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between gap-3 flex-wrap text-xs">
-              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                İlk önce <strong className="text-foreground">en yüksek gösterim alan</strong> sayfayı dene — etki orada daha hızlı görünür.
+            <div className="mt-4 pt-4 border-t flex items-center justify-between gap-3 flex-wrap text-xs">
+              <span className="text-muted-foreground">
+                İlk önce <strong className="font-medium text-foreground">en yüksek gösterim alan</strong> sayfayı dene — etki orada daha hızlı görünür.
               </span>
-              <Link href={siteHref(site.id, 'publishTargets') as any} className="text-brand hover:underline font-medium inline-flex items-center gap-1">
+              <Link href={siteHref(site.id, 'publishTargets') as any} className="inline-flex items-center gap-1 text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/40">
                 <Send className="h-3 w-3" /> Yayın hedefi ekle
               </Link>
             </div>
@@ -895,14 +896,14 @@ export default function StuckPagesPage() {
 
       {/* ENH#3 — Bulk toolbar: DETECTED durumdaki secilecek sayfa varsa goster */}
       {filteredRows.some((r) => r.status === 'DETECTED' && r.articleId) && (
-        <Card className="border-brand/30 bg-brand/5">
-          <CardContent className="p-3 flex items-center gap-3 flex-wrap">
+        <Card>
+          <CardContent className="p-3 pl-4 flex items-center gap-3 flex-wrap">
             <div className="text-sm flex-1 min-w-0 inline-flex items-center gap-1.5">
-              <span className="font-semibold">{selectedIds.size}</span>{' '}
+              <span className="font-medium tabular-nums">{selectedIds.size}</span>{' '}
               sayfa seçili
               <InfoTooltip text="Toplu düzeltmeye yalnız 'Tespit edildi' durumundaki RanksUp sayfaları alınır; RanksUp dışı sayfalar toplu düzeltilmez. Sıraya alınan sayfalar arka planda sırayla işlenir; her sayfanın sonucu hazır olunca kartında görünür. Sırada bekleyen bir sayfa yeniden sıraya alınmaz." />
               {selectedIds.size > 0 && (
-                <button type="button" onClick={clearSelection} className="ml-2 text-xs text-muted-foreground hover:text-foreground underline">
+                <button type="button" onClick={clearSelection} className="ml-2 text-xs text-muted-foreground hover:text-foreground underline decoration-border underline-offset-4">
                   temizle
                 </button>
               )}
@@ -944,8 +945,8 @@ export default function StuckPagesPage() {
             <Card key={i}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex gap-2">
-                  <Skeleton className="h-5 w-24 rounded-full" />
-                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-5 w-24 rounded" />
+                  <Skeleton className="h-5 w-20 rounded" />
                 </div>
                 <Skeleton className="h-5 w-2/3" />
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -956,26 +957,20 @@ export default function StuckPagesPage() {
           ))}
         </div>
       ) : filteredRows.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center space-y-3">
-            <div className="h-12 w-12 mx-auto rounded-full bg-success/10 text-success grid place-items-center">
-              <TrendingUp className="h-6 w-6" />
-            </div>
-            <h3 className="font-semibold">
-              {filter === 'all' ? 'Takılı sayfa yok' : 'Bu filtrede sonuç yok'}
-            </h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              {filter === 'all'
-                ? 'GSC verilerine göre tüm sayfaların ya ilk 3 sırada ya da yeterli izlenebilir gösterimi yok. Tarama haftalık otomatik çalışır.'
-                : 'Filtreyi değiştirerek diğer kayıtları görebilirsin.'}
-            </p>
-            {filter === 'all' && (
-              <Button onClick={handleDetect} disabled={detecting} variant="outline" size="sm">
-                Şimdi tara
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={TrendingUp}
+          accent="emerald"
+          title={filter === 'all' ? 'Takılı sayfa yok' : 'Bu filtrede sonuç yok'}
+          description={filter === 'all'
+            ? 'GSC verilerine göre tüm sayfaların ya ilk 3 sırada ya da yeterli izlenebilir gösterimi yok. Tarama haftalık otomatik çalışır.'
+            : 'Filtreyi değiştirerek diğer kayıtları görebilirsin.'}
+        >
+          {filter === 'all' && (
+            <Button onClick={handleDetect} disabled={detecting} variant="outline" size="sm">
+              Şimdi tara
+            </Button>
+          )}
+        </EmptyState>
       ) : (
         <div className="space-y-3">
           {filteredRows.map((row) => (
@@ -1016,12 +1011,12 @@ function KpiCard({
   accent?: 'brand' | 'warning' | 'success' | 'danger' | 'muted';
   tooltip?: string;
 }) {
-  const colorMap: Record<string, string> = {
-    brand: 'text-foreground',
-    warning: 'text-warning',
-    success: 'text-success',
-    danger: 'text-danger',
-    muted: 'text-muted-foreground',
+  const dotMap: Record<string, string | null> = {
+    brand: null,
+    warning: 'bg-warning',
+    success: 'bg-success',
+    danger: 'bg-danger',
+    muted: 'bg-muted-foreground/50',
   };
   // Eskiden <button> icinde InfoTooltip (o da bir button) vardi → gecersiz ic ice
   // etkilesim. Simdi filtre dugmesi ve ipucu kardes; ipucu kosede mutlak konumlu.
@@ -1032,16 +1027,19 @@ function KpiCard({
         aria-pressed={active}
         onClick={onClick}
         className={cn(
-          'w-full rounded-lg border bg-card p-3 pr-8 text-left transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1',
-          active ? 'border-brand/40 bg-brand/5' : 'hover:bg-muted/50',
+          'w-full rounded-lg border bg-card p-4 pr-8 text-left transition-colors duration-200',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+          active ? 'border-foreground bg-muted' : 'hover:border-foreground/30',
         )}
       >
-        <span className={cn('block text-label', active ? 'text-brand-700 dark:text-brand-300' : 'text-muted-foreground')}>{label}</span>
-        <span className={cn('block text-metric-lg tabular-nums', colorMap[accent])}>{formatNum(value)}</span>
+        <span className={cn('v-rail flex items-center gap-1.5', active && 'text-foreground')}>
+          {dotMap[accent] && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dotMap[accent])} aria-hidden />}
+          {label}
+        </span>
+        <span className="mt-3 block text-metric-lg tabular-nums text-foreground">{formatNum(value)}</span>
       </button>
       {tooltip && (
-        <span className="absolute right-2 top-2.5">
+        <span className="absolute right-3 top-3.5">
           <InfoTooltip text={tooltip} iconClassName="opacity-60 hover:opacity-100" />
         </span>
       )}

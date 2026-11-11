@@ -62,7 +62,7 @@ export function LinkStoreDialog({
         </DialogHeader>
         <DialogBody className="space-y-3">
           <div>
-            <label htmlFor="aso-link-search" className="mb-1 block text-label">Uygulama adı ya da mağaza bağlantısı</label>
+            <label htmlFor="aso-link-search" className="mb-1 block text-label text-muted-foreground">Uygulama adı ya da mağaza bağlantısı</label>
             <SearchInput
               id="aso-link-search"
               value={query}

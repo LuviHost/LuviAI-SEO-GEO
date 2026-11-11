@@ -4,21 +4,24 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-brand text-white hover:bg-brand/90',
-        secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700',
-        outline: 'border border-slate-300 bg-transparent hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800',
-        ghost: 'hover:bg-slate-100 dark:hover:bg-slate-800',
-        destructive: 'bg-danger text-white hover:bg-danger/90',
+        // Vitrin dugmeleri (globals.css .v-btn / .v-btn-line) ile ayni dil:
+        // birincil = duz turuncu + SIYAH metin, uzerine gelince zemin/metin tersine doner;
+        // ikincil = yalniz ince cerceve. Golge ve olcekleme yok.
+        default: 'bg-brand text-black hover:bg-foreground hover:text-background',
+        secondary: 'bg-muted text-foreground hover:bg-foreground/15',
+        outline: 'border border-foreground/20 bg-transparent text-foreground hover:border-foreground/70',
+        ghost: 'text-foreground hover:bg-muted',
+        destructive: 'bg-danger text-white hover:bg-danger/90 dark:text-black',
         link: 'text-brand underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-10 px-4 py-2',
         sm: 'h-9 px-3',
-        lg: 'h-11 px-8',
+        lg: 'h-11 px-6',
         icon: 'h-10 w-10',
       },
     },

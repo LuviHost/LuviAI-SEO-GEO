@@ -15,11 +15,12 @@ import {
   RefreshCw, KeyRound, AlertTriangle,
 } from 'lucide-react';
 import { SectionHeader } from '@/components/ui/section-header';
+import { MetricCard } from '@/components/ui/metric';
 import { ingestNotices, normalizeCounts, sourceLabel, unverifiedText, verdictBadge } from '@/lib/crawler-verification';
 
 const BADGE_TONE: Record<'ok' | 'warn' | 'muted', string> = {
-  ok: 'text-emerald-600 dark:text-emerald-400',
-  warn: 'text-amber-600 dark:text-amber-400',
+  ok: 'text-success',
+  warn: 'text-warning',
   muted: 'text-muted-foreground',
 };
 
@@ -29,14 +30,10 @@ const BADGE_TONE: Record<'ok' | 'warn' | 'muted', string> = {
  * Cite fetch (ChatGPT-User vb.) = "şu anda bir cevapta kullanıldın" 🔥
  */
 
+// Bot adlari notr (eskiden bot basina ayri sus rengi vardi); yalniz AI disi SEO
+// tarayicilari soluk. Renk bu ekranda durum (dogrulama, HTTP kodu) icin kalir.
 const BOT_COLOR: Record<string, string> = {
-  'GPTBot': 'text-emerald-500', 'ChatGPT-User': 'text-emerald-400', 'OAI-SearchBot': 'text-emerald-300',
-  'ClaudeBot': 'text-brand-500', 'Claude-User': 'text-brand-400', 'Claude-Web': 'text-brand-400', 'Claude-SearchBot': 'text-brand-300',
-  'PerplexityBot': 'text-cyan-500', 'Perplexity-User': 'text-cyan-400',
-  'Googlebot': 'text-blue-500', 'GoogleOther': 'text-blue-300',
-  'Bingbot': 'text-sky-500', 'Amazonbot': 'text-yellow-600', 'Bytespider': 'text-purple-500',
-  'Meta-ExternalAgent': 'text-indigo-500', 'Meta-ExternalFetcher': 'text-indigo-400',
-  'AhrefsBot': 'text-zinc-500', 'SemrushBot': 'text-zinc-500',
+  'AhrefsBot': 'text-muted-foreground', 'SemrushBot': 'text-muted-foreground',
 };
 
 function timeAgo(ts: string | Date): string {
@@ -166,11 +163,11 @@ export default function CrawlerLivePage() {
       </div>
 
       {/* Bağlantı durumu */}
-      <Card className={cn(connected ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5')}>
+      <Card className={cn(connected ? 'border-success/25 bg-success/5' : 'border-warning/30 bg-warning/5')}>
         <CardContent className="p-4 flex items-center gap-3">
-          {connected ? <Wifi className="h-5 w-5 text-emerald-500 shrink-0" /> : <WifiOff className="h-5 w-5 text-amber-500 shrink-0" />}
+          {connected ? <Wifi className="h-5 w-5 text-success shrink-0" /> : <WifiOff className="h-5 w-5 text-warning shrink-0" />}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold">
+            <div className="text-sm font-medium">
               {connected
                 ? `Kaynak bağlı (${sourceLabel(data?.lastEventSource)}) — gerçek zamanlı AI bot tespiti aktif`
                 : 'Henüz canlı kaynak bağlı değil'}
@@ -186,17 +183,17 @@ export default function CrawlerLivePage() {
 
       {/* Kurulu kod eski (IP gondermiyor) / 429 ile dusen istekler */}
       {(notices.codeUpdate || notices.throttled) && (
-        <Card className="border-amber-500/40 bg-amber-500/5">
+        <Card className="border-warning/30 bg-warning/5">
           <CardContent className="p-4 space-y-1.5 text-xs">
             {notices.codeUpdate && (
               <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span><strong>{notices.codeUpdate}</strong></span>
+                <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+                <span><strong className="font-medium">{notices.codeUpdate}</strong></span>
               </div>
             )}
             {notices.throttled && (
               <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
                 <span>{notices.throttled}</span>
               </div>
             )}
@@ -206,18 +203,18 @@ export default function CrawlerLivePage() {
 
       {/* Cite fetch — vitrin */}
       {cites.length > 0 && (
-        <Card className="border-red-500/30">
-          <CardContent className="p-4 space-y-2">
-            <div className="text-sm font-semibold flex items-center gap-2">
-              <Flame className="h-4 w-4 text-red-500" /> Canlı Cite Sinyalleri (24 saat)
-              <span className="text-xs text-muted-foreground font-normal">— gerçek bir kullanıcının AI sohbetinde sayfan canlı çekildi (IP adresi doğrulandı)</span>
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="text-panel-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <Flame className="h-4 w-4 text-brand" /> Canlı Cite Sinyalleri (24 saat)
+              <span className="text-xs font-normal tracking-normal text-muted-foreground">— gerçek bir kullanıcının AI sohbetinde sayfan canlı çekildi (IP adresi doğrulandı)</span>
             </div>
-            <div className="space-y-1">
+            <div className="divide-y rounded-md border">
               {cites.map((c, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs rounded-md bg-red-500/5 px-2.5 py-1.5">
-                  <Flame className="h-3 w-3 text-red-500 shrink-0" />
-                  <span className="font-semibold">{c.bot}</span>
-                  <span className="font-mono text-muted-foreground flex-1 truncate">{c.path}</span>
+                <div key={i} className="flex items-center gap-2 px-2.5 py-2 text-xs">
+                  <Flame className="h-3 w-3 text-brand shrink-0" />
+                  <span className="font-medium">{c.bot}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">{c.path}</span>
                   <span className="text-muted-foreground shrink-0">{timeAgo(c.ts)}</span>
                 </div>
               ))}
@@ -236,26 +233,25 @@ export default function CrawlerLivePage() {
       {/* Sayaçlar — manset dogrulanmis ziyaret */}
       {data && data.total > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          <Card>
-            <CardContent className="p-3.5">
-              <div className="text-label font-semibold text-muted-foreground mb-1">Doğrulanmış ziyaret</div>
-              <div className="text-2xl font-bold">{verification.verified}</div>
-              <div className="text-label text-muted-foreground">
-                son {data.windowMinutes} dk · {data.total} isteğin {verification.unverified} tanesi taklit olabilir, {verification.unknown} tanesi doğrulanamadı
-              </div>
-            </CardContent>
-          </Card>
+          <MetricCard
+            label="Doğrulanmış ziyaret"
+            value={String(verification.verified)}
+            hint={<>son {data.windowMinutes} dk · {data.total} isteğin {verification.unverified} tanesi taklit olabilir, {verification.unknown} tanesi doğrulanamadı</>}
+          />
           {(data.byBot ?? []).slice(0, 5).map((b: any) => (
-            <Card key={b.bot}>
-              <CardContent className="p-3.5">
-                <div className={cn('text-label font-semibold mb-1 truncate', BOT_COLOR[b.bot] ?? 'text-muted-foreground')}>{b.bot}</div>
-                <div className="text-2xl font-bold">{b.verified ?? 0}</div>
-                <div className="text-label text-muted-foreground">doğrulanmış</div>
-                {(b.unverified ?? 0) > 0 && (
-                  <div className="text-label text-amber-700 dark:text-amber-400 mt-1">{unverifiedText(b.bot, b.unverified)}</div>
-                )}
-              </CardContent>
-            </Card>
+            <MetricCard
+              key={b.bot}
+              label={<span className="block truncate">{b.bot}</span>}
+              value={String(b.verified ?? 0)}
+              hint={
+                <>
+                  doğrulanmış
+                  {(b.unverified ?? 0) > 0 && (
+                    <span className="mt-1 block text-warning">{unverifiedText(b.bot, b.unverified)}</span>
+                  )}
+                </>
+              }
+            />
           ))}
         </div>
       )}
@@ -263,7 +259,7 @@ export default function CrawlerLivePage() {
       {/* Canlı akış tablosu */}
       <Card>
         <CardContent className="p-4">
-          <div className="text-sm font-semibold mb-3">Son ziyaretler <span className="font-normal text-muted-foreground">({data?.events?.length ?? 0})</span></div>
+          <div className="text-panel-3 mb-3">Son ziyaretler <span className="font-normal text-muted-foreground">({data?.events?.length ?? 0})</span></div>
           {loading ? (
             <div className="text-sm text-muted-foreground p-4 text-center">Yükleniyor…</div>
           ) : !data || data.events.length === 0 ? (
@@ -272,19 +268,19 @@ export default function CrawlerLivePage() {
               {!connected && ' — önce aşağıdan bir kaynak bağla'}.
             </div>
           ) : (
-            <div className="space-y-0.5 font-mono text-xs">
+            <div className="divide-y overflow-x-auto font-mono text-xs">
               {data.events.map((e: any) => {
                 const badge = verdictBadge(e.verify);
                 const liveCite = e.isCiteFetch && e.verify === 'verified';
                 return (
-                <div key={e.id} className={cn('flex items-center gap-3 rounded px-2 py-1.5', liveCite ? 'bg-red-500/5' : 'odd:bg-muted/30')}>
-                  <span className="text-muted-foreground w-16 shrink-0">{timeAgo(e.ts)}</span>
-                  <span className={cn('w-40 shrink-0 truncate font-semibold', BOT_COLOR[e.bot] ?? '')}>
-                    {liveCite && <Flame className="h-3 w-3 text-red-500 inline mr-1" />}{e.bot}
+                <div key={e.id} className={cn('flex min-w-[36rem] items-center gap-3 px-2 py-2', liveCite && 'bg-muted/60')}>
+                  <span className="w-20 shrink-0 whitespace-nowrap text-muted-foreground">{timeAgo(e.ts)}</span>
+                  <span className={cn('w-40 shrink-0 truncate', BOT_COLOR[e.bot] ?? '')}>
+                    {liveCite && <Flame className="h-3 w-3 text-brand inline mr-1" />}{e.bot}
                   </span>
                   <span className={cn('w-28 shrink-0 truncate', BADGE_TONE[badge.tone])} title={badge.title}>{badge.label}</span>
-                  <span className={cn('w-10 shrink-0', e.status < 300 ? 'text-emerald-500' : e.status < 500 ? 'text-amber-500' : 'text-red-500')}>{e.status}</span>
-                  <span className="flex-1 truncate text-muted-foreground">{e.path}</span>
+                  <span className={cn('w-10 shrink-0', e.status < 300 ? 'text-success' : e.status < 500 ? 'text-warning' : 'text-danger')}>{e.status}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{e.path}</span>
                 </div>
                 );
               })}
@@ -297,21 +293,18 @@ export default function CrawlerLivePage() {
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="text-sm font-semibold">Kaynak Bağla</div>
-            <Button
-              size="sm" variant="outline" onClick={rotateSecret} disabled={rotating || !snippets}
-              className="text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
-            >
+            <div className="text-panel-3">Kaynak Bağla</div>
+            <Button size="sm" variant="outline" onClick={rotateSecret} disabled={rotating || !snippets}>
               <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', rotating && 'animate-spin')} />
               {rotating ? 'Yenileniyor…' : 'Anahtarı Yenile'}
             </Button>
           </div>
 
           {rotated && (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-2.5">
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="rounded-md border border-warning/30 bg-warning/5 p-3 flex items-start gap-2.5">
+              <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
               <div className="text-xs">
-                <div className="font-semibold text-amber-700 dark:text-amber-300">
+                <div className="font-medium text-foreground">
                   Yeni anahtar üretildi. Aşağıdaki snippet&apos;i yeniden kurmadan veri akmaz.
                 </div>
                 <div className="text-muted-foreground mt-0.5">
@@ -321,7 +314,7 @@ export default function CrawlerLivePage() {
             </div>
           )}
 
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {([
               { key: 'worker', label: 'Cloudflare Worker', icon: Cloud, hint: 'önerilen' },
               { key: 'wordpress', label: 'WordPress', icon: Server, hint: 'eklenti' },
@@ -332,29 +325,31 @@ export default function CrawlerLivePage() {
                 type="button"
                 onClick={() => setTab(t.key)}
                 className={cn(
-                  'px-3 py-1.5 rounded-md text-xs font-medium border transition-colors inline-flex items-center gap-1.5',
-                  tab === t.key ? 'bg-brand text-white border-brand' : 'bg-card hover:border-brand/50',
+                  'inline-flex h-7 items-center gap-1.5 rounded-chip border px-2.5 text-filter transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  tab === t.key
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground',
                 )}
               >
                 <t.icon className="h-3 w-3" /> {t.label}
-                <span className={cn('text-[9px]', tab === t.key ? 'text-white/70' : 'text-muted-foreground')}>{t.hint}</span>
+                <span className="text-label font-normal opacity-70">{t.hint}</span>
               </button>
             ))}
           </div>
           {snippets ? (
             <div className="space-y-1.5">
-              <div className="flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+              <div className="flex items-start gap-1.5 text-label font-normal text-warning">
                 <KeyRound className="h-3 w-3 shrink-0 mt-0.5" />
                 <span>
-                  Gizli ingest anahtarın bu kodun içine gömülü — <strong>bu kodu herkese açık bir yerde paylaşma</strong> (GitHub, forum, ekran görüntüsü).
+                  Gizli ingest anahtarın bu kodun içine gömülü — <strong className="font-medium">bu kodu herkese açık bir yerde paylaşma</strong> (GitHub, forum, ekran görüntüsü).
                 </span>
               </div>
               <div className="relative">
-                <pre className="rounded-lg bg-muted/50 border p-3 text-[11px] overflow-x-auto max-h-80 whitespace-pre">
+                <pre className="max-h-80 overflow-x-auto whitespace-pre rounded-md border bg-muted/40 p-3 font-mono text-xs">
                   {tab === 'worker' ? snippets.cloudflareWorker : tab === 'wordpress' ? snippets.wordpress : snippets.nginx}
                 </pre>
                 <Button
-                  size="sm" variant="outline" className="absolute top-2 right-2"
+                  size="sm" variant="outline" className="absolute top-2 right-2 bg-card"
                   onClick={() => copy(tab === 'worker' ? snippets.cloudflareWorker : tab === 'wordpress' ? snippets.wordpress : snippets.nginx)}
                 >
                   <Copy className="h-3.5 w-3.5 mr-1" /> Kopyala
@@ -364,7 +359,7 @@ export default function CrawlerLivePage() {
           ) : (
             <div className="text-xs text-muted-foreground">Kurulum kodları yükleniyor…</div>
           )}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-label font-normal text-muted-foreground">
             Worker/eklenti yalnızca kendini AI botu olarak tanıtan istekleri bildirir (ziyaretçi verisi gönderilmez), yanıtı geciktirmez (non-blocking).
             Gerçek bot olup olmadığını doğrulamak için isteğin IP adresi de gönderilir; RanksUp IP adresini saklamaz, yalnızca doğrulama sonucunu kaydeder.
             Kod sitene özel — site kimliği gömülü.

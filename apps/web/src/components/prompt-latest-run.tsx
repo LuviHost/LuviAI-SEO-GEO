@@ -121,7 +121,7 @@ export function PromptLatestRunView({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-        <p className="text-xs font-semibold">Son ölçüm · {formatDay(data.date)}</p>
+        <p className="text-xs font-medium">Son ölçüm · {formatDay(data.date)}</p>
         <p className="text-label text-muted-foreground">
           {total} asistandan {cited} tanesi siteni gösterdi (adres ya da link)
           {mentioned > 0 ? `, ${mentioned} tanesi yalnız adını andı` : ''}.
@@ -132,7 +132,9 @@ export function PromptLatestRunView({
         {data.providers.map((p) => (
           <li key={p.provider} className="space-y-1.5 p-2">
             <div className="flex flex-wrap items-center gap-1.5">
-              <EngineLogo provider={p.provider} size={14} />
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-border bg-white" aria-hidden>
+                <EngineLogo provider={p.provider} size={12} />
+              </span>
               <span className="text-xs font-medium">{providerName(p)}</span>
               <Verdict p={p} />
               {p.brandInQuery && (

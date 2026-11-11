@@ -102,17 +102,17 @@ export default async function AdminUnlockPage({
 
   if (otpEnabled && !isAuthorizedAdminEmail(userEmail)) {
     return (
-      <div className="min-h-screen bg-slate-950 grid place-items-center px-4">
-        <Card className="w-full max-w-sm bg-slate-900 border-red-500/40 text-slate-100">
+      <div className="min-h-screen bg-background grid place-items-center px-4">
+        <Card className="w-full max-w-sm bg-background border-red-500/40 text-foreground">
           <CardContent className="p-6 space-y-4">
             <div>
-              <div className="text-xs uppercase tracking-wide text-red-400 mb-1">RanksUp Admin</div>
-              <h1 className="text-xl font-bold">Erişim engellendi</h1>
-              <p className="text-sm text-slate-400 mt-1">
+              <div className="text-xs text-red-400 mb-1">RanksUp Admin</div>
+              <h1 className="text-xl font-[450] tracking-[-0.04em]">Erişim engellendi</h1>
+              <p className="text-sm text-muted-foreground mt-1">
                 Bu Google hesabı (<strong>{userEmail}</strong>) admin email listesinde değil.
               </p>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Doğru hesapla giriş yapmadıysan <a href="/signin" className="text-amber-400 hover:underline">çıkış yap ve tekrar dene</a>.
             </p>
           </CardContent>
@@ -124,20 +124,20 @@ export default async function AdminUnlockPage({
   // OTP gönderim aşaması (default OTP modunda)
   if (isOtpMode && params.step !== 'otp') {
     return (
-      <div className="min-h-screen bg-slate-950 grid place-items-center px-4">
-        <Card className="w-full max-w-sm bg-slate-900 border-slate-800 text-slate-100">
+      <div className="min-h-screen bg-background grid place-items-center px-4">
+        <Card className="w-full max-w-sm bg-background border-border text-foreground">
           <CardContent className="p-6 space-y-5">
             <div>
-              <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">RanksUp Admin</div>
-              <h1 className="text-xl font-bold">Email ile giriş</h1>
-              <p className="text-sm text-slate-400 mt-1">
+              <div className="text-xs text-amber-400 mb-1">RanksUp Admin</div>
+              <h1 className="text-xl font-[450] tracking-[-0.04em]">Email ile giriş</h1>
+              <p className="text-sm text-muted-foreground mt-1">
                 Admin paneline girmek için 6 haneli kodu mailine göndereceğiz.
               </p>
             </div>
 
-            <div className="rounded-md border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm">
-              <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-1 font-mono">Mail adresi</div>
-              <div className="text-slate-100 font-mono">{userEmail}</div>
+            <div className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
+              <div className="text-[10px] text-muted-foreground mb-1 font-mono">Mail adresi</div>
+              <div className="text-foreground font-mono">{userEmail}</div>
             </div>
 
             {params.error === 'unauthorized' && (
@@ -151,7 +151,7 @@ export default async function AdminUnlockPage({
               <input type="hidden" name="next" value={next} />
               <button
                 type="submit"
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-md py-2.5 transition"
+                className="w-full bg-amber-500 hover:bg-amber-400 text-foreground font-semibold rounded-md py-2.5 transition"
               >
                 Kod Gönder
               </button>
@@ -160,7 +160,7 @@ export default async function AdminUnlockPage({
             {pinEnabled && (
               <a
                 href={`/admin-unlock?step=pin&next=${encodeURIComponent(next)}`}
-                className="block text-center text-xs text-slate-500 hover:text-slate-300 underline"
+                className="block text-center text-xs text-muted-foreground hover:text-foreground underline"
               >
                 Veya admin PIN kullan
               </a>
@@ -183,13 +183,13 @@ export default async function AdminUnlockPage({
     };
 
     return (
-      <div className="min-h-screen bg-slate-950 grid place-items-center px-4">
-        <Card className="w-full max-w-sm bg-slate-900 border-slate-800 text-slate-100">
+      <div className="min-h-screen bg-background grid place-items-center px-4">
+        <Card className="w-full max-w-sm bg-background border-border text-foreground">
           <CardContent className="p-6 space-y-5">
             <div>
-              <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">RanksUp Admin</div>
-              <h1 className="text-xl font-bold">Mail kodunu gir</h1>
-              <p className="text-sm text-slate-400 mt-1">
+              <div className="text-xs text-amber-400 mb-1">RanksUp Admin</div>
+              <h1 className="text-xl font-[450] tracking-[-0.04em]">Mail kodunu gir</h1>
+              <p className="text-sm text-muted-foreground mt-1">
                 <strong>{userEmail}</strong> adresine 6 haneli kod gönderildi. 5 dakika geçerli.
               </p>
             </div>
@@ -210,7 +210,7 @@ export default async function AdminUnlockPage({
                 maxLength={6}
                 autoComplete="one-time-code"
                 placeholder="••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-3 text-2xl tracking-[0.4em] text-center font-mono focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                className="w-full bg-background border border-border rounded-md px-3 py-3 text-2xl tracking-[0.4em] text-center font-mono focus:outline-none focus:ring-2 focus:ring-amber-400/40"
               />
 
               {params.error && errorMsg[params.error] && (
@@ -219,7 +219,7 @@ export default async function AdminUnlockPage({
 
               <button
                 type="submit"
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-md py-2.5 transition"
+                className="w-full bg-amber-500 hover:bg-amber-400 text-foreground font-semibold rounded-md py-2.5 transition"
               >
                 Doğrula ve Aç
               </button>
@@ -228,14 +228,14 @@ export default async function AdminUnlockPage({
             <div className="flex items-center justify-between text-xs">
               <form action={sendOtpAction}>
                 <input type="hidden" name="next" value={next} />
-                <button type="submit" className="text-slate-500 hover:text-slate-300 underline">
+                <button type="submit" className="text-muted-foreground hover:text-foreground underline">
                   Yeni kod iste
                 </button>
               </form>
               {pinEnabled && (
                 <a
                   href={`/admin-unlock?step=pin&next=${encodeURIComponent(next)}`}
-                  className="text-slate-500 hover:text-slate-300 underline"
+                  className="text-muted-foreground hover:text-foreground underline"
                 >
                   PIN kullan
                 </a>
@@ -249,13 +249,13 @@ export default async function AdminUnlockPage({
 
   // PIN modu (fallback)
   return (
-    <div className="min-h-screen bg-slate-950 grid place-items-center px-4">
-      <Card className="w-full max-w-sm bg-slate-900 border-slate-800 text-slate-100">
+    <div className="min-h-screen bg-background grid place-items-center px-4">
+      <Card className="w-full max-w-sm bg-background border-border text-foreground">
         <CardContent className="p-6 space-y-5">
           <div>
-            <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">RanksUp Admin</div>
-            <h1 className="text-xl font-bold">Yönetici PIN'i</h1>
-            <p className="text-sm text-slate-400 mt-1">
+            <div className="text-xs text-amber-400 mb-1">RanksUp Admin</div>
+            <h1 className="text-xl font-[450] tracking-[-0.04em]">Yönetici PIN'i</h1>
+            <p className="text-sm text-muted-foreground mt-1">
               Devam etmek için yöneticilere özel PIN'i gir.
             </p>
           </div>
@@ -269,14 +269,14 @@ export default async function AdminUnlockPage({
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="••••••"
-              className="w-full bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-base tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-base text-center focus:outline-none focus:ring-2 focus:ring-amber-400/40"
             />
             {params.error === 'wrong' && (
               <p className="text-sm text-red-400">PIN hatalı, tekrar dene.</p>
             )}
             <button
               type="submit"
-              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-md py-2.5 transition"
+              className="w-full bg-amber-500 hover:bg-amber-400 text-foreground font-semibold rounded-md py-2.5 transition"
             >
               Kilidi Aç
             </button>
@@ -284,14 +284,14 @@ export default async function AdminUnlockPage({
           {otpEnabled && (
             <a
               href={`/admin-unlock?next=${encodeURIComponent(next)}`}
-              className="block text-center text-xs text-slate-500 hover:text-slate-300 underline"
+              className="block text-center text-xs text-muted-foreground hover:text-foreground underline"
             >
               Veya mail ile gir
             </a>
           )}
-          <hr className="border-slate-800" />
-          <p className="text-xs text-slate-500">
-            Bu PIN sadece yöneticilere verilir. Kaybedersen sunucuda <code className="text-slate-300">.env</code> içindeki <code className="text-slate-300">ADMIN_PIN</code> ile doğrula.
+          <hr className="border-border" />
+          <p className="text-xs text-muted-foreground">
+            Bu PIN sadece yöneticilere verilir. Kaybedersen sunucuda <code className="text-muted-foreground">.env</code> içindeki <code className="text-muted-foreground">ADMIN_PIN</code> ile doğrula.
           </p>
         </CardContent>
       </Card>

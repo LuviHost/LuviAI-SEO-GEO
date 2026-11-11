@@ -38,21 +38,21 @@ export default function AdminOverviewPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Genel Bakış</h1>
+        <h1 className="text-3xl font-[450] tracking-[-0.04em]">Genel Bakış</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Platform metrikleri — gerçek zamanlı
         </p>
       </div>
 
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">Gelir</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">Gelir</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-5">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <TrendingUp className="h-4 w-4" /> Bu ay (PAID)
               </div>
-              <div className="text-3xl font-bold text-brand mt-2">
+              <div className="text-3xl font-[450] tracking-[-0.04em] text-brand mt-2">
                 ₺{Number(data.revenueThisMonth ?? 0).toLocaleString('tr-TR')}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
@@ -65,7 +65,7 @@ export default function AdminOverviewPage() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <CreditCard className="h-4 w-4" /> Son 30 gün gelir
               </div>
-              <div className="text-3xl font-bold mt-2">
+              <div className="text-3xl font-[450] tracking-[-0.04em] mt-2">
                 ₺{Number(data.revenueLast30 ?? 0).toLocaleString('tr-TR')}
               </div>
             </CardContent>
@@ -75,14 +75,14 @@ export default function AdminOverviewPage() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock className="h-4 w-4" /> Bekleyen fatura
               </div>
-              <div className="text-3xl font-bold mt-2">{data.pendingInvoices ?? 0}</div>
+              <div className="text-3xl font-[450] tracking-[-0.04em] mt-2">{data.pendingInvoices ?? 0}</div>
             </CardContent>
           </Card>
         </div>
       </section>
 
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">Kullanıcılar</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">Kullanıcılar</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Stat icon={<UsersIcon />} label="Toplam kullanıcı" value={data.users} />
           <Stat icon={<Activity />} label="Aktif abonelik" value={data.activeSubs} variant="success" />
@@ -92,7 +92,7 @@ export default function AdminOverviewPage() {
       </section>
 
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">İçerik</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">İçerik</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <Stat icon={<Globe2 />} label="Kayıtlı site" value={data.sites} />
           <Stat icon={<FileText />} label="Yayınlanan makale" value={data.publishedArticles} />
@@ -243,7 +243,7 @@ function Stat({
           {icon}
           {label}
         </div>
-        <div className={`text-3xl font-bold mt-2 ${colorClass}`}>{value}</div>
+        <div className={`text-3xl font-[450] tracking-[-0.04em] mt-2 ${colorClass}`}>{value}</div>
       </CardContent>
     </Card>
   );

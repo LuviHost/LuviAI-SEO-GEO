@@ -44,7 +44,7 @@ export default function AdminInvoicesPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-end gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold">Faturalar</h1>
+          <h1 className="text-3xl font-[450] tracking-[-0.04em]">Faturalar</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {invoices.length} fatura · Toplam ödenmiş: ₺{totalPaid.toLocaleString('tr-TR')}
           </p>
@@ -56,7 +56,7 @@ export default function AdminInvoicesPage() {
               onClick={() => setFilter(f.value)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 filter === f.value
-                  ? 'bg-brand text-white'
+                  ? 'bg-foreground text-background'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
