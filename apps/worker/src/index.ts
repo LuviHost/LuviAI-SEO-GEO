@@ -21,8 +21,9 @@ import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
 import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.service.js';
 import { LlmsFullBuilderService } from '../../api/dist/audit/llms-full-builder.service.js';
 import { AiCitationTrackerService } from '../../api/dist/audit/ai-citation-tracker.service.js';
+import { runSetupMeasurement } from '../../api/dist/audit/setup-measurement.js';
 import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger.service.js';
-import { ContentPivotService } from '../../api/dist/articles/content-pivot.service.js';
+import { ContentPivotService, rewriteLeftNoNewVersion } from '../../api/dist/articles/content-pivot.service.js';
 import { AiMentionAlarmService } from '../../api/dist/audit/ai-mention-alarm.service.js';
 import { CrawlerErrorAlarmService } from '../../api/dist/audit/crawler-error-alarm.service.js';
 import { CampaignOrchestratorService } from '../../api/dist/ads/campaign-orchestrator.service.js';
@@ -255,6 +256,8 @@ async function bootstrap() {
       // Sahiplenme makale hakkindan duser: hak doluysa yazi SCHEDULED kalir
       // (QUOTA_EXHAUSTED). Deneme hesabinin SCHEDULED yazisini otomasyon almaz
       // (TRIAL_MANUAL_ONLY; api billing/trial-policy.ts) — LLM harcanmaz.
+      // Sahibin aylik AI butcesi doluysa da alinmaz (AI_BUDGET_EXHAUSTED): hak dusmez,
+      // yazi SCHEDULED kalir, butce yenilenince saatlik tarama alir (11.11.2026).
       const claim = await services.scheduler.claimForGeneration(articleId);
       if (claim !== 'proceed') {
         log.log(`[${siteId}] GENERATE_ARTICLE atlandı (${claim}) article=${articleId}`);
@@ -264,9 +267,11 @@ async function bootstrap() {
       // arasinda yazi yayindan kalkmis ya da canli kopyasinin hedefi silinmis /
       // pasiflesmis olabilir. Yeni metin canliya ulasamayacaksa 5 ajanli uretim
       // (LLM butcesi) hic baslamaz (api content-pivot.service automatedRewriteBlock).
+      // Is verisi de gider: otomatik yeniden yazim makale hakkindan duser (11.11.2026),
+      // dusus izi (allowanceCharge) tasimayan is kosmaz.
       const automated = automatedRewrite === true && typeof articleId === 'string' && articleId !== '';
       if (automated) {
-        const block = await services.contentPivot.automatedRewriteBlock(articleId);
+        const block = await services.contentPivot.automatedRewriteBlock(articleId, job?.data);
         if (block) {
           log.log(`[${siteId}] Otomatik yeniden yazım başlatılmadı (${block.block}) article=${articleId}: ${block.blockReason}`);
           return { skipped: true, reason: 'LIVE_REWRITE_BLOCKED', block: block.block, detail: block.blockReason };
@@ -298,6 +303,13 @@ async function bootstrap() {
         });
         if ((result as any).liveKept) {
           log.log(`[${siteId}] ${result.articleId} otomatik yeniden yazım uygulanmadı (${result.editorVerdict}); yayındaki metin korundu`);
+          return result;
+        }
+        // Sahibin aylik AI butcesi dolu: hat baslamadi, yazi onceki durumuna dondu ve
+        // hak iade edildi (api pipeline.service settleBudgetBlocked). Yayin karari ve
+        // "onayini bekliyor" e-postasi uretilmemis yaziya uygulanmaz; is COMPLETED biter.
+        if ((result as any).skipped === true) {
+          log.warn(`[${siteId}] GENERATE_ARTICLE üretmeden döndü (${(result as any).reason}) article=${articleId}`);
           return result;
         }
         // Otomatik yayin planlanmisti ama yazi yayinlanmadi → yazi gercekten onay
@@ -424,8 +436,11 @@ async function bootstrap() {
      * basliklari yazilir; kullanici yayin hedefi baglayip "Simdi uret" ile en fazla 2
      * makale baslatir, hakki asan konular plan yukseltilene kadar kilitli bekler
      * (api articles/plan-lock.ts).
-     * Akis acikken ayrica auto-fix (sitemap + llms; robots onay ister) ve ilk AI
-     * gorunurluk olcumu (sistem modu, kotadan dusmez) kosar.
+     * Akis acikken ayrica auto-fix (sitemap; robots onay ister) kosar.
+     * Kurulum TEK bir otomatik AI gorunurluk olcumu alir (sistem modu: aylik tavandan ve
+     * haftalik haktan dusmez); sonucu hem denetimin AI bolumune hem olcum gecmisine yazilir.
+     * Hesap basina 30 gunde planin site siniri kadar, ayni alan adi icin 1 kez
+     * (api audit/setup-measurement.ts); sinir dolduysa kurulum olcumsuz surer.
      */
     ONBOARDING_CHAIN: async ({ siteId }) => {
       log.log(`[${siteId}] Onboarding chain başlıyor`);
@@ -474,11 +489,29 @@ async function bootstrap() {
             throw err;
           });
 
-      // SISTEM taramasi (asagidaki baseline snapshot gibi): kullanici
-      // tetiklemedi. 'user' olsaydi denetimin AI adimi yeni kullanicinin
-      // haftalik olcum hakkini ilk gun yiyor, "AI onerisi al" 7 gun kilitli
-      // kaliyordu (audit.service runAudit → aiCitation.runForSite trigger).
-      const auditPromise = services.audit.runAudit(siteId, { trigger: 'system' }).catch((err) => {
+      // KURULUMDA TEK OTOMATIK AI OLCUMU (sahip karari 11.11.2026; api audit/setup-measurement.ts).
+      // Eskiden denetimin AI testi ve (akis acikken) zincirin sonundaki baslangic olcumu
+      // ayri ayri olcuyordu: site basina iki olcum, sil-yeniden ekle ile sinirsiz. Artik
+      // brain hazir olunca (sorular brain'den gelir) BIR kez olculur; sonuc olcum gecmisine
+      // (snapshot + kosum) yazilir ve ayni sonuc denetimin AI bolumune verilir. Hesap basina
+      // 30 gunde planin site siniri kadar, ayni alan adi icin 1: sinir dolduysa kurulum
+      // olcumsuz surer, denetim nedenini tasir.
+      const kurulumOlcumu = () => brainPromise.then(() => runSetupMeasurement(
+        { prisma: services.prisma, tracker: services.citationTracker, log },
+        siteId,
+      ));
+
+      // SISTEM taramasi (kurulum olcumu gibi): kullanici tetiklemedi. 'user'
+      // olsaydi denetimin AI adimi yeni kullanicinin haftalik olcum hakkini ilk
+      // gun yiyor, "AI onerisi al" 7 gun kilitli kaliyordu. Denetim asistanlara
+      // kendisi SORMAZ: AI bolumunu kurulum olcumunun sonucuyla doldurur
+      // (audit.service runAudit opts.aiOlcumu). TEST modunda (AI_GLOBAL_DISABLED)
+      // kurulum olcumu yoktur: denetim eskisi gibi kendi AI adimini cagirir, olcum
+      // motoru bayragi gorup asistanlara sormadan doner (olcum de sinir kaydi da yok).
+      const auditPromise = (aiGlobalOff
+        ? services.audit.runAudit(siteId, { trigger: 'system' })
+        : services.audit.runAudit(siteId, { trigger: 'system', aiOlcumu: kurulumOlcumu })
+      ).catch((err) => {
         log.error(`[${siteId}] audit hata: ${err.message}`);
         return null; // audit fail olsa bile zincir devam etsin
       });
@@ -510,6 +543,14 @@ async function bootstrap() {
       // Brain mutlaka bitsin (topics buna bağımlı). Audit + platform fire-and-collect.
       await brainPromise;
       const [audit] = await Promise.all([auditPromise, platformPromise]);
+
+      // Denetim dustuyse (gecici tarama hatasi) AI adimi hic kosmamis olabilir: kurulum
+      // olcumu yine de alinip olcum gecmisine yazilir (eskiden baslangic olcumu denetimden
+      // bagimsizdi). Adim kostuysa ikinci kez OLCULMEZ: son 24 saatteki olcum yeniden
+      // kullanilir, sinir kaydi ayni alan adini zaten tutar (api audit/setup-measurement.ts).
+      if (!audit && !aiGlobalOff) {
+        await kurulumOlcumu().catch((err: any) => log.warn(`[${siteId}] Kurulum olcumu alinamadi: ${err.message}`));
+      }
 
       let queue: any = { id: null, tier1Topics: [] };
       if (aiGlobalOff) {
@@ -557,7 +598,7 @@ async function bootstrap() {
         });
       }
 
-      // Otopilot ON ise auto-fix (eksik sitemap) tetikle + ilk citation snapshot.
+      // Otopilot ON ise auto-fix (eksik sitemap) tetikle.
       // robots BILEREK yok: robots.txt yazimi onizleme + acik onay ister,
       // onaysiz kuyruk yolunda daima 'preview_required' doner (auto-fix.service.ts)
       // ve yalniz hata gurultusu uretirdi. Kullanici panelden onizleyip onaylar.
@@ -571,20 +612,9 @@ async function bootstrap() {
         } catch (err: any) {
           log.warn(`[${siteId}] Auto-fix atlandi: ${err.message}`);
         }
-
-        // Ilk AI citation snapshot — baseline gunluk takip icin (AI_GLOBAL_DISABLED ise atla)
-        if (aiGlobalOff) {
-          log.warn(`[${siteId}] Citation snapshot atlandi (AI_GLOBAL_DISABLED=1)`);
-        } else {
-          try {
-            // SISTEM modu — otomatik izlemenin baseline'i; kullanicinin
-            // aylik citation kotasindan dusmez (bkz. ai-citation.service.ts).
-            await services.citationTracker.snapshotSite(siteId, { trigger: 'system' });
-            log.log(`[${siteId}] AI citation baseline snapshot kaydedildi`);
-          } catch (err: any) {
-            log.warn(`[${siteId}] Citation snapshot atlandi: ${err.message}`);
-          }
-        }
+        // Baslangic olcumu burada AYRICA alinmaz (11.11.2026): kurulumun tek olcumu
+        // yukarida (denetimin AI adiminda) alindi ve olcum gecmisine yazildi; ikinci
+        // kez olcmek ayni sorulari asistanlara bir daha sormakti.
       }
 
       await services.prisma.site.update({
@@ -693,6 +723,8 @@ async function bootstrap() {
     /**
      * CONTENT_PIVOT_CHECK — haftalik cron, dusuk performansli/AI'da gorunmeyen
      * makaleleri tespit edip otopilot kullanicilari icin yeniden yazma kuyruga at.
+     * Her otomatik yeniden yazim aylik makale hakkindan bir makale duser (11.11.2026);
+     * hak dolduysa is acilmaz, sonucta nedeniyle raporlanir (api content-pivot.service).
      */
     CONTENT_PIVOT_CHECK: async () => {
       return services.contentPivot.scanAllSites();
@@ -864,6 +896,22 @@ async function bootstrap() {
     },
   };
 
+  // OTOMATIK YENIDEN YAZIM MAKALE HAKKINDAN DUSER (sahip karari 11.11.2026; api
+  // content-pivot.service MAKALE HAKKI). Hak, haftalik tarama isi kuyruga atarken duser;
+  // izi is verisindedir. Is YENI SURUM CIKARMADAN donerse (atlandi, on denetim engelledi,
+  // editorden gecmedi ve canli yazi korundu) hak burada, tek yerden geri verilir: uretim
+  // isleyicisine yeni bir atlama yolu eklense de iade unutulmaz. Hata ile biten son
+  // denemenin iadesi isleyicinin catch'inde (is verisindeki izden). Iade tek seferliktir
+  // (iz silinir: api allowance-refund.ts); kullanicinin baslattigi isler etkilenmez.
+  const generateArticle = handlers.GENERATE_ARTICLE;
+  handlers.GENERATE_ARTICLE = async (data, job) => {
+    const result = await generateArticle(data, job);
+    if (job?.id && rewriteLeftNoNewVersion(data, result)) {
+      await refundJobAllowanceCharge(services.prisma, { bullJobId: String(job.id) }).catch(() => null);
+    }
+    return result;
+  };
+
   const worker = new Worker(
     'luviai-jobs',
     async (job) => {
@@ -873,6 +921,14 @@ async function bootstrap() {
       const skip = await accountSkip(services.prisma, job.id);
       if (skip) {
         log.warn(`${job.name} (${job.id}) atlandı: ${skip.reason === 'account_deletion' ? 'hesap için silme talebi var' : 'iş iptal edilmiş'}`);
+        // Isleyici HIC cagrilmadigi icin GENERATE_ARTICLE sarmalayicisi da calismaz: iptal
+        // edilen (ornek: sitesi silinen) otomatik yeniden yazim isinin dusulen makale hakki
+        // burada geri verilir — is hic kosmadi, hak "kullanildi" kalmasin (bagimsiz inceleme,
+        // 11.11.2026). Kullanicinin baslattigi isler etkilenmez (rewriteLeftNoNewVersion yalniz
+        // automatedRewrite isinde true); iade tek seferliktir (api allowance-refund.ts).
+        if (job.name === 'GENERATE_ARTICLE' && job.id && rewriteLeftNoNewVersion(job.data, skip)) {
+          await refundJobAllowanceCharge(services.prisma, { bullJobId: String(job.id) }).catch(() => null);
+        }
         return skip;
       }
 

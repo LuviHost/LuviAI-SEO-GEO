@@ -3,6 +3,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { McpToolsService, type ToolUser } from '../mcp/mcp-tools.service.js';
+import { AI_BUDGET_EXHAUSTED_CODE, QuotaService, type ChatMessageSlot } from '../billing/quota.service.js';
+import { LLMProviderService } from '../llm/llm-provider.service.js';
+import { anthropicCostUsd, anthropicUsage } from '../llm/anthropic.provider.js';
+import type { UsageMetadata } from '../llm/llm.types.js';
 import { CHAT_SKILLS, visibleSkills } from './chat-skills.js';
 
 /**
@@ -17,7 +21,13 @@ import { CHAT_SKILLS, visibleSkills } from './chat-skills.js';
  * Maliyet korumasi:
  *  - AI_GLOBAL_DISABLED saygisi
  *  - max 6 tool turu / mesaj
- *  - TokenUsageRecord'a 'chat' context'iyle kayit (spend dashboard'da gorunur)
+ *  - Hesap basina mesaj hakki (plans.ts chatMessagesPerMonth; QuotaService
+ *    consumeChatMessageSlot) ve site sahibinin aylik AI butcesi (aiBudgetBlock) —
+ *    ikisi de ILK model cagrisindan once (sahip karari 11.11.2026). Eskiden sinir yoktu:
+ *    mesaj basina 7 tura kadar Sonnet cagrisi (yaklasik $0.05-0.25) sinirsiz tekrarlanabiliyordu.
+ *  - Harcama fiyat tablosundan (llm/anthropic.provider), cache token'lari dahil; deftere
+ *    'chat' context'iyle ve SITE SAHIBININ butce sayacina yazilir (LLMProviderService
+ *    recordDirectUsage). Eskiden yalniz deftere, sabit 3/15 fiyatla ve cache'siz yaziliyordu.
  */
 
 const MODEL = 'claude-sonnet-5';
@@ -25,9 +35,16 @@ const MAX_TOOL_ROUNDS = 6;
 const MAX_MESSAGE_LEN = 4000;
 const HISTORY_LIMIT = 20;
 
-// $/1M — anthropic.provider.ts PRICING ile ayni degerler (sonnet-5)
-const PRICE_IN = 3;
-const PRICE_OUT = 15;
+const NO_USAGE: UsageMetadata = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+
+/** sendMessage secenekleri — yalniz sunucu ici cagiranlar verir (denetleyici vermez) */
+export interface SendMessageOptions {
+  /**
+   * Platformun kendi baslattigi mesaj (haftalik plan cron'u). Musterinin mesaj hakkindan
+   * DUSMEZ ve hakka takilmaz; aylik AI butcesi yine gecerlidir (harcama gercek).
+   */
+  automated?: boolean;
+}
 
 @Injectable()
 export class ChatService {
@@ -38,6 +55,8 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
     private readonly tools: McpToolsService,
+    private readonly quota: QuotaService,
+    private readonly llm: LLMProviderService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -111,6 +130,7 @@ export class ChatService {
     siteId: string,
     user: ToolUser,
     input: { conversationId?: string; message?: string; skill?: string },
+    options: SendMessageOptions = {},
   ) {
     const disabled = await this.settings.getBoolean('AI_GLOBAL_DISABLED').catch(() => false);
     if (disabled) {
@@ -142,159 +162,204 @@ export class ChatService {
 
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
 
-    // ── Konusma cozumle/olustur
+    // ── Konusma cozumle (olusturma asagida, kapilardan SONRA: reddedilen mesaj bos konusma birakmasin)
     // Yalniz dize kimlik: nesne ({ not: '' }) Prisma where'inde filtre olurdu
     if (input.conversationId !== undefined && input.conversationId !== null && typeof input.conversationId !== 'string') {
       throw new BadRequestException('conversationId geçersiz');
     }
-    let conversation = input.conversationId
+    const existingConversation = input.conversationId
       ? await this.prisma.chatConversation.findFirst({
           where: { id: input.conversationId, siteId, userId: user.id },
         })
       : null;
-    if (input.conversationId && !conversation) throw new NotFoundException('Konusma bulunamadi');
-    if (!conversation) {
-      conversation = await this.prisma.chatConversation.create({
+    if (input.conversationId && !existingConversation) throw new NotFoundException('Konusma bulunamadi');
+
+    // ── Maliyet kapilari — ilk model cagrisindan ONCE, hicbir kayit yazilmadan.
+    // 1) Aylik AI butcesi SITE SAHIBININ (yoneticinin musteri sitesindeki sohbeti musterinin
+    //    butcesinden duser; makale hattiyla ayni kural). Doluysa 403 AI_BUDGET_EXHAUSTED.
+    //    Sayac okunamazsa mesaj engellenmez (QuotaService.aiBudgetBlock loglar).
+    // 2) Mesaj hakki ISTEGI YAPAN hesabin (yonetici disinda site sahibiyle ayni kisi; ADMIN
+    //    ve platform otomasyonu sayilmaz). Butce once: butceye takilan mesaj hak dusurmesin.
+    const budgetMessage = await this.quota.aiBudgetBlock(site.userId);
+    if (budgetMessage) {
+      throw new ForbiddenException({ statusCode: 403, message: budgetMessage, code: AI_BUDGET_EXHAUSTED_CODE });
+    }
+    const slot: ChatMessageSlot = options.automated
+      ? { charged: false, key: null }
+      : await this.quota.consumeChatMessageSlot(user);
+
+    // Bu noktadan sonra, tamamlanmis bir model cagrisi olmadan cikan her hata hakki geri
+    // verir ve yazdigi kayitlari siler (asagidaki catch).
+    let conversation = existingConversation;
+    let createdConversation = false;
+    let userMessageId: string | null = null;
+    const usage: UsageMetadata = { ...NO_USAGE };
+    let modelCalls = 0;
+    let spendRecorded = false;
+
+    try {
+      if (!conversation) {
+        conversation = await this.prisma.chatConversation.create({
+          data: {
+            siteId,
+            userId: user.id,
+            title: (skill ? skill.name : userText).slice(0, 120),
+          },
+        });
+        createdConversation = true;
+      }
+
+      // ── Gecmis (son N mesaj)
+      const history = await this.prisma.chatMessage.findMany({
+        where: { conversationId: conversation.id },
+        orderBy: { createdAt: 'desc' },
+        take: HISTORY_LIMIT,
+      });
+      history.reverse();
+
+      // Skill: gorev talimati + kullanici girdisi tek user mesajinda birlesir
+      const effectiveUserText = skill
+        ? `${skill.prompt}${userText ? `\n\nKullanici girdisi: ${userText}` : ''}`
+        : userText;
+
+      // ── Kullanici mesajini kaydet (UI'da skill adi gorunur, ham prompt degil)
+      const userMessage = await this.prisma.chatMessage.create({
         data: {
-          siteId,
-          userId: user.id,
-          title: (skill ? skill.name : userText).slice(0, 120),
+          conversationId: conversation.id,
+          role: 'user',
+          content: skill ? (userText || `▶ ${skill.name}`) : userText,
+          skill: skill?.key ?? null,
         },
       });
-    }
+      userMessageId = userMessage.id;
 
-    // ── Gecmis (son N mesaj)
-    const history = await this.prisma.chatMessage.findMany({
-      where: { conversationId: conversation.id },
-      orderBy: { createdAt: 'desc' },
-      take: HISTORY_LIMIT,
-    });
-    history.reverse();
+      // ── Anthropic mesaj dizisi
+      const messages: Anthropic.MessageParam[] = [
+        ...history.map((m) => ({
+          role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+          content: m.content,
+        })),
+        { role: 'user', content: effectiveUserText },
+      ];
 
-    // Skill: gorev talimati + kullanici girdisi tek user mesajinda birlesir
-    const effectiveUserText = skill
-      ? `${skill.prompt}${userText ? `\n\nKullanici girdisi: ${userText}` : ''}`
-      : userText;
+      const systemPrompt = this.buildSystemPrompt(site);
+      // Plan kapisi: kullanicinin planinda olmayan tool modele HIC verilmez —
+      // aksi halde model kilitli veriyi cagirmayi dener ve chat, kilitli uclari
+      // atlayan bir arka kapi haline gelir.
+      const anthropicTools = this.tools.listForAnthropic(user) as any;
 
-    // ── Kullanici mesajini kaydet (UI'da skill adi gorunur, ham prompt degil)
-    await this.prisma.chatMessage.create({
-      data: {
-        conversationId: conversation.id,
-        role: 'user',
-        content: skill ? (userText || `▶ ${skill.name}`) : userText,
-        skill: skill?.key ?? null,
-      },
-    });
+      // ── Agent dongusu
+      const toolCallLog: Array<{ name: string; input: any; resultSummary: string }> = [];
+      let finalText = '';
 
-    // ── Anthropic mesaj dizisi
-    const messages: Anthropic.MessageParam[] = [
-      ...history.map((m) => ({
-        role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
-        content: m.content,
-      })),
-      { role: 'user', content: effectiveUserText },
-    ];
+      for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+        const response = await this.anthropic.messages.create({
+          model: MODEL,
+          max_tokens: 8000,
+          system: [{ type: 'text' as const, text: systemPrompt, cache_control: { type: 'ephemeral' as const } }],
+          tools: anthropicTools,
+          messages,
+        } as any);
 
-    const systemPrompt = this.buildSystemPrompt(site);
-    // Plan kapisi: kullanicinin planinda olmayan tool modele HIC verilmez —
-    // aksi halde model kilitli veriyi cagirmayi dener ve chat, kilitli uclari
-    // atlayan bir arka kapi haline gelir.
-    const anthropicTools = this.tools.listForAnthropic(user) as any;
+        modelCalls++;
+        // Cache token'lari dahil: sistem istemi + arac listesi cache'leniyor; yalniz
+        // input/output sayilinca tur basina cache yazma / okuma maliyeti kayboluyordu.
+        const roundUsage = anthropicUsage(response.usage);
+        usage.inputTokens += roundUsage.inputTokens;
+        usage.outputTokens += roundUsage.outputTokens;
+        usage.cacheReadTokens += roundUsage.cacheReadTokens;
+        usage.cacheWriteTokens += roundUsage.cacheWriteTokens;
 
-    // ── Agent dongusu
-    let totalIn = 0;
-    let totalOut = 0;
-    const toolCallLog: Array<{ name: string; input: any; resultSummary: string }> = [];
-    let finalText = '';
+        const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+        const texts = response.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text);
 
-    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const response = await this.anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 8000,
-        system: [{ type: 'text' as const, text: systemPrompt, cache_control: { type: 'ephemeral' as const } }],
-        tools: anthropicTools,
-        messages,
-      } as any);
-
-      totalIn += response.usage.input_tokens ?? 0;
-      totalOut += response.usage.output_tokens ?? 0;
-
-      const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
-      const texts = response.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text);
-
-      if (toolUses.length === 0 || round === MAX_TOOL_ROUNDS) {
-        finalText = texts.join('\n').trim();
-        if (!finalText && toolUses.length > 0) {
-          finalText = 'Araç çağrısı limiti doldu — kısmi sonuçlarla cevap veremedim, soruyu daraltır mısın?';
+        if (toolUses.length === 0 || round === MAX_TOOL_ROUNDS) {
+          finalText = texts.join('\n').trim();
+          if (!finalText && toolUses.length > 0) {
+            finalText = 'Araç çağrısı limiti doldu — kısmi sonuçlarla cevap veremedim, soruyu daraltır mısın?';
+          }
+          break;
         }
-        break;
+
+        // Asistan turunu ekle, tool'lari calistir, sonuclari dondur
+        messages.push({ role: 'assistant', content: response.content });
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+        for (const tu of toolUses) {
+          const args = { ...(tu.input as Record<string, any>) };
+          // Site kapsamli tool'larda site_id verilmediyse aktif siteyi kullan.
+          // (Baska site id'si verilirse resolveSite sahiplik dogrular.)
+          if (args.site_id === undefined) args.site_id = siteId;
+          let resultText: string;
+          let isError = false;
+          try {
+            const result = await this.tools.call(user, tu.name, args);
+            resultText = JSON.stringify(result).slice(0, 30_000);
+          } catch (err: any) {
+            resultText = `Hata: ${err.message ?? 'bilinmeyen'}`;
+            isError = true;
+          }
+          toolCallLog.push({
+            name: tu.name,
+            input: this.redactArgs(args),
+            resultSummary: resultText.slice(0, 300),
+          });
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: tu.id,
+            content: resultText,
+            is_error: isError,
+          });
+        }
+        messages.push({ role: 'user', content: toolResults });
       }
 
-      // Asistan turunu ekle, tool'lari calistir, sonuclari dondur
-      messages.push({ role: 'assistant', content: response.content });
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      for (const tu of toolUses) {
-        const args = { ...(tu.input as Record<string, any>) };
-        // Site kapsamli tool'larda site_id verilmediyse aktif siteyi kullan.
-        // (Baska site id'si verilirse resolveSite sahiplik dogrular.)
-        if (args.site_id === undefined) args.site_id = siteId;
-        let resultText: string;
-        let isError = false;
-        try {
-          const result = await this.tools.call(user, tu.name, args);
-          resultText = JSON.stringify(result).slice(0, 30_000);
-        } catch (err: any) {
-          resultText = `Hata: ${err.message ?? 'bilinmeyen'}`;
-          isError = true;
-        }
-        toolCallLog.push({
-          name: tu.name,
-          input: this.redactArgs(args),
-          resultSummary: resultText.slice(0, 300),
-        });
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: tu.id,
-          content: resultText,
-          is_error: isError,
-        });
-      }
-      messages.push({ role: 'user', content: toolResults });
-    }
+      // ── Maliyet + kayit
+      const costUsd = this.recordSpend(siteId, site.userId, conversation.id, usage);
+      spendRecorded = true;
 
-    // ── Maliyet + kayit
-    const costUsd = (totalIn / 1_000_000) * PRICE_IN + (totalOut / 1_000_000) * PRICE_OUT;
-    this.recordUsage(siteId, user.id, conversation.id, totalIn, totalOut).catch((err) =>
-      this.log.warn(`Chat token kaydi basarisiz: ${err.message}`),
-    );
+      const assistantMsg = await this.prisma.chatMessage.create({
+        data: {
+          conversationId: conversation.id,
+          role: 'assistant',
+          content: finalText || 'Cevap üretilemedi.',
+          toolCalls: toolCallLog.length ? (toolCallLog as any) : undefined,
+          skill: skill?.key ?? null,
+          costUsd,
+        },
+      });
 
-    const assistantMsg = await this.prisma.chatMessage.create({
-      data: {
+      await this.prisma.chatConversation.update({
+        where: { id: conversation.id },
+        data: { updatedAt: new Date() },
+      });
+
+      return {
         conversationId: conversation.id,
-        role: 'assistant',
-        content: finalText || 'Cevap üretilemedi.',
-        toolCalls: toolCallLog.length ? (toolCallLog as any) : undefined,
-        skill: skill?.key ?? null,
-        costUsd,
-      },
-    });
-
-    await this.prisma.chatConversation.update({
-      where: { id: conversation.id },
-      data: { updatedAt: new Date() },
-    });
-
-    return {
-      conversationId: conversation.id,
-      message: {
-        id: assistantMsg.id,
-        role: 'assistant',
-        content: assistantMsg.content,
-        toolCalls: toolCallLog,
-        createdAt: assistantMsg.createdAt,
-      },
-      costUsd: Math.round(costUsd * 10000) / 10000,
-    };
+        message: {
+          id: assistantMsg.id,
+          role: 'assistant',
+          content: assistantMsg.content,
+          toolCalls: toolCallLog,
+          createdAt: assistantMsg.createdAt,
+        },
+        costUsd: Math.round(costUsd * 10000) / 10000,
+      };
+    } catch (err) {
+      if (modelCalls === 0) {
+        // Hicbir model cagrisi tamamlanmadi (saglayici hatasi, kayit acilamadi): mesaj
+        // SAYILMAZ. Hak geri verilir; yazilan kullanici mesaji ve bu istekte acilan konusma
+        // silinir — yoksa yeniden denemede ayni soru gecmise iki kez girerdi.
+        await this.quota.refundChatMessageSlot(slot);
+        await this.discardUnansweredMessage(userMessageId, createdConversation ? conversation?.id ?? null : null);
+      } else if (conversation && !spendRecorded) {
+        // Model cagrildi (faturalandi) ama cevap tamamlanamadi: harcama yine yazilir,
+        // mesaj hakki dusmus kalir. Eskiden harcama yalniz dongu bitince yaziliyordu;
+        // yarida kesilen mesajin turlari deftere ve butceye hic islemiyordu.
+        // spendRecorded: harcama yazildiktan SONRA gelen hata (cevap kaydi) ikinci kez yazmasin.
+        this.recordSpend(siteId, site.userId, conversation.id, usage);
+      }
+      throw err;
+    }
   }
 
   // ────────────────────────────────────────────────────────────
@@ -323,22 +388,28 @@ export class ChatService {
     return out;
   }
 
-  private async recordUsage(siteId: string, userId: string, conversationId: string, inputTokens: number, outputTokens: number) {
-    const records: any[] = [];
-    if (inputTokens > 0) {
-      records.push({
-        siteId, userId, provider: 'anthropic', model: MODEL, tokenType: 'prompt', context: 'chat',
-        inputTokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
-        rate: PRICE_IN, costUsd: (inputTokens / 1_000_000) * PRICE_IN, conversationId,
-      });
+  /**
+   * Mesajin harcamasi: maliyeti doner (asistan mesajina yazilir) ve arka planda deftere
+   * ('chat') + SITE SAHIBININ aylik AI butce sayacina isler. Yazim hatasi mesaji dusurmez.
+   */
+  private recordSpend(siteId: string, ownerId: string, conversationId: string, usage: UsageMetadata): number {
+    this.llm
+      .recordDirectUsage({ context: 'chat', siteId, userId: ownerId, conversationId, provider: 'anthropic', model: MODEL, usage })
+      .catch((err: any) => this.log.warn(`Chat token kaydi basarisiz: ${err?.message ?? err}`));
+    return anthropicCostUsd(MODEL, usage);
+  }
+
+  /** Cevaplanamayan (model hic cagrilmamis) mesajin izlerini sil; hata yutulur (asil hata kaybolmasin) */
+  private async discardUnansweredMessage(userMessageId: string | null, newConversationId: string | null): Promise<void> {
+    try {
+      if (newConversationId) {
+        // Konusma bu istekte acildi: mesajiyla birlikte gider (ChatMessage onDelete Cascade)
+        await this.prisma.chatConversation.delete({ where: { id: newConversationId } });
+      } else if (userMessageId) {
+        await this.prisma.chatMessage.delete({ where: { id: userMessageId } });
+      }
+    } catch (err: any) {
+      this.log.warn(`Cevaplanamayan sohbet mesaji silinemedi: ${err?.message ?? err}`);
     }
-    if (outputTokens > 0) {
-      records.push({
-        siteId, userId, provider: 'anthropic', model: MODEL, tokenType: 'completion', context: 'chat',
-        inputTokens: 0, outputTokens, cacheReadTokens: 0, cacheWriteTokens: 0,
-        rate: PRICE_OUT, costUsd: (outputTokens / 1_000_000) * PRICE_OUT, conversationId,
-      });
-    }
-    if (records.length) await this.prisma.tokenUsageRecord.createMany({ data: records });
   }
 }

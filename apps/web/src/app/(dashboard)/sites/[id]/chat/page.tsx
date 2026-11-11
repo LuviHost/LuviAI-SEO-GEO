@@ -8,7 +8,7 @@ import { useSiteContext } from '../site-context';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   MessageSquare, Send, Loader2, Sparkles, History, Plus, Trash2,
@@ -28,7 +28,19 @@ type Msg = {
   content: string;
   toolCalls?: Array<{ name: string; input: any; resultSummary: string }>;
   skill?: string | null;
+  /** Sunucunun "bu mesaj cevaplanmadi" notu (mesaj hakki / AI butcesi); model cevabi degil */
+  notice?: boolean;
 };
+
+/**
+ * Sunucunun mesaji CEVAPLAMADIGI ama bir hata da olmayan durumlar (api quota.service):
+ *  - CHAT_MESSAGE_LIMIT: hesabin Asistan mesaji hakki doldu (plans.ts chatMessagesPerMonth)
+ *  - AI_BUDGET_EXHAUSTED: site sahibinin aylik AI butcesi doldu
+ * Sunucunun Turkce metni (sinir, ne zaman yenilendigi, varsa yukseltme yolu) sohbetin icinde
+ * asistan tarafinda bir not olarak gosterilir. Eskiden her hata ham bildirim (toast) olarak
+ * cikiyor, soru balonu silinip metin girdiye geri konuyordu; sinir bir ariza gibi gorunurdu.
+ */
+const NOTICE_CODES = new Set(['CHAT_MESSAGE_LIMIT', 'AI_BUDGET_EXHAUSTED']);
 
 /** Gorev turu → Turkce ad (API etiketleri Ingilizce gelir) */
 const TAG_LABEL: Record<string, string> = {
@@ -133,9 +145,14 @@ export default function ChatPage() {
       }]);
       api.listChatConversations(site.id).then(setConversations).catch(() => {});
     } catch (err: any) {
-      toast.error(err.message);
-      setMessages((prev) => prev.slice(0, -1));
-      setInput(text);
+      if (err instanceof ApiError && err.code && NOTICE_CODES.has(err.code)) {
+        // Soru balonu yerinde kalir; altina sunucunun aciklamasi asistan notu olarak eklenir
+        setMessages((prev) => [...prev, { id: `notice-${Date.now()}`, role: 'assistant', content: err.message, notice: true }]);
+      } else {
+        toast.error(err.message);
+        setMessages((prev) => prev.slice(0, -1));
+        setInput(text);
+      }
     } finally {
       setSending(false);
     }
@@ -192,6 +209,7 @@ export default function ChatPage() {
                   m.role === 'user'
                     ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white'
                     : 'bg-muted/60',
+                  m.notice && 'border border-warning/50',
                 )}>
                   {m.role === 'assistant' ? (
                     <>

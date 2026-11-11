@@ -26,7 +26,7 @@ function kur(article: Record<string, unknown>, earlierArticles = 3) {
     },
   };
   const email = { send: vi.fn<(o: { template: string; data: Record<string, unknown> }) => Promise<{ ok: boolean }>>(async () => ({ ok: true })) };
-  const svc = new PipelineService(prisma as any, {} as any, email as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+  const svc = new PipelineService(prisma as any, {} as any, email as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
   return { svc, email };
 }
 

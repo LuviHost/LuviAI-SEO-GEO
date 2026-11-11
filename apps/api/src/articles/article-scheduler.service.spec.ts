@@ -149,7 +149,7 @@ function build(opts: { site?: SiteRow; articles?: any[]; due?: any[]; quota?: an
     enqueue: vi.fn<(opts: any) => Promise<unknown>>(async () => ({ dbJobId: 'j1', bullJobId: 'b1' })),
     removeJob: vi.fn<(id: string) => Promise<boolean>>(async () => true),
   };
-  const quota = opts.quota ?? { checkArticleQuota: vi.fn(async () => ({ allowed: true, remaining: 10, limit: 15 })) };
+  const quota = opts.quota ?? { checkArticleQuota: vi.fn(async () => ({ allowed: true, remaining: 10, limit: 15 })), aiBudgetBlock: vi.fn(async () => null) };
   const svc = new ArticleSchedulerService(prisma as any, jobQueue as any, quota as any);
   return { svc, prisma, jobQueue, quota, users: users.table, articles };
 }
@@ -266,7 +266,7 @@ describe('processDueArticles — saatlik tarama', () => {
       const users = { u1: { plan: 'PRO', articlesUsedThisMonth: 40, articlesQuotaResetAt: LAST_MONTH } };
       const { quota, check } = realQuota(users);
       const ctx = build({ due: [due()], quota, users });
-      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       expect(ctx.jobQueue.enqueue).toHaveBeenCalledTimes(1);
       // Sayac ay basi sifirlandi ve yazi yeni ayin ilk hakkini kullandi...
       expect(users.u1.articlesUsedThisMonth).toBe(1);
@@ -280,7 +280,7 @@ describe('processDueArticles — saatlik tarama', () => {
       const users = { u1: { plan: 'PRO', articlesUsedThisMonth: 40, articlesQuotaResetAt: new Date() } };
       const { quota } = realQuota(users);
       const ctx = build({ due: [due()], quota, users });
-      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 1, alreadyClaimed: 0, failed: 0 });
+      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 1, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
       expect(ctx.prisma.article.updateMany).not.toHaveBeenCalled();
       expect(users.u1.articlesUsedThisMonth).toBe(40);
@@ -289,12 +289,12 @@ describe('processDueArticles — saatlik tarama', () => {
     it('deneme hesabi: hak ay basi sifirlanmaz (omur boyu 2); hakki kalan deneme hesabinin yazisi uretilir ve son hakki kullanir', async () => {
       const full = { u1: { plan: 'TRIAL', articlesUsedThisMonth: 2, articlesQuotaResetAt: LAST_YEAR } };
       const a = build({ due: [due()], quota: realQuota(full).quota, users: full });
-      expect(await a.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 1, alreadyClaimed: 0, failed: 0 });
+      expect(await a.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 1, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       expect(full.u1.articlesUsedThisMonth).toBe(2);
 
       const left = { u1: { plan: 'TRIAL', articlesUsedThisMonth: 1, articlesQuotaResetAt: LAST_YEAR } };
       const b = build({ due: [due()], quota: realQuota(left).quota, users: left });
-      expect(await b.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+      expect(await b.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       expect(left.u1.articlesUsedThisMonth).toBe(2);
     });
 
@@ -319,7 +319,7 @@ describe('processDueArticles — saatlik tarama', () => {
       for (const resetAt of [new Date(), LAST_MONTH]) {
         const users = { u1: { plan: 'STARTER', articlesUsedThisMonth: 0, articlesQuotaResetAt: resetAt } };
         const ctx = build({ due: [due()], quota: realQuota(users).quota, users });
-        expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 1, alreadyClaimed: 0, failed: 0 });
+        expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 1, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
         expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
         expect(ctx.prisma.article.updateMany).not.toHaveBeenCalled();
         expect(users.u1.articlesUsedThisMonth).toBe(0);
@@ -330,7 +330,7 @@ describe('processDueArticles — saatlik tarama', () => {
       const users = { u1: { plan: 'PRO', articlesUsedThisMonth: 3, articlesQuotaResetAt: new Date() } };
       const { quota, check } = realQuota(users);
       const ctx = build({ due: [due({ id: 'a1' }), due({ id: 'a2' }), due({ id: 'a3' })], quota, users });
-      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 3, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 3, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       expect(check).toHaveBeenCalledTimes(1);
       expect(users.u1.articlesUsedThisMonth).toBe(6);
     });
@@ -339,7 +339,7 @@ describe('processDueArticles — saatlik tarama', () => {
       const users = { u2: { plan: 'PRO', articlesUsedThisMonth: 0, articlesQuotaResetAt: new Date() } };
       const { quota } = realQuota(users); // u1 tabloda yok → findUniqueOrThrow hata
       const ctx = build({ due: [due({ id: 'a1', userId: 'u1' }), due({ id: 'a2', userId: 'u2' })], quota, users: users as any });
-      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, alreadyClaimed: 0, failed: 1 });
+      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 1 });
       expect(ctx.jobQueue.enqueue).toHaveBeenCalledTimes(1);
       expect((ctx.jobQueue.enqueue.mock.calls[0][0] as any).payload.articleId).toBe('a2');
       expect(users.u2.articlesUsedThisMonth).toBe(1);
@@ -356,7 +356,7 @@ describe('processDueArticles — saatlik tarama', () => {
   it('yaziyi gecikmeli takvim isi ya da "Simdi uret" once aldiysa (count 0) ikinci kez kuyruga atilmaz; dusulen hak geri verilir', async () => {
     const ctx = build({ due: [due()] });
     ctx.prisma.article.updateMany.mockResolvedValueOnce({ count: 0 });
-    expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 1, failed: 0 });
+    expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 1, failed: 0 });
     expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
     // Yarisi kaybeden hakki geri verdi: ayni yazi iki kez dusmez
     expect(ctx.users.u1.articlesUsedThisMonth).toBe(0);
@@ -368,7 +368,7 @@ describe('processDueArticles — saatlik tarama', () => {
     const ctx = build({ due: [first, second] });
     ctx.jobQueue.enqueue.mockRejectedValueOnce(new Error('redis yok'));
     const r = await ctx.svc.processDueArticles();
-    expect(r).toEqual({ processed: 1, skippedQuota: 0, alreadyClaimed: 0, failed: 1 });
+    expect(r).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 1 });
     // Eskiden yazi kalici olarak GENERATING'de ("Uretiliyor") kaliyordu; hak isareti de silinir
     expect(ctx.prisma.article.updateMany).toHaveBeenCalledWith({ where: { id: 'a1', status: 'GENERATING' }, data: { status: 'SCHEDULED', agentOutputs: Prisma.DbNull } });
     expect(first).toMatchObject({ status: 'SCHEDULED', agentOutputs: null });
@@ -401,6 +401,7 @@ describe('processDueArticles — saatlik tarama', () => {
       checkArticleQuota: vi.fn(async (userId: string) => (allowedUsers.includes(userId)
         ? { allowed: true, remaining: 10, limit: 15 }
         : { allowed: false, remaining: 0, limit: 2 })),
+      aiBudgetBlock: vi.fn(async () => null),
     });
 
     it('50+ engelli satir (daha kucuk id, daha eski vade) + izinli bir satir: izinli satir TEK turda alinir', async () => {
@@ -438,7 +439,7 @@ describe('processDueArticles — saatlik tarama', () => {
       const allowed = rows.slice(55).map((x) => x.site.userId);
       const ctx = build({ due: rows, quota: quotaFor(allowed) });
       const r = await ctx.svc.processDueArticles();
-      expect(r).toEqual({ processed: 5, skippedQuota: 55, alreadyClaimed: 0, failed: 0 });
+      expect(r).toEqual({ processed: 5, skippedQuota: 55, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       const claimed = ctx.jobQueue.enqueue.mock.calls.map((c: any[]) => c[0].payload.articleId);
       expect(claimed).toEqual(rows.slice(55).map((x) => x.id));
     });
@@ -450,7 +451,7 @@ describe('processDueArticles — saatlik tarama', () => {
       const ctx = build({ due: rows, quota: quotaFor(rows.map((x) => x.site.userId)) });
       ctx.jobQueue.enqueue.mockRejectedValue(new Error('redis yok'));
       const r = await ctx.svc.processDueArticles();
-      expect(r).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 0, failed: 60 });
+      expect(r).toEqual({ processed: 0, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 60 });
       expect(ctx.jobQueue.enqueue).toHaveBeenCalledTimes(60);
       expect(ctx.prisma.article.findMany).toHaveBeenCalledTimes(2);
       expect(rows.every((x) => x.status === 'SCHEDULED')).toBe(true);
@@ -465,9 +466,10 @@ describe('processDueArticles — saatlik tarama', () => {
           if (userId === 'flaky') throw new Error('db zaman asimi');
           return { allowed: true, remaining: 10, limit: 15 };
         }),
+        aiBudgetBlock: vi.fn(async () => null),
       };
       const ctx = build({ due: rows, quota });
-      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, alreadyClaimed: 0, failed: 3 });
+      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 3 });
       expect(quota.checkArticleQuota.mock.calls.filter((c: any[]) => c[0] === 'flaky')).toHaveLength(1);
     });
 
@@ -500,7 +502,7 @@ describe('processDueArticles — saatlik tarama', () => {
 
     it('vadeli satir yoksa tek sorgu, hicbir sey yazilmaz', async () => {
       const ctx = build({ due: [] });
-      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+      expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       expect(ctx.prisma.article.findMany).toHaveBeenCalledTimes(1);
       expect(ctx.prisma.article.updateMany).not.toHaveBeenCalled();
     });
@@ -682,6 +684,136 @@ describe('claimForGeneration — uretim isi baslarken sahiplik', () => {
   });
 });
 
+describe('aylik AI butcesi — butcesi dolu sahibin takvim yazisi alinmaz (11.11.2026)', () => {
+  // NEDEN: uretim hatti butcesi dolu sahibin yazisini yazmaz (pipeline settleBudgetBlocked: hak
+  // iade, yazi takvime doner). Takvim bunu bilmezse ayni yaziyi ay sonuna kadar yeniden alir:
+  // hak duser, is acilir, hat reddeder, hak iade edilir — ve her tur sitenin otomatik uretim
+  // sayacini (gunde 1, haftada 5) uretilmemis bir yazi icin doldurur.
+  const DOLU = 'Aylık AI kullanım bütçen doldu ($120.00 / $120). Bütçe yeni ayın başında sıfırlanır.';
+  /** aiBudgetBlock: listedeki sahipler icin musteri metni (dolu), digerleri icin null (acik) */
+  const quotaWith = (dolu: string[]) => ({
+    checkArticleQuota: vi.fn(async (_userId: string) => ({ allowed: true, remaining: 10, limit: 15 })),
+    aiBudgetBlock: vi.fn(async (userId: string) => (dolu.includes(userId) ? DOLU : null)),
+  });
+  const BASE = Date.now() - 86_400_000;
+  const row = (n: number, userId: string, over: Record<string, unknown> = {}) => ({
+    id: `a${n}`, siteId: `s-${userId}`, topic: `Konu ${n}`, status: 'SCHEDULED', scheduledAt: new Date(BASE + n * 60_000),
+    site: { id: `s-${userId}`, userId, autopilot: true, publishApprovalMode: 'manual_approve', user: { id: userId, plan: 'PRO' }, publishTargets: [{ id: 't1' }] },
+    ...over,
+  });
+
+  it('saatlik tarama: butcesi dolu sahibin yazilari alinmaz (hak dusmez, is acilmaz, sayac artmaz); digeri uretilir', async () => {
+    const rows = [row(1, 'dolu'), row(2, 'dolu'), row(3, 'acik')];
+    const quota = quotaWith(['dolu']);
+    const ctx = build({ due: rows, quota });
+    expect(await ctx.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 2, alreadyClaimed: 0, failed: 0 });
+    expect(rows.map((r) => r.status)).toEqual(['SCHEDULED', 'SCHEDULED', 'GENERATING']);
+    // Butce sahip basina bir kez okunur; dolu sahibin makale hakki hic okunmaz
+    expect(quota.aiBudgetBlock.mock.calls.map((c) => c[0])).toEqual(['dolu', 'acik']);
+    expect(quota.checkArticleQuota.mock.calls.map((c) => c[0])).toEqual(['acik']);
+    expect(ctx.users.dolu).toBeUndefined();
+    expect(ctx.users.acik.articlesUsedThisMonth).toBe(1);
+    expect(ctx.jobQueue.enqueue).toHaveBeenCalledTimes(1);
+    expect((ctx.jobQueue.enqueue.mock.calls[0][0] as any).payload.articleId).toBe('a3');
+    // Otomatik uretim sayaci yalniz gercekten uretime alinan yazi icin artar
+    expect(ctx.prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(String((ctx.prisma.$executeRawUnsafe.mock.calls[0] as unknown[])[1])).toContain('s-acik');
+  });
+
+  it('saatlik tarama: hakki onceden dusmus (isaretli) yazi da bekler — hat onu da yazmayacak', async () => {
+    const rows = [row(1, 'dolu', { agentOutputs: { allowanceCharge: { at: '2026-11-01T09:00:00.000Z', source: 'calendar' } } })];
+    const ctx = build({ due: rows, quota: quotaWith(['dolu']) });
+    expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, skippedBudget: 1, alreadyClaimed: 0, failed: 0 });
+    expect(rows[0].status).toBe('SCHEDULED');
+    expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('saatlik tarama: butcesi dolu sahip sonraki sorgulara girmez; tek kullanicili tarama ilk satirda biter', async () => {
+    const ctx = build({ due: [row(1, 'dolu'), row(2, 'acik')], quota: quotaWith(['dolu']) });
+    await ctx.svc.processDueArticles({ userId: 'dolu' });
+    // Tek sorgu: kullanici engelli gorulunce dongu biter (plan yukseltme sonrasi tarama)
+    expect(ctx.prisma.article.findMany).toHaveBeenCalledTimes(1);
+    expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('GERCEK QuotaService: tavana ulasan Profesyonel durur, bir cent altindaki uretilir; ADMIN muaf', async () => {
+    const hesap = (aiCostThisMonthUsd: number, role = 'USER') => ({ plan: 'PRO', role, articlesUsedThisMonth: 0, articlesQuotaResetAt: new Date(), aiCostThisMonthUsd });
+    const dolu = { u1: hesap(120) };
+    const a = build({ due: [row(1, 'u1')], quota: realQuota(dolu as any).quota, users: dolu });
+    expect(await a.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, skippedBudget: 1, alreadyClaimed: 0, failed: 0 });
+    expect(dolu.u1.articlesUsedThisMonth).toBe(0);
+
+    const altinda = { u1: hesap(119.99) };
+    const b = build({ due: [row(1, 'u1')], quota: realQuota(altinda as any).quota, users: altinda });
+    expect(await b.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
+    expect(altinda.u1.articlesUsedThisMonth).toBe(1);
+
+    const yonetici = { u1: hesap(500, 'ADMIN') };
+    const c = build({ due: [row(1, 'u1')], quota: realQuota(yonetici as any).quota, users: yonetici });
+    expect(await c.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
+  });
+
+  it('GERCEK QuotaService: butce OKUNAMAZSA takvim durmaz (yazi uretime alinir)', async () => {
+    const users = { u1: { plan: 'PRO', articlesUsedThisMonth: 0, articlesQuotaResetAt: new Date(), aiCostThisMonthUsd: 500 } };
+    const { quota } = realQuota(users as any);
+    vi.spyOn(quota, 'checkAiCostBudget').mockRejectedValue(new Error('db zaman asimi'));
+    const ctx = build({ due: [row(1, 'u1')], quota, users });
+    expect(await ctx.svc.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
+  });
+
+  it('gecikmeli takvim isi: butce doluysa sahiplenmez (AI_BUDGET_EXHAUSTED), yazi SCHEDULED kalir; aciksa kuyruga atar', async () => {
+    const yazi = () => ({ id: 'a1', siteId: 's1', topic: 'Konu', status: 'SCHEDULED', site: { ...SITE(), publishTargets: [{ id: 't1' }], user: { plan: 'PRO' } } });
+    const dolu = build({ articles: [yazi()], quota: quotaWith(['u1']) });
+    expect(await dolu.svc.dispatchScheduledArticle('a1')).toEqual({ skipped: true, reason: 'AI_BUDGET_EXHAUSTED' });
+    expect(dolu.articles[0].status).toBe('SCHEDULED');
+    expect(dolu.prisma.article.updateMany).not.toHaveBeenCalled();
+    expect(dolu.prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(dolu.jobQueue.enqueue).not.toHaveBeenCalled();
+    expect(dolu.prisma.$executeRawUnsafe).not.toHaveBeenCalled();
+
+    const acik = build({ articles: [yazi()], quota: quotaWith([]) });
+    expect(await acik.svc.dispatchScheduledArticle('a1')).toEqual({ dispatched: true, articleId: 'a1', generateJobId: 'j1' });
+  });
+
+  it('gecikmeli takvim isi: akisi durdurulmus sitede butce hic sorulmaz (neden AUTOPILOT_PAUSED kalir)', async () => {
+    const quota = quotaWith(['u1']);
+    const ctx = build({ articles: [{ id: 'a1', siteId: 's1', topic: 'Konu', status: 'SCHEDULED', site: { ...SITE({ autopilot: false }), publishTargets: [], user: { plan: 'PRO' } } }], quota });
+    expect(await ctx.svc.dispatchScheduledArticle('a1')).toEqual({ skipped: true, reason: 'AUTOPILOT_PAUSED' });
+    expect(quota.aiBudgetBlock).not.toHaveBeenCalled();
+  });
+
+  it('uretim isi (claimForGeneration): SCHEDULED yazi + dolu butce = budget_exhausted, hak dusmez; isaretli yazi da bekler', async () => {
+    const yazi: Record<string, unknown> = { id: 'a1', siteId: 's1', status: 'SCHEDULED', site: { userId: 'u1', user: { plan: 'PRO' } } };
+    const ctx = build({ articles: [yazi], quota: quotaWith(['u1']) });
+    expect(await ctx.svc.claimForGeneration('a1')).toBe('budget_exhausted');
+    expect(yazi.status).toBe('SCHEDULED');
+    expect(ctx.prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(ctx.prisma.article.updateMany).not.toHaveBeenCalled();
+    yazi.agentOutputs = { allowanceCharge: { at: '2026-11-01T09:00:00.000Z', source: 'calendar' } };
+    expect(await ctx.svc.claimForGeneration('a1')).toBe('budget_exhausted');
+    expect(yazi.status).toBe('SCHEDULED');
+    // Worker bu karari is sonucuna uretim hattinin atlama koduyla yazar
+    expect(GENERATION_CLAIM_SKIP_REASON.budget_exhausted).toBe('AI_BUDGET_EXHAUSTED');
+  });
+
+  it('uretim isi (claimForGeneration): kullanicinin baslattigi / yayindaki yazi icin butce burada SORULMAZ (kapi hatta)', async () => {
+    for (const status of ['GENERATING', 'PUBLISHED', 'READY_TO_PUBLISH']) {
+      const quota = quotaWith(['u1']);
+      const ctx = build({ articles: [{ id: 'a1', siteId: 's1', status, site: { userId: 'u1', user: { plan: 'PRO' } } }], quota });
+      expect(await ctx.svc.claimForGeneration('a1'), status).toBe('proceed');
+      expect(quota.aiBudgetBlock, status).not.toHaveBeenCalled();
+    }
+  });
+
+  it('uretim isi (claimForGeneration): butce aciksa SCHEDULED yazi her zamanki gibi sahiplenilir', async () => {
+    const yazi: Record<string, unknown> = { id: 'a1', siteId: 's1', status: 'SCHEDULED', site: { userId: 'u1', user: { plan: 'PRO' } } };
+    const ctx = build({ articles: [yazi], quota: quotaWith([]) });
+    expect(await ctx.svc.claimForGeneration('a1')).toBe('proceed');
+    expect(yazi.status).toBe('GENERATING');
+    expect(ctx.users.u1.articlesUsedThisMonth).toBe(1);
+  });
+});
+
 describe('worker kablolamasi (apps/worker/src/index.ts) — takvim sahiplenmesi', () => {
   // Worker'in test kosucusu yok; kurallar bu servisten gelmeli
   const src = readFileSync(new URL('../../../worker/src/index.ts', import.meta.url), 'utf8');
@@ -719,7 +851,7 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — takvim sahiplenmesi'
   it('sahiplik reddinin nedeni is sonucuna dogru yazilir: hak dolu → QUOTA_EXHAUSTED (eskiden ALREADY_CLAIMED)', () => {
     expect(handler).toContain('return { skipped: true, reason: GENERATION_CLAIM_SKIP_REASON[claim] };');
     expect(handler).not.toMatch(/claim === 'article_missing' \? 'ARTICLE_MISSING' : 'ALREADY_CLAIMED'/);
-    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED', attempt_refunded: 'ATTEMPT_REFUNDED', trial_manual_only: 'TRIAL_MANUAL_ONLY', site_rate_limited: 'SITE_RATE_LIMITED' });
+    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED', attempt_refunded: 'ATTEMPT_REFUNDED', trial_manual_only: 'TRIAL_MANUAL_ONLY', site_rate_limited: 'SITE_RATE_LIMITED', budget_exhausted: 'AI_BUDGET_EXHAUSTED' });
   });
 
   it('PROCESS_SCHEDULED is verisindeki userId ile yalniz o kullaniciyi tarar (plan yukseltme sonrasi)', () => {
@@ -986,7 +1118,7 @@ describe('rv18 F5 — daha once yayinlanmis yazi kalan hakki tuketmez ve takvimd
       },
     };
     const jobQueue = { enqueue: vi.fn(async () => ({ dbJobId: 'j1', bullJobId: 'b1' })), removeJob: vi.fn(async () => true) };
-    const quota = { checkArticleQuota: vi.fn(async () => ({ allowed: true, remaining, limit: 15 })) };
+    const quota = { checkArticleQuota: vi.fn(async () => ({ allowed: true, remaining, limit: 15 })), aiBudgetBlock: vi.fn(async () => null) };
     return { svc: new ArticleSchedulerService(prisma as any, jobQueue as any, quota as any), prisma };
   };
 
@@ -1192,7 +1324,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     // Ikisinin vadesi geldi: tarama uretime alir, her biri haktan bir kez duser
     let n = 0;
     w.makeDue(() => n++ < 2);
-    expect(await w.scheduler.processDueArticles()).toEqual({ processed: 2, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+    expect(await w.scheduler.processDueArticles()).toEqual({ processed: 2, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
     expect(w.users.u1.articlesUsedThisMonth).toBe(HAK - 3);
     expect((await w.schedule()).message).toBe(waitingText(3, 3));
     // Uretim bitti, onay bekliyor: yine bir kez (sayacta)
@@ -1236,7 +1368,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     expect(w.users.u1.articlesUsedThisMonth).toBe(0);
     for (let week = 0; week < 5; week++) {
       w.makeDue();
-      expect(await w.scheduler.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+      expect(await w.scheduler.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       for (const r of w.rows.filter((x) => x.status === 'SCHEDULED')) {
         expect(await w.scheduler.dispatchScheduledArticle(r.id)).toEqual({ skipped: true, reason: 'TRIAL_MANUAL_ONLY' });
         expect(await w.scheduler.claimForGeneration(r.id)).toBe('trial_manual_only');
@@ -1346,7 +1478,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     // Onboarding sonrasi 1 hafta + 1 gun gecti: 3 yazinin vadesi geldi; deneme hesabi oldugu icin uretilmez
     let n = 0;
     w.makeDue((r) => r.siteId === 's1' && n++ < 3);
-    expect(await w.scheduler.processDueArticles({ userId: 'u1' })).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+    expect(await w.scheduler.processDueArticles({ userId: 'u1' })).toEqual({ processed: 0, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
     expect(w.users.u1.articlesUsedThisMonth).toBe(0);
     expect(w.generationJobs()).toBe(0);
     expect(await lockedOf(w)).toHaveLength(6);
@@ -1357,7 +1489,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     expect(await lockedOf(w)).toEqual([]);
     const r = await w.scheduler.processDueArticles({ userId: 'u1' });
     // Vadesi gecmis 3 yazi uretime alindi; gelecek 5 yazi saatinde
-    expect(r).toEqual({ processed: 3, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+    expect(r).toEqual({ processed: 3, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
     expect(w.users.u1.articlesUsedThisMonth).toBe(3);
     expect(w.rows.filter((x) => x.siteId === 's1' && x.status === 'SCHEDULED')).toHaveLength(5);
     // Kullanici taramasi baska musterinin vadesi gecmis yazisina dokunmaz
@@ -1367,7 +1499,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
   it('tek turda kullanicinin kalan hakkindan fazla takvim yazisi uretime alinmaz', async () => {
     const seed = Array.from({ length: 5 }, (_, i) => ({ id: `d${i}`, siteId: 's1', topic: `Konu ${i}`, status: 'SCHEDULED', scheduledAt: new Date(Date.now() - (10 - i) * 60_000) }));
     const w = ledger('PRO', 38, seed);
-    expect(await w.scheduler.processDueArticles()).toEqual({ processed: 2, skippedQuota: 3, alreadyClaimed: 0, failed: 0 });
+    expect(await w.scheduler.processDueArticles()).toEqual({ processed: 2, skippedQuota: 3, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
     expect(w.users.u1.articlesUsedThisMonth).toBe(40);
     expect(w.rows.filter((r) => r.status === 'SCHEDULED').map((r) => r.id)).toEqual(['d2', 'd3', 'd4']);
   });
@@ -1418,7 +1550,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     // Otomasyon bu planda hic uretmez (trial-policy automaticGenerationAllowed): tarama yaziyi
     // almaz, gecikmeli is hakka bile bakmadan doner — deneme hesabiyla ayni yol
     for (let saat = 0; saat < 3; saat++) {
-      expect(await w.scheduler.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+      expect(await w.scheduler.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
       expect(await w.scheduler.dispatchScheduledArticle('k1')).toEqual({ skipped: true, reason: 'TRIAL_MANUAL_ONLY' });
     }
     expect(w.generationJobs()).toBe(0);
@@ -1427,7 +1559,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     // Profesyonel'e gecince ayni yazi ilk taramada uretime alinir
     Object.assign(w.users.u1, { plan: 'PRO', articlesUsedThisMonth: 0 });
     for (const r of w.rows) if (r.site?.userId === 'u1') r.site = { ...r.site, user: { id: 'u1', plan: 'PRO' } };
-    expect(await w.scheduler.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+    expect(await w.scheduler.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, skippedBudget: 0, alreadyClaimed: 0, failed: 0 });
     expect(w.users.u1.articlesUsedThisMonth).toBe(1);
   });
 });

@@ -13,6 +13,13 @@ export interface RunAgentParams {
   preferredModel?: 'opus' | 'sonnet' | 'haiku' | string;
   /** Token usage kaydında kullanılır */
   siteId?: string;
+  /**
+   * SITE SAHIBININ kimligi (istegi yapan degil). Verilince cagrinin maliyeti sahibin aylik
+   * AI butce sayacina (User.aiCostThisMonthUsd) islenir — LLMProviderService.recordUsage
+   * sayaci yalniz userId'li cagrida artirir. Uretim hatti her ajan cagrisinda verir
+   * (11.11.2026); eskiden hic verilmiyordu ve makale harcamasi butceye ugramiyordu.
+   */
+  userId?: string;
   conversationId?: string;
 }
 
@@ -74,6 +81,7 @@ export class AgentRunnerService {
       const response = await this.llm.chat({
         context: `agent-${params.agentName}`,
         siteId: params.siteId,
+        userId: params.userId,
         conversationId: params.conversationId,
         model,
         systemPrompt: `${brainSystem}\n\n${params.agentSystemSuffix}`,

@@ -33,7 +33,7 @@ describe('chat mesaj govdesi', () => {
       site: { findUniqueOrThrow: vi.fn(async () => ({ id: 's1', name: 'S', url: 'https://s.com' })) },
       chatConversation: { findFirst },
     } as any;
-    const svc = new ChatService(prisma, { getBoolean: vi.fn(async () => false) } as any, { listForUser: () => [] } as any);
+    const svc = new ChatService(prisma, { getBoolean: vi.fn(async () => false) } as any, { listForUser: () => [] } as any, {} as any, {} as any);
     await expect(svc.sendMessage('s1', { id: 'u1', role: 'USER', plan: 'PRO' } as any, { conversationId: { not: '' } as any, message: 'merhaba' }))
       .rejects.toBeInstanceOf(BadRequestException);
     expect(findFirst).not.toHaveBeenCalled();

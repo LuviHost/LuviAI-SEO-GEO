@@ -29,13 +29,24 @@
  *    LlmProviderService cagrilari aiCostThisMonthUsd'ye yazar; gorunurluk
  *    olcumu kendi istemcileriyle cagirir, bu tavana ne yazar ne bakar.
  *    Teknik olarak ENGELLEMEZ — ama tek bir N=3 olcumun tavan maliyeti (6.31)
- *    deneme planinin aylik AI butcesinin (3 USD) iki katindan fazla.
+ *    deneme planinin o gunku AI butcesinin (3 USD; 11.11.2026'dan beri 8 ve olcumu saymaz) iki katindan fazla.
  *  - Gunluk havuz butcesinin KIRACI PAYI (ai-citation.service isOverBudget:
  *    gunluk tavan x 0.25): en dar asistan Claude — 30 x 0.25 = 7.5 USD/gun.
  *    N=3 olcum Claude icin 5 x 3 x 0.2 = 3.0 USD planlar. Yeni sitede ayni gun
  *    ONBOARDING denetimi (sistem, AI testi dahil) + otopilot baseline
  *    snapshot'i (sistem) = 6.0 USD; kullanicinin ILK "Yeniden Test"i 3.0 daha
  *    ister → 9.0 > 7.5 → Claude o testten DUSERDI. ENGELLER.
+ *
+ * GUNCELLEME (11.11.2026, uc paket + canli olcum — ~/Desktop/model-denemesi-3-sonuc.txt):
+ * yukaridaki rakamlar Ekim 2026 tavanlariydi. Soru basina GERCEK maliyet (tum asistanlar):
+ * Baslangic / deneme (4 asistan, hizli modeller) ~0.07 USD → N=3 site olcumu ~1.04 USD;
+ * Profesyonel ve ustu (7 asistan, ust modeller) ~0.70 USD → N=3 site olcumu ~10.5 USD
+ * (Grok tek basina ~0.23: soru basina 6–8 arama). Tavanlar citation-providers.ts'te
+ * yeniden yazildi (Profesyonel toplam 1.72 USD / soru); gunluk havuz tavanlari
+ * (citation-providers.ts DAILY_BUDGET_DEFAULT_USD) ve kiraci payi (0.25 → 0.5) Profesyonel'in
+ * bir gunluk hakkini (site olcumu + aylik Prompt Lab hakkinin tamami) tasiyacak sekilde
+ * ayarlandi. Asagidaki KARAR degismedi; yukaridaki "x0.25" hesaplari ve "Global gunluk tavan
+ * kapasitesi" maddesindeki 30 USD ornegi eski tavan ve eski paydir.
  *
  * KARAR:
  *  - Deneme planinda N=1 (tekrarSayisiFor). Gerekce: yukaridaki kiraci payi

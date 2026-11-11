@@ -10,6 +10,8 @@ import {
   SUBSCRIBE_EMAIL_LIMIT_MESSAGE,
   SUBSCRIBE_WELCOME_PER_EMAIL,
 } from './public-subscribe-limits.js';
+import { FREE_TEST_ENGINES } from '../billing/plan-engines.js';
+import { ENGINE_LABELS } from '../billing/plans.js';
 
 /** Marka alani tavani — public kontrolun marka cikarimiyla ayni (extractBrandFromHtml: 80). */
 export const SUBSCRIBE_BRAND_MAX_LEN = 80;
@@ -434,13 +436,19 @@ export class PublicCitationSubscriberService {
    * Marka ve alan adi KACISLANIR: alan adi abone formundan, marka kontrol
    * kaydindan (taranan sitenin og:site_name / basligi — yine disaridan gelen
    * metin) gelir; kacislanmasa baskasinin adresine bizim gondericimizden
-   * istenen HTML (sahte link) gonderilebilirdi. Asistan listesi plans.ts ile ayni (6; Meta (Muse) yalniz
-   * META_MODEL_API_KEY tanimliyken olculuyor — ai-citation.service.ts).
+   * istenen HTML (sahte link) gonderilebilirdi.
+   *
+   * Asistan listesi UCRETSIZ TESTIN kapsamidir (billing/plan-engines.ts FREE_TEST_ENGINES):
+   * yeniden testler anonim kitleyle (retest_cron) ayni dort asistana sorar. 11.11.2026'ya kadar
+   * metin elle "6 AI asistanı (… Grok, DeepSeek)" yaziyordu; ucretsiz test dort asistana inince
+   * e-posta olculmeyecek iki asistani vaat eder hale geldi. Liste artik koddan uretilir.
    */
   private welcomeEmailHtml(p: { brand: string; domain: string; confirmUrl: string; unsubscribeUrl: string; locale: string; pazarlama?: boolean }): string {
     const tr = p.locale === 'tr';
     const brand = kacisla(p.brand);
     const domain = kacisla(p.domain);
+    const asistanSayisi = FREE_TEST_ENGINES.length;
+    const asistanlar = FREE_TEST_ENGINES.map((e) => ENGINE_LABELS[e]).join(', ');
     return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${tr ? 'Aboneliğinizi onaylayın' : 'Confirm your subscription'}</title></head>
 <body style="margin:0;padding:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;line-height:1.5">
@@ -454,8 +462,8 @@ export class PublicCitationSubscriberService {
     <h2 style="margin:0 0 16px;font-size:20px;font-weight:700">${tr ? `${brand} için takibi onaylayın` : `Confirm tracking for ${brand}`}</h2>
     <p style="margin:0 0 16px;color:#4a4a4a">
       ${tr
-        ? `<strong>${domain}</strong> alan adının 6 AI asistanındaki (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) görünürlüğünü 15, 30, 60 ve 90 gün sonra otomatik olarak yeniden test edip her seferinde size rapor göndereceğiz.`
-        : `We'll automatically retest <strong>${domain}</strong> on 6 AI assistants (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) at 15, 30, 60 and 90 days, and email you each report.`}
+        ? `<strong>${domain}</strong> alan adının ${asistanSayisi} AI asistanındaki (${asistanlar}) görünürlüğünü 15, 30, 60 ve 90 gün sonra otomatik olarak yeniden test edip her seferinde size rapor göndereceğiz.`
+        : `We'll automatically retest <strong>${domain}</strong> on ${asistanSayisi} AI assistants (${asistanlar}) at 15, 30, 60 and 90 days, and email you each report.`}
     </p>
     ${p.pazarlama
       // NEDEN: cift onay, onaylanan konuyu acikca soylemeli (Mailjet AUP); pazarlama kutusu isaretliyse o da onaylanir

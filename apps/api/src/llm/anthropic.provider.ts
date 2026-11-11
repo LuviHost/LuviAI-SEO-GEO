@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
-import type { ChatRequest, ChatResponse, ILLMProvider, ModelPricing, ProviderName } from './llm.types.js';
+import type { ChatRequest, ChatResponse, ILLMProvider, ModelPricing, ProviderName, UsageMetadata } from './llm.types.js';
 
 /**
  * $ / 1M token. cacheRead = input x0.1, cacheWrite = input x1.25 (5 dk TTL).
@@ -30,6 +30,48 @@ const PRICING: Record<string, ModelPricing> = {
   'claude-3-5-sonnet':          { input: 3,  output: 15, cacheRead: 0.3,  cacheWrite: 3.75 },
   'claude-3-5-haiku':           { input: 1,  output: 5,  cacheRead: 0.1,  cacheWrite: 1.25 },
 };
+
+/**
+ * Model fiyati ($/1M): tam ad, yoksa onek eslesmesi. TEK tablo: saglayici sinifi (getPricing)
+ * ve SDK'yi dogrudan cagiran servisler (panel sohbeti, ceviri) buradan okur.
+ * NEDEN disa acik (11.11.2026): sohbet 3/15'i kendi dosyasinda sabit tutuyor, ceviri hic
+ * hesaplamadan 0.05 yaziyordu; tablo degisince ikisi de yanlis kalirdi.
+ */
+export function anthropicPricing(model: string): ModelPricing | null {
+  if (PRICING[model]) return PRICING[model];
+  for (const [key, pricing] of Object.entries(PRICING)) {
+    if (model.startsWith(key)) return pricing;
+  }
+  return null;
+}
+
+/** Messages API `usage` nesnesi → ortak kullanim alanlari (input_tokens cache'ten okunani ICERMEZ) */
+export function anthropicUsage(usage: unknown): UsageMetadata {
+  const u = (usage ?? {}) as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+  return {
+    inputTokens: n(u.input_tokens),
+    outputTokens: n(u.output_tokens),
+    cacheReadTokens: n(u.cache_read_input_tokens),
+    cacheWriteTokens: n(u.cache_creation_input_tokens),
+  };
+}
+
+/**
+ * Bir cagrinin (ya da toplanmis kullanimin) USD maliyeti; fiyati bilinmeyen modelde 0.
+ * Cache okuma / yazma kendi oraniyla sayilir: sohbet sistem istemini ve arac listesini
+ * cache'liyor, yalniz input/output'u saymak maliyeti eksik gosteriyordu.
+ */
+export function anthropicCostUsd(model: string, usage: UsageMetadata): number {
+  const pricing = anthropicPricing(model);
+  if (!pricing) return 0;
+  return (
+    (usage.inputTokens / 1_000_000) * pricing.input +
+    (usage.outputTokens / 1_000_000) * pricing.output +
+    (usage.cacheReadTokens / 1_000_000) * (pricing.cacheRead ?? pricing.input) +
+    (usage.cacheWriteTokens / 1_000_000) * (pricing.cacheWrite ?? pricing.input * 1.25)
+  );
+}
 
 /**
  * temperature / top_p / top_k bu modellerde KALDIRILDI — gonderilirse API
@@ -100,12 +142,7 @@ export class AnthropicProvider implements ILLMProvider {
   }
 
   getPricing(model: string): ModelPricing | null {
-    if (PRICING[model]) return PRICING[model];
-    // Prefix match fallback
-    for (const [key, pricing] of Object.entries(PRICING)) {
-      if (model.startsWith(key)) return pricing;
-    }
-    return null;
+    return anthropicPricing(model);
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
@@ -192,20 +229,8 @@ export class AnthropicProvider implements ILLMProvider {
       .map(b => b.text)
       .join('\n');
 
-    const usage = {
-      inputTokens: response.usage.input_tokens ?? 0,
-      outputTokens: response.usage.output_tokens ?? 0,
-      cacheReadTokens: (response.usage as any).cache_read_input_tokens ?? 0,
-      cacheWriteTokens: (response.usage as any).cache_creation_input_tokens ?? 0,
-    };
-
-    const pricing = this.getPricing(req.model);
-    const costUsd = pricing ? (
-      (usage.inputTokens / 1_000_000) * pricing.input +
-      (usage.outputTokens / 1_000_000) * pricing.output +
-      (usage.cacheReadTokens / 1_000_000) * (pricing.cacheRead ?? pricing.input) +
-      (usage.cacheWriteTokens / 1_000_000) * (pricing.cacheWrite ?? pricing.input * 1.25)
-    ) : 0;
+    const usage = anthropicUsage(response.usage);
+    const costUsd = anthropicCostUsd(req.model, usage);
 
     this.log.debug(`[${req.context}] ${req.model} ${((Date.now() - t0) / 1000).toFixed(1)}s in=${usage.inputTokens}+${usage.cacheReadTokens}/cache out=${usage.outputTokens} $${costUsd.toFixed(4)}`);
 

@@ -255,7 +255,7 @@ describe('runForSite — model kademesi: Claude hangi modelle ve hangi arama ara
     }
   });
 
-  it('ChatGPT, Gemini ve Perplexity iki kademede de AYNI modelle sorulur (kartta model farki yalniz Claude, Grok, DeepSeek icin)', async () => {
+  it('ChatGPT kademeye gore: Baslangic gpt-6-luna, Profesyonel gpt-6-astra; Gemini ve Perplexity iki kademede de AYNI modelle', async () => {
     const modeller = async (plan: string) => {
       for (const f of [anthropicCreate, deepseekCreate, geminiGenerate]) f.mockClear();
       fetchSpy.mockClear();
@@ -268,11 +268,26 @@ describe('runForSite — model kademesi: Claude hangi modelle ve hangi arama ara
     };
     const standard = await modeller('STARTER');
     const premium = await modeller('PRO');
-    expect(standard).toEqual(premium);
-    for (const liste of Object.values(standard)) expect(liste).toHaveLength(1);
+    // 11.11.2026 (sahip: "Baslangic hesapli, premium kalite"): ChatGPT'de hizli ve amiral model
+    expect(standard.openai).toEqual(['gpt-6-luna']);
+    expect(premium.openai).toEqual(['gpt-6-astra']);
+    // Gemini ve Perplexity'de olcume uygun ust model yok (canli deneme): iki kademe ayni
+    expect(standard.gemini).toEqual(['gemini-3.5-flash-lite']);
+    expect(premium.gemini).toEqual(standard.gemini);
+    expect(standard.perplexity).toEqual(['sonar']);
+    expect(premium.perplexity).toEqual(standard.perplexity);
+    // Deneme hesabi Baslangic ile, Ajans ve Kurumsal Profesyonel ile ayni modelleri kullanir
+    expect(await modeller('TRIAL')).toEqual(standard);
+    for (const plan of ['AGENCY', 'ENTERPRISE']) expect(await modeller(plan), plan).toEqual(premium);
+    // ChatGPT istegi iki kademede de ayni bicim: arama zorunlu, cikti tavani 1500 (maliyet tavani buna gore)
+    for (const b of govdeler('api.openai.com')) {
+      expect(b.tools).toEqual([{ type: 'web_search' }]);
+      expect(b.tool_choice).toBe('required');
+      expect(b.max_output_tokens).toBe(1500);
+    }
   });
 
-  it('havuz maliyeti kademenin tavaniyla yazilir: Claude standard 0.13, premium 0.2 (global + kiraci defteri); digerleri ayni', async () => {
+  it('havuz maliyeti kademenin tavaniyla yazilir: Claude 0.13 / 0.3, ChatGPT 0.05 / 0.50 (global + kiraci defteri); Gemini ve Perplexity ayni', async () => {
     const defter = async (plan: string) => {
       const t = kur(plan);
       await t.svc.runForSite('s1', 5, { trigger: 'system', tekrar: 1 });
@@ -289,10 +304,17 @@ describe('runForSite — model kademesi: Claude hangi modelle ve hangi arama ara
     const premium = await defter('PRO');
     for (const c of premium.tutar('anthropic')) expect(c).toBeCloseTo(SORULAR.length * COST_PER_PROBE_USD.anthropic, 10);
     expect(premium.tutar('anthropic')).toHaveLength(2);
-    for (const p of ['gemini', 'openai', 'perplexity'] as const) {
+    for (const p of ['gemini', 'perplexity'] as const) {
       expect(standard.tutar(p), p).toEqual(premium.tutar(p));
       for (const c of premium.tutar(p)) expect(c, p).toBeCloseTo(SORULAR.length * COST_PER_PROBE_USD[p], 10);
     }
+    // ChatGPT: hizli model tavani 0.05, amiral model tavani 0.50 — defter kademenin tavaniyla
+    expect(costPerProbe('openai', 'standard')).toBe(0.05);
+    expect(costPerProbe('openai', 'premium')).toBe(0.5);
+    for (const c of standard.tutar('openai')) expect(c).toBeCloseTo(SORULAR.length * 0.05, 10);
+    for (const c of premium.tutar('openai')) expect(c).toBeCloseTo(SORULAR.length * 0.5, 10);
+    expect(standard.tutar('openai')).toHaveLength(2);
+    expect(premium.tutar('openai')).toHaveLength(2);
     for (const p of KAPSAM_DISI) expect(premium.tutar(p).length, p).toBe(2);
   });
 });
@@ -395,7 +417,7 @@ describe('runPublicProbes — tam rapor kilidinin plan kapsami', () => {
     expect(claude.cost).toBeCloseTo(0.13 * SORULAR.length, 6);
   });
 
-  it('kapsam verilmezse (anonim test, karne): yedi asistan, Claude Opus + 20260209, maliyet 0.2 — degismedi', async () => {
+  it('kapsam verilmezse (anonim test, karne): yedi asistan, Claude Opus + 20260209, gelismis kademenin tavaniyla', async () => {
     temizle();
     const t = kur('TRIAL');
     const out = await t.svc.runPublicProbes({ brand: 'Kobipratik', host: 'kobipratik.com', queries: SORULAR });
@@ -404,7 +426,7 @@ describe('runPublicProbes — tam rapor kilidinin plan kapsami', () => {
       expect(c[0].model).toBe('claude-opus-5-5');
       expect(c[0].tools).toEqual([{ type: 'web_search_20260209', name: 'web_search', max_uses: 2 }]);
     }
-    expect(out.find((r) => r.provider === 'anthropic')!.cost).toBeCloseTo(0.2 * SORULAR.length, 6);
+    expect(out.find((r) => r.provider === 'anthropic')!.cost).toBeCloseTo(COST_PER_PROBE_USD.anthropic * SORULAR.length, 6);
   });
 
   it('Profesyonel kapsami (yedi asistan, premium) anonim testle AYNI istegi atar', async () => {

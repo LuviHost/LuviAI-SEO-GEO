@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { AiCitationService } from './ai-citation.service.js';
 import { GeoHeatmapService } from './geo-heatmap.service.js';
-import { POOL_ENV_KEY } from './citation-providers.js';
+import { POOL_ENV_KEY, costPerProbe } from './citation-providers.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { AsoPromptLabService } from '../aso/aso-prompt-lab.service.js';
 
@@ -117,10 +117,13 @@ describe('GEO heatmap — aylik hak (soru basina 1 calistirma)', () => {
     expect(r.queries).toEqual(['olculen soru', 'hep hata soru']);
     // 2 soru istendi, 1'i olculdu → 1 hak
     expect(d.user.aiCitationTestsThisMonth).toBe(1);
-    const unit = (d.citation as any).COST_PER_PROBE_USD;
-    expect(parseFloat(d.kv.get(`ai-cost:anthropic:${today()}:u:u1`)!)).toBeCloseTo(unit.anthropic * 1);
-    expect(parseFloat(d.kv.get(`ai-cost:openai:${today()}:u:u1`)!)).toBeCloseTo(unit.openai * 1);
-    expect(parseFloat(d.kv.get(`ai-cost:anthropic:${today()}`)!)).toBeCloseTo(unit.anthropic * 1);
+    // Heatmap web aramasiz sorar: deftere 'standard' kademe tavaniyla yazilir (11.11.2026).
+    // Ust model + web aramasi tavaniyla (ChatGPT 0.50) yazilinca 20 soruluk izgara 10 USD
+    // sayiliyor, ayni gunun olcumunu kiraci payindan dusuruyordu.
+    expect(parseFloat(d.kv.get(`ai-cost:anthropic:${today()}:u:u1`)!)).toBeCloseTo(costPerProbe('anthropic', 'standard') * 1);
+    expect(parseFloat(d.kv.get(`ai-cost:openai:${today()}:u:u1`)!)).toBeCloseTo(costPerProbe('openai', 'standard') * 1);
+    expect(parseFloat(d.kv.get(`ai-cost:anthropic:${today()}`)!)).toBeCloseTo(costPerProbe('anthropic', 'standard') * 1);
+    expect(costPerProbe('openai', 'standard')).toBeLessThan(costPerProbe('openai', 'premium'));
   });
 });
 
@@ -137,7 +140,7 @@ describe('GEO heatmap — gunluk havuz butcesi', () => {
     const r = await svc.runForSite('s1');
     expect(ask.mock.calls.every(([p]) => p !== 'anthropic')).toBe(true);
     const anth = r.cells.filter((c) => c.provider === 'anthropic');
-    expect(anth.every((c) => c.status === 'error' && /Günlük havuz bütçesi/.test(c.excerpt))).toBe(true);
+    expect(anth.every((c) => c.status === 'error' && /bugünkü ölçüm sınırına ulaşıldı/.test(c.excerpt))).toBe(true);
     expect(r.scoreByProvider.anthropic).toBeNull();
     expect(r.scoreByProvider.openai).toBe(100);
     // openai olculdu → 2 soru 2 hak
@@ -192,7 +195,7 @@ describe('App Prompt Lab — sorulan soru basina 1 calistirma + kiraci butcesi',
     expect(spy).not.toHaveBeenCalled();
     const row = r.providers.find((p) => p.provider === 'anthropic');
     expect(row).toMatchObject({ available: false });
-    expect(row?.reason).toMatch(/Günlük havuz bütçesi/);
+    expect(row?.reason).toMatch(/bugünkü ölçüm sınırına ulaşıldı/);
     expect(d.user.aiCitationTestsThisMonth).toBe(0);
   });
 

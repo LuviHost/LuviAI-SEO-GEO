@@ -38,16 +38,16 @@ function build(users: Array<{ id: string; plan: string; aiCostThisMonthUsd: numb
 describe('usersSpendStatus — tavan QuotaService\'ten', () => {
   it('tavan ve yuzde dayatmayla ayni; risk siniflari %100 engel, %80 uyari, %50 normal', async () => {
     const { ctl, quota } = build([
-      { id: 'u1', plan: 'TRIAL', aiCostThisMonthUsd: 3 },      // 3/3 = %100
-      { id: 'u2', plan: 'PRO', aiCostThisMonthUsd: 64 },       // 64/80 = %80
+      { id: 'u1', plan: 'TRIAL', aiCostThisMonthUsd: 8 },      // 8/8 = %100 (deneme tavani 11.11.2026'da 3 → 8)
+      { id: 'u2', plan: 'PRO', aiCostThisMonthUsd: 96 },       // 96/120 = %80 (tavan 11.11.2026'da 80 → 120)
       { id: 'u3', plan: 'AGENCY', aiCostThisMonthUsd: 100 },   // 100/200 = %50
       { id: 'u4', plan: 'ENTERPRISE', aiCostThisMonthUsd: 7 }, // 7/700 = %1
     ]);
     const spy = vi.spyOn(quota, 'checkAiCostBudget');
     const r = await ctl.usersSpendStatus({ user: admin } as any);
     expect(r.users.map((u: any) => [u.id, u.capUsd, u.capPct, u.risk])).toEqual([
-      ['u1', 3, 100, 'blocked'],
-      ['u2', 80, 80, 'warn'],
+      ['u1', 8, 100, 'blocked'],
+      ['u2', 120, 80, 'warn'],
       ['u3', 200, 50, 'normal'],
       ['u4', 700, 1, 'low'],
     ]);
@@ -57,7 +57,7 @@ describe('usersSpendStatus — tavan QuotaService\'ten', () => {
       expect([u.capUsd, u.aiCostUsd, u.capPct]).toEqual([b.cap, b.used, b.pct]);
     }
     expect(spy).toHaveBeenCalled();
-    expect(r.summary).toMatchObject({ totalUsers: 4, blockedCount: 1, warnCount: 1, totalMonthlyCapUsd: 3 + 80 + 200 + 700 });
+    expect(r.summary).toMatchObject({ totalUsers: 4, blockedCount: 1, warnCount: 1, totalMonthlyCapUsd: 8 + 120 + 200 + 700 });
   });
 
   it('liste ile okuma arasinda silinen kullanici listeden duser (sayfa 500 vermez)', async () => {

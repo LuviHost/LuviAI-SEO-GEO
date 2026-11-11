@@ -1,5 +1,5 @@
 import type { RunComparison } from './citation-run-compare.js';
-import { siteMeasurementVersion } from './host-match.js';
+import { isStandardTierVersion, siteMeasurementBase } from './host-match.js';
 
 /**
  * GEO Karsilastirma Raporu — iki AI gorunurluk kosumunun A4 yazdirilabilir raporu.
@@ -77,15 +77,22 @@ const YONTEM_DEGISIKLIGI: Record<number, string> = {
   5: 'Grok ve DeepSeek de artık cevaplarken web’de arama yapıyor (önceden yalnız modelin kendi bilgisiyle cevaplıyordu)',
   // host-match.ts SITE_MEASUREMENT_VERSION — yalniz site olcumu (kosumlar) bu numarayi tasir
   6: 'her soru her AI asistanına birden fazla kez soruluyor; skor tüm tekrarlardan hesaplanıyor ve bir güven aralığıyla veriliyor (önceden her soru bir kez soruluyordu)',
-  // host-match.ts siteMeasurementVersion('standard') — model kademesi (11.11.2026, uc paket)
-  [siteMeasurementVersion('standard')]: 'iki testten biri Başlangıç paketi ya da ücretsiz deneme kapsamıyla (dört AI asistanı, Claude’un hızlı modeli), diğeri Profesyonel ve üstü kapsamıyla (bütün asistanlar, gelişmiş modeller) yapıldı',
+  // host-match.ts CITATION_MATCH_VERSION 7 (site olcumunde SITE_MEASUREMENT_VERSION 8) — 11.11.2026
+  7: 'ChatGPT ve Gemini yeni modellerle ölçülüyor (eski modeller sağlayıcılarca kapatılıyor); yeni modeller aynı soruya farklı kaynak ve markalarla cevap verebiliyor',
 };
+
+/** Model kademesi degisimi (host-match.ts siteMeasurementVersion: standard = surum + 100) */
+const KADEME_DEGISIKLIGI = 'iki testten biri Başlangıç paketi ya da ücretsiz deneme kapsamıyla (dört AI asistanı, hızlı modeller), diğeri Profesyonel ve üstü kapsamıyla (bütün asistanlar, üst seviye modeller) yapıldı';
 
 export function yontemNotu(v: { a: number; b: number } | undefined): string {
   const degisiklikler: string[] = [];
   if (v) {
-    const [alt, ust] = v.a <= v.b ? [v.a, v.b] : [v.b, v.a];
+    // Surum = yontem numarasi (+100: 'standard' model kademesi). Iki degisiklik ayri anlatilir:
+    // 106 → 108 yalniz yontem (model) degisimidir, 8 → 108 yalniz kademe degisimi.
+    const [a, b] = [siteMeasurementBase(v.a), siteMeasurementBase(v.b)];
+    const [alt, ust] = a <= b ? [a, b] : [b, a];
     for (let s = alt + 1; s <= ust; s++) if (YONTEM_DEGISIKLIGI[s]) degisiklikler.push(YONTEM_DEGISIKLIGI[s]);
+    if (isStandardTierVersion(v.a) !== isStandardTierVersion(v.b)) degisiklikler.push(KADEME_DEGISIKLIGI);
   }
   return `Ölçüm yöntemi iki test arasında güncellendi${degisiklikler.length ? `: ${degisiklikler.join('; ')}` : ''}. ` +
     'Farklar yöntemden kaynaklanabileceği için hesaplanmadı; iki testin sayıları ayrı ayrı okunmalı.';

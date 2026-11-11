@@ -10,6 +10,7 @@ import { MeasurementAllowanceService } from './measurement-allowance.service.js'
 import { clientIp } from '../common/client-ip.js';
 import { TrialReadOnlyExempt } from './trial-read-only.decorator.js';
 import { measuredEngines } from './measured-engines.js';
+import { FREE_TEST_ENGINES } from './plan-engines.js';
 
 function ensureSelf(req: Request, requestedUserId: string) {
   const user = (req as any).user;
@@ -58,7 +59,10 @@ export class BillingController {
       this.billing.getPlansWithFx(lang),
       this.paytr.checkoutStatus(null, lang),
     ]);
-    return { ...list, checkout, measuredEngines: measuredEngines() };
+    const olculen = measuredEngines();
+    // freeTestEngines: ana sayfadaki ucretsiz testin sordugu asistanlar (plan-engines
+    // FREE_TEST_ENGINES ∩ olculenler) — "N AI asistaninda test edelim" cumlesi bundan yazilir
+    return { ...list, checkout, measuredEngines: olculen, freeTestEngines: FREE_TEST_ENGINES.filter((e) => olculen.includes(e)) };
   }
 
   @Get('users/:userId/current')
@@ -80,7 +84,7 @@ export class BillingController {
   @Get('users/:userId/quota')
   async getQuota(@Req() req: Request, @Param('userId') userId: string) {
     ensureSelf(req, userId);
-    const [articles, sites, aiRuns, budget] = await Promise.all([
+    const [articles, sites, aiRuns, budget, chat] = await Promise.all([
       this.quota.checkArticleQuota(userId),
       this.quota.checkSiteQuota(userId),
       // AI gorunurluk calistirmasi — panelde gosterilen ucuncu eksen.
@@ -88,8 +92,11 @@ export class BillingController {
       // okumaya devam ediyordu; site sayfasi bu yuzden patliyordu.
       this.quota.checkCitationQuota(userId),
       this.quota.checkAiCostBudget(userId),
+      // Panel sohbeti (Asistan) mesaj hakki (11.11.2026). Sayac okunamazsa eksen bos doner:
+      // kota kartlari bu yuzden dusmesin (panel eksik ekseni atlar).
+      this.quota.checkChatQuota(userId).catch(() => null),
     ]);
-    return { articles, sites, aiRuns, budget };
+    return { articles, sites, aiRuns, budget, chat };
   }
 
   // ─── Abonelik mutasyonlari yalniz panel oturumuyla ─────────────────

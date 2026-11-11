@@ -504,6 +504,8 @@ describe('BillingController — GET alanlari ve odeme ucu gercek servisle', () =
       plans: [{ id: 'pro' }], fx: { rate: 40 }, checkout: { open: false, testMode: true, message: CHECKOUT_TEST_MODE_MESSAGE },
       // Ana sayfadaki "N asistanda ölçülür" seridinin kaynagi (measured-engines.ts)
       measuredEngines: measuredEngines(),
+      // Ucretsiz testin sordugu asistanlar (plan-engines FREE_TEST_ENGINES): "N AI asistanında test edelim"
+      freeTestEngines: ['openai', 'gemini', 'anthropic', 'perplexity'],
     });
     expect((await ctrl.plans('en')).checkout.message).toBe(CHECKOUT_TEST_MODE_MESSAGE_EN);
     expect(billing.getPlansWithFx).toHaveBeenLastCalledWith('en');

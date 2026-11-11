@@ -66,6 +66,27 @@ export function remeasureVerdict(
  * basina yuvarlanir: GeoPromptRun.date UTC gece yarisi, publishedAt saatli;
  * ayni gun 14:00'te yayin + 16:00'da kosum, yuvarlama olmadan haksiz dislanirdi.
  */
+/**
+ * "Oncesi → sonrasi" yalniz AYNI olcum yontemiyle alinmis satirlar arasinda kiyaslanir.
+ *
+ * Yontem = GeoPromptRun.matchVersion (host-match citationMatchVersion: eslestirme / model
+ * surumu + kademe). NEDEN (11.11.2026): firsat karti "2/7 → 0/7" yaziyordu; arada asistanin
+ * MODELI degistiyse (ChatGPT ve Gemini model atamasi) ya da hesap Baslangic'tan Profesyonel'e
+ * gectiyse fark makalenin degil cetvelin farkidir — "makale ise yaramadi" yalanini uretir.
+ *
+ * `beforeVersion`: firsatin "oncesi" havuzundaki en yeni satirin surumu; bilinmiyorsa (satir
+ * yok) kural karar vermez (true) ve eski kosullar gecerli kalir. `afterVersions`: "sonrasi"
+ * havuzundaki satirlarin surumleri; biri bile farkliysa kiyas yapilmaz.
+ */
+export function sameMethodForBeforeAfter(
+  beforeVersion: number | null | undefined,
+  afterVersions: Iterable<number | null | undefined>,
+): boolean {
+  if (beforeVersion === null || beforeVersion === undefined) return true;
+  for (const v of afterVersions) if ((v ?? 1) !== beforeVersion) return false;
+  return true;
+}
+
 export function afterWindowStart(now: Date, publishedAt: Date | null | undefined): Date {
   const windowStart = new Date(now.getTime() - REMEASURE_WINDOW_DAYS * 86_400_000);
   const ws = Date.UTC(windowStart.getUTCFullYear(), windowStart.getUTCMonth(), windowStart.getUTCDate());

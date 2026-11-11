@@ -12,6 +12,7 @@ import { safeFetchText, SafeFetchError } from '../common/safe-fetch.js';
 import { detectBlock } from '../common/block-detect.js';
 import { assertPublicDomainResolves, normalizePublicDomainInput, type PublicResolver } from '../sites/site-url-policy.js';
 import { BASE_ENGINES, CONDITIONAL_ENGINES, planEngines, type MeasurementEngine, type ModelTier } from '../billing/plans.js';
+import { FREE_TEST_ENGINES } from '../billing/plan-engines.js';
 
 /**
  * Public AI Citation Check — landing page demo (anonim).
@@ -187,8 +188,8 @@ export function publicDailyBudgetUsd(): number {
 
 /**
  * Deneme hesabinin olctugu asistan sayisi (plans.ts planEngines('trial')). 11.11.2026 (uc paket):
- * deneme dort asistan olcer; anonim test ise yapilandirilmis butun asistanlara sorar. Eski metinler
- * "deneme hesabi ac, 6 asistanda olc" diyordu — deneme artik anonim testten FAZLA asistan olcmez.
+ * deneme dort asistan olcer; anonim test de ayni dort asistana sorar (plan-engines
+ * FREE_TEST_ENGINES). Eski metinler "deneme hesabi ac, 6 asistanda olc" diyordu.
  */
 export const TRIAL_ASSISTANT_COUNT = planEngines('trial').length;
 
@@ -926,14 +927,21 @@ export class PublicCitationService {
     }
 
     // 7) Probe providers (paralel) — SADECE acik sorgular icin
-    // Plan kapsami yalniz uye raporunda (opts.scope): asistan listesi ve model kademesi
+    // Plan kapsami yalniz uye raporunda (opts.scope): asistan listesi ve model kademesi.
+    // ANONIM test (ana sayfa, mobil, abone retest'i) deneme ve Baslangic ile AYNI kapsamla olculur:
+    // dort asistan (billing/plan-engines FREE_TEST_ENGINES), hesapli modeller ('standard': Claude
+    // Haiku, ChatGPT luna) — 11.11.2026, sahip yonergesi "zarar etmeyelim". Yedi asistan ve ust
+    // modellerle uc soruluk ucretsiz testin gercek maliyeti ~1.7 USD'ydi; boyle ~0.21 USD.
+    // Grok, DeepSeek, Muse ve ust modeller Profesyonel ozelligi.
     const scope = audience === 'member' ? opts.scope : undefined;
     const providerResults = await this.ai.runPublicProbes({
       brand,
       host,
       queries: measured.map((q) => q.query),
       competitors: [],
-      ...(scope ? { only: [...scope.engines], tier: scope.tier } : {}),
+      ...(scope
+        ? { only: [...scope.engines], tier: scope.tier }
+        : audience === 'anon' ? { only: [...FREE_TEST_ENGINES], tier: 'standard' as const } : {}),
     });
 
     if (source === 'manual') {

@@ -144,7 +144,8 @@ function world(opts: { text: Record<string, unknown>; status: string; publishedT
     { check: vi.fn(async () => ({ status: 'PASS' })) } as any,
     {} as any,
   );
-  const pivot = new ContentPivotService(prisma, { enqueue: vi.fn() } as any);
+  // Hak servisi: bu dosyadaki yollar (scanSite, automatedRewriteBlock) makale hakkina dokunmaz
+  const pivot = new ContentPivotService(prisma, { enqueue: vi.fn() } as any, {} as any);
   const articles = new ArticlesService(prisma, { enqueue: vi.fn(async () => ({ dbJobId: 'j' })) } as any, {} as any, {} as any);
   return { row, prisma, publisher, pivot, articles };
 }

@@ -70,7 +70,7 @@ const VALUES: Array<{ title: string; body: string }> = [
   { title: 'Türkçe öncelikli', body: 'Çoğu AI içerik aracı İngilizce için yapılır, sonra Türkçe\'ye uydurulur. Biz Türkçe ile başlayıp İngilizce\'yi ekliyoruz — gramer, ton ve sektör jargonu tutarlı.' },
   { title: 'KOBİ-dostu', body: 'Saatler süren manuel SEO denetimi, içerik briefi yazma ve AI görünürlük takibi gibi işleri dakikalara indirir. Ekibinde uzman olmasa bile işin büyük kısmını panelden yürütürsün.' },
   // Son adim content-pivot.service: Search Console verisi gerekir (bkz. faq/page.tsx madde 5 kaynaklari)
-  { title: 'Otomatik akış', body: 'Marka beyni + Search Console + rakip ve persona analizi → konu önerileri → otomatik üretim ve yayın → Search Console verisinde zayıf kalan yazıyı yayından 30 gün sonra yeniden yazma.' },
+  { title: 'Otomatik akış', body: 'Marka beyni + Search Console + rakip ve persona analizi → konu önerileri → otomatik üretim ve yayın → Search Console verisinde zayıf kalan yazıyı yayından ve son güncellemesinden en az 60 gün sonra yeniden yazma.' },
   { title: 'AI search\'e hazır', body: 'ChatGPT, Claude, Gemini, Perplexity gibi AI asistanları cevap üretirken senin sitendeki içeriği kaynak göstersin diye GEO (Generative Engine Optimization) yapıyoruz.' },
 ];
 

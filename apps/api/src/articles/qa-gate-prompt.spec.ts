@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { buildQaSystemPrompt } from './qa-gate.service.js';
+import { describe, it, expect, vi } from 'vitest';
+import { QaGateService, buildQaSystemPrompt } from './qa-gate.service.js';
 
 /**
  * QA LLM istemi: QA blocker yayini durdurur (publisher QA_BLOCKED). Urun fiyati
@@ -41,5 +41,37 @@ describe('QaGateService — urun modu yalniz kayittaki acik/siralayici urun tipi
     expect(src).toContain('const plan = readStoredContentPlan(agentOutputs);');
     expect(src).toContain('const productMode = !!plan && isProductFactType(plan.type);');
     expect(src).toContain('await this.checkWithLlm(article.siteId, body, article.agentOutputs)');
+  });
+});
+
+// 11.11.2026 (bagimsiz inceleme): aylik AI butcesi makale hattini sayiyor ama QA kapisinin cagrisi
+// sahipsizdi (userId yok): her makalenin QA maliyeti sahibin sayacina yazilmiyordu.
+describe('QaGateService — QA cagrisinin maliyeti site sahibinin AI butcesine yazilir', () => {
+  const makale = { id: 'a1', siteId: 's1', bodyMd: 'x'.repeat(600), wordCount: 100, agentOutputs: null, title: 'Baslik', metaDescription: 'm', slug: 'baslik' };
+  const kur = (site: unknown) => {
+    const prisma = {
+      article: { findFirst: vi.fn(async () => makale), update: vi.fn(async () => ({})) },
+      site: { findUnique: vi.fn(async () => { if (site instanceof Error) throw site; return site; }) },
+    };
+    const llm = { chat: vi.fn(async (_req: any) => ({ output: '[]' })) };
+    return { svc: new QaGateService(prisma as any, llm as any), prisma, llm };
+  };
+
+  it('cagri sahibin kimligiyle gider (LLMProviderService sayaci onunla artirir)', async () => {
+    const { svc, llm, prisma } = kur({ userId: 'sahip-1' });
+    await svc.check('a1');
+    expect(prisma.site.findUnique).toHaveBeenCalledWith({ where: { id: 's1' }, select: { userId: true } });
+    expect(llm.chat).toHaveBeenCalledTimes(1);
+    expect(llm.chat.mock.calls[0][0]).toMatchObject({ context: 'qa-gate', siteId: 's1', userId: 'sahip-1' });
+  });
+
+  it('sahip okunamazsa QA yine kosar (cagri sahipsiz gider; yayin kilitlenmez)', async () => {
+    for (const site of [null, new Error('db yok')]) {
+      const { svc, llm } = kur(site);
+      const r = await svc.check('a1');
+      expect(llm.chat).toHaveBeenCalledTimes(1);
+      expect(llm.chat.mock.calls[0][0].userId).toBeUndefined();
+      expect(r.stats.llmUsed).toBe(true);
+    }
   });
 });

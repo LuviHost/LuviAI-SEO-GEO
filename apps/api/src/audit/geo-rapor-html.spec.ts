@@ -232,6 +232,30 @@ describe('geoRaporHtml — olculmeyen motor ve kapak sayilari (G8)', () => {
     expect(yontemNotu({ a: 5, b: 6 })).not.toMatch(/Grok ve DeepSeek/);
   });
 
+  // 11.11.2026: iki ayri degisiklik ayri anlatilir. Surum = yontem numarasi (+100: 'standard'
+  // model kademesi — Baslangic / deneme). Model degisimi (7; site olcumunde 8) ile kademe degisimi
+  // birbirine karismaz: paket degistirmeyen hesapta "paket kapsami" notu cikmaz.
+  it('yontemNotu: model degisimi ve kademe (paket) degisimi ayri anlatilir', () => {
+    const MODEL = /ChatGPT ve Gemini yeni modellerle ölçülüyor/;
+    const KADEME = /Başlangıç paketi ya da ücretsiz deneme kapsamıyla[\s\S]*Profesyonel ve üstü kapsamıyla/;
+    // Profesyonel hesap, model gecisinden once ve sonra: yalniz model notu
+    expect(yontemNotu({ a: 6, b: 8 })).toMatch(MODEL);
+    expect(yontemNotu({ a: 6, b: 8 })).not.toMatch(KADEME);
+    // Baslangic / deneme hesabi, model gecisinden once (106) ve sonra (108): yine yalniz model notu
+    expect(yontemNotu({ a: 106, b: 108 })).toMatch(MODEL);
+    expect(yontemNotu({ a: 106, b: 108 })).not.toMatch(KADEME);
+    // Paket degistiren hesap (ayni yontem): yalniz kademe notu — iki yonde de
+    for (const v of [{ a: 8, b: 108 }, { a: 108, b: 8 }]) {
+      expect(yontemNotu(v)).toMatch(KADEME);
+      expect(yontemNotu(v)).not.toMatch(MODEL);
+    }
+    // Deploy gununde mevcut deneme hesabi: hem model hem kademe degisti
+    expect(yontemNotu({ a: 6, b: 108 })).toMatch(MODEL);
+    expect(yontemNotu({ a: 6, b: 108 })).toMatch(KADEME);
+    // Not hicbir model kimligi ya da fiyat yazmaz (musteri metni)
+    for (const v of [{ a: 6, b: 8 }, { a: 6, b: 108 }]) expect(yontemNotu(v)).not.toMatch(/gpt-|gemini-|claude-|USD|\$/);
+  });
+
   it('atifi anilmaya cevir: gercek "atif var, ad yok" sayisi', () => {
     const k = karsilastirma([], { mentions: { before: { mentioned: 0, cited: 0, measured: 3 }, after: { mentioned: 1, cited: 2, citedNotMentioned: 2, measured: 3 } } });
     const html = geoRaporHtml({ karsilastirma: k, brand: 'Ornek', host: 'ornek.com' });

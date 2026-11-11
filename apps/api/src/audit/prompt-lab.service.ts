@@ -1,7 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { safeFetchText } from '../common/safe-fetch.js';
-import { CITATION_MATCH_VERSION } from './host-match.js';
+import { citationMatchVersion } from './host-match.js';
 import { sourceColumns } from './citation-sources.js';
 import { AiCitationService, PROVIDER_LABELS, type CitationProbe, type CitationResult, type Provider } from './ai-citation.service.js';
 import { buildLatestRun, type LatestRunView } from './prompt-latest-run.js';
@@ -111,7 +111,10 @@ const MAX_TEXT_LEN = 500;
 const MIN_TEXT_LEN = 5;
 /** Tek calistirmada islenecek azami dal — manuel dal eklemede ust sinir yoksa maliyet patlar */
 const MAX_BRANCHES_PER_RUN = 12;
-const MAX_RUN_ALL = 50;
+/** "Tümünü çalıştır" bir istekte en cok bu kadar soru kosturur (gunluk havuz tavani buna gore: citation-providers.ts) */
+export const MAX_RUN_ALL = 50;
+/** Dal (fan-out) olcumunde varsayilan asistanlar — maliyet freni: dallar yalniz bu uc asistana sorulur */
+export const FANOUT_DEFAULT_PROVIDERS: readonly Provider[] = ['openai', 'anthropic', 'gemini'];
 
 /**
  * Yerel soru konum etiketleri (local-prompts.ts localTags): 'yerel', 'il:..',
@@ -458,7 +461,7 @@ export class PromptLabService {
     for (const r of mainResults) {
       for (const probe of r.probes) mainProbeRows.push({ provider: r.provider, probe });
     }
-    await this.persistRuns(siteId, promptId, null, today, mainProbeRows);
+    await this.persistRuns(siteId, promptId, null, today, mainProbeRows, mainResults[0]?.modelTier);
 
     // ── 2) Fan-out dallari
     let fanoutAgg: PromptRunSummary['fanout'] = null;
@@ -468,7 +471,7 @@ export class PromptLabService {
       // Maliyet freni — dal olcumunde varsayilan 3 saglayici
       const fanoutProviders: Provider[] = opts.fanoutProviders?.length
         ? opts.fanoutProviders
-        : ['openai', 'anthropic', 'gemini'];
+        : [...FANOUT_DEFAULT_PROVIDERS];
 
       for (const branch of prompt.fanouts) {
         const res = await this.citation.runQueries(siteId, [branch.text], {
@@ -478,7 +481,7 @@ export class PromptLabService {
         for (const r of res) {
           for (const probe of r.probes) rows.push({ provider: r.provider, probe });
         }
-        await this.persistRuns(siteId, promptId, branch.id, today, rows);
+        await this.persistRuns(siteId, promptId, branch.id, today, rows, res[0]?.modelTier);
 
         const valid = rows.filter((r) => !this.isErrorProbe(r.probe));
         branchStats.set(branch.id, {
@@ -901,6 +904,8 @@ export class PromptLabService {
     fanoutId: string | null,
     date: Date,
     rows: Array<{ provider: string; probe: CitationProbe }>,
+    /** Olcumun model kademesi (runQueries sonucundan); yontem surumu buna gore damgalanir */
+    tier?: 'standard' | 'premium',
   ) {
     const valid = rows.filter((r) => !this.isErrorProbe(r.probe));
     if (valid.length === 0) return;
@@ -927,7 +932,8 @@ export class PromptLabService {
           competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
           // Alintilanan dis kaynaklar (GEO Faz 2) — bkz. citation-sources.ts
           ...sourceColumns(probe),
-          matchVersion: CITATION_MATCH_VERSION,
+          // Kademe de surumde (hizli model = +100): kademesi farkli iki satir kiyaslanmaz
+          matchVersion: citationMatchVersion(tier),
         })),
       });
     } catch (err: any) {

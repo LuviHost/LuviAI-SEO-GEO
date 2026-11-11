@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { remeasureVerdict, afterWindowStart, REMEASURE_MIN_ROWS } from './remeasure-verdict.js';
+import { readFileSync } from 'node:fs';
+import { remeasureVerdict, afterWindowStart, sameMethodForBeforeAfter, REMEASURE_MIN_ROWS } from './remeasure-verdict.js';
+import { CITATION_MATCH_VERSION, STANDARD_TIER_VERSION_OFFSET, citationMatchVersion } from './host-match.js';
 
 const T = { weak: 0.4, lost: 0.01 };
 const row = (date: string, provider: string, cited: boolean) => ({ date, provider, cited });
@@ -57,5 +59,51 @@ describe('afterWindowStart — yayin gunu alt siniri, gun basina yuvarlama', () 
 
   it('yayin pencereden onceyse pencere basi kalir', () => {
     expect(afterWindowStart(now, new Date('2026-07-01T10:00:00Z')).toISOString()).toBe('2026-08-14T00:00:00.000Z');
+  });
+});
+
+// 11.11.2026 (bagimsiz inceleme): firsat karti "oncesi → sonrasi"ni yontem surumune bakmadan
+// basiyordu. Model atamasi degisince (ChatGPT ve Gemini) iki Profesyonel hesabin acik
+// firsatlari, dagitimdan once olculmus "once" ile sonra olculmus "sonra"yi yan yana gosterecekti.
+describe('sameMethodForBeforeAfter — oncesi / sonrasi yalniz ayni yontemle kiyaslanir', () => {
+  it('ayni surum: kiyaslanir; sonrasi bos ya da oncesi bilinmiyor: kural karar vermez (true)', () => {
+    expect(sameMethodForBeforeAfter(7, [7, 7, 7])).toBe(true);
+    expect(sameMethodForBeforeAfter(7, [])).toBe(true);
+    expect(sameMethodForBeforeAfter(null, [5, 7])).toBe(true);
+    expect(sameMethodForBeforeAfter(undefined, [7])).toBe(true);
+  });
+
+  it('model degisti (5 → 7): kiyaslanmaz; sonrasi havuzu karisiksa da kiyaslanmaz', () => {
+    expect(sameMethodForBeforeAfter(5, [7, 7])).toBe(false);
+    expect(sameMethodForBeforeAfter(5, [5, 7])).toBe(false);
+    expect(sameMethodForBeforeAfter(7, [5])).toBe(false);
+  });
+
+  it('kademe degisti (hizli model 107 → ust model 7): kiyaslanmaz; damgasiz eski satir surum 1 sayilir', () => {
+    expect(citationMatchVersion('standard')).toBe(CITATION_MATCH_VERSION + STANDARD_TIER_VERSION_OFFSET);
+    expect(citationMatchVersion('premium')).toBe(CITATION_MATCH_VERSION);
+    expect(citationMatchVersion(undefined)).toBe(CITATION_MATCH_VERSION);
+    expect(sameMethodForBeforeAfter(citationMatchVersion('standard'), [citationMatchVersion('premium')])).toBe(false);
+    expect(sameMethodForBeforeAfter(citationMatchVersion('standard'), [citationMatchVersion('standard')])).toBe(true);
+    expect(sameMethodForBeforeAfter(1, [null, undefined])).toBe(true);
+    expect(sameMethodForBeforeAfter(2, [null])).toBe(false);
+  });
+
+  it('kablolama: firsat servisi kurali uygular; Prompt Lab satiri kademeli surumle damgalanir; olcum motoru kademeyi sonuca yazar', () => {
+    const firsat = readFileSync(new URL('./content-opportunity.service.ts', import.meta.url), 'utf8');
+    expect(firsat).toContain('const ayniYontem = sameMethodForBeforeAfter(oncekiSatir?.matchVersion, rows.map((r) => r.matchVersion));');
+    expect(firsat).toContain("const comparable = (item.meta as any)?.method === 'main-unbranded' && before.total > 0 && ayniYontem;");
+    expect(firsat).toContain("beforeMethod: comparable ? 'main-unbranded' : ayniYontem ? 'legacy-mixed' : 'method-changed',");
+    // Panel "before" yokken farki degil notu basar
+    const sayfa = readFileSync(new URL('../../../web/src/app/(dashboard)/sites/[id]/opportunities/page.tsx', import.meta.url), 'utf8');
+    expect(sayfa).toContain('(öncesiyle kıyaslanamaz — ölçüm yöntemi değişti)');
+    const lab = readFileSync(new URL('./prompt-lab.service.ts', import.meta.url), 'utf8');
+    expect(lab).toContain('matchVersion: citationMatchVersion(tier),');
+    expect(lab).toContain('await this.persistRuns(siteId, promptId, null, today, mainProbeRows, mainResults[0]?.modelTier);');
+    expect(lab).toContain('await this.persistRuns(siteId, promptId, branch.id, today, rows, res[0]?.modelTier);');
+    expect(lab).not.toContain('matchVersion: CITATION_MATCH_VERSION');
+    const motor = readFileSync(new URL('./ai-citation.service.ts', import.meta.url), 'utf8');
+    const kosum = motor.slice(motor.indexOf('async runQueries('), motor.indexOf('async runForSite('));
+    expect(kosum).toContain('return results.map((r) => ({ ...r, modelTier }));');
   });
 });

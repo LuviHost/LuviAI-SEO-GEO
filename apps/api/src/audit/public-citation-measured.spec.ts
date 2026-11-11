@@ -433,17 +433,23 @@ describe('anonim ziyaretci ayni siteyi gunler sonra test ederse eski sonuc doner
       expect(kayit.access.scope).toBe('standard:anthropic,gemini,openai,perplexity');
     });
 
-    it('anonim test ve abone retest\'i kapsam ALMAZ: prob kosucusuna asistan listesi ve kademe gitmez', async () => {
+    // 11.11.2026 (sahip: "Baslangic hesapli, premium kalite; zarar etmeyelim" + canli olcum): ucretsiz
+    // anonim test deneme ve Baslangic ile AYNI kapsamla olculur — dort asistan, hesapli modeller.
+    // Yedi asistanla uc soruluk test ~1.34 USD tutuyordu (Grok tek basina ~0.70), boyle ~0.21 USD.
+    it('anonim test ve abone retest\'i: dort asistan + hesapli kademe (deneme / Baslangic kapsami); uye kapsami anonim istege uygulanmaz', async () => {
       const t = servis({ probeFor: (_p, q) => andi(q) });
       const r = await t.svc.check('kobipratik.com', '1.2.3.4');
       const arg = (t.ai.runPublicProbes.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
-      expect(arg).not.toHaveProperty('only');
-      expect(arg).not.toHaveProperty('tier');
+      expect(arg.only).toEqual([...DORT]);
+      expect(arg.tier).toBe('standard');
+      // Anonim sonuc uye damgasi (plan kapsami) tasimaz
       expect(r.access).not.toHaveProperty('scope');
-      // Kapsam yanlislikla anonim istege verilse bile uygulanmaz (yalniz uye kademesi)
+      // Uye kapsami (Profesyonel) yanlislikla anonim istege verilse bile uygulanmaz
       const t2 = servis({ probeFor: (_p, q) => andi(q) });
-      await t2.svc.check('kobipratik.com', '1.2.3.4', 'manual', { scope: baslangic });
-      expect((t2.ai.runPublicProbes.mock.calls[0] as unknown[])[0]).not.toHaveProperty('only');
+      await t2.svc.check('kobipratik.com', '1.2.3.4', 'manual', { scope: pro });
+      const arg2 = (t2.ai.runPublicProbes.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+      expect(arg2.only).toEqual([...DORT]);
+      expect(arg2.tier).toBe('standard');
     });
 
     it('Baslangic hesabi, Profesyonel hesabin taze raporu onbellekteyken yeniden OLCER (dort asistanla)', async () => {

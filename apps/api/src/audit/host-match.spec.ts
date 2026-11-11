@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hostMentioned, hostMentionIndex, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs, CITATION_MATCH_VERSION, SITE_MEASUREMENT_VERSION, STANDARD_TIER_VERSION_OFFSET, siteMeasurementVersion } from './host-match.js';
+import { hostMentioned, hostMentionIndex, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs, CITATION_MATCH_VERSION, SITE_MEASUREMENT_VERSION, STANDARD_TIER_VERSION_OFFSET, isStandardTierVersion, siteMeasurementBase, siteMeasurementVersion } from './host-match.js';
 
 describe('hostMentioned — etiket sinirli', () => {
   it('kendi alan adi ve alt alan adi eslesir; cumle sonu noktasi sorun degil', () => {
@@ -64,15 +64,27 @@ describe('hostMentionIndex', () => {
     expect(hostMentionIndex('', 'ranksup.ai')).toBeNull();
   });
 
-  it('olcum surumu 4: jenerik marka korumasi anilma olcumunu degistirdi', () => {
-    expect(CITATION_MATCH_VERSION).toBe(5);
+  it('olcum surumu 4: jenerik marka korumasi anilma olcumunu degistirdi; 7: ChatGPT ve Gemini yeni modellerle', () => {
+    // 11.11.2026: 5 → 7. 6 atlandi — 6, site olcumunun tekrarli surumunun numarasiydi (asagida);
+    // ayni numara iki farkli yontemi anlatmasin.
+    expect(CITATION_MATCH_VERSION).toBe(7);
   });
 });
 
 describe('SITE_MEASUREMENT_VERSION — site olcumu (tekrar + aralik)', () => {
-  it('6: eslesme surumunun ustunde; ayni numara iki yontemi anlatmaz', () => {
-    expect(SITE_MEASUREMENT_VERSION).toBe(6);
+  it('8: eslesme surumunun ustunde; ayni numara iki yontemi anlatmaz', () => {
+    // 6 = tekrarli olcum; 8 = 6 + eslesme surumu 7'nin modelleri (11.11.2026)
+    expect(SITE_MEASUREMENT_VERSION).toBe(8);
     expect(SITE_MEASUREMENT_VERSION).toBeGreaterThan(CITATION_MATCH_VERSION);
+  });
+
+  it('kademe surumun yuzler basamagi: taban ve kademe ayri okunur (106 → 6, 108 → 8)', () => {
+    expect(siteMeasurementBase(siteMeasurementVersion('standard'))).toBe(SITE_MEASUREMENT_VERSION);
+    expect(siteMeasurementBase(SITE_MEASUREMENT_VERSION)).toBe(SITE_MEASUREMENT_VERSION);
+    expect(siteMeasurementBase(106)).toBe(6);
+    expect(isStandardTierVersion(siteMeasurementVersion('standard'))).toBe(true);
+    expect(isStandardTierVersion(siteMeasurementVersion('premium'))).toBe(false);
+    for (const eski of [1, 2, 3, 4, 5, 6]) expect(isStandardTierVersion(eski), String(eski)).toBe(false);
   });
 
   // 11.11.2026 (uc paket): Baslangic / deneme Claude'u hizli modelle ve dort asistanla olcer.

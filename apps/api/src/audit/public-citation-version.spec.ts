@@ -88,7 +88,7 @@ describe('check() — yeni sonuc yontem surumunu tasir', () => {
     getirici.html = '<html><head><meta property="og:site_name" content="Kobipratik"></head></html>';
     const t = servis();
     const r = await t.svc.check('kobipratik.com', '1.2.3.4');
-    expect(CITATION_MATCH_VERSION).toBe(5);
+    expect(CITATION_MATCH_VERSION).toBe(7);
     expect(r.matchVersion).toBe(CITATION_MATCH_VERSION);
     const yazilan = (t.prisma.publicCitationCheck.create.mock.calls[0] as any[])[0].data.result;
     expect(yazilan.matchVersion).toBe(CITATION_MATCH_VERSION);

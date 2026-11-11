@@ -9,7 +9,7 @@ import { PromptLabService } from './prompt-lab.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 import {
-  remeasureVerdict, afterWindowStart, REMEASURE_FOLLOW_UPS, REMEASURE_WINDOW_DAYS,
+  remeasureVerdict, afterWindowStart, sameMethodForBeforeAfter, REMEASURE_FOLLOW_UPS, REMEASURE_WINDOW_DAYS,
 } from './remeasure-verdict.js';
 import { matchArticleForQuery } from './opportunity-article-match.js';
 import { withAllowanceCharge } from '../articles/article-scheduler.service.js';
@@ -418,8 +418,18 @@ export class ContentOpportunityService {
     const since = afterWindowStart(now, updateStartedAt ?? item.article?.publishedAt ?? null);
     const rows = await this.prisma.geoPromptRun.findMany({
       where: { siteId: item.siteId, promptId: item.promptId!, fanoutId: null, brandInQuery: false, date: { gte: since } },
-      select: { date: true, provider: true, cited: true },
+      select: { date: true, provider: true, cited: true, matchVersion: true },
     });
+    // "Oncesi" havuzunun yontemi: pencereden onceki en yeni ana-soru satirinin surumu
+    // (remeasure-verdict sameMethodForBeforeAfter). Okunamazsa kiyas eski kosullarla surer.
+    const oncekiSatir = await this.prisma.geoPromptRun
+      .findFirst({
+        where: { siteId: item.siteId, promptId: item.promptId!, fanoutId: null, brandInQuery: false, date: { lt: since } },
+        orderBy: { date: 'desc' },
+        select: { matchVersion: true },
+      })
+      .catch(() => null);
+    const ayniYontem = sameMethodForBeforeAfter(oncekiSatir?.matchVersion, rows.map((r) => r.matchVersion));
     const v = remeasureVerdict(
       rows.map((r) => ({ date: r.date.toISOString().slice(0, 10), provider: r.provider, cited: r.cited })),
       { weak: WEAK_THRESHOLD, lost: LOST_THRESHOLD },
@@ -429,7 +439,8 @@ export class ContentOpportunityService {
     // olculmusse kiyaslanir — eski kartlarin karisik-havuz before'u sismis,
     // onunla kiyas "makale ise yaramadi" yalanini uretir.
     const before = (item.meta as any)?.before ?? { cited: 0, total: 0 };
-    const comparable = (item.meta as any)?.method === 'main-unbranded' && before.total > 0;
+    // ... ve ayni OLCUM YONTEMIYLE (model / kademe degismediyse): yoksa fark cetvelin farkidir.
+    const comparable = (item.meta as any)?.method === 'main-unbranded' && before.total > 0 && ayniYontem;
 
     // Kesin hukum coverage'i degistirir; ON SONUC ve LOST mevcut coverage'a dokunmaz
     const coverage = v.verdict === 'WON' ? 'WON' : v.verdict === 'WEAK' ? 'WEAK' : item.coverage;
@@ -442,7 +453,7 @@ export class ContentOpportunityService {
         remeasuredAt: item.remeasuredAt ?? now, // ilk tik ani; takipler lastMeasuredAt'e yazar
         remeasureResult: {
           before: comparable ? before : null,
-          beforeMethod: comparable ? 'main-unbranded' : 'legacy-mixed',
+          beforeMethod: comparable ? 'main-unbranded' : ayniYontem ? 'legacy-mixed' : 'method-changed',
           after: { cited: v.cited, total: v.total },
           wonProviders: v.wonProviders,
           method: 'main-unbranded',

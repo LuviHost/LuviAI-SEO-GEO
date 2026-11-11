@@ -1,9 +1,10 @@
-import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, ForbiddenException, HttpException, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  findPlan, articleOfferPlan, featureOfferPlan, planEngines, planHasFeature, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, VIDEOS_PER_MONTH,
-  type PlanFeature, type PlanId,
+  findPlan, articleOfferPlan, featureOfferPlan, planEngines, planHasFeature, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, PLAN_RANK,
+  PURCHASABLE_PLAN_IDS, VIDEOS_PER_MONTH,
+  type BasePlan, type PlanFeature, type PlanId,
 } from './plans.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { periodEndFromInvoice, shouldDowngrade } from './subscription-period.js';
@@ -30,6 +31,32 @@ export const PLAN_POOL_PROVIDERS: readonly string[] = Object.freeze([
   'anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek',
 ]);
 
+/** Aylik AI butcesi dolu 403'unun makine kodu (panel sohbeti bunu asistan notu olarak gosterir) */
+export const AI_BUDGET_EXHAUSTED_CODE = 'AI_BUDGET_EXHAUSTED';
+/** Panel sohbeti mesaj hakki dolu 403'unun makine kodu */
+export const CHAT_MESSAGE_LIMIT_CODE = 'CHAT_MESSAGE_LIMIT';
+/** Ayni hesaptan ayni anda cok fazla sohbet mesaji: sayac yazilamadi (429) */
+export const CHAT_BUSY_CODE = 'CHAT_BUSY';
+
+/** consumeChatMessageSlot sonucu; iade (refundChatMessageSlot) bunu geri alir */
+export interface ChatMessageSlot {
+  /** Sayac bu cagride bir artti (ADMIN, platform otomasyonu ve okunamayan sayacta false) */
+  charged: boolean;
+  /** Artan kv_store anahtari; charged false ise null */
+  key: string | null;
+}
+
+/** Sayac yazimi (karsilastir-ve-yaz) en fazla bu kadar denenir; sonra 429 */
+const CHAT_SLOT_ATTEMPTS = 6;
+
+const counterValue = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : 0;
+};
+
+/** 1500 → "1.500" (musteri metni; ICU'ya bagli olmasin diye elle) */
+const fmtCount = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
 /**
  * Plan-based quota enforcer.
  *
@@ -39,13 +66,20 @@ export const PLAN_POOL_PROVIDERS: readonly string[] = Object.freeze([
  *  3. publishTargets — TRIAL'da sadece markdown_zip
  *  4. trial expiry — 14 gun sonra hesap salt okunur (trial-policy.ts, trial-expiry.guard.ts)
  */
+/**
+ * Butce tavani hesabinda kullanilan UST tahminler (USD; kod okumasindan — canli olcum degil):
+ * bir makale revizyon turlariyla en cok ~1.5, bir Asistan mesaji 7 tura kadar model cagrisiyla
+ * en cok ~0.25. Deneme tavani bu ikisinden turetilir (SPEND_CAP_USD.TRIAL).
+ */
+export const AI_COST_ESTIMATE_MAX_USD = { article: 1.5, chatMessage: 0.25 } as const;
+
 @Injectable()
 export class QuotaService {
   private readonly log = new Logger(QuotaService.name);
 
   /**
    * 2026-05 Premium pricing update — bkz. billing.service.ts BASE_PLANS.
-   * Spend cap (USD/ay): TRIAL=$3, STARTER=$25, PRO=$80, AGENCY=$200, ENTERPRISE=$700.
+   * Spend cap (USD/ay): TRIAL=$3, STARTER=$25, PRO=$120, AGENCY=$200, ENTERPRISE=$700.
    * Tavanlar asagidaki SPEND_CAP_USD sabitinden okunur; admin ayarlarinda
    * karsiligi yok (SPEND_CAP_* katalog kayitlari hicbir yere bagli degildi,
    * 2026-10'da katalogdan cikarildi).
@@ -71,11 +105,40 @@ export class QuotaService {
     ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000 },
   };
 
-  /** Plan başına aylık USD spend cap — tek kaynak (admin.controller da buradan okur). */
+  /**
+   * Plan başına aylık USD spend cap — tek kaynak (admin.controller da buradan okur).
+   *
+   * KAPSAM (sahip karari 11.11.2026, "zarar etmeyelim"): butce, makale hattinin (bes ajan +
+   * QA kapisi), cevirinin, panel sohbetinin, gorsel alt metni onerisinin ve yorum yaniti
+   * taslaginin harcamasini sayar ve doldugunda makale uretimini (kullanicinin baslattigi +
+   * takvim / otomatik), ceviriyi ve panel sohbetini durdurur. Olcum sayilmaz ve durmaz: onu
+   * aylik calistirma tavani ve haftalik olcum hakki sinirlar.
+   * SAYILMAYANLAR (bilinen aciklik; kucuk, sahipsiz cagrilar): kapak gorseli uretimi (LLM
+   * saglayici katmanindan gecmez), sema siniflandirici, marka beyni / nis cikarimi, dal
+   * (fan-out) uretimi, takili sayfa iyilestirmesi. Bunlar sayaca eklenene kadar tavan
+   * "her AI harcamasi" degil, yukaridaki kalemlerin tavanidir. Eskiden sayac
+   * yalniz userId'li LLMProviderService cagrilarinda artiyor, kapi yalniz uc kucuk ozellikte
+   * (gorsel alt metni, yorum yaniti, video metni) calisiyordu; en buyuk harcayanlar (makale
+   * ajanlari, sohbet, ceviri) butceye hic ugramiyordu.
+   *
+   * PRO 80 → 120 (11.11.2026): makale ve sohbet harcamasi artik sayiliyor. Profesyonel hesap
+   * hakkini olagan kullanirsa — 40 makale x yaklasik $0.75 (revizyon turlariyla $1.5'e kadar)
+   * = $30-60 ve ustune sohbet — $80'e yaklasirdi; tavan normal kullanimi engellememeli,
+   * yalniz asiri / kotuye kullanimi kesmeli.
+   *
+   * TRIAL 3 → 8 (11.11.2026, bagimsiz inceleme): deneme tavani OMUR BOYUdur (sifirlanmaz) ve
+   * sayac artik makale ile sohbeti de sayiyor. 3 USD denemenin VAAT ETTIGINI karsilamiyordu:
+   * 2 makale (her biri en cok ~$1.5) + 20 Asistan mesaji (her biri en cok ~$0.25) = $8.
+   * Once 15-20 mesaj yazan deneme kullanicisi "Şimdi üret"te "deneme bütçen doldu" aliyor,
+   * ikinci makalesini (ya da ikisini) hic uretemiyordu. Tavan, denemenin iki hakkinin UST
+   * tahminle toplamidir (AI_COST_ESTIMATE_MAX_USD; quota-ai-budget.spec sabitler): haklar
+   * tavandan once biter. Deneme basina en kotu maliyet 8 USD; eskiden sohbetin siniri yoktu.
+   * Baslangic (makale yok, 100 mesaj x $0.25 = $25) ve ustu degismedi.
+   */
   private readonly SPEND_CAP_USD: Record<string, number> = {
-    TRIAL: 3,
+    TRIAL: 8,
     STARTER: 25,
-    PRO: 80,
+    PRO: 120,
     AGENCY: 200,
     ENTERPRISE: 700,
   };
@@ -154,6 +217,11 @@ export class QuotaService {
     if (!readiness.ready) {
       throw new ForbiddenException({ statusCode: 403, message: readiness.message, code: TRIAL_SOURCE_REQUIRED_CODE });
     }
+    // Aylik AI butcesi (11.11.2026): doluysa uretim baslamaz, hak dusmez. Kullanicinin
+    // baslattigi her uretim yolu (Uret, run-now, Simdi uret, MCP create_article, icerik
+    // firsati) bu metottan gecer; musteri 403'u tikladigi anda gorur. Takvim / otomatik
+    // uretim ayni kapiya hat baslarken carpar (articles/pipeline.service runPipeline).
+    await this.enforceAiCostBudget(userId);
     const r = await this.prisma.user.updateMany({
       where: { id: userId, articlesUsedThisMonth: { lt: limit } },
       data: { articlesUsedThisMonth: { increment: 1 } },
@@ -176,12 +244,16 @@ export class QuotaService {
   /**
    * Hakki daha once dusulmus yazinin yeniden uretimi (consumeArticleAllowance
    * cagrilmaz) de ayni kaynak kuralina tabi: 403 metni ve kodu ayni.
+   * Aylik AI butcesi de burada denetlenir (11.11.2026): bu metot
+   * consumeArticleAllowance'in "hak onceden dusulmus" ikizi; butce doluyken "Simdi uret"
+   * tiklandigi anda 403 doner, yazi GENERATING'e alinmaz.
    */
   async assertGenerationSource(userId: string, siteId: string): Promise<void> {
     const readiness = await this.generationReadiness(userId, siteId);
     if (!readiness.ready) {
       throw new ForbiddenException({ statusCode: 403, message: readiness.message, code: TRIAL_SOURCE_REQUIRED_CODE });
     }
+    await this.enforceAiCostBudget(userId);
   }
 
   private async generationReadinessFor(plan: string, siteId: string): Promise<GenerationReadiness> {
@@ -345,12 +417,19 @@ export class QuotaService {
    * Plan başına aylık USD spend cap (cost guard).
    *
    * Kullanıcının aylık AI maliyeti planın cap'ini aşarsa:
-   *  - %80'i geçince warn: dashboard banner + email
-   *  - %100'ü geçince hardBlock: pipeline pause + admin alert
+   *  - %80'i geçince warn: panelde uyari (web quota-monitor.tsx)
+   *  - %100'ü geçince hardBlock: enforceAiCostBudget / aiBudgetBlock cagiranlari durur
    *
    * Cap'ler SPEND_CAP_USD sabitinden gelir; panelden degistirilemez.
+   *
+   * `exempt`: ADMIN (platform sahibi / ekip) butceye takilmaz — site, uygulama ve video
+   * haklariyla ayni muafiyet. Sayac yine artar (harcama /admin/users-spend-status'ta gorunur);
+   * yalniz hardBlock false kalir. NEDEN (11.11.2026): butce artik makale uretimini de
+   * durduruyor; sahibin kendi (dogfood / demo) sitelerinin takvimi plan tavaninda kesilmesin.
+   * Muafiyet SAHIBIN rolune bakar: yoneticinin bir musteri sitesinde baslattigi is
+   * musterinin butcesine tabidir.
    */
-  async checkAiCostBudget(userId: string): Promise<{ used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean }> {
+  async checkAiCostBudget(userId: string): Promise<{ used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean; exempt: boolean }> {
     const before = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     // Ay basi sifirlamasi burada da calismali: yalniz checkArticleQuota'da
     // calistigi icin gecen ay butceye takilan ucretli kullanici, makale kotasina
@@ -359,31 +438,218 @@ export class QuotaService {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const cap = this.SPEND_CAP_USD[user.plan] ?? this.SPEND_CAP_USD.STARTER;
     const used = (user as any).aiCostThisMonthUsd ?? 0;
-    const pct = cap > 0 ? Math.round((used / cap) * 100) : 0;
+    // Asagi yuvarlanir (11.11.2026): Math.round %99,5'te 100 veriyor, $119.99 / $120 harcamis
+    // hesap "bütçen doldu" metniyle engelleniyordu. Engel gercekten dolunca (used >= cap).
+    // 1e-9: 2.4 / 3 gibi tam esik degerleri kayan nokta yuzunden 79,99... cikmasin.
+    const pct = cap > 0 ? Math.floor((used * 100) / cap + 1e-9) : 0;
+    const exempt = (user as any).role === 'ADMIN';
     return {
       used,
       cap,
       pct,
       warn: pct >= 80,
-      hardBlock: pct >= 100,
+      hardBlock: !exempt && pct >= 100,
+      exempt,
     };
   }
 
   /**
-   * Pipeline başlangıcında çağrılır. Hard block durumunda ForbiddenException atar.
-   * Worker/article-scheduler'da AI çağrıları öncesi kullan.
+   * Butce doluysa 403 (kod AI_BUDGET_EXHAUSTED). Cagiranlar: kullanicinin baslattigi makale
+   * uretimi (consumeArticleAllowance / assertGenerationSource), gorsel alt metni onerisi,
+   * App Store yorum yaniti taslagi. Panel sohbeti, ceviri ve uretim hatti ayni karari
+   * aiBudgetBlock ile okur (sayac okunamazsa engellemez). Web'deki uyari metni
+   * (quota-monitor.tsx) bu listeyle ayni olmali — public-docs.spec.ts denetler.
+   * Sayac okunamazsa hata cagirana gider (cagiranlarin kendi okumalari da ayni satira bagli).
    */
   async enforceAiCostBudget(userId: string): Promise<void> {
     const { hardBlock, used, cap } = await this.checkAiCostBudget(userId);
-    if (hardBlock) {
-      // "Yeni ayi bekle" yalniz ucretli planlarda dogru: maybeResetMonthlyQuota
-      // TRIAL'da donmeden cikar, deneme hesabinin butcesi hic sifirlanmaz.
-      // Ust planin tavani daha yuksek (SPEND_CAP_USD), yukseltme gercek cozum.
-      throw new ForbiddenException(
-        `Aylık AI kullanım bütçen doldu ($${used.toFixed(2)} / $${cap}). ` +
-        `Ücretli planlarda bütçe yeni ayda sıfırlanır; plan yükselterek sınırı artırabilirsin.`,
+    if (!hardBlock) return;
+    const plan = await this.planOf(userId);
+    throw new ForbiddenException({ statusCode: 403, message: this.aiBudgetMessage(plan, used, cap), code: AI_BUDGET_EXHAUSTED_CODE });
+  }
+
+  /**
+   * Butce dolu mu — 403 ATMADAN: doluysa musteriye gidecek metin, degilse null.
+   * Uretim hatti (takvim / otomatik uretim worker'da baslarken) ve ceviri bunu kullanir.
+   * Sayac OKUNAMAZSA null doner ve loglanir (urun durmaz): butce bir emniyet agidir,
+   * veritabani hatasi yuzunden uretimi kesmek icin degil.
+   */
+  async aiBudgetBlock(userId: string): Promise<string | null> {
+    try {
+      const { hardBlock, used, cap } = await this.checkAiCostBudget(userId);
+      if (!hardBlock) return null;
+      return this.aiBudgetMessage(await this.planOf(userId), used, cap);
+    } catch (err: any) {
+      this.log.warn(`[${userId}] AI butcesi okunamadi, islem engellenmedi: ${err?.message ?? err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Butce dolu metni — her planda dogru olmali:
+   *  - Deneme: butce HIC sifirlanmaz (maybeResetMonthlyQuota TRIAL'da donmeden cikar);
+   *    "yeni ayi bekle" denmez.
+   *  - Ust satin alinabilir planin tavani daha yuksekse (Baslangic → Profesyonel) soylenir.
+   *  - Profesyonel ve ustunde yukseltme VAAT EDILMEZ (Kurumsal teklifle): yalniz yenilenme.
+   */
+  private aiBudgetMessage(plan: string, used: number, cap: number): string {
+    const tutar = `($${used.toFixed(2)} / $${cap})`;
+    if (plan === 'TRIAL') {
+      return `Deneme hesabının AI kullanım bütçesi doldu ${tutar}. Deneme bütçesi yenilenmez. ` +
+        'Ücretli planlarda bütçe yeni ayda sıfırlanır; devam etmek için ücretli bir plana geçebilirsin.';
+    }
+    const ust = this.upgradeOffers(plan).find((p) => (this.SPEND_CAP_USD[p.id.toUpperCase()] ?? 0) > cap);
+    return `Aylık AI kullanım bütçen doldu ${tutar}. Bütçe yeni ayın başında sıfırlanır` +
+      (ust ? `; ${ust.name_tr} planda sınır daha yüksek.` : '.');
+  }
+
+  /** Bu planin USTUNDEKI, panelden satin alinabilen planlar (dusukten yuksege) */
+  private upgradeOffers(plan: string): BasePlan[] {
+    const rank = PLAN_RANK[String(plan ?? '').toLowerCase() as PlanId];
+    if (rank === undefined) return [];
+    return PURCHASABLE_PLAN_IDS
+      .map((id) => findPlan(id))
+      .filter((p): p is BasePlan => !!p && PLAN_RANK[p.id] > rank)
+      .sort((x, y) => PLAN_RANK[x.id] - PLAN_RANK[y.id]);
+  }
+
+  // ────────────────────────────────────────────
+  //  Panel sohbeti (Asistan) — mesaj hakki
+  // ────────────────────────────────────────────
+
+  /** Planin sohbet mesaji hakki (plans.ts chatMessagesPerMonth tek kaynak); bilinmeyen plan 0 */
+  chatMessageLimitFor(plan: string): number {
+    return findPlan(String(plan ?? '').toLowerCase())?.chatMessagesPerMonth ?? 0;
+  }
+
+  /**
+   * Sayacin kv_store anahtari.
+   *  - Ucretli plan: takvim ayi basina bir anahtar. Ay tanimi diger aylik sayaclarla ayni
+   *    (maybeResetMonthlyQuota: sunucu saati, yil + ay); yeni ayda yeni anahtar = sifirdan.
+   *    Eski ayin satiri bir daha okunmaz, suresi dolunca KvSweepCron siler.
+   *  - Deneme: TEK anahtar, suresiz — hak aylik degil toplam (denemenin makale, calistirma
+   *    ve butce sayaclari da sifirlanmaz).
+   * Anahtar kullanici kimligini icerir: hesap kalici silinince satir da silinir
+   * (me/account-purge.plan.ts kimligi iceren kv anahtarlarini siler).
+   */
+  private chatCounterKey(userId: string, plan: string, now: Date): { key: string; expiresAt: Date | null } {
+    if (plan === 'TRIAL') return { key: `sohbet-mesaj:${userId}:deneme`, expiresAt: null };
+    const ay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return { key: `sohbet-mesaj:${userId}:${ay}`, expiresAt: new Date(now.getFullYear(), now.getMonth() + 2, 1) };
+  }
+
+  /** Panel icin: bu donemki mesaj sayisi, hak, kalan (deneme: toplam hak) */
+  async checkChatQuota(userId: string, now: Date = new Date()): Promise<{ used: number; limit: number; remaining: number; unlimited: boolean; lifetime: boolean }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true, role: true } });
+    const limit = this.chatMessageLimitFor(user.plan);
+    const { key } = this.chatCounterKey(userId, user.plan, now);
+    const row = await this.prisma.kvStore.findUnique({ where: { key }, select: { value: true } });
+    const used = counterValue(row?.value);
+    return { used, limit, remaining: Math.max(0, limit - used), unlimited: user.role === 'ADMIN', lifetime: user.plan === 'TRIAL' };
+  }
+
+  /**
+   * Bir sohbet mesaji icin hak ayir — ilk model cagrisindan ONCE. Hak doluysa 403
+   * (kod CHAT_MESSAGE_LIMIT, musteriye gosterilen metin chatLimitMessage).
+   *
+   * NEDEN kv_store sayaci (ChatMessage satirlarini saymak yerine): sohbet silinince mesaj
+   * satirlari da silinir (chat.service deleteConversation, site silme) — satir sayan sinir
+   * gecmis silinerek sifirlanabilirdi; platformun kendi baslattigi haftalik plan mesaji da
+   * musterinin hakkindan duserdi. Sema degismedi (yeni tablo / sutun yok).
+   *
+   * ESZAMANLILIK: artis karsilastir-ve-yaz (`value` hala okunan degerse yazilir; haftalik
+   * olcum hakkiyla ayni kalip, measurement-allowance.service). Ayni anda gelen iki mesajdan
+   * yalniz biri son hakki alir; sinir HIC asilmaz. Yaris CHAT_SLOT_ATTEMPTS denemede
+   * cozulmezse 429 (CHAT_BUSY): istek reddedilir, hak dusmez.
+   *
+   * ADMIN sayilmaz ve takilmaz (charged false). Sayac OKUNAMAZ / YAZILAMAZSA mesaj
+   * engellenmez (loglanir, charged false): sinir veritabani hatasinda sohbeti kapatmamali;
+   * maliyetin emniyet agi aylik AI butcesidir.
+   */
+  async consumeChatMessageSlot(user: { id: string; role?: string | null; plan?: string | null }, now: Date = new Date()): Promise<ChatMessageSlot> {
+    if (user.role === 'ADMIN') return { charged: false, key: null };
+    let plan: string;
+    let limit: number;
+    let key: string;
+    let taken: boolean | null;
+    try {
+      // Plan oturumdaki kullanici satirindan gelir (AuthGuard her istekte DB'den okur); yoksa okunur
+      plan = user.plan ?? (await this.planOf(user.id));
+      limit = this.chatMessageLimitFor(plan);
+      const counter = this.chatCounterKey(user.id, plan, now);
+      key = counter.key;
+      taken = await this.takeCounterSlot(key, limit, counter.expiresAt);
+    } catch (err: any) {
+      this.log.warn(`[${user.id}] Sohbet mesaj sayaci yazilamadi, mesaj engellenmedi: ${err?.message ?? err}`);
+      return { charged: false, key: null };
+    }
+    if (taken === true) return { charged: true, key };
+    if (taken === null) {
+      throw new HttpException(
+        { statusCode: 429, message: 'Aynı anda çok fazla mesaj gönderildi. Birkaç saniye sonra tekrar dene.', code: CHAT_BUSY_CODE },
+        429,
       );
     }
+    throw new ForbiddenException({ statusCode: 403, message: this.chatLimitMessage(plan, limit), code: CHAT_MESSAGE_LIMIT_CODE });
+  }
+
+  /**
+   * consumeChatMessageSlot'un ayirdigi hakki geri ver: mesaj hicbir model cagrisi
+   * tamamlanmadan basarisiz oldu (saglayici hatasi, kayit acilamadi). Sayac 0'in altina
+   * inmez. Hata loglanir ve yutulur: cagiranin asil hatasi kaybolmasin.
+   */
+  async refundChatMessageSlot(slot: ChatMessageSlot): Promise<void> {
+    if (!slot.charged || !slot.key) return;
+    try {
+      for (let attempt = 0; attempt < CHAT_SLOT_ATTEMPTS; attempt++) {
+        const row = await this.prisma.kvStore.findUnique({ where: { key: slot.key }, select: { value: true } });
+        const used = counterValue(row?.value);
+        if (!row || used <= 0) return;
+        const r = await this.prisma.kvStore.updateMany({ where: { key: slot.key, value: row.value }, data: { value: String(used - 1) } });
+        if (r.count === 1) return;
+      }
+    } catch (err: any) {
+      this.log.warn(`Sohbet mesaj hakki geri verilemedi (${slot.key}): ${err?.message ?? err}`);
+    }
+  }
+
+  /** Sayac < hak ise bir artir. true: alindi, false: hak dolu, null: yaris cozulemedi */
+  private async takeCounterSlot(key: string, limit: number, expiresAt: Date | null): Promise<boolean | null> {
+    if (limit <= 0) return false;
+    for (let attempt = 0; attempt < CHAT_SLOT_ATTEMPTS; attempt++) {
+      const row = await this.prisma.kvStore.findUnique({ where: { key }, select: { value: true } });
+      if (!row) {
+        try {
+          await this.prisma.kvStore.create({ data: { key, value: '1', expiresAt } });
+          return true;
+        } catch (err: any) {
+          // P2002: ayni anda baska bir istek satiri olusturdu — kosullu artisa don
+          if (err?.code !== 'P2002') throw err;
+          continue;
+        }
+      }
+      const used = counterValue(row.value);
+      if (used >= limit) return false;
+      const r = await this.prisma.kvStore.updateMany({ where: { key, value: row.value }, data: { value: String(used + 1) } });
+      if (r.count === 1) return true;
+    }
+    return null;
+  }
+
+  /**
+   * Mesaj hakki dolu metni: sinir, ne zaman yenilendigi ve (varsa) yukseltme yolu.
+   * Deneme hakki yenilenmez; Baslangic → Profesyonel soylenir; Profesyonel ve ustunde
+   * yukseltme VAAT EDILMEZ (Kurumsal teklifle), yalniz yenilenme.
+   */
+  private chatLimitMessage(plan: string, limit: number): string {
+    const ust = this.upgradeOffers(plan).filter((p) => p.chatMessagesPerMonth > limit);
+    const teklif = ust.map((p) => `${p.name_tr} planında ayda ${fmtCount(p.chatMessagesPerMonth)}`).join(', ');
+    if (plan === 'TRIAL') {
+      return `Deneme hesabındaki ${fmtCount(limit)} Asistan mesajı hakkını kullandın; deneme hakkı yenilenmez.` +
+        (teklif ? ` ${teklif} mesaj gönderebilirsin.` : '');
+    }
+    return `Bu ayki ${fmtCount(limit)} Asistan mesajı hakkını kullandın. Hak gelecek ayın başında yenilenir` +
+      (teklif ? `; ${teklif} mesaj gönderebilirsin.` : '.');
   }
 
   // ────────────────────────────────────────────

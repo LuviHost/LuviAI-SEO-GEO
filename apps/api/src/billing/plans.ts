@@ -145,6 +145,17 @@ export interface BasePlan {
   /** RanksUp Video aylik hakki — VIDEOS_PER_MONTH'tan; QuotaService.consumeVideoAllowance dayatir */
   videosPerMonth: number;
   /**
+   * Panel sohbeti (Asistan): hesap basina takvim ayinda gonderilebilen mesaj sayisi — TEK KAYNAK.
+   * QuotaService.consumeChatMessageSlot dayatir (chat.service ilk model cagrisindan ONCE);
+   * panel ve yardim metni ayni sayiyi okur (public-docs.spec.ts denetler).
+   *
+   * NEDEN (sahip karari 11.11.2026, "zarar etmeyelim"): her mesaj 7 tura kadar Sonnet cagrisi
+   * (mesaj basina yaklasik $0.05-0.25) ve sinir yoktu; tek hesap planinin fiyatindan fazlasini
+   * harcayabiliyordu. Deneme hesabinda sayi AYLIK degil TOPLAM haktir (denemenin 2 makalesi ve
+   * 3 calistirmasi gibi sifirlanmaz). ADMIN ve platformun kendi baslattigi haftalik plan sayilmaz.
+   */
+  chatMessagesPerMonth: number;
+  /**
    * Destek kanali (fiyat ozeti ve /billing/plans). Yalniz kanal yazilir: yanit suresi,
    * SLA, Slack kanali ya da hesap yoneticisi vaadi YAZILMAZ — kodda ve operasyonda
    * karsiligi yok (sahip karari 30.10.2026). public-docs.spec.ts denetler.
@@ -223,9 +234,10 @@ export interface BasePlan {
  * platformu": kartlar olcumle baslar, makale yalniz Profesyonel'de tek satirdir.
  *
  *  - Baslangic 99 USD: 4 asistan (ChatGPT, Gemini, Claude, Perplexity), HIZLI
- *    modeller, makale uretimi YOK (articlesPerMonth 0).
+ *    modeller (ChatGPT gpt-6-luna, Claude Haiku), makale uretimi YOK (articlesPerMonth 0).
  *  - Profesyonel 349 USD: butun asistanlar (Grok, DeepSeek ve — anahtari
- *    tanimliysa — Muse eklenir), gelismis modeller, makale ve icerik araclari.
+ *    tanimliysa — Muse eklenir), ust seviye modeller (ChatGPT gpt-6-astra, Claude Opus),
+ *    makale ve icerik araclari.
  *  - Kurumsal: teklifle (contactSales). Eski Ajans paketinin ozellikleri
  *    (Product Radar, GEO Heatmap, Live Crawler) artik bu kartta.
  *  - Ajans SATISTAN KALKTI ama tanimi durur (`legacy: true`): bu plandaki
@@ -330,6 +342,7 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'limited',
     trackedApps: 1,
     videosPerMonth: VIDEOS_PER_MONTH.trial,
+    chatMessagesPerMonth: 20,
     support_tr: 'e-posta',
     support_en: 'email',
     // Sahip karari 21.10.2026: deneme 14 gun (billing/trial-policy.ts), 2 makale TOPLAM (ay basi
@@ -366,6 +379,7 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'all',
     trackedApps: 1,
     videosPerMonth: VIDEOS_PER_MONTH.starter,
+    chatMessagesPerMonth: 100,
     support_tr: 'e-posta',
     support_en: 'email',
     features_tr: [
@@ -406,14 +420,18 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'all',
     trackedApps: 3,
     videosPerMonth: VIDEOS_PER_MONTH.pro,
+    chatMessagesPerMonth: 500,
     support_tr: 'e-posta',
     support_en: 'email',
     inheritsFrom: 'starter',
     features_tr: [
       ENGINES_BULLET,
-      // Bugun gercek olan fark: Claude Haiku → Opus; Grok ve DeepSeek zaten en ust modelleriyle.
-      // ChatGPT, Gemini ve Perplexity iki pakette de ayni (hizli) modelle olculur — degisirse madde de degisir.
-      'Claude, Grok ve DeepSeek’te en gelişmiş modeller',
+      // Model kademesi (11.11.2026, sahip: "Baslangic hesapli, premium kalite"): Profesyonel ve ustu
+      // ChatGPT'yi amiral modelle (gpt-6-astra), Claude'u Opus 5.5 ile olcer; Grok ve DeepSeek zaten
+      // ust modelleriyle. Gemini ve Perplexity iki pakette de ayni modelle olculur (olcume uygun bir
+      // ust model yok) — bu yuzden maddede adlari gecmez. "En gelişmiş" DENMEZ: Claude'da Opus'un
+      // ustunde bir sinif var; madde "üst seviye" der. Modeller: audit/ai-citation.service MODELS.
+      'ChatGPT, Claude, Grok ve DeepSeek’te üst seviye modeller',
       '5 site · ayda en fazla 75 çalıştırma (ölçüm yine haftada 1)',
       'GEO içerik, ayda 40 makale — 5 ajanlı üretim, kalite kapısı, 13 yayın hedefi',
       'İçerik fırsatları — kaybettiğin soruya içerik üretir, sonra yeniden ölçer',
@@ -425,7 +443,7 @@ export const BASE_PLANS: BasePlan[] = [
     ],
     features_en: [
       ENGINES_BULLET,
-      'The most capable models on Claude, Grok and DeepSeek',
+      'Top-tier models on ChatGPT, Claude, Grok and DeepSeek',
       '5 sites · up to 75 runs/mo (still 1 measurement a week)',
       'GEO content, 40 articles/mo — 5-agent pipeline, quality gate, 13 publishing targets',
       'Content opportunities — writes for the questions you lose, then re-measures',
@@ -452,6 +470,7 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'all',
     trackedApps: 10,
     videosPerMonth: VIDEOS_PER_MONTH.agency,
+    chatMessagesPerMonth: 1_500,
     support_tr: 'e-posta',
     support_en: 'email',
     inheritsFrom: 'pro',
@@ -487,6 +506,7 @@ export const BASE_PLANS: BasePlan[] = [
     publishTargets: 'all',
     trackedApps: 50,
     videosPerMonth: VIDEOS_PER_MONTH.enterprise,
+    chatMessagesPerMonth: 5_000,
     support_tr: 'e-posta',
     support_en: 'email',
     inheritsFrom: 'pro',
@@ -547,7 +567,8 @@ export function featureOfferPlan(feature: PlanFeature): BasePlan {
  * 11.11.2026 (uc paket): Baslangic'ta YOK. Makale ureten her yol ayni kurala bakar: kullanicinin
  * baslattigi uretim ve takvim (QuotaService), ceviri (translator.service), otomatik yeniden
  * yazim (content-pivot.service), takvim kilidi (articles/plan-lock). Yalniz kotaya bakmak
- * yetmiyordu: ceviri ve yeniden yazim makale hakkindan dusmez, eskiden yalniz denemeyi eliyordu.
+ * yetmiyordu: ceviri makale hakkindan dusmez, eskiden yalniz denemeyi eliyordu (otomatik
+ * yeniden yazim 11.11.2026'dan beri haktan duser ama plan kurali yine ayri okunur).
  * Deneme true doner (omur boyu 2 makale); denemenin kendi kurallari ayri (trial-policy, plan-lock).
  */
 export function planHasArticles(plan: string | null | undefined): boolean {

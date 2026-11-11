@@ -161,9 +161,17 @@ export class QaGateService {
       : null;
     const systemPrompt = buildQaSystemPrompt({ productMode, site });
 
+    // Maliyet SITE SAHIBININ aylik AI butcesine yazilir (11.11.2026, bagimsiz inceleme): QA
+    // kapisi her makalede kosar (60 bin karaktere kadar girdi) ama cagri sahipsizdi; butce
+    // sayaci makalenin bu parcasini gormuyordu. Sahip okunamazsa cagri eskisi gibi sahipsiz gider.
+    const owner = await Promise.resolve()
+      .then(() => this.prisma.site.findUnique({ where: { id: siteId }, select: { userId: true } }))
+      .catch(() => null);
+
     const res = await this.llm.chat({
       context: 'qa-gate',
       siteId,
+      userId: owner?.userId ?? undefined,
       model: 'claude-sonnet-5',
       effort: 'low',
       maxTokens: 1500,
