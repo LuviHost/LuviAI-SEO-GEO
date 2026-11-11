@@ -2,13 +2,11 @@
 
 import Link from 'next/link';
 import { Check, X, Crown, Sparkles, Zap, Globe, Shield, Network, Award, BarChart3 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useT, type Locale } from '@/lib/i18n';
 import { useEffect, useState } from 'react';
 import { PageUpdatedLine } from '@/components/page-updated-line';
 import { pageUpdated, SITE_URL } from '@/lib/page-updated';
+import { VitrinBand, VitrinHero, VitrinSection, VITRIN_CELL, VITRIN_GRID } from '@/components/vitrin/vitrin-page';
 import { pickComparePrices, type ComparePlanPrice } from './compare-prices';
 
 /**
@@ -410,20 +408,33 @@ const COPY = {
   },
 } as const;
 
+/**
+ * COPY'deki etiketlerin basindaki isareti ("⚖️ ", "✓ ") atar. Metinler COPY'de oldugu
+ * gibi durur; vitrinde etikette emoji yok, tik ise ikon olarak cizilir.
+ */
+const afterMark = (s: string) => s.slice(s.indexOf(' ') + 1);
+
+/** Tablo govde hucresi (ust hizali: ipucu olan uzun satirlarda isaretler satir adiyla ayni hizada) */
+const TD = 'px-3 py-4 text-center align-top';
+
+/**
+ * Hucre isaretleri ana sayfadaki karsilastirma tablosuyla ayni (app/page.tsx CompareRow):
+ * tik / carpi / tire yalniz gorsel, anlami sr-only metin tasir.
+ */
 function makeCell(yesLabel: string, noLabel: string, unknownLabel: string) {
   return function Cell({ value }: { value: CellValue }) {
-    if (value === true) return <Check className="h-4 w-4 text-emerald-500 mx-auto" aria-label={yesLabel} />;
-    if (value === false) return <X className="h-4 w-4 text-muted-foreground/30 mx-auto" aria-label={noLabel} />;
-    if (value === null) return <span className="text-xs text-center block text-muted-foreground/60" aria-label={unknownLabel} title={unknownLabel}>—</span>;
-    return <span className="text-xs text-center block text-foreground/80 font-medium">{value}</span>;
+    if (value === true) return <><Check className="inline h-4 w-4 text-foreground/70" aria-hidden /><span className="sr-only">{yesLabel}</span></>;
+    if (value === false) return <><X className="inline h-4 w-4 text-dim" aria-hidden /><span className="sr-only">{noLabel}</span></>;
+    if (value === null) return <><span className="text-dim" title={unknownLabel} aria-hidden>—</span><span className="sr-only">{unknownLabel}</span></>;
+    return <span className="block break-words text-xs leading-relaxed text-muted-foreground">{value}</span>;
   };
 }
 
 function makeLuviCell(yesLabel: string, noLabel: string) {
   return function LuviCell({ value }: { value: boolean | string }) {
-    if (value === true) return <Check className="h-4 w-4 text-emerald-500 mx-auto" aria-label={yesLabel} />;
-    if (value === false) return <X className="h-4 w-4 text-muted-foreground/30 mx-auto" aria-label={noLabel} />;
-    return <span className="text-xs text-center block text-brand font-bold">{value}</span>;
+    if (value === true) return <><Check className="inline h-4 w-4 text-brand-vivid" aria-hidden /><span className="sr-only">{yesLabel}</span></>;
+    if (value === false) return <><X className="inline h-4 w-4 text-dim" aria-hidden /><span className="sr-only">{noLabel}</span></>;
+    return <span className="block break-words text-xs font-medium leading-relaxed">{value}</span>;
   };
 }
 
@@ -455,8 +466,20 @@ export function CompareView({ initialPrices }: { initialPrices: Record<Locale, C
   const Cell = makeCell(locale === 'en' ? 'Yes' : 'Var', locale === 'en' ? 'No' : 'Yok', locale === 'en' ? 'Not verified' : 'Doğrulanmadı');
   const LuviCell = makeLuviCell(locale === 'en' ? 'Yes' : 'Var', locale === 'en' ? 'No' : 'Yok');
 
+  // Uc one cikan sayi: ortadaki tablodan sayilir (geoCount), digerleri COPY'den
+  const stats: Array<{ num: React.ReactNode; title: string; desc: string }> = [
+    { num: c.hc1Num, title: c.hc1Title, desc: c.hc1Desc },
+    { num: geoCount, title: c.hc2Title, desc: c.hc2Desc },
+    { num: c.hc3Num, title: c.hc3Title, desc: c.hc3Desc },
+  ];
+
+  /*
+   * Koyu vitrin (Kasim 2026): iki tonlu baslik, bitisik hucreli sayi izgarasi, her
+   * tablo grubu kendi bolumunde duz tablo. Tablolar `table-fixed`: sekiz grubun
+   * sutunlari sayfa boyunca ayni dikey hizada kalir.
+   */
   return (
-    <div className="bg-gradient-to-b from-background via-background to-muted/40">
+    <div>
       {/* JSON-LD: ComparisonTable + FAQ */}
       <script
         type="application/ld+json"
@@ -481,215 +504,173 @@ export function CompareView({ initialPrices }: { initialPrices: Record<Locale, C
         }) }}
       />
 
-      <main className="relative">
-        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
-          <div className="absolute top-60 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        {/* HERO */}
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
-            {c.eyebrow}
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
-            {c.titleA}{' '}
-            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
-              {c.titleB}
-            </span>
-          </h1>
-          <p className="text-lg text-muted-foreground mb-6">
-            <strong className="text-foreground">{luviaiCount}{c.leadA}</strong>{c.lead}
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 text-xs">
-            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">{c.badge1}</Badge>
-            <Badge className="bg-brand/10 text-brand border-brand/30">{c.badge2}</Badge>
-            <Badge className="bg-brand-500/10 text-brand-600 border-brand-500/30">{c.badge3}</Badge>
-            <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/30">{c.badge4}</Badge>
-          </div>
-          <PageUpdatedLine path="/compare" className="mt-5" />
-        </div>
-
-        {/* HIGHLIGHT CARDS - Why RanksUp */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-12">
-          <Card className="border-brand/20 bg-brand/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-brand mb-1">{c.hc1Num}</div>
-              <div className="text-sm font-semibold mb-1">{c.hc1Title}</div>
-              <p className="text-xs text-muted-foreground">{c.hc1Desc}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-emerald-500/20 bg-emerald-500/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-emerald-600 mb-1">{geoCount}</div>
-              <div className="text-sm font-semibold mb-1">{c.hc2Title}</div>
-              <p className="text-xs text-muted-foreground">{c.hc2Desc}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-brand-500/20 bg-brand-500/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-brand-600 mb-1">{c.hc3Num}</div>
-              <div className="text-sm font-semibold mb-1">{c.hc3Title}</div>
-              <p className="text-xs text-muted-foreground">{c.hc3Desc}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* COMPARISON TABLE — grouped */}
-        <div className="space-y-6">
-          {FEATURE_GROUPS.map((group) => (
-            <Card key={group.title} className="overflow-hidden">
-              <div className="bg-gradient-to-r from-muted/60 to-muted/20 px-5 py-3 border-b flex items-center justify-between flex-wrap gap-2">
-                <h2 className="font-semibold flex items-center gap-2 text-base">
-                  <span className="text-brand">{group.icon}</span>
-                  {group.title}
-                </h2>
-                {group.badge && (
-                  <Badge className="bg-brand/10 text-brand border-brand/30 text-xs">{group.badge}</Badge>
-                )}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/30 text-xs">
-                    <tr>
-                      <th className="text-left px-4 py-2.5 font-semibold w-[34%]">{c.tableHeaderFeature}</th>
-                      <th className="px-2 py-2.5 text-center bg-brand/5 font-bold text-brand min-w-[80px]">RanksUp</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Surfer</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Jasper</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Ahrefs</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Frase</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">GEON</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">SEOYEN</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {group.rows.map((f) => (
-                      <tr key={f.name} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-medium">
-                          {f.name}
-                          {f.hint && (
-                            <div className="text-xs text-muted-foreground mt-0.5 font-normal">{f.hint}</div>
-                          )}
-                        </td>
-                        <td className="px-2 py-3 text-center bg-brand/5"><LuviCell value={f.luviai} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.surfer} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.jasper} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.ahrefs} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.frase} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.geon ?? null} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.seoyen ?? null} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+      {/* HERO */}
+      <VitrinHero
+        rail={afterMark(c.eyebrow)}
+        a={c.titleA}
+        b={c.titleB}
+        lead={<><strong className="font-medium text-foreground">{luviaiCount}{c.leadA}</strong>{c.lead}</>}
+      >
+        <PageUpdatedLine path="/compare" className="mt-5 font-mono" />
+        <ul className="mt-12 flex flex-wrap gap-x-7 gap-y-3 border-t border-border pt-5">
+          {[c.badge1, c.badge2, c.badge3, c.badge4].map((b) => (
+            <li key={b} className="v-rail inline-flex items-center gap-2">
+              <Check className="h-3.5 w-3.5 text-brand-vivid" aria-hidden />
+              {afterMark(b)}
+            </li>
           ))}
-          <p className="text-xs text-muted-foreground px-1">{c.legend}</p>
-        </div>
+        </ul>
+      </VitrinHero>
 
-        {/* SEMRUSH 6-AYLIK AI ARAMA PLAYBOOK'U — hangi adim RanksUp'ta otomatik? */}
-        <Card className="mt-10 overflow-hidden">
-          <div className="bg-gradient-to-r from-muted/60 to-muted/20 px-5 py-3 border-b">
-            <h2 className="font-semibold flex items-center gap-2 text-base">
-              <span className="text-brand"><BarChart3 className="h-4 w-4" /></span>
-              {locale === 'en' ? 'Semrush\'s 6-month AI search playbook — which steps run on autopilot in RanksUp?' : 'Semrush\'ın 6 aylık AI arama playbook\'u — hangi adım RanksUp\'ta otomatik?'}
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              {locale === 'en'
-                ? 'Semrush publishes a 22-step, six-month manual plan (May 2026). Same metrics as ours (share of voice, source visibility, referral traffic). Here is what the closed loop does for you.'
-                : 'Semrush 22 adımlık, altı aylık elle yürütülen bir plan yayınladı (Mayıs 2026). Metrikleri bizimkiyle aynı (share of voice, kaynak görünürlüğü, referral trafik). Kapalı döngünün senin yerine yaptıkları:'}
+      {/* HIGHLIGHT CARDS - Why RanksUp */}
+      <VitrinBand>
+        <div className={`${VITRIN_GRID} lg:grid-cols-3`}>
+          {stats.map((s) => (
+            <div key={s.title} className={VITRIN_CELL}>
+              <p className="text-4xl font-[450] tracking-[-0.05em] tabular-nums xl:text-5xl">{s.num}</p>
+              <p className="mt-5 text-base font-medium">{s.title}</p>
+              <p className="mt-2 text-sm leading-[1.8] text-muted-foreground">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+      </VitrinBand>
+
+      {/* COMPARISON TABLE — grouped */}
+      {FEATURE_GROUPS.map((group, gi) => (
+        <VitrinBand key={group.title}>
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-vitrin-3">{group.title}</h2>
+            {group.badge && <span className="v-rail">{group.badge}</span>}
+          </div>
+          {/* relative SART: hucrelerdeki sr-only metinler position:absolute; kaydirma kutusu
+              konumlu degilken kutunun kirpmasindan kacip telefonda sayfayi genisletir */}
+          <div className="relative mt-8 overflow-x-auto">
+            <table className="w-full min-w-[60rem] table-fixed text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th scope="col" className="v-rail w-[17rem] py-3 pr-4 text-left lg:w-[34%]">{c.tableHeaderFeature}</th>
+                  <th scope="col" className="border-t-2 border-brand-vivid bg-card px-3 py-3 text-center font-medium">RanksUp</th>
+                  <th scope="col" className="v-rail px-3 py-3 text-center">Surfer</th>
+                  <th scope="col" className="v-rail px-3 py-3 text-center">Jasper</th>
+                  <th scope="col" className="v-rail px-3 py-3 text-center">Ahrefs</th>
+                  <th scope="col" className="v-rail px-3 py-3 text-center">Frase</th>
+                  <th scope="col" className="v-rail px-3 py-3 text-center">GEON</th>
+                  <th scope="col" className="v-rail px-3 py-3 text-center">SEOYEN</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.rows.map((f) => (
+                  <tr key={f.name} className="border-b border-border">
+                    <th scope="row" className="py-4 pr-6 text-left align-top font-normal">
+                      {f.name}
+                      {f.hint && (
+                        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{f.hint}</p>
+                      )}
+                    </th>
+                    <td className={`${TD} bg-card`}><LuviCell value={f.luviai} /></td>
+                    <td className={TD}><Cell value={f.surfer} /></td>
+                    <td className={TD}><Cell value={f.jasper} /></td>
+                    <td className={TD}><Cell value={f.ahrefs} /></td>
+                    <td className={TD}><Cell value={f.frase} /></td>
+                    <td className={TD}><Cell value={f.geon ?? null} /></td>
+                    <td className={TD}><Cell value={f.seoyen ?? null} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {gi === FEATURE_GROUPS.length - 1 && (
+            <p className="mt-6 max-w-4xl text-label leading-relaxed text-muted-foreground">{c.legend}</p>
+          )}
+        </VitrinBand>
+      ))}
+
+      {/* SEMRUSH 6-AYLIK AI ARAMA PLAYBOOK'U — hangi adim RanksUp'ta otomatik? */}
+      <VitrinSection
+        title={locale === 'en' ? 'Semrush\'s 6-month AI search playbook — which steps run on autopilot in RanksUp?' : 'Semrush\'ın 6 aylık AI arama playbook\'u — hangi adım RanksUp\'ta otomatik?'}
+      >
+        <p className="max-w-2xl text-sm leading-[1.8] text-muted-foreground">
+          {locale === 'en'
+            ? 'Semrush publishes a 22-step, six-month manual plan (May 2026). Same metrics as ours (share of voice, source visibility, referral traffic). Here is what the closed loop does for you.'
+            : 'Semrush 22 adımlık, altı aylık elle yürütülen bir plan yayınladı (Mayıs 2026). Metrikleri bizimkiyle aynı (share of voice, kaynak görünürlüğü, referral trafik). Kapalı döngünün senin yerine yaptıkları:'}
+        </p>
+        <ul className="mt-8 border-t border-border">
+          {PLAYBOOK.map((row) => {
+            const label = row.status === 'auto' ? (locale === 'en' ? 'Automatic' : 'Otomatik') : row.status === 'partial' ? (locale === 'en' ? 'Partial' : 'Kısmen') : (locale === 'en' ? 'Not yet' : 'Henüz yok');
+            const cls = row.status === 'auto' ? 'text-success' : row.status === 'partial' ? 'text-warning' : 'text-muted-foreground';
+            return (
+              <li key={row.step} className="grid grid-cols-[3rem_1fr] gap-x-4 gap-y-2.5 border-b border-border py-5 sm:grid-cols-[3rem_1fr_6rem]">
+                <span className="pt-1 font-mono text-vitrin-rail tabular-nums text-muted-foreground">{row.step}</span>
+                <div className="min-w-0">
+                  <p className="text-base font-medium">{locale === 'en' ? row.en : row.tr}</p>
+                  <p className="mt-1.5 text-sm leading-[1.8] text-muted-foreground">{locale === 'en' ? row.noteEn : row.noteTr}</p>
+                </div>
+                {/* Durum: telefonda metnin altinda, genis ekranda sagda sabit sutunda */}
+                <p className={`col-start-2 flex items-center gap-2 self-start font-mono text-vitrin-rail sm:col-start-3 sm:pt-1 ${cls}`}>
+                  <span className="h-1.5 w-1.5 shrink-0 bg-current" aria-hidden />
+                  {label}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="mt-5 max-w-3xl text-label leading-relaxed text-muted-foreground">
+          {locale === 'en'
+            ? 'Source: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 May 2026). Statuses reflect RanksUp features as of Aug 2026; steps 1-2, 3, 12-15 and 17 updated in Oct 2026.'
+            : 'Kaynak: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 Mayıs 2026). Durumlar Ağustos 2026 itibarıyla RanksUp özelliklerini yansıtır; 1-2, 3, 12-15 ve 17. adımlar Ekim 2026’da güncellendi.'}
+        </p>
+      </VitrinSection>
+
+      {/* SUMMARY / BOTTOM CTA */}
+      <VitrinBand>
+        <div className={`${VITRIN_GRID} md:grid-cols-2`}>
+          <div className={VITRIN_CELL}>
+            <h2 className="text-vitrin-3">{c.sumLeftTitle}</h2>
+            <ul className="mt-6 space-y-3 text-sm leading-relaxed text-muted-foreground">
+              {c.sumLeftItems.map((it) => (
+                <li key={it} className="flex gap-2.5"><Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-vivid" aria-hidden /> {it}</li>
+              ))}
+            </ul>
+            <p className="mt-6 text-label leading-relaxed text-muted-foreground">
+              {/* Rakip fiyat toplami (Surfer $89 + Jasper $49 + Ahrefs $129 +
+                  Hootsuite $99 = $366, ≈ ₺14.640) kaldirildi: Hootsuite RanksUp'in
+                  artik sunmadigi sosyal yayin icindi, TL 40 TL/USD sabit kurla
+                  hesaplanmisti ve Surfer/Jasper fiyatlari 18.10.2026'da ureticinin
+                  sayfasindakiyle uyusmuyordu. Bayatlayan rakip fiyati yazilmaz. */}
+              {c.sumLeftNote}
+              {/* RanksUp fiyatlari ELLE YAZILMAZ. Burada '₺1.499 ($37)' ve
+                  '₺4.999 ($125)' sabitleri duruyordu; gercek fiyatlar $149 ve
+                  $349 oldugu icin sayfa dort kata varan yanlis fiyat
+                  gosteriyordu. Artik /billing/plans ile ayni kaynak. */}
+              {planPrices.map((p, i) => (
+                <span key={p.id}>
+                  {i === 0 ? c.sumLeftNote2 : c.sumLeftNote3}
+                  {p.name}: <strong className="font-medium text-foreground">${p.monthly.toLocaleString('en-US')}/{c.perMonth}</strong>
+                </span>
+              ))}
+              {planPrices.length > 0 && c.sumLeftNoteEnd}
             </p>
           </div>
-          <div className="divide-y divide-border/40">
-            {PLAYBOOK.map((row) => {
-              const label = row.status === 'auto' ? (locale === 'en' ? 'Automatic' : 'Otomatik') : row.status === 'partial' ? (locale === 'en' ? 'Partial' : 'Kısmen') : (locale === 'en' ? 'Not yet' : 'Henüz yok');
-              const cls = row.status === 'auto' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : row.status === 'partial' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-300 border-zinc-500/30';
-              return (
-                <div key={row.step} className="px-5 py-2.5 text-sm flex items-start gap-3">
-                  <span className="text-xs font-mono text-muted-foreground w-10 shrink-0 pt-0.5">{row.step}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium">{locale === 'en' ? row.en : row.tr}</div>
-                    <div className="text-xs text-muted-foreground">{locale === 'en' ? row.noteEn : row.noteTr}</div>
-                  </div>
-                  <span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 shrink-0 ${cls}`}>{label}</span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="px-5 py-3 text-xs text-muted-foreground border-t">
-            {locale === 'en'
-              ? 'Source: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 May 2026). Statuses reflect RanksUp features as of Aug 2026; steps 1-2, 3, 12-15 and 17 updated in Oct 2026.'
-              : 'Kaynak: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 Mayıs 2026). Durumlar Ağustos 2026 itibarıyla RanksUp özelliklerini yansıtır; 1-2, 3, 12-15 ve 17. adımlar Ekim 2026’da güncellendi.'}
-          </div>
-        </Card>
 
-        {/* SUMMARY / BOTTOM CTA */}
-        <div className="mt-14 grid md:grid-cols-2 gap-6">
-          <Card className="bg-gradient-to-br from-brand/5 to-transparent border-brand/20">
-            <CardContent className="p-6">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <Crown className="h-5 w-5 text-brand" />
-                {c.sumLeftTitle}
-              </h3>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                {c.sumLeftItems.map((it) => (
-                  <li key={it} className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> {it}</li>
-                ))}
-              </ul>
-              <p className="text-xs mt-4 text-muted-foreground/80">
-                {/* Rakip fiyat toplami (Surfer $89 + Jasper $49 + Ahrefs $129 +
-                    Hootsuite $99 = $366, ≈ ₺14.640) kaldirildi: Hootsuite RanksUp'in
-                    artik sunmadigi sosyal yayin icindi, TL 40 TL/USD sabit kurla
-                    hesaplanmisti ve Surfer/Jasper fiyatlari 18.10.2026'da ureticinin
-                    sayfasindakiyle uyusmuyordu. Bayatlayan rakip fiyati yazilmaz. */}
-                {c.sumLeftNote}
-                {/* RanksUp fiyatlari ELLE YAZILMAZ. Burada '₺1.499 ($37)' ve
-                    '₺4.999 ($125)' sabitleri duruyordu; gercek fiyatlar $149 ve
-                    $349 oldugu icin sayfa dort kata varan yanlis fiyat
-                    gosteriyordu. Artik /billing/plans ile ayni kaynak. */}
-                {planPrices.map((p, i) => (
-                  <span key={p.id}>
-                    {i === 0 ? c.sumLeftNote2 : c.sumLeftNote3}
-                    {p.name}: <strong className="text-brand">${p.monthly.toLocaleString('en-US')}/{c.perMonth}</strong>
-                  </span>
-                ))}
-                {planPrices.length > 0 && c.sumLeftNoteEnd}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-emerald-500/5 to-transparent border-emerald-500/20">
-            <CardContent className="p-6">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-emerald-600" />
-                {c.sumRightTitle}
-              </h3>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                {c.sumRightItems.map((it) => (
-                  <li key={it} className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> {it}</li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* FINAL CTA */}
-        <div className="mt-16 rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-red-600 text-white p-10 text-center">
-          <h3 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold mb-3">{c.ctaTitle}</h3>
-          <p className="text-white/90 mb-6 max-w-xl mx-auto">{c.ctaSub}</p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-white text-brand-600 hover:bg-white/90 shadow-xl">
-              <Link href="/onboarding">{c.ctaPrimary}</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="bg-transparent border-white/30 text-white hover:bg-white/10">
-              <Link href="/pricing">{c.ctaSecondary}</Link>
-            </Button>
+          <div className={VITRIN_CELL}>
+            <h2 className="text-vitrin-3">{c.sumRightTitle}</h2>
+            <ul className="mt-6 space-y-3 text-sm leading-relaxed text-muted-foreground">
+              {c.sumRightItems.map((it) => (
+                <li key={it} className="flex gap-2.5"><Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-vivid" aria-hidden /> {it}</li>
+              ))}
+            </ul>
           </div>
         </div>
+      </VitrinBand>
+
+      {/* FINAL CTA */}
+      <VitrinSection title={c.ctaTitle}>
+        <p className="max-w-2xl text-base leading-[1.75] text-muted-foreground">{c.ctaSub}</p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link href="/onboarding" className="v-btn h-12 px-6">{c.ctaPrimary}</Link>
+          <Link href="/pricing" className="v-btn-line h-12 px-6">{c.ctaSecondary}</Link>
         </div>
-      </main>
+      </VitrinSection>
     </div>
   );
 }

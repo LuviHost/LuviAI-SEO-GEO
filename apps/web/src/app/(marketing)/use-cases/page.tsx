@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { ArrowUpRight, Building2, Cloud, Globe, Palette, PenLine, ShoppingCart, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import { PageUpdatedLine } from '@/components/page-updated-line';
+import { VitrinBand, VitrinHero, VITRIN_CELL, VITRIN_GRID } from '@/components/vitrin/vitrin-page';
 
 // Maddeler plans.ts ile dogrulandi (Ekim 2026). Eskiden "Faz 3" yol haritasi
 // vaatleri (white-label panel, SLA'li kurumsal plan), calismayan white-label /
@@ -161,52 +162,55 @@ const USE_CASES = {
   },
 } as const;
 
+/**
+ * Senaryo ikonlari, USE_CASES.items ile AYNI SIRADA (iki dilde sira ayni). Verideki
+ * emoji (`icon`) vitrinde cizilmez; yerine duz cizgi ikon gelir.
+ */
+const ICONS: LucideIcon[] = [ShoppingCart, Cloud, Palette, PenLine, Building2, Globe];
+
+/** Etiketin basindaki emojiyi atar; metin USE_CASES'te oldugu gibi durur */
+const afterMark = (s: string) => s.slice(s.indexOf(' ') + 1);
+
+/**
+ * Koyu vitrin (Kasim 2026): iki tonlu baslik + alti senaryo bitisik hucreli izgarada.
+ * Sayfa alti cagriyi ortak VitrinCta yapar (marketing-shell); hucre dugmeleri bu yuzden
+ * ince cerceveli (sayfada tek dolu turuncu dugme kapanistaki).
+ */
 export default function UseCasesPage() {
   const { locale } = useT();
   const data = USE_CASES[locale];
 
   return (
-    <main className="relative">
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-60 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-      </div>
+    <>
+      <VitrinHero rail={afterMark(data.eyebrow)} a={data.titleA} b={data.titleB} lead={data.subtitle}>
+        <PageUpdatedLine path="/use-cases" className="mt-5 font-mono" />
+      </VitrinHero>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-12 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
-            {data.eyebrow}
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
-            {data.titleA}{' '}
-            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
-              {data.titleB}
-            </span>
-          </h1>
-          <p className="text-lg text-muted-foreground">{data.subtitle}</p>
-          <PageUpdatedLine path="/use-cases" className="mt-4" />
+      <VitrinBand>
+        <div className={`${VITRIN_GRID} sm:grid-cols-2 lg:grid-cols-3`}>
+          {data.items.map((u, i) => {
+            const Icon = ICONS[i];
+            return (
+              <div key={u.title} className={`${VITRIN_CELL} flex flex-col`}>
+                {Icon && <Icon className="h-5 w-5 text-brand-vivid" aria-hidden />}
+                <h2 className="mt-6 text-vitrin-3">{u.title}</h2>
+                <ul className="mt-5 flex-1 space-y-2.5 text-sm leading-relaxed text-muted-foreground">
+                  {u.bullets.map((b, bi) => (
+                    <li key={bi} className="grid grid-cols-[0.25rem_1fr] gap-3">
+                      <span className="mt-2 h-1 w-1 bg-dim" aria-hidden />
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/onboarding" className="v-btn-line mt-8 h-9 self-start px-4">
+                  {u.cta}
+                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              </div>
+            );
+          })}
         </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {data.items.map((u) => (
-            <div key={u.title} className="p-6 rounded-2xl border bg-background hover:border-brand-500/30 hover:shadow-lg hover:shadow-brand-500/5 transition-all group flex flex-col">
-              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform inline-block">{u.icon}</div>
-              <h2 className="text-xl font-bold mb-3">{u.title}</h2>
-              <ul className="space-y-2 text-sm text-muted-foreground mb-6 flex-1">
-                {u.bullets.map((b, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <span className="text-brand-600 shrink-0">•</span>
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button asChild className="w-full bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white">
-                <Link href="/onboarding">{u.cta}</Link>
-              </Button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </main>
+      </VitrinBand>
+    </>
   );
 }

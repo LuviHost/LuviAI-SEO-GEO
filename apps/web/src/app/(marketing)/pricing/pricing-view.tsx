@@ -9,8 +9,8 @@ import { api } from '@/lib/api';
 import { useT, type Locale } from '@/lib/i18n';
 import { PageUpdatedLine } from '@/components/page-updated-line';
 import { PURCHASE_CONTACT_EMAIL, purchaseState } from '@/lib/checkout-availability';
-import { Button } from '@/components/ui/button';
-import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Star, AlertCircle } from 'lucide-react';
+import { VitrinBand, VitrinHero, VITRIN_LINK } from '@/components/vitrin/vitrin-page';
+import { ArrowUpRight, Check, Star, AlertCircle } from 'lucide-react';
 
 type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
 
@@ -136,42 +136,30 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
 
   const realPlans = plans.filter((p) => p.id !== 'trial');
 
+  // Koyu vitrin (Kasim 2026): iki tonlu baslik, bitisik hucreli plan izgarasi (ana sayfadaki
+  // fiyat bolumuyle ayni dil). Yalniz gorunum degisti; odeme akisi ve metinler ayni.
   return (
-    <div className="relative">
-      {/* gradient blob accents */}
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-      </div>
+    <div>
+      <VitrinHero
+        rail="14 gün ücretsiz, 2 makale · Kredi kartı yok"
+        a="Şeffaf fiyat,"
+        b="ölçeklenebilir plan"
+        lead={t('pricing.subtitle')}
+      >
+        <PageUpdatedLine path="/pricing" className="mt-4 font-mono" />
+      </VitrinHero>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-        <div className="max-w-3xl mx-auto text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
-            <Sparkles className="h-3 w-3" />
-            <span>14 gün ücretsiz, 2 makale · Kredi kartı yok</span>
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
-            Şeffaf fiyat,{' '}
-            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
-              ölçeklenebilir plan
-            </span>
-          </h1>
-          <p className="mt-5 text-lg text-muted-foreground">
-            {t('pricing.subtitle')}
-          </p>
-          <PageUpdatedLine path="/pricing" className="mt-4" />
-        </div>
-
+      <VitrinBand>
         {/* Grandfathering banner — sadece mevcut user'lar icin */}
         {grandfathering?.isGrandfathered && grandfathering.grandfatheredUntil && (
-          <div className="mb-8 max-w-3xl mx-auto p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10">
+          <div className="mb-8 max-w-3xl rounded-lg border border-success/30 bg-success/5 p-4">
             <div className="flex items-start gap-3">
-              <Star className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <Star className="mt-0.5 h-5 w-5 shrink-0 text-success" />
               <div className="flex-1 text-sm">
-                <div className="font-semibold text-emerald-700 dark:text-emerald-400">
+                <div className="font-medium text-success">
                   Eski fiyatınızla devam ediyorsunuz
                 </div>
-                <p className="text-emerald-700/80 dark:text-emerald-300/80 mt-1">
+                <p className="mt-1 leading-relaxed text-muted-foreground">
                   Mevcut planınız <strong>aylık ₺{grandfathering.legacyMonthlyPriceTry?.toLocaleString('tr-TR')}</strong>{' '}
                   fiyatla{' '}
                   <strong>
@@ -187,53 +175,53 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
           </div>
         )}
 
-        <div className="flex justify-center mb-12">
-          <div className="inline-flex bg-background border rounded-full p-1 shadow-sm">
+        <div className="mb-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
+          <div className="inline-flex rounded-md border border-border p-1" role="group" aria-label={`${t('pricing.monthly')} / ${t('pricing.annual')}`}>
             <button
+              type="button"
+              aria-pressed={cycle === 'monthly'}
               onClick={() => setCycle('monthly')}
-              className={`px-6 py-2 text-sm font-medium rounded-full transition-all ${
-                cycle === 'monthly'
-                  ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`inline-flex h-9 items-center rounded px-4 text-sm font-medium transition-colors duration-200 ${
+                cycle === 'monthly' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t('pricing.monthly')}
             </button>
             <button
+              type="button"
+              aria-pressed={cycle === 'annual'}
               onClick={() => setCycle('annual')}
-              className={`px-6 py-2 text-sm font-medium rounded-full transition-all flex items-center gap-2 ${
-                cycle === 'annual'
-                  ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`inline-flex h-9 items-center gap-2 rounded px-4 text-sm font-medium transition-colors duration-200 ${
+                cycle === 'annual' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t('pricing.annual')}
               {/* Yillik = 10 ay fiyatina 12 ay (plans.ts annual_usd = monthly_usd * 10) →
                   indirim %16,7. Eskiden "-20%" yaziyordu. */}
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">{locale === 'en' ? '2 months free' : '2 ay bedava'}</span>
+              <span className={`font-mono text-vitrin-rail ${cycle === 'annual' ? 'opacity-70' : 'text-brand-vivid'}`}>{locale === 'en' ? '2 months free' : '2 ay bedava'}</span>
             </button>
           </div>
-        </div>
 
-        {/* Kur dipnotu — TL tutarinin nereden geldigi acikca yazilir.
-            Kur bayatsa (TCMB'ye ulasilamadi) kullanici bunu bilmelidir. */}
-        {fx && (
-          <p className="text-center text-xs text-muted-foreground mb-6">
-            Fiyatlar ABD doları cinsindendir. Türk lirası tutarı{' '}
-            <strong className="tabular-nums">1 USD = ₺{fx.rate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</strong>{' '}
-            kuruyla hesaplanmıştır
-            {fx.source === 'TCMB' && ' (TCMB)'}
-            {/* Saat dilimi sabit: bu satir artik sunucuda da basiliyor; tarayicinin dilimiyle
-                formatlansa UTC+11 gibi bir istemcide gun kayar ve hidrasyon uyusmazligi olur. */}
-            {fx.fetchedAt && ` · ${new Date(fx.fetchedAt).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`}.
-            {fx.stale && (
-              <span className="block mt-1 text-amber-600 dark:text-amber-400">
-                Güncel kur alınamadı, son bilinen kur gösteriliyor. Ödeme sırasında güncel kur uygulanır.
-              </span>
-            )}
-            <span className="block mt-1">Tahsilat, ödeme anındaki kurla Türk lirası olarak yapılır.</span>
-          </p>
-        )}
+          {/* Kur dipnotu — TL tutarinin nereden geldigi acikca yazilir.
+              Kur bayatsa (TCMB'ye ulasilamadi) kullanici bunu bilmelidir. */}
+          {fx && (
+            <p className="max-w-xl text-xs leading-relaxed text-muted-foreground lg:text-right">
+              Fiyatlar ABD doları cinsindendir. Türk lirası tutarı{' '}
+              <strong className="font-medium text-foreground tabular-nums">1 USD = ₺{fx.rate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</strong>{' '}
+              kuruyla hesaplanmıştır
+              {fx.source === 'TCMB' && ' (TCMB)'}
+              {/* Saat dilimi sabit: bu satir artik sunucuda da basiliyor; tarayicinin dilimiyle
+                  formatlansa UTC+11 gibi bir istemcide gun kayar ve hidrasyon uyusmazligi olur. */}
+              {fx.fetchedAt && ` · ${new Date(fx.fetchedAt).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`}.
+              {fx.stale && (
+                <span className="mt-1 block text-warning">
+                  Güncel kur alınamadı, son bilinen kur gösteriliyor. Ödeme sırasında güncel kur uygulanır.
+                </span>
+              )}
+              <span className="mt-1 block">Tahsilat, ödeme anındaki kurla Türk lirası olarak yapılır.</span>
+            </p>
+          )}
+        </div>
 
         {/* Satin alma kapali (PayTR test modu): butonlar kilitli, nedeni burada.
             Metin API'den (dile gore); Kurumsal'in iletisim butonu etkilenmez. */}
@@ -241,19 +229,20 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
           <div
             id="purchase-closed"
             role="status"
-            className="mb-8 max-w-3xl mx-auto flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm"
+            className="mb-8 flex max-w-3xl items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm"
           >
-            <AlertCircle className="h-5 w-5 mt-0.5 shrink-0 text-warning" aria-hidden />
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
             <p>
               {purchase.message}{' '}
-              <a href={`mailto:${PURCHASE_CONTACT_EMAIL}`} className="font-medium underline underline-offset-2">
+              <a href={`mailto:${PURCHASE_CONTACT_EMAIL}`} className={VITRIN_LINK}>
                 {PURCHASE_CONTACT_EMAIL}
               </a>
             </p>
           </div>
         )}
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        {/* Bitisik hucreler: kartlar arasi bosluk yerine tek ince cizgi */}
+        <div className="grid border-l border-t border-border sm:grid-cols-2 lg:grid-cols-4">
           {realPlans.map((p) => {
             // Fiyat USD kanonik; TL karsiligi backend'de gunun TCMB kuruyla hesaplandi
             const price = cycle === 'annual' ? p.annual : p.monthly;
@@ -264,36 +253,33 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
             return (
               <div
                 key={p.id}
-                className={`p-8 rounded-2xl border flex flex-col relative ${
-                  highlighted
-                    ? 'bg-gradient-to-br from-brand-500/10 to-brand-500/5 border-brand-500/30 shadow-xl shadow-brand-500/10 lg:scale-105'
-                    : 'bg-background hover:border-brand-500/30 transition-colors'
-                }`}
+                className={`relative flex flex-col border-b border-r border-border p-6 sm:p-7 ${highlighted ? 'bg-card' : ''}`}
               >
-                {highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-md">
-                    {t('pricing.popular')}
-                  </div>
-                )}
+                {/* Onerilen plan: ustte turuncu cizgi + etiket (cerceve, golge, buyutme yerine).
+                    Etiket ana sayfadakiyle ayni ("Önerilen"); "en çok tercih edilen" dogrulanmis bir veri degildi. */}
+                {highlighted && <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-vivid" aria-hidden />}
 
-                <h2 className="text-xl font-bold">{p.name}</h2>
-                <div className="mt-4">
-                  <span className="text-4xl sm:text-5xl font-extrabold">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="text-base font-medium">{p.name}</h2>
+                  {highlighted && <p className="font-mono text-vitrin-rail text-brand-vivid">{t('land.pricing.most_popular')}</p>}
+                </div>
+                <div className="mt-6 flex items-baseline gap-1">
+                  <span className="text-5xl font-[450] tracking-[-0.05em] tabular-nums">
                     ${price.toLocaleString('en-US')}
                   </span>
-                  <span className="text-muted-foreground text-sm ml-2">
+                  <span className="text-sm text-muted-foreground">
                     /{cycle === 'annual' ? 'yıl' : 'ay'}
                   </span>
                 </div>
                 {/* TL karsiligi — gunun TCMB kuruyla hesaplaniyor, bilgi amacli */}
                 {priceTry > 0 && (
-                  <p className="text-sm text-muted-foreground mt-1 tabular-nums">
+                  <p className="mt-1 text-sm text-muted-foreground tabular-nums">
                     ≈ ₺{priceTry.toLocaleString('tr-TR')}
                     <span className="text-xs"> /{cycle === 'annual' ? 'yıl' : 'ay'}</span>
                   </p>
                 )}
                 {cycle === 'annual' && (
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Aylık ortalama ${monthlyEq.toLocaleString('en-US')}
                     {monthlyEqTry > 0 && ` (≈ ₺${monthlyEqTry.toLocaleString('tr-TR')})`}
                   </p>
@@ -304,13 +290,13 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
                     maddesi ('TR + EN icerik', prompt run sayilari) hicbir calisan
                     ozellige dayanmiyordu. */}
                 {p.inheritsLabel && (
-                  <p className="mt-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="mt-6 text-sm text-muted-foreground">
                     {p.inheritsLabel}
                   </p>
                 )}
-                <ul className={`space-y-3 text-sm mb-8 flex-1 ${p.inheritsLabel ? 'mt-3' : 'mt-6'}`}>
+                <ul className={`mb-8 flex-1 space-y-2.5 text-sm leading-relaxed ${p.inheritsLabel ? 'mt-3' : 'mt-6'}`}>
                   {(p.features ?? []).map((f: string, i: number) => (
-                    <Feat key={i} highlight={highlighted}>{f}</Feat>
+                    <Feat key={i}>{f}</Feat>
                   ))}
                 </ul>
 
@@ -318,55 +304,44 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
                     vaadi varken Kurumsal'i PayTR'ye yollamak celiskiydi. API
                     tarafinda da PURCHASABLE_PLAN_IDS ile reddediliyor. */}
                 {p.contactSales ? (
-                  <Button asChild className="w-full" variant="outline">
-                    <a href={`mailto:destek@luvihost.com?subject=${encodeURIComponent(`${p.name} planı — kurulum görüşmesi`)}`}>
-                      {t('pricing.cta_contact')}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </a>
-                  </Button>
+                  <a
+                    href={`mailto:destek@luvihost.com?subject=${encodeURIComponent(`${p.name} planı — kurulum görüşmesi`)}`}
+                    className="v-btn-line w-full"
+                  >
+                    {t('pricing.cta_contact')}
+                    <ArrowUpRight className="h-4 w-4" aria-hidden />
+                  </a>
                 ) : (
-                  <Button
+                  <button
+                    type="button"
                     onClick={() => subscribe(p.id)}
                     disabled={loading === p.id || !purchase.open}
                     aria-describedby={purchase.open ? undefined : 'purchase-closed'}
-                    className={`w-full ${
-                      highlighted
-                        ? 'bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md'
-                        : ''
-                    }`}
-                    variant={highlighted ? 'default' : 'outline'}
+                    className={`w-full disabled:cursor-not-allowed disabled:opacity-55 ${highlighted ? 'v-btn' : 'v-btn-line'}`}
                   >
                     {loading === p.id ? t('common.loading') : (
                       <>
                         {t('pricing.cta')}
-                        <ArrowRight className="ml-2 h-4 w-4" />
+                        <ArrowUpRight className="h-4 w-4" aria-hidden />
                       </>
                     )}
-                  </Button>
+                  </button>
                 )}
               </div>
             );
           })}
         </div>
 
-        {/* Video Credit Add-on Section */}
-
-        <div className="mt-12 max-w-2xl mx-auto text-center text-sm text-muted-foreground">
-          <p className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" /> {t('pricing.security_note')}
-          </p>
-        </div>
-      </main>
+        <p className="mt-8 text-sm text-muted-foreground">{t('pricing.security_note')}</p>
+      </VitrinBand>
     </div>
   );
 }
 
-function Feat({ children, highlight, muted }: { children: React.ReactNode; highlight?: boolean; muted?: boolean }) {
+function Feat({ children }: { children: React.ReactNode }) {
   return (
-    <li className={`flex items-start gap-2 ${muted ? 'text-muted-foreground' : 'text-foreground/90'}`}>
-      <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${
-        muted ? 'text-muted-foreground/50' : highlight ? 'text-brand-600' : 'text-emerald-600'
-      }`} />
+    <li className="flex items-start gap-2.5">
+      <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-brand-vivid" aria-hidden />
       <span>{children}</span>
     </li>
   );

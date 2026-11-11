@@ -82,6 +82,22 @@ export async function fetchPlansResponse<T extends { plans: unknown[] }>(locale:
   return requireForCache(Array.isArray(data?.plans) && data.plans.length > 0 ? data : null, `/billing/plans?locale=${locale}`);
 }
 
+/**
+ * Bu kurulumda SU AN olculen asistanlar (saglayici kimlikleri) — /billing/plans yanitindaki
+ * `measuredEngines` (apps/api/src/billing/measured-engines.ts). Ana sayfadaki serit Muse'u
+ * (`meta`) yalniz bu listede varsa gosterir. Ayni adres fetchPlans('tr') ile ortak: Next
+ * istegi tekillestirir, ek cagri gitmez.
+ *
+ * Yanit gelmezse ya da alan yoksa (eski API surumu) BOS dizi: serit 6 sabit asistana duser —
+ * dogrulanamayan bir asistan gosterilmez.
+ */
+export async function fetchMeasuredEngines(): Promise<string[]> {
+  const data = await getJson<{ measuredEngines?: unknown }>('/billing/plans?locale=tr');
+  return Array.isArray(data?.measuredEngines)
+    ? data.measuredEngines.filter((x): x is string => typeof x === 'string')
+    : [];
+}
+
 export async function fetchTestimonials(limit = 6): Promise<PublicTestimonial[]> {
   const data = await getJson<PublicTestimonial[]>(`/testimonials/public?limit=${limit}`);
   return Array.isArray(data) ? data : [];

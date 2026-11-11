@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useT, type Key } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
@@ -33,23 +33,25 @@ export function FaqSection() {
           }),
         }}
       />
-      <div className="space-y-3">
+      {/* Kutular yerine ince cizgiyle ayrilan satirlar */}
+      <div className="border-t border-border">
         {faqs.map((f, i) => {
           const isOpen = open === i;
           return (
-            <div key={i} className="rounded-xl border bg-background overflow-hidden">
+            <div key={i} className="border-b border-border">
               <button
                 type="button"
                 aria-expanded={isOpen}
                 aria-controls={`faq-${i}`}
                 onClick={() => setOpen(isOpen ? null : i)}
-                className="w-full p-5 flex items-center justify-between gap-4 text-left hover:bg-muted/30 transition"
+                className="flex w-full items-center justify-between gap-6 py-5 text-left transition-colors duration-200 hover:text-brand-vivid"
               >
-                <span className="font-semibold">{f.q}</span>
-                <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', isOpen && 'rotate-180')} aria-hidden />
+                <span className="text-base font-medium">{f.q}</span>
+                {/* Arti, acikken 45 derece donup carpi olur */}
+                <Plus className={cn('h-4 w-4 shrink-0 transition-transform duration-200', isOpen && 'rotate-45')} aria-hidden />
               </button>
               {isOpen && (
-                <div id={`faq-${i}`} className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed border-t pt-4">
+                <div id={`faq-${i}`} className="max-w-2xl pb-6 text-sm leading-[1.8] text-muted-foreground">
                   {f.a}
                 </div>
               )}

@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowLeft, BookOpen } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { GLOSSARY } from '@/lib/glossary';
 import { PageUpdatedLine } from '@/components/page-updated-line';
+import { VITRIN_LINK, VitrinBand, VitrinHero, VitrinSection } from '@/components/vitrin/vitrin-page';
 import { pageUpdated } from '@/lib/page-updated';
 
 const SITE_URL = 'https://ranksup.ai';
@@ -33,6 +34,11 @@ const ENTRIES = Object.entries(GLOSSARY).sort(([a], [b]) =>
   a.localeCompare(b, 'tr'),
 );
 
+/**
+ * Koyu vitrin (Kasim 2026): iki tonlu baslik; terimler ince cizgili satirlarda, solda
+ * terim sagda tanim (Hakkimizda / SSS ile ayni 4 + 8 sutun). Yardim rehberleriyle ayni
+ * ust kisim (help-article.tsx). Kapanisi ortak VitrinCta yapar (marketing-shell).
+ */
 export default function GlossaryPage() {
   // DefinedTermSet — AI'ların terim tanımlarını alıntılaması (GEO/AEO) + Google rich result.
   const definedTermSetJsonLd = {
@@ -65,7 +71,7 @@ export default function GlossaryPage() {
   };
 
   return (
-    <main className="relative min-h-screen">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(definedTermSetJsonLd) }}
@@ -75,66 +81,54 @@ export default function GlossaryPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 -left-20 w-96 h-96 bg-brand-500/8 rounded-full blur-3xl" />
-        <div className="absolute top-40 -right-20 w-96 h-96 bg-amber-400/8 rounded-full blur-3xl" />
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <Link
-          href={'/help' as any}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6"
-        >
-          <ArrowLeft className="h-4 w-4" /> Tüm rehberler
-        </Link>
-
-        <div className="flex items-start gap-4 mb-8">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 grid place-items-center shrink-0">
-            <BookOpen className="h-6 w-6 text-brand-600" />
-          </div>
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-brand-600 mb-1">
-              SÖZLÜK
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-2">
-              SEO &amp; GEO Sözlüğü
-            </h1>
-            <p className="glossary-intro text-muted-foreground leading-relaxed">
-              SEO, GEO (Generative Engine Optimization), AEO, schema markup, AI citation,
-              llms.txt ve dijital pazarlama terimlerinin sade Türkçe tanımları. {ENTRIES.length} terim.
-            </p>
-            <PageUpdatedLine path="/help/glossary" className="mt-2" fixedLocale="tr" />
-          </div>
+      <VitrinHero
+        before={(
+          <Link
+            href={'/help' as any}
+            className="inline-flex items-center gap-1.5 py-3 text-xs text-muted-foreground transition-colors duration-200 hover:text-foreground"
+          >
+            <ArrowLeft className="h-3 w-3" aria-hidden /> Tüm rehberler
+          </Link>
+        )}
+        rail="Sözlük"
+        a={<>SEO &amp; GEO</>}
+        b="Sözlüğü"
+        lead={(
+          <p className="glossary-intro">
+            SEO, GEO (Generative Engine Optimization), AEO, schema markup, AI citation,
+            llms.txt ve dijital pazarlama terimlerinin sade Türkçe tanımları. {ENTRIES.length} terim.
+          </p>
+        )}
+      >
+        {/* font-mono sarmalayicida: tarih satiri yardim rehberleriyle ayni sinifi tasir */}
+        <div className="mt-4 font-mono">
+          <PageUpdatedLine path="/help/glossary" className="mt-2" fixedLocale="tr" />
         </div>
+      </VitrinHero>
 
-        <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-5">
+      <VitrinBand>
+        <dl className="border-t border-border">
           {ENTRIES.map(([term, entry]) => (
             <div
               key={term}
               id={slugify(term)}
-              className="scroll-mt-24 rounded-xl border bg-card/40 p-4"
+              className="grid scroll-mt-24 gap-x-10 gap-y-2 border-b border-border py-5 lg:grid-cols-12"
             >
-              <dt className="font-bold text-base mb-1">{term}</dt>
-              <dd className="text-sm text-muted-foreground leading-relaxed">{entry.short}</dd>
+              <dt className="text-base font-medium lg:col-span-4">{term}</dt>
+              <dd className="max-w-2xl text-sm leading-[1.8] text-muted-foreground lg:col-span-8">{entry.short}</dd>
             </div>
           ))}
         </dl>
+      </VitrinBand>
 
-        <div className="mt-12 rounded-2xl border bg-card p-5 flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <p className="font-semibold">Aradığın terim yok mu?</p>
-            <p className="text-xs text-muted-foreground">
-              Bize yaz, sözlüğe ekleyelim.
-            </p>
-          </div>
-          <a
-            href="mailto:destek@luvihost.com"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-semibold"
-          >
-            destek@luvihost.com
-          </a>
-        </div>
-      </div>
-    </main>
+      <VitrinSection title="Aradığın terim yok mu?">
+        <p className="text-xl tracking-[-0.02em] sm:text-2xl">
+          <a href="mailto:destek@luvihost.com" className={VITRIN_LINK}>destek@luvihost.com</a>
+        </p>
+        <p className="mt-5 max-w-2xl text-sm leading-[1.8] text-muted-foreground">
+          Bize yaz, sözlüğe ekleyelim.
+        </p>
+      </VitrinSection>
+    </>
   );
 }

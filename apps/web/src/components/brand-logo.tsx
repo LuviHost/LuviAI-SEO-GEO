@@ -38,9 +38,14 @@ export function BrandWordmark({
   size = 28,
   reversed = false,
   className = '',
-}: { size?: number; reversed?: boolean; className?: string }) {
+  accent: accentOverride,
+}: {
+  size?: number; reversed?: boolean; className?: string;
+  /** Vurgu rengini ezer (koyu vitrin: sayfanin turuncusuyla ayni ton — `hsl(var(--brand-vivid))`) */
+  accent?: string;
+}) {
   const ink = reversed ? '#ffffff' : '#271610';
-  const accent = reversed ? '#F47F46' : '#E04E24';
+  const accent = accentOverride ?? (reversed ? '#F47F46' : '#E04E24');
   const arrow = size * 0.6;
   return (
     <span

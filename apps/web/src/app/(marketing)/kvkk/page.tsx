@@ -4,12 +4,12 @@ export default function KvkkPage() {
   return (
     <main className="relative">
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
+        <div className="hidden" />
       </div>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-brand-600 transition-colors">← Ana sayfa</Link>
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mt-8 mb-3">
-          <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
+        <Link href="/" className="text-sm text-muted-foreground transition-colors duration-200 hover:text-foreground">← Ana sayfa</Link>
+        <h1 className="text-vitrin-2 mt-8 mb-6">
+          <span className="text-foreground">
             KVKK
           </span>{' '}
           Aydınlatma Metni
@@ -42,7 +42,7 @@ export default function KvkkPage() {
             <h2 className="text-xl font-bold mb-2">Veri Sorumlusu</h2>
             <p className="text-muted-foreground">
               LuviHost (RanksUp işleten kuruluş). Veri sorumlu iletişim:{' '}
-              <a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a>
+              <a href="mailto:kvkk@luvihost.com" className="text-brand-vivid underline-offset-2 hover:underline">kvkk@luvihost.com</a>
             </p>
           </section>
 
@@ -117,7 +117,7 @@ export default function KvkkPage() {
             <p className="text-muted-foreground mt-2">
               PayTR dışındaki sağlayıcıların çoğu yurt dışında yerleşiktir; bu sağlayıcılara aktarılan veriler yurt dışına
               aktarılmış olur. Ayrıntılar{' '}
-              <Link href="/privacy" className="text-brand-600">Gizlilik Politikası’nın 3. bölümünde</Link>.
+              <Link href="/privacy" className="text-brand-vivid underline-offset-2 hover:underline">Gizlilik Politikası’nın 3. bölümünde</Link>.
               Hiçbir veri pazarlama amaçlı 3. taraflara satılmaz.
             </p>
             {/* Analitik ve pazarlama araclari bu listede yoktu; layout bunlari yalniz cerez
@@ -130,7 +130,7 @@ export default function KvkkPage() {
               oturum kaydı ve ısı haritası). “Reddet” derseniz ya da seçim yapmazsanız bu araçlar hiç yüklenmez. Bu
               araçların topladığı veriler yurt dışında yerleşik Google ve Microsoft’a aktarılır. Ayrıntılar ve onayı geri
               alma yolu{' '}
-              <Link href="/privacy#cerezler" className="text-brand-600">Gizlilik Politikası’nın çerezler bölümünde</Link>.
+              <Link href="/privacy#cerezler" className="text-brand-vivid underline-offset-2 hover:underline">Gizlilik Politikası’nın çerezler bölümünde</Link>.
             </p>
             {/* Ortaklik paneli de bir alicidir: ortak davetlisinin kisaltilmis etiketini ve davet
                 olgularini gorur (affiliate.service getStats, referral-label.ts). Ifade gizlilik
@@ -142,7 +142,7 @@ export default function KvkkPage() {
               ödeme tarihinizi, ödeme durumunuzu, komisyon süresinin bitiş tarihini ve ödemelerinizden kazandığı komisyon
               tutarını görür; e-posta adresinizi görmez. Sizi davet eden kişi de başka bir ortağın davetlisiyse, o ortak da
               aynı adı, kayıt ve ilk ödeme tarihinizi ve ödeme durumunuzu görür; bu ikinci seviyeden komisyon ödenmez. Ayrıntılar{' '}
-              <Link href="/privacy#cerezler" className="text-brand-600">Gizlilik Politikası’nın çerezler bölümünde</Link>{' '}
+              <Link href="/privacy#cerezler" className="text-brand-vivid underline-offset-2 hover:underline">Gizlilik Politikası’nın çerezler bölümünde</Link>{' '}
               (luvi_ref).
             </p>
           </section>
@@ -152,7 +152,7 @@ export default function KvkkPage() {
             <p className="text-muted-foreground">
               KVKK 11. madde kapsamında: bilgilendirilme, erişim, düzeltme, silme, işleme itiraz, taşınabilirlik
               hakları kullanılabilir. Talepler{' '}
-              <a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a>{' '}
+              <a href="mailto:kvkk@luvihost.com" className="text-brand-vivid underline-offset-2 hover:underline">kvkk@luvihost.com</a>{' '}
               adresine yapılır. Verilerinizin bir kopyasını da bu adrese yazarak isteyebilirsiniz; panelde otomatik dışa
               aktarma bulunmadığından kopya elle hazırlanarak e-postayla iletilir.
             </p>
@@ -190,9 +190,9 @@ export default function KvkkPage() {
               <li>
                 <strong className="text-foreground">Abonelikten çıkma ve haklar:</strong> her e-postadaki “Aboneliği iptal
                 et” bağlantısıyla istediğiniz an çıkabilirsiniz. Silme ve diğer KVKK md. 11 talepleriniz için{' '}
-                <a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a>{' '}
+                <a href="mailto:kvkk@luvihost.com" className="text-brand-vivid underline-offset-2 hover:underline">kvkk@luvihost.com</a>{' '}
                 adresine yazabilirsiniz. Ayrıntılar{' '}
-                <Link href="/privacy#ucretsiz-araclar" className="text-brand-600">Gizlilik Politikası’nın 8. bölümünde</Link>.
+                <Link href="/privacy#ucretsiz-araclar" className="text-brand-vivid underline-offset-2 hover:underline">Gizlilik Politikası’nın 8. bölümünde</Link>.
               </li>
             </ul>
           </section>
@@ -259,7 +259,7 @@ export default function KvkkPage() {
               <li>
                 <strong className="text-foreground">Haklar ve itiraz:</strong> KVKK md. 11 kapsamındaki
                 haklarınızı kullanmak, işlemeye itiraz etmek veya ileti almayı reddetmek için{' '}
-                <a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a>{' '}
+                <a href="mailto:kvkk@luvihost.com" className="text-brand-vivid underline-offset-2 hover:underline">kvkk@luvihost.com</a>{' '}
                 adresine yazabilir, e-postadaki ret bağlantısını kullanabilir ya da LinkedIn mesajına
                 cevap olarak ret bildirebilirsiniz.
               </li>
@@ -277,7 +277,7 @@ export default function KvkkPage() {
               e-posta adresiniz, izni verdiğiniz an ve formun sürümü kaydedilir; izin, size gönderilen onay e-postasındaki
               bağlantıya tıkladığınızda tamamlanır (6563 sayılı Kanun md. 6/1, KVKK md. 5/1 açık rıza). Bu e-postalar
               e-posta gönderim hizmeti sağlayıcısı aracılığıyla iletilir. İzninizi her e-postadaki ret bağlantısıyla ya da{' '}
-              <a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a> adresine yazarak
+              <a href="mailto:kvkk@luvihost.com" className="text-brand-vivid underline-offset-2 hover:underline">kvkk@luvihost.com</a> adresine yazarak
               istediğiniz zaman geri alabilirsiniz; rapor aboneliğinden çıkmanız da bu izni geri çeker.
             </p>
           </section>

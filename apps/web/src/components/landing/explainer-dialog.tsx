@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PlayCircle } from 'lucide-react';
+import { Play, PlayCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { trackCta } from '@/lib/landing-track';
@@ -48,11 +48,19 @@ export function WatchVideoButton({
 }: {
   label: Key;
   source: string;
-  variant?: 'outline' | 'ghost' | 'link';
+  /** 'bare': Button sarmali yok, gorunumu tamamen `className` belirler (koyu vitrin) */
+  variant?: 'outline' | 'ghost' | 'link' | 'bare';
   size?: 'sm' | 'lg';
   className?: string;
 }) {
   const { t } = useT();
+  if (variant === 'bare') {
+    return (
+      <button type="button" className={className} onClick={() => openExplainer(source)}>
+        <Play className="h-3.5 w-3.5" aria-hidden /> {t(label)}
+      </button>
+    );
+  }
   return (
     <Button type="button" variant={variant} size={size} className={cn('gap-2', className)} onClick={() => openExplainer(source)}>
       <PlayCircle className="h-5 w-5" aria-hidden /> {t(label)}
