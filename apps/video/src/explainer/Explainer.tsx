@@ -325,8 +325,8 @@ const ACT2_CAPTIONS: Cap[] = [
 ];
 
 const CHECKS = ["Rakiplerin metadata'sı", 'Arama sıralamaları', 'Eksik anahtar kelimeler', 'AI görünürlük ölçümü'];
-// Olculen 6 asistan = plans.ts fiyat karti maddesi. Meta AI (Llama) yalniz
-// sunucuda GROQ_LLAMA_MODEL tanimliyken olculur; uretimde olculmuyor.
+// Olculen 6 asistan = plans.ts fiyat karti maddesi. Meta AI (Muse) yalniz
+// sunucuda META_MODEL_API_KEY tanimliyken olculur; uretimde olculmuyor.
 const ENGINES = ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek'];
 
 function ActAnalyze({ theme }: { theme: Theme }) {

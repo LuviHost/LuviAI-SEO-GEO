@@ -27,7 +27,7 @@
  *     soruda markanin HICBIR asistanda anilmamasi.
  *   - Asistan paydasi = cevabi en az bir soruda gercekten olculen asistanlar
  *     (toplam.olculenSaglayici). Eskiden payda girdideki tum saglayicilardi
- *     ("3/7 asistan"): anahtari olmayan Meta Llama ve hic cevap vermeyen
+ *     ("3/7 asistan"): anahtari olmayan Meta AI (Muse) ve hic cevap vermeyen
  *     asistan da "anmadi" sayiliyordu. Anahtari olmayan saglayici (NO_KEY)
  *     hic cagrilmadigi icin karnede gorunmez; anahtari olup hata veren
  *     "olculemedi" olarak listelenir.
@@ -364,7 +364,7 @@ export function karneHtml(o: KarneOzet, secenek: KarneHtmlSecenek = {}): string 
   const olcumYok = !o.saglayicilar.some((s) => s.hucreler.some((h) => h.olculdu));
   // Karnede gorunen asistanlar: bu kosuma dahil olanlar. Anahtari olmayan
   // saglayici hic cagrilmadi; "olculemedi" diye listelemek denenip basarisiz
-  // olmus izlenimi verirdi (uretimde Meta Llama: GROQ_LLAMA_MODEL tanimsiz).
+  // olmus izlenimi verirdi (uretimde Meta AI (Muse): META_MODEL_API_KEY tanimsiz).
   const kapsam = o.saglayicilar.filter((s) => s.kapsamda);
 
   // Ozet kartlari

@@ -129,8 +129,8 @@ export class AsoPromptLabService {
   }
 
   /**
-   * Tek sorunun olcumu — yapilandirilmis tum saglayicilara sorar (Llama yalniz
-   * GROQ_LLAMA_MODEL tanimliyken). Yapilandirilmamis saglayici sonucta yer
+   * Tek sorunun olcumu — yapilandirilmis tum saglayicilara sorar (Meta (Muse) yalniz
+   * META_MODEL_API_KEY tanimliyken). Yapilandirilmamis saglayici sonucta yer
    * almaz; hata veren saglayici available:false (ölçülemedi) olarak kalir ve
    * toplamlara girmez.
    * cited = cevapta BIZIM store sayfamiza link var
@@ -181,8 +181,8 @@ export class AsoPromptLabService {
     // ayni katlama+regex'i tekrarlamaya gerek yok.
     const promptIsBranded = containsBrand(prompt.text, app.name);
     for (const r of results) {
-      // Hic yapilandirilmamis saglayici (anahtar yok ya da Meta/Llama icin
-      // GROQ_LLAMA_MODEL tanimsiz) "Kullanılamadı" karti olarak GOSTERILMEZ.
+      // Hic yapilandirilmamis saglayici (anahtar yok, ornegin
+      // META_MODEL_API_KEY tanimsiz Meta) "Kullanılamadı" karti olarak GOSTERILMEZ.
       // Kural tek yerde (audit/citation-providers.ts): runPublicProbes ayni
       // kuralla bu saglayiciyi hic cagirmaz ve 'NO_KEY' doner. Yapilandirilmis
       // ama bu olcumde hata veren saglayici "ölçülemedi" olarak listede kalir.

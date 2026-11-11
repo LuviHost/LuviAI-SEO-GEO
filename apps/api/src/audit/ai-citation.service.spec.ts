@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AI_COST_KV_TTL_DAYS, AiCitationService, LLAMA_UNCONFIGURED_REASON } from './ai-citation.service.js';
+import { AI_COST_KV_TTL_DAYS, AiCitationService, noPoolKeyReason } from './ai-citation.service.js';
 
 /**
  * Olcum servisinin anonim uca da acilan yolu (runPublicProbes) uzerinden:
@@ -11,7 +11,7 @@ import { AI_COST_KV_TTL_DAYS, AiCitationService, LLAMA_UNCONFIGURED_REASON } fro
 
 const PROVIDER_KEYS = [
   'ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'OPENAI_API_KEY', 'PERPLEXITY_API_KEY',
-  'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
+  'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'META_MODEL_API_KEY', 'GROQ_API_KEY', 'GROQ_LLAMA_MODEL', 'META_CITATION_MODEL',
 ];
 let backup: Record<string, string | undefined> = {};
 
@@ -78,40 +78,72 @@ describe('saglayici hatasi musteriye kod olarak gider', () => {
 });
 
 /**
- * Groq eski Llama modelini kaldirdi: GROQ_LLAMA_MODEL tanimsizken Llama
- * anahtar olsa da CAGRILMAZ ve 'NO_KEY' doner (karne-html yalniz bunu kapsam
- * disi sayar; panel karnesi eskiden "Meta AI (Llama) — ölçülemedi" yaziyordu).
+ * Meta AI = Muse (Meta Model API, Kasim 2026). Anahtar (META_MODEL_API_KEY)
+ * yokken CAGRILMAZ ve 'NO_KEY' doner (karne-html yalniz bunu kapsam disi
+ * sayar). Eski Groq degiskenleri artik hicbir sey acmaz. Anahtar varken
+ * Responses API'ye web_search araciyla gider; url_citation alinti sayilir.
  */
-describe('runPublicProbes — yapilandirilmamis Llama', () => {
-  const ORJ_MODEL = process.env.GROQ_LLAMA_MODEL;
-  afterEach(() => {
-    if (ORJ_MODEL === undefined) delete process.env.GROQ_LLAMA_MODEL;
-    else process.env.GROQ_LLAMA_MODEL = ORJ_MODEL;
+describe('runPublicProbes — Meta AI (Muse)', () => {
+  /** Perplexity chat bicimi, Meta Responses bicimi — URL'ye gore */
+  function ikiSaglayici(metaGovde: unknown) {
+    return vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const govde = String(url).includes('api.meta.ai') ? metaGovde : answer('Kobipratik iyi bir secenek.');
+      return new Response(JSON.stringify(govde), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+  }
+  const museCevap = (text: string, url?: string) => ({
+    status: 'completed',
+    output: [
+      { type: 'web_search_call', status: 'completed' },
+      {
+        type: 'message', role: 'assistant',
+        content: [{ type: 'output_text', text, annotations: url ? [{ type: 'url_citation', url, title: 't', start_index: 0, end_index: 5 }] : [] }],
+      },
+    ],
   });
 
-  it("GROQ_API_KEY var, GROQ_LLAMA_MODEL yok: Groq'a istek gitmez, reason tam 'NO_KEY'", async () => {
+  it("anahtar yok (eski Groq degiskenleri olsa da): Meta'ya istek gitmez, reason tam 'NO_KEY'", async () => {
     process.env.GROQ_API_KEY = 'gsk-testkey';
-    delete process.env.GROQ_LLAMA_MODEL;
-    const fetchSahte = respond(200, answer('Kobipratik iyi bir secenek.'));
+    process.env.GROQ_LLAMA_MODEL = 'yeni-llama';
+    const fetchSahte = ikiSaglayici(museCevap('x'));
     const out = await service().runPublicProbes({ brand: 'Kobipratik', host: 'kobipratik.com', queries: ['soru 1'] });
     expect(out.find((r) => r.provider === 'meta')).toEqual({
-      provider: 'meta', label: 'Meta AI (Llama)', available: false, probes: [], reason: 'NO_KEY', cost: 0,
+      provider: 'meta', label: 'Meta AI (Muse)', available: false, probes: [], reason: 'NO_KEY', cost: 0,
     });
     const urls = fetchSahte.mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => u.includes('api.groq.com'))).toBe(false);
-    // Anahtari olan saglayici calismaya devam eder
+    expect(urls.some((u) => u.includes('api.meta.ai') || u.includes('api.groq.com'))).toBe(false);
     expect(out.find((r) => r.provider === 'perplexity')?.available).toBe(true);
   });
 
-  it('GROQ_LLAMA_MODEL tanimliyken Llama verilen modelle olculur', async () => {
-    process.env.GROQ_API_KEY = 'gsk-testkey';
-    process.env.GROQ_LLAMA_MODEL = 'yeni-llama';
-    const fetchSahte = respond(200, answer('Kobipratik iyi bir secenek.'));
-    // MODELS tablosu kurulumda okunur — env servis kurulmadan once verilir
+  it('anahtar varken Responses + web_search ile muse-spark-1.3 sorulur; url_citation alinti sayilir', async () => {
+    process.env.META_MODEL_API_KEY = 'mm-testkey';
+    const fetchSahte = ikiSaglayici(museCevap('Kobipratik iyi bir kaynak.', 'https://kobipratik.com/rehber'));
     const out = await service().runPublicProbes({ brand: 'Kobipratik', host: 'kobipratik.com', queries: ['soru 1'] });
-    expect(out.find((r) => r.provider === 'meta')).toMatchObject({ available: true });
-    const groq = fetchSahte.mock.calls.find((c) => String(c[0]).includes('api.groq.com'));
-    expect(JSON.parse(String((groq?.[1] as RequestInit).body)).model).toBe('yeni-llama');
+    const meta = out.find((r) => r.provider === 'meta')!;
+    expect(meta).toMatchObject({ label: 'Meta AI (Muse)', available: true });
+    expect(meta.probes[0]).toMatchObject({ cited: true, brandMentioned: true });
+    const cagri = fetchSahte.mock.calls.find((c) => String(c[0]) === 'https://api.meta.ai/v1/responses');
+    expect(cagri, 'Meta Responses ucu').toBeDefined();
+    const istek = cagri![1] as RequestInit;
+    expect((istek.headers as Record<string, string>).Authorization).toBe('Bearer mm-testkey');
+    const body = JSON.parse(String(istek.body));
+    expect(body).toMatchObject({ model: 'muse-spark-1.3', input: 'soru 1', tools: [{ type: 'web_search' }] });
+    // Akil yurutme tokenlari cikti tavanindan yer: maliyet tavani bu sayiya gore (citation-providers.ts)
+    expect(body.max_output_tokens).toBe(3000);
+  });
+
+  it('alinti yalniz url_citation: metinde ad gecse de kaynak listesinde site yoksa cited false', async () => {
+    process.env.META_MODEL_API_KEY = 'mm-testkey';
+    ikiSaglayici(museCevap('Kobipratik iyi bir kaynak.', 'https://baska-site.com/'));
+    const out = await service().runPublicProbes({ brand: 'Kobipratik', host: 'kobipratik.com', queries: ['soru 1'] });
+    expect(out.find((r) => r.provider === 'meta')!.probes[0]).toMatchObject({ cited: false, brandMentioned: true });
+  });
+
+  it('bos cevap (akil yurutme tavani doldu) olcum sayilmaz: HATA satiri', async () => {
+    process.env.META_MODEL_API_KEY = 'mm-testkey';
+    ikiSaglayici({ status: 'incomplete', output: [{ type: 'reasoning' }] });
+    const out = await service().runPublicProbes({ brand: 'Kobipratik', host: 'kobipratik.com', queries: ['soru 1'] });
+    expect(out.find((r) => r.provider === 'meta')!.probes[0].excerpt).toBe('HATA: bos cevap (status=incomplete)');
   });
 });
 
@@ -170,23 +202,16 @@ function siteService() {
   return { svc: new AiCitationService(prisma as any, quota as any, {} as any, allowance as any), prisma };
 }
 
-describe('runProvider — model tanimsiz Llama site olcumunde de cagrilmaz', () => {
-  const ORJ_MODEL = process.env.GROQ_LLAMA_MODEL;
-  afterEach(() => {
-    if (ORJ_MODEL === undefined) delete process.env.GROQ_LLAMA_MODEL;
-    else process.env.GROQ_LLAMA_MODEL = ORJ_MODEL;
-  });
-
-  it('anahtar olsa da istek yok; neden durust ("ölçülmüyor"), BYOK onerisi yok', async () => {
+describe('runProvider — anahtarsiz Meta site olcumunde cagrilmaz', () => {
+  it('istek yok; neden diger saglayicilarla ayni ("ölçülmüyor: RanksUp anahtarı"), BYOK onerisi yok', async () => {
     process.env.GROQ_API_KEY = 'gsk-testkey';
-    delete process.env.GROQ_LLAMA_MODEL;
     const fetchSahte = respond(200, answer('Kobipratik iyi.'));
-    const { svc, prisma } = siteService();
+    const { svc } = siteService();
     const [pr] = await svc.runQueries('s1', ['soru 1'], { providers: ['meta'], trigger: 'system' });
-    expect(pr).toMatchObject({ provider: 'meta', available: false, score: null, probes: [], reason: LLAMA_UNCONFIGURED_REASON });
-    expect(pr.reason).not.toMatch(/BYOK|anahtar/i);
+    expect(pr).toMatchObject({ provider: 'meta', available: false, score: null, probes: [], reason: noPoolKeyReason('meta') });
+    expect(pr.reason).toBe('Meta AI (Muse) şu an ölçülmüyor: RanksUp anahtarı tanımlı değil.');
+    expect(pr.reason).not.toMatch(/BYOK|_API_KEY|Groq|Llama/i);
     expect(fetchSahte).not.toHaveBeenCalled();
-    expect(prisma.siteAiProviderKey.findUnique).not.toHaveBeenCalled();
   });
 });
 

@@ -71,7 +71,7 @@ import { sorulariGetir, altsektorAnahtari, sektorDogrula, sektorAltAnahtarlari, 
 import { karneOzeti, karneHtml, markaGecenSorular } from '../prospect/karne-html.js';
 import { MIN_BRAND_LEN } from '../audit/brand-in-query.js';
 // Saf modul (Nest/Prisma yok): servisin KULLANDIGI tablolarin kendisi — dry-run'da da guvenli.
-import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider, llamaModelConfigured } from '../audit/citation-providers.js';
+import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider } from '../audit/citation-providers.js';
 // Yalniz TIP — calisma zamaninda silinir; servis modulu dry-run'da yuklenmez.
 import type { Provider } from '../audit/ai-citation.service.js';
 
@@ -88,13 +88,13 @@ dns.setDefaultResultOrder('ipv4first');
  * gosteriyordu. --only, disarida kalanlarin anahtarini surec ortamindan
  * silerek calisir (servis anahtari cagri aninda okur).
  *
- * Meta Llama yalniz GROQ_LLAMA_MODEL tanimliyken olculur: servisin varsayilan
- * modeli (llama-3.3-70b-versatile) Groq'tan kaldirildi. Tanimsizken servis
- * Llama'yi hic cagirmaz ('NO_KEY'); karneye girmez.
+ * Meta AI (Muse) yalniz META_MODEL_API_KEY tanimliyken olculur; anahtarsiz
+ * servis onu hic cagirmaz ('NO_KEY'), karneye girmez. (Kasim 2026'ya kadar bu
+ * satir Groq uzerinden Llama idi.)
  */
 const SAGLAYICILAR: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
 
-const KULLANIM = `Kurum karnesi — olculen AI asistanlarina (6; Meta Llama yalniz GROQ_LLAMA_MODEL tanimliyken) 10 markasiz soru, tek dosya HTML (+JSON/PDF)
+const KULLANIM = `Kurum karnesi — olculen AI asistanlarina (6; Meta AI (Muse) yalniz META_MODEL_API_KEY tanimliyken 7) 10 markasiz soru, tek dosya HTML (+JSON/PDF)
 
   node dist/cli/prospect-karne.js --brand "Acme Bank" --host acmebank.com.tr --sektor finans [secenekler]
 
@@ -257,7 +257,6 @@ async function main() {
   }
 
   // ── Maliyet tahmini (servis yuklenmeden) ──
-  const llamaAcik = llamaModelConfigured();
   const aktif = SAGLAYICILAR.filter((p) => !isUnconfiguredProvider(p) && (!only || only.includes(p)));
   const tahmin = aktif.reduce((n, p) => n + COST_PER_PROBE_USD[p] * sorular.length, 0);
   const cagri = aktif.length * sorular.length;
@@ -277,9 +276,6 @@ async function main() {
   console.log(`Asistanlar : ${aktif.length} asistan ölçülecek (${aktif.join(', ') || 'YOK'})${only ? ` · --only ${only.join(',')}` : ''}`);
   const anahtarsiz = SAGLAYICILAR.filter((p) => !process.env[POOL_ENV_KEY[p]]);
   if (anahtarsiz.length) console.log(`             anahtar yok: ${anahtarsiz.join(', ')} — çağrılmaz, karneye girmez`);
-  if (!llamaAcik && !!process.env[POOL_ENV_KEY.meta] && (!only || only.includes('meta'))) {
-    console.log('             meta: GROQ_LLAMA_MODEL tanımlı değil — Llama ölçülmez, karneye girmez');
-  }
   console.log(`MALİYET    : ~${cagri} çağrı, tavan ≈ $${tahmin.toFixed(3)} (probe başına tavan; ölçülen ortalama genelde daha düşük)`);
   console.log(`Çıktı      : ${jsonYolu}\n             ${htmlYolu}${args.pdf ? `\n             ${pdfYolu}` : ''}`);
   if (mevcut.length) console.log(`             MEVCUT (${args.force ? '--force: üzerine yazılacak' : 'üzerine yazmak için --force'}): ${mevcut.map((y) => path.basename(y)).join(', ')}`);

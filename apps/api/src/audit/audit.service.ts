@@ -1087,7 +1087,7 @@ export class AuditService {
           aiCitations: {
             id: 'ai_citations',
             // Saglayici listesi adda yok: olculen asistan sayisi ortama gore
-            // degisir (Llama yalniz GROQ_LLAMA_MODEL ile); liste providers'ta.
+            // degisir (Meta (Muse) yalniz META_MODEL_API_KEY ile); liste providers'ta.
             name: 'AI arama görünürlüğü',
             // null = olculmedi, nedeni skipped'ta. Eskiden `?? 0` yaziliyordu:
             // panel 0/100, karsilastirma sahte dusus gosteriyordu.

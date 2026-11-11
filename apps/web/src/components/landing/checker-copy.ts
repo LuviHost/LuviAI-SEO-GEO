@@ -3,7 +3,7 @@
  * ve sonuc katmani (checker-overlay) ayni sozlugu paylasir. Emoji yok — ikonlar lucide.
  *
  * Motor sayisi plans.ts ile ayni: 6 asistan (ChatGPT, Claude, Gemini, Perplexity, Grok,
- * DeepSeek). Meta Llama yalniz GROQ_LLAMA_MODEL tanimliyken olculur (ai-citation.service.ts);
+ * DeepSeek). Meta AI (Muse) yalniz META_MODEL_API_KEY tanimliyken olculur (ai-citation.service.ts);
  * kosulsuz yazilmaz. Sonuc katmani saglayicilari API cevabindan listeler.
  */
 export const CHECKER_COPY = {

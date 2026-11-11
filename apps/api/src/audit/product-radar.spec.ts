@@ -38,7 +38,7 @@ describe('ProductRadarService.isBrandProduct', () => {
 describe('Product Radar — cevabin tamami, kayitta yalniz urun listesi', () => {
   const PROVIDER_KEYS = [
     'ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'OPENAI_API_KEY', 'PERPLEXITY_API_KEY',
-    'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
+    'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'META_MODEL_API_KEY',
   ];
   let backup: Record<string, string | undefined> = {};
   beforeEach(() => {
@@ -148,7 +148,7 @@ describe('Product Radar — cevabin tamami, kayitta yalniz urun listesi', () => 
 describe('Product Radar — haftalik cron haftalik olcum hakkini tuketmez', () => {
   const PROVIDER_KEYS = [
     'ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'OPENAI_API_KEY', 'PERPLEXITY_API_KEY',
-    'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
+    'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'META_MODEL_API_KEY',
   ];
   let backup: Record<string, string | undefined> = {};
   beforeEach(() => {

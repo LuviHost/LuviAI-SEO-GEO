@@ -13,16 +13,17 @@ import { POOL_ENV_KEY } from '../audit/citation-providers.js';
 export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek';
 
 /**
- * Kendi anahtarin (BYOK) baglanabilen saglayicilar. Meta AI (Llama) BILEREK
- * yok: Llama olcumu Groq uzerinden yapilir ve yalniz sunucuda GROQ_LLAMA_MODEL
- * tanimliyken calisir (audit/citation-providers.ts llamaModelConfigured) —
- * musterinin Groq anahtari tek basina olcum yaptiramazdi.
+ * Kendi anahtarin (BYOK) baglanabilen saglayicilar. Meta AI BILEREK yok:
+ * Kasim 2026'ya kadar Groq uzerinden Llama idi (musterinin Groq anahtari
+ * model olmadan ise yaramazdi); simdi Muse (Meta Model API) ve olcum yalniz
+ * RanksUp'in anahtariyla (META_MODEL_API_KEY) yapilir. Meta icin anahtar
+ * dogrulama (testKey) ve panel karti yazilmadan BYOK acilmaz.
  */
 const VALID_PROVIDERS: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
 
 /** upsertKey('meta') cevabi — panel Meta'yi sunmuyor, API'yi dogrudan cagirana durust gerekce */
-export const LLAMA_BYOK_UNSUPPORTED =
-  'Meta AI (Llama) için kendi anahtarını bağlayamazsın: Llama ölçümü RanksUp tarafında Groq üzerinden yapılır ve yalnız sunucuda bir Llama modeli tanımlıyken (GROQ_LLAMA_MODEL) çalışır; Groq anahtarı tek başına işe yaramaz.';
+export const META_BYOK_UNSUPPORTED =
+  'Meta AI (Muse) için kendi anahtarını bağlayamazsın: Muse ölçümü yalnız RanksUp’ın kendi Meta anahtarıyla yapılır.';
 
 const PROVIDER_LABELS: Record<Provider, string> = {
   anthropic:  'Anthropic Claude',
@@ -97,7 +98,7 @@ export class SiteAiKeysService {
 
   /** Yeni BYOK ekle/guncelle. Once test eder, basariliysa kaydeder. */
   async upsertKey(siteId: string, provider: string, rawKey: string) {
-    if (provider === 'meta') throw new BadRequestException(LLAMA_BYOK_UNSUPPORTED);
+    if (provider === 'meta') throw new BadRequestException(META_BYOK_UNSUPPORTED);
     if (!VALID_PROVIDERS.includes(provider as Provider)) {
       throw new BadRequestException(`Gecersiz saglayici: ${provider}`);
     }

@@ -468,7 +468,7 @@ export const NOTE_MAX_CHARS = 300;
 /**
  * Mesajlarda adi gecen OLCULEN asistanlar — tek kaynak plans.ts fiyat karti
  * maddesi ('ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek').
- * NEDEN: sablon "7 AI asistani" diyordu; Meta Llama yalniz GROQ_LLAMA_MODEL
+ * NEDEN: sablon "7 AI asistani" diyordu; Meta AI (Muse) yalniz META_MODEL_API_KEY
  * tanimliyken olculur (ai-citation.service.ts), uretimde olculmuyor. Sayi
  * elle yazildiginda plan degisince mesaj yine sessizce bayatlardi.
  */
@@ -628,7 +628,7 @@ export function renderMessage(p: ProspectLike): string {
     `${hitap(p)}, bağlantı için teşekkürler.\n\n` +
     `Müşteriler artık "${sektorSorusu(p.sektor)}" sorusunu Google'a değil ChatGPT'ye soruyor ve cevapta 3 isim geçiyor. ` +
     // Asistan sayisi ve adlari plans.ts ile ayni (ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek):
-    // Llama yalniz GROQ_LLAMA_MODEL tanimliyken olculur, uretimde olculmuyor — "7" yanlis vaatti.
+    // Meta (Muse) yalniz META_MODEL_API_KEY tanimliyken olculur, uretimde olculmuyor — "7" yanlis vaatti.
     `RanksUp olarak ${MEASURED_ASSISTANT_COUNT} AI asistanında (${MEASURED_ASSISTANTS_TEXT}), marka adı geçmeyen gerçek sorularla ${genitiveOrSafe(firma)} nerede göründüğünü ölçüp ` +
     `yalnız size iletebilirim — kurum bazlı sonuç kamuya açılmaz.\n\n` +
     `İlginizi çekerse çıkarıp göndereyim; denk gelmezse de sorun değil.`

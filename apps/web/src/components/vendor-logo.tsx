@@ -77,7 +77,7 @@ export const VENDOR_LABEL: Record<VendorName, string> = {
   'grok':        'xAI Grok',
   'gemini':      'Gemini',
   'mistral':     'Mistral AI',
-  'meta-ai':     'Meta AI (Llama)',
+  'meta-ai':     'Meta AI (Muse)',
   'google':      'Google',
   'bing':        'Bing',
   'nextjs':      'Next.js',

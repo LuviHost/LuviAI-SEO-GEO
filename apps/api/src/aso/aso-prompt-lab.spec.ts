@@ -42,30 +42,16 @@ const RESULTS = [
 ];
 
 describe('AsoPromptLabService.run — sağlayıcı listesi', () => {
-  const saved = process.env.GROQ_LLAMA_MODEL;
-  afterEach(() => {
-    if (saved === undefined) delete process.env.GROQ_LLAMA_MODEL;
-    else process.env.GROQ_LLAMA_MODEL = saved;
-  });
-
-  it('anahtarı olmayan ve modeli tanımsız Llama listelenmez; hata veren sağlayıcı "ölçülemedi" kalır', async () => {
-    delete process.env.GROQ_LLAMA_MODEL;
+  it('anahtarı olmayan (NO_KEY) listelenmez; hata veren sağlayıcı (Meta dahil) "ölçülemedi" kalır', async () => {
     const { svc, createMany } = make(RESULTS);
     const r = await svc.run('s1', 'a1', 'p1');
-    expect(r.providers.map((p) => p.provider)).toEqual(['anthropic', 'gemini', 'openai']);
+    // Meta (Kasim 2026'dan beri Muse) HATA verdiyse cagrilmistir, yani anahtari vardi
+    expect(r.providers.map((p) => p.provider)).toEqual(['anthropic', 'gemini', 'openai', 'meta']);
     expect(r.providers.find((p) => p.provider === 'gemini')).toMatchObject({ available: false, reason: 'HATA: rate_limited' });
     expect(r.providers.find((p) => p.provider === 'openai')).toMatchObject({ available: false, reason: 'HATA: upstream_unavailable' });
-    expect(r.summary).toEqual({ mentioned: 1, storeLinked: 0, total: 1, unmeasured: 2 });
+    expect(r.summary).toEqual({ mentioned: 1, storeLinked: 0, total: 1, unmeasured: 3 });
     // Yalnız ölçülen sağlayıcı kayda geçer
     expect(createMany.mock.calls[0][0].data.map((row: any) => row.provider)).toEqual(['anthropic']);
-  });
-
-  it('GROQ_LLAMA_MODEL tanımlıyken hata veren Llama yapılandırılmış sayılır ve "ölçülemedi" görünür', async () => {
-    process.env.GROQ_LLAMA_MODEL = 'yeni-llama-modeli';
-    const { svc } = make(RESULTS);
-    const r = await svc.run('s1', 'a1', 'p1');
-    expect(r.providers.map((p) => p.provider)).toEqual(['anthropic', 'gemini', 'openai', 'meta']);
-    expect(r.summary).toMatchObject({ total: 1, unmeasured: 3 });
   });
 });
 
@@ -86,10 +72,10 @@ describe('AsoPromptLabService.run — gecmis kaydi', () => {
 });
 
 describe('isUnconfiguredProvider (sonuç satırı — audit/citation-providers.ts ile ortak kural)', () => {
-  it('yalnız anahtarsız ya da model tanımsız Llama yapılandırılmamış sayılır', () => {
+  it('yalnız anahtarsız (NO_KEY) sağlayıcı yapılandırılmamış sayılır', () => {
     expect(isUnconfiguredProvider({ provider: 'perplexity', available: false, reason: 'NO_KEY' }, {})).toBe(true);
-    expect(isUnconfiguredProvider({ provider: 'meta', available: false, reason: 'HATA: model_unavailable' }, {})).toBe(true);
-    expect(isUnconfiguredProvider({ provider: 'meta', available: false, reason: 'HATA: rate_limited' }, { GROQ_LLAMA_MODEL: 'x' })).toBe(false);
+    expect(isUnconfiguredProvider({ provider: 'meta', available: false, reason: 'NO_KEY' }, {})).toBe(true);
+    expect(isUnconfiguredProvider({ provider: 'meta', available: false, reason: 'HATA: model_unavailable' }, {})).toBe(false);
     expect(isUnconfiguredProvider({ provider: 'openai', available: false, reason: 'HATA: timeout' }, {})).toBe(false);
     // Ölçüldüyse (model varsayılanı yine de çalıştıysa) gösterilir
     expect(isUnconfiguredProvider({ provider: 'meta', available: true }, {})).toBe(false);

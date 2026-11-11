@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   AiCitationService,
-  LLAMA_NO_MODEL_REASON,
-  LLAMA_NO_POOL_KEY_REASON,
-  LLAMA_UNCONFIGURED_REASON,
   noPoolKeyReason,
   type Provider,
 } from './ai-citation.service.js';
@@ -15,9 +12,9 @@ import { QuotaService } from '../billing/quota.service.js';
  *
  * NEDEN VAR: neden "OPENAI_API_KEY env yok" gibi teknik bir env adi ya da
  * "kendi API anahtarini bagla (BYOK)" diyordu. BYOK yalniz Kurumsal planda ve
- * Meta AI (Llama) icin hic yok; 4. adima bugun yalniz Meta ulasiyor (Llama
- * modeli tanimli, Groq anahtari yok). Durust neden: RanksUp'in anahtari
- * tanimli degil, saglayici su an olculmuyor.
+ * Meta AI icin hic yok. Durust neden: RanksUp'in anahtari tanimli degil,
+ * saglayici su an olculmuyor. Meta (Kasim 2026'dan beri Muse) plan
+ * listesinde olmasa da ayni nedeni alir; eski Llama/Groq nedenleri kalkti.
  *
  * Gercek QuotaService.getPlanPool kullanilir (her planda 6 asistan, Meta yok);
  * hicbir saglayicinin anahtari yok, fetch cagrilmamali. 'system' tetikleyici:
@@ -26,7 +23,7 @@ import { QuotaService } from '../billing/quota.service.js';
 
 const ENV_KEYS = [
   'ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'OPENAI_API_KEY', 'PERPLEXITY_API_KEY',
-  'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY', 'GROQ_LLAMA_MODEL',
+  'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'META_MODEL_API_KEY', 'GROQ_API_KEY', 'GROQ_LLAMA_MODEL',
 ];
 const ALTI: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
 let backup: Record<string, string | undefined> = {};
@@ -67,7 +64,7 @@ function kur(plan = 'PRO') {
 /** Musteriye gidecek metinde teknik env adi ya da BYOK onerisi olmamali */
 function teknikDegil(reason: string | undefined) {
   expect(reason).toBeTruthy();
-  expect(reason).not.toMatch(/_API_KEY|GROQ_LLAMA_MODEL|\benv\b|BYOK|kendi API anahtar/i);
+  expect(reason).not.toMatch(/_API_KEY|GROQ|\benv\b|BYOK|kendi API anahtar/i);
 }
 
 describe('resolveKey nedenleri — durust ve teknik ad icermiyor', () => {
@@ -85,30 +82,23 @@ describe('resolveKey nedenleri — durust ve teknik ad icermiyor', () => {
     expect(fetchSahte).not.toHaveBeenCalled();
   });
 
-  it('Meta: Llama modeli tanimli, Groq anahtari yok → Groq anahtari nedeni (BYOK onerisi yok)', async () => {
+  it('Meta (Muse) anahtari yok: diger saglayicilarla ayni durust neden, istek yok', async () => {
+    // Eski Groq degiskenleri artik Meta'yi acmaz
+    process.env.GROQ_API_KEY = 'gsk-testkey';
     process.env.GROQ_LLAMA_MODEL = 'llama-ornek-model';
     const { svc, fetchSahte } = kur();
     const [pr] = await svc.runQueries('s1', ['soru 1'], { providers: ['meta'], trigger: 'system' });
-    expect(pr.reason).toBe(LLAMA_NO_POOL_KEY_REASON);
-    expect(pr.reason).toBe('Meta AI (Llama) şu an ölçülmüyor: RanksUp’ın Groq anahtarı tanımlı değil.');
+    expect(pr.reason).toBe(noPoolKeyReason('meta'));
+    expect(pr.reason).toBe('Meta AI (Muse) şu an ölçülmüyor: RanksUp anahtarı tanımlı değil.');
     teknikDegil(pr.reason);
     expect(fetchSahte).not.toHaveBeenCalled();
   });
 
-  it('Meta: model tanimsizken olcum yolu resolveKey\'e gelmeden ayni durust nedeni verir', async () => {
-    process.env.GROQ_API_KEY = 'gsk-testkey';
-    const { svc, fetchSahte } = kur();
-    const [pr] = await svc.runQueries('s1', ['soru 1'], { providers: ['meta'], trigger: 'system' });
-    expect(pr.reason).toBe(LLAMA_UNCONFIGURED_REASON);
-    expect(fetchSahte).not.toHaveBeenCalled();
-  });
-
-  it('resolveKey baska bir yoldan model tanimsiz Meta icin cagrilirsa model nedenini soyler', async () => {
+  it('resolveKey: plan listesinde olmayan Meta da anahtar varsa havuzdan olculur', async () => {
+    process.env.META_MODEL_API_KEY = 'mm-test';
     const { svc } = kur();
     const r = await (svc as any).resolveKey('s1', 'meta', 'PRO');
-    expect(r).toEqual({ key: null, source: 'none', reason: LLAMA_NO_MODEL_REASON });
-    expect(r.reason).toBe('Meta AI (Llama) şu an ölçülmüyor: RanksUp’ın Groq modeli tanımlı değil.');
-    teknikDegil(r.reason);
+    expect(r).toEqual({ key: 'mm-test', source: 'pool' });
   });
 
   it('plan listesi bos (bilinmeyen plan) olsa da BYOK onerisi yok, ayni durust neden', async () => {

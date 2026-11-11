@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { POOL_ENV_KEY } from '../audit/citation-providers.js';
 import { PLAN_POOL_PROVIDERS, QuotaService } from '../billing/quota.service.js';
-import { SiteAiKeysService, LLAMA_BYOK_UNSUPPORTED } from './site-ai-keys.service.js';
+import { SiteAiKeysService, META_BYOK_UNSUPPORTED } from './site-ai-keys.service.js';
 
 /**
  * BYOK paneli rozeti olcum motoruyla ayni seyi soylemeli.
@@ -89,7 +89,7 @@ describe('SiteAiKeysService.getStatus — rozet olcum motoruyla ayni kural', () 
     expect(st.providers.every((p) => p.inPool)).toBe(true);
   });
 
-  it('BYOK paneli Meta AI (Llama) sunmaz', async () => {
+  it('BYOK paneli Meta AI (Muse) sunmaz', async () => {
     const { svc } = setup('ENTERPRISE');
     const st = await svc.getStatus('s1');
     expect(st.providers.map((p) => p.provider)).not.toContain('meta');
@@ -115,12 +115,12 @@ describe('SiteAiKeysService.getStatus — rozet olcum motoruyla ayni kural', () 
 });
 
 describe('SiteAiKeysService.upsertKey — Meta ve govde tipi', () => {
-  it("'meta' icin durust gerekce: Groq anahtari GROQ_LLAMA_MODEL olmadan ise yaramaz", async () => {
+  it("'meta' icin durust gerekce: Muse olcumu yalniz RanksUp anahtariyla", async () => {
     const { svc, prisma, quota } = setup('ENTERPRISE');
-    const err = await svc.upsertKey('s1', 'meta', 'gsk_0123456789abcdef').catch((e) => e);
+    const err = await svc.upsertKey('s1', 'meta', 'mm_0123456789abcdef').catch((e) => e);
     expect(err).toBeInstanceOf(BadRequestException);
-    expect(err.message).toBe(LLAMA_BYOK_UNSUPPORTED);
-    expect(err.message).toContain('GROQ_LLAMA_MODEL');
+    expect(err.message).toBe(META_BYOK_UNSUPPORTED);
+    expect(err.message).not.toMatch(/_API_KEY|Groq|Llama/);
     expect(prisma.site.findUnique).not.toHaveBeenCalled();
     expect(quota.enforcePlanFeature).not.toHaveBeenCalled();
   });

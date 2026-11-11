@@ -22,13 +22,15 @@ export const POOL_ENV_KEY: Readonly<Record<Provider, string>> = {
   perplexity: 'PERPLEXITY_API_KEY',
   xai:        'XAI_API_KEY',
   deepseek:   'DEEPSEEK_API_KEY',
-  meta:       'GROQ_API_KEY',          // Llama via Groq
+  // Meta AI = Muse (Meta Model API, dev.meta.ai). Kasim 2026'ya kadar Groq
+  // uzerinden Llama idi; Groq Llama sohbet modellerini 16.08.2026'da kapatti.
+  // Ad META_APP_* (reklam entegrasyonu) ile karismasin diye "MODEL_API".
+  meta:       'META_MODEL_API_KEY',
 };
 
 /**
- * Probe basina maliyet TAVANI (USD). Aramasiz sohbet uclarinda (Grok,
- * DeepSeek, Llama) bir probe yaklasik ~150 girdi + ~400 cikti tokeni;
- * web aramali saglayicilarin (Claude, Gemini, ChatGPT) gerekcesi satirlarinda.
+ * Probe basina maliyet TAVANI (USD). Perplexity disinda hepsi web aramali
+ * (Kasim 2026); her saglayicinin gerekcesi kendi satirinda.
  *
  * DIKKAT — bu sabitler MATEMATIKSEL UST SINIR olmak zorunda, ortalama degil:
  * butce guard'i (ai-citation.service.ts isOverBudget) harcamayi cagri ONCESI
@@ -57,22 +59,14 @@ export const COST_PER_PROBE_USD: Readonly<Record<Provider, number>> = {
   // deepseek-v4-pro (Anthropic uyumlu uc) zirve $1.32/1M girdi + $3.96/1M cikti;
   // ~25K girdi + 3000 cikti + 2 arama x $0.00075.
   deepseek:   0.05,
-  meta:       0.0002,        // Groq Llama 3.3 70B ~$0.59/1M in + $0.79/1M out → ~$0.0002/probe
+  // Kasim 2026: Meta Muse (muse-spark-1.3) Responses API + web_search.
+  // Fiyat (dev.meta.ai/docs/pricing-rate-limits, 11.11.2026): $1.25/1M girdi,
+  // $4.25/1M cikti, arama $2.50/1K sorgu. Arama icerigi ~25K girdi ($0.031) +
+  // max_output_tokens 3000 ($0.013; akil yurutme tokenlari ciktiya dahil) +
+  // birkac arama (~$0.01) → ~$0.055; arama sayisi dokumanda sinirlanamiyor
+  // (max_uses yalniz Messages API'de ve orada da 400), pay birakildi.
+  meta:       0.08,
 };
-
-/**
- * Meta AI (Llama) olculebilir mi: Groq eski varsayilan modeli
- * (llama-3.3-70b-versatile) kaldirdi; GROQ_LLAMA_MODEL ile yeni model
- * verilmeden Llama cagrilmaz. Bos ya da yalniz bosluk = tanimsiz.
- *
- * Kaynak (18.10.2026'da dogrulandi): https://console.groq.com/docs/deprecations
- * — llama-3.3-70b-versatile ve llama-3.1-8b-instant 16.08.2026'da kapatildi
- * (kurumsal taahhutlu sozlesmeler haric), Llama 4 Scout/Maverick daha once;
- * onerilen yerine gecenler Llama degil (openai/gpt-oss-*, qwen).
- */
-export function llamaModelConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return !!env.GROQ_LLAMA_MODEL?.trim();
-}
 
 /** Bir saglayicinin olcum sonucu (runPublicProbes satiri) — yalniz kuralin baktigi alanlar */
 export interface ProviderRunState {
@@ -82,8 +76,9 @@ export interface ProviderRunState {
 }
 
 /**
- * Saglayici bu kurulumda HIC yapilandirilmamis mi: havuz anahtari yok ya da
- * Meta/Llama icin GROQ_LLAMA_MODEL tanimsiz.
+ * Saglayici bu kurulumda HIC yapilandirilmamis mi: havuz anahtari yok.
+ * (Kasim 2026'ya kadar Meta/Llama icin ayrica GROQ_LLAMA_MODEL aranirdi;
+ * Meta artik Muse — tek kosul META_MODEL_API_KEY.)
  *
  * Boyle saglayici cagrilmaz (runPublicProbes 'NO_KEY' doner) ve sonuc
  * listelerinde "Kullanılamadı" karti olarak GOSTERILMEZ: musteri olcmedigimiz
@@ -93,10 +88,10 @@ export interface ProviderRunState {
  *
  * Iki kullanim, tek kural:
  *  - olcum ONCESI saglayici adiyla (runPublicProbes, karne CLI'i): anahtar
- *    yoksa ya da model tanimsiz Llama ise true;
- *  - olcum SONRASI sonuc satiriyla (App Prompt Lab): 'NO_KEY' ya da model
- *    tanimsiz Llama ise true. available:false + 'HATA: ...' satiri saglayicinin
- *    CAGRILDIGINI (anahtari oldugunu) gosterir — false, listede kalir.
+ *    yoksa true;
+ *  - olcum SONRASI sonuc satiriyla (App Prompt Lab): 'NO_KEY' ise true.
+ *    available:false + 'HATA: ...' satiri saglayicinin CAGRILDIGINI
+ *    (anahtari oldugunu) gosterir — false, listede kalir.
  *
  * Bilinmeyen saglayici adi (Provider disi) olcum oncesi yapilandirilmamis sayilir.
  */
@@ -105,7 +100,6 @@ export function isUnconfiguredProvider(input: string | ProviderRunState, env: No
   // Olculdu: yapilandirilmis demektir
   if (r.available === true) return false;
   if (r.reason === 'NO_KEY') return true;
-  if (r.provider === 'meta' && !llamaModelConfigured(env)) return true;
   // Sonuc yok (olcum oncesi): havuz anahtari var mi
   if (r.available === undefined) {
     const keyVar = (POOL_ENV_KEY as Record<string, string | undefined>)[r.provider];

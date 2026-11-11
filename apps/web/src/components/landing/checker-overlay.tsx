@@ -30,7 +30,7 @@ const AiScanPlayer = dynamic(() => import('./ai-scan-player'), {
   loading: () => <div className="aspect-video w-full rounded-xl bg-muted/40 animate-pulse" />,
 });
 
-// Olculen 6 asistan (checker-copy.ts notu): Meta Llama yalniz GROQ_LLAMA_MODEL
+// Olculen 6 asistan (checker-copy.ts notu): Meta AI (Muse) yalniz META_MODEL_API_KEY
 // tanimliyken olculur; yukleme ekrani kosulsuz cizmez. Sonuc ekrani saglayicilari
 // API cevabindan listeler.
 const LOADING_ENGINES: VendorName[] = ['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'];

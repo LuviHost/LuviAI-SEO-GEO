@@ -36,8 +36,8 @@ export function EngineLogo({ provider, size = 16, className }: { provider: strin
 }
 
 /**
- * Olculen 6 asistan — plans.ts ve landing'deki yorungeyle ayni sira. Meta Llama burada
- * YOK: yalniz GROQ_LLAMA_MODEL tanimliyken olculur (ai-citation.service.ts); "olculen"
+ * Olculen 6 asistan — plans.ts ve landing'deki yorungeyle ayni sira. Meta AI (Muse) burada
+ * YOK: yalniz META_MODEL_API_KEY tanimliyken olculur (ai-citation.service.ts); "olculen"
  * seridinde kosulsuz gostermek yanlis vaat olurdu. API Llama sonucu donerse sonuc
  * listeleri onu kendi verisinden ciz.
  */

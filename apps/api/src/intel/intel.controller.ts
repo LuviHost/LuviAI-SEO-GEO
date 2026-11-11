@@ -522,7 +522,7 @@ export class IntelController {
 
   /**
    * Bu aday icin UCRETSIZ KARNE uret ve paylasilabilir link dondur.
-   * Uzun surer (6 asistan — Llama yalniz GROQ_LLAMA_MODEL tanimliyken eklenir —
+   * Uzun surer (6 asistan — Meta (Muse) yalniz META_MODEL_API_KEY tanimliyken eklenir —
    * x en fazla 10 soru, ~60-90 sn; KarneService.uret) → arka planda calisir, sonuc bildirimle gelir.
    */
   @Post('linkedin/prospects/:id/karne')
