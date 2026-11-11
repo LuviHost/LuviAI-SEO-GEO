@@ -240,7 +240,7 @@ export function UpgradePlanModal({
                 >
                   {/* Yillik = 10 ay fiyati (plans.ts annual_usd = monthly_usd * 10), indirim ~%17:
                       eski "-20%" yanlisti; fiyat sayfasi ve Kullanim Sartlari ile ayni ifade */}
-                  Yıllık <span className="text-[10px] bg-green-500/20 text-green-600 rounded-full px-1.5 py-0.5">2 ay bedava</span>
+                  Yıllık <span className="text-[10px] bg-green-500/20 text-green-600 rounded-full px-1.5 py-0.5">%17 indirim</span>
                 </button>
               </div>
             </div>

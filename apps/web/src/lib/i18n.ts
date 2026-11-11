@@ -53,7 +53,6 @@ const dictionary = {
     // (features_tr / features_en). API locale'e gore secip yolluyor.
     // Emojiler kaldirildi (koyu vitrin, 11.11.2026); kelimeler ayni
     'pricing.security_note': 'PayTR güvenli ödeme · İstediğin zaman iptal · KDV dahil',
-    'pricing.grandfathering_banner': 'Eski fiyatınızla devam ediyorsunuz — {date} tarihine kadar geçerli.',
     'pricing.annual_save_badge': '-%17',
     'pricing.contact_sales': 'Bizimle iletişime geç',
     'pricing.free_start': 'Ücretsiz başla',
@@ -74,7 +73,7 @@ const dictionary = {
 
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Şeffaf fiyat',
-    'land.pricing.title': 'Bugün başla, kart sonra.',
+    'land.pricing.billing_period': 'Faturalama dönemi',
     'land.pricing.subtitle': '14 gün ücretsiz · İstediğin zaman iptal · Gizli ücret yok',
     'land.pricing.most_popular': 'Önerilen',
     'land.pricing.per_month': '/ay',
@@ -178,7 +177,6 @@ const dictionary = {
 
     // ─── Landing — Pricing extras ───────────────────────────────
     'land.pric.eyebrow': 'Şeffaf Fiyat',
-    'land.pric.title': 'Bugün başla, kart sonra.',
     'land.pric.subtitle': '14 gün ücretsiz · İstediğin zaman iptal · Gizli ücret yok',
     'land.pric.monthly': 'Aylık',
     'land.pric.annual': 'Yıllık',
@@ -325,8 +323,8 @@ const dictionary = {
     'land3.cmp.a': 'Popüler SEO araçlarıyla',
     'land3.cmp.b': 'yan yana.',
     'land3.pricing.meta': 'Tüm plan ayrıntıları',
-    'land3.pricing.a': 'Bugün başla,',
-    'land3.pricing.b': 'kart sonra.',
+    'land3.pricing.a': 'Önce dene,',
+    'land3.pricing.b': 'sonra karar ver.',
     'land3.faq.rail': 'Sık sorulan sorular',
     'land3.faq.meta': 'Tüm sorular',
     'land3.faq.a': 'Akla gelen',
@@ -394,7 +392,6 @@ const dictionary = {
     // Card bullets are NOT kept here — single source is apps/api/src/billing/plans.ts
     // (features_tr / features_en). The API picks by locale.
     'pricing.security_note': 'PayTR secure payment · Cancel anytime · VAT included',
-    'pricing.grandfathering_banner': 'You are continuing on your old price — valid until {date}.',
     'pricing.annual_save_badge': '-17%',
     'pricing.contact_sales': 'Contact sales',
     'pricing.free_start': 'Start free',
@@ -411,7 +408,7 @@ const dictionary = {
 
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Transparent pricing',
-    'land.pricing.title': 'Start today, pay later.',
+    'land.pricing.billing_period': 'Billing period',
     'land.pricing.subtitle': '14 days free · Cancel anytime · No hidden fees',
     'land.pricing.most_popular': 'Recommended',
     'land.pricing.per_month': '/mo',
@@ -486,7 +483,6 @@ const dictionary = {
 
     // ─── Landing — Pricing extras ───────────────────────────────
     'land.pric.eyebrow': 'Transparent Pricing',
-    'land.pric.title': 'Start today, pay later.',
     'land.pric.subtitle': '14 days free · Cancel anytime · No hidden fees',
     'land.pric.monthly': 'Monthly',
     'land.pric.annual': 'Annual',
@@ -622,8 +618,8 @@ const dictionary = {
     'land3.cmp.a': 'Side by side with',
     'land3.cmp.b': 'popular SEO tools.',
     'land3.pricing.meta': 'All plan details',
-    'land3.pricing.a': 'Start today,',
-    'land3.pricing.b': 'pay later.',
+    'land3.pricing.a': 'Try it first,',
+    'land3.pricing.b': 'decide later.',
     'land3.faq.rail': 'Frequently asked questions',
     'land3.faq.meta': 'All questions',
     'land3.faq.a': 'First questions',

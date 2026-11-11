@@ -97,6 +97,8 @@ describe('kaynak: yükseltme penceresi (upgrade-plan-modal.tsx)', () => {
 
   it('yıllık indirim fiyat sayfasıyla aynı (yıllık = 10 ay fiyatı): "-20%" yok', () => {
     expect(modal).not.toMatch(/-20%|%20/);
-    expect(modal).toContain('2 ay bedava');
+    // Sahip karari 12.11.2026: "2 ay bedava" yerine "%17 indirim"
+    expect(modal).not.toContain('2 ay bedava');
+    expect(modal).toContain('%17 indirim');
   });
 });

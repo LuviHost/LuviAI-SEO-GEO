@@ -12,9 +12,7 @@ import { PURCHASE_CONTACT_EMAIL, purchaseState } from '@/lib/checkout-availabili
 import { VitrinBand, VitrinHero, VITRIN_LINK } from '@/components/vitrin/vitrin-page';
 import { PlanEngineRow } from '@/components/plan-engine-row';
 import { PlanFeatureList } from '@/components/plan-feature-list';
-import { ArrowUpRight, Star, AlertCircle } from 'lucide-react';
-
-type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
+import { ArrowUpRight, AlertCircle } from 'lucide-react';
 
 /** /billing/plans yaniti — sunucuda (page.tsx) ve istemcide ayni sekil */
 export type PricingData = Awaited<ReturnType<typeof api.getPlans>>;
@@ -34,12 +32,9 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
   const [fresh, setFresh] = useState<Partial<Record<Locale, PricingData>>>({});
   const data = fresh[locale] ?? initial[locale] ?? null;
   const plans = data?.plans ?? [];
-  /** Gunun TCMB kuru — fiyatlar USD, TL karsiligi bununla gosteriliyor */
-  const fx = data?.fx ?? null;
   const pageCheckout: unknown = data?.checkout ?? null;
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<string | null>(null);
-  const [grandfathering, setGrandfathering] = useState<GrandfatheringInfo | null>(null);
   /**
    * Satin alma acik mi — PayTR test modunda kapali (lib/checkout-availability.ts).
    * pageCheckout: /plans (anonim karar, metin sayfanin dilinde; yukarida `data`dan);
@@ -61,7 +56,7 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
 
-  // Grandfathering + hesaba ozel satin alma durumu (sadece logged-in user icin)
+  // Hesaba ozel satin alma durumu (yalniz oturum acmis kullanici icin)
   useEffect(() => {
     if (!session?.user?.id) { setAccountCheckout(null); return; }
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -69,13 +64,6 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
       .then((r) => r.json())
       .then((d) => {
         setAccountCheckout(d?.checkout ?? null);
-        if (d?.grandfatheredUntil) {
-          setGrandfathering({
-            isGrandfathered: true,
-            grandfatheredUntil: d.grandfatheredUntil,
-            legacyMonthlyPriceTry: d.legacyMonthlyPriceTry,
-          });
-        }
       })
       .catch(() => { /* not critical */ });
   }, [session?.user?.id]);
@@ -158,32 +146,9 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
       </VitrinHero>
 
       <VitrinBand>
-        {/* Grandfathering banner — sadece mevcut user'lar icin */}
-        {grandfathering?.isGrandfathered && grandfathering.grandfatheredUntil && (
-          <div className="mb-8 max-w-3xl rounded-lg border border-success/30 bg-success/5 p-4">
-            <div className="flex items-start gap-3">
-              <Star className="mt-0.5 h-5 w-5 shrink-0 text-success" />
-              <div className="flex-1 text-sm">
-                <div className="font-medium text-success">
-                  Eski fiyatınızla devam ediyorsunuz
-                </div>
-                <p className="mt-1 leading-relaxed text-muted-foreground">
-                  Mevcut planınız <strong>aylık ₺{grandfathering.legacyMonthlyPriceTry?.toLocaleString('tr-TR')}</strong>{' '}
-                  fiyatla{' '}
-                  <strong>
-                    {new Date(grandfathering.grandfatheredUntil).toLocaleDateString('tr-TR', {
-                      year: 'numeric', month: 'long', day: 'numeric',
-                    })}
-                  </strong>{' '}
-                  tarihine kadar devam edecek. Bu tarihten sonra otomatik olarak yeni fiyata geçeceksiniz.
-                  30 gün önce email ile hatırlatma alacaksınız.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="mb-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
+        {/* Sahip karari (12.11.2026): eski fiyat kutusu ve kur dipnotu bu sayfadan kaldirildi.
+            Eski fiyat korumasi ve kur hesabi API'de aynen calisir; yalniz burada gosterilmez. */}
+        <div className="mb-10">
           <div className="inline-flex rounded-md border border-border p-1" role="group" aria-label={`${t('pricing.monthly')} / ${t('pricing.annual')}`}>
             <button
               type="button"
@@ -205,30 +170,10 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
             >
               {t('pricing.annual')}
               {/* Yillik = 10 ay fiyatina 12 ay (plans.ts annual_usd = monthly_usd * 10) →
-                  indirim %16,7. Eskiden "-20%" yaziyordu. */}
-              <span className={`font-mono text-vitrin-rail ${cycle === 'annual' ? 'opacity-70' : 'text-brand-vivid'}`}>{locale === 'en' ? '2 months free' : '2 ay bedava'}</span>
+                  indirim %16,7, rozette %17. Ana sayfadaki rozetle AYNI anahtar. */}
+              <span className={`font-mono text-vitrin-rail ${cycle === 'annual' ? 'opacity-70' : 'text-brand-vivid'}`}>{t('land.pric.discount_badge')}</span>
             </button>
           </div>
-
-          {/* Kur dipnotu — TL tutarinin nereden geldigi acikca yazilir.
-              Kur bayatsa (TCMB'ye ulasilamadi) kullanici bunu bilmelidir. */}
-          {fx && (
-            <p className="max-w-xl text-xs leading-relaxed text-muted-foreground lg:text-right">
-              Fiyatlar ABD doları cinsindendir. Türk lirası tutarı{' '}
-              <strong className="font-medium text-foreground tabular-nums">1 USD = ₺{fx.rate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</strong>{' '}
-              kuruyla hesaplanmıştır
-              {fx.source === 'TCMB' && ' (TCMB)'}
-              {/* Saat dilimi sabit: bu satir artik sunucuda da basiliyor; tarayicinin dilimiyle
-                  formatlansa UTC+11 gibi bir istemcide gun kayar ve hidrasyon uyusmazligi olur. */}
-              {fx.fetchedAt && ` · ${new Date(fx.fetchedAt).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`}.
-              {fx.stale && (
-                <span className="mt-1 block text-warning">
-                  Güncel kur alınamadı, son bilinen kur gösteriliyor. Ödeme sırasında güncel kur uygulanır.
-                </span>
-              )}
-              <span className="mt-1 block">Tahsilat, ödeme anındaki kurla Türk lirası olarak yapılır.</span>
-            </p>
-          )}
         </div>
 
         {/* Satin alma kapali (PayTR test modu): butonlar kilitli, nedeni burada.

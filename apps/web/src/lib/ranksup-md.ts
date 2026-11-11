@@ -166,7 +166,7 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
     out.push(
       `Plan verisinin alındığı an: ${utcDakika(fetchedAt)}.`,
       '',
-      'Fiyatlar USD bazlıdır; TL tutarı sabit değildir, ödeme anında günün TCMB USD/TRY kuruyla hesaplanır. Yıllık ödemede 10 ay fiyatına 12 ay (2 ay bedava). Aylık plan istediğin zaman iptal edilir; ödenen dönemin sonuna kadar erişim sürer.',
+      'Fiyatlar USD bazlıdır; TL tutarı sabit değildir, ödeme anında günün TCMB USD/TRY kuruyla hesaplanır. Yıllık ödemede 10 ay fiyatına 12 ay (yaklaşık %17 indirim). Aylık plan istediğin zaman iptal edilir; ödenen dönemin sonuna kadar erişim sürer.',
       '',
       '| Plan | Aylık | Yıllık | AI makale / ay | Site | Görünürlük çalıştırması / ay (en fazla) |',
       '|---|---|---|---|---|---|',

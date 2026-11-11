@@ -37,7 +37,7 @@ Plana göre öne çıkanlar:
 
 Şartlar:
 
-- Yıllık ödemede 10 ay fiyatına 12 ay (2 ay bedava).
+- Yıllık ödemede 10 ay fiyatına 12 ay (yaklaşık %17 indirim).
 - Aylık plan istediğin zaman iptal edilir; iptalden sonra ödenen dönemin sonuna kadar erişim sürer.
 - Kullanım Şartları'na göre yıllık planda ilk 30 gün tam iade, sonrasında kalan ay başına orantılı iade.
 - Başlangıç ve Profesyonel panelden satın alınır; Kurumsal plan satış ekibiyle görüşülerek açılır ve fiyatı teklifle belirlenir.
