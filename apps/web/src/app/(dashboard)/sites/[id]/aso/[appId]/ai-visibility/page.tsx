@@ -23,7 +23,7 @@ import { GuardIssues } from '../../_components/guard-issues';
  * App AI Görünürlük — App Prompt Lab (GEO ⨉ ASO, rakipte yok).
  *
  * "en iyi X uygulaması" sorusunu olculen AI asistanlarina sorar (saglayici listesi API'den,
- * ai-citation.service.ts runPublicProbes; Llama yalniz GROQ_LLAMA_MODEL tanimliyken):
+ * ai-citation.service.ts runPublicProbes; Meta (Muse) yalniz META_MODEL_API_KEY tanimliyken):
  * uygulama önerildi mi, store linki verildi mi, rakip appler kim?
  * + Review → İçerik Paketi (What's New + FAQ + blog konusu).
  */

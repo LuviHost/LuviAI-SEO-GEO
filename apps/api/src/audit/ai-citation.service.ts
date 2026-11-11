@@ -12,7 +12,7 @@ import { brandMatcher, resolveSiteBrand, unbrandedOnly } from './brand-in-query.
 import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
 import { citationScore, isErrorProbe, measuredOnly, providerOutcome } from './citation-score.js';
-import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider, llamaModelConfigured } from './citation-providers.js';
+import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider } from './citation-providers.js';
 import {
   withProbeRetry, ProviderConfigError, isFatalProviderError,
   probeErrorCode, probeErrorExcerpt, safeErrorText, safeReasonToken,
@@ -122,7 +122,7 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   perplexity: 'Perplexity',
   xai:        'xAI Grok',
   deepseek:   'DeepSeek',
-  meta:       'Meta AI (Llama)',
+  meta:       'Meta AI (Muse)',
 };
 
 // Havuz anahtari env adlari (POOL_ENV_KEY) ve probe maliyet tavanlari
@@ -137,13 +137,6 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
 export const AI_COST_KV_TTL_DAYS = 3;
 
 /**
- * Site olcumunde Meta AI (Llama) satirinin nedeni — GROQ_LLAMA_MODEL tanimsiz.
- * Panelde aynen gosterilir (site-flow-stepper displayProbeText). Dayanak: Groq
- * llama-3.3-70b-versatile'i 16.08.2026'da kapatti (citation-providers.ts kaynagi).
- */
-export const LLAMA_UNCONFIGURED_REASON = 'Meta AI (Llama) şu an ölçülmüyor: Groq, ölçümde kullanılan Llama modelini kapattı.';
-
-/**
  * resolveKey nedenleri — musteriye aynen gosterilir, teknik env adi icermez.
  * "Anahtar" RanksUp'in kendi saglayici anahtari (havuz, POOL_ENV_KEY); BYOK
  * onerilmez: yalniz Kurumsal planda var ve olcum motoru once BYOK'a bakar,
@@ -151,10 +144,6 @@ export const LLAMA_UNCONFIGURED_REASON = 'Meta AI (Llama) şu an ölçülmüyor:
  */
 export const noPoolKeyReason = (provider: Provider): string =>
   `${PROVIDER_LABELS[provider]} şu an ölçülmüyor: RanksUp anahtarı tanımlı değil.`;
-/** Llama modeli (GROQ_LLAMA_MODEL) tanimli, Groq havuz anahtari (GROQ_API_KEY) yok */
-export const LLAMA_NO_POOL_KEY_REASON = 'Meta AI (Llama) şu an ölçülmüyor: RanksUp’ın Groq anahtarı tanımlı değil.';
-/** Llama modeli tanimsiz (resolveKey'e runProvider disindan gelinirse) */
-export const LLAMA_NO_MODEL_REASON = 'Meta AI (Llama) şu an ölçülmüyor: RanksUp’ın Groq modeli tanımlı değil.';
 
 /**
  * AI Citation Test — site brain icindeki AEO/GEO sorularini gercek LLM lara
@@ -169,7 +158,7 @@ export const LLAMA_NO_MODEL_REASON = 'Meta AI (Llama) şu an ölçülmüyor: Ran
  *      kullanicinin kendi parasi); plan dusunce kayitli anahtar kullanilmaz
  *   2. Plan havuzundaysa ortak ENV key'i kullan (kotaya tabi)
  *   3. Yoksa saglayici olculmez; neden "<Saglayici> şu an ölçülmüyor: ..." olur
- *      (resolveKey — noPoolKeyReason / LLAMA_NO_POOL_KEY_REASON)
+ *      (resolveKey — noPoolKeyReason)
  */
 @Injectable()
 export class AiCitationService {
@@ -193,7 +182,9 @@ export class AiCitationService {
     // ~300 probe'a izin verir; kismak icin env ile dusur.
     xai:        parseFloat(process.env.AI_BUDGET_GROK_USD       ?? '30'),
     deepseek:   parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD   ?? '15'),
-    meta:       parseFloat(process.env.AI_BUDGET_META_USD       ?? '3'),
+    // Kasim 2026: Meta Muse web aramali, probe tavani 0.08 USD → 15 USD ≈ gunde
+    // ~190 probe (20 soruluk karne 20 probe). Eski 3 USD aramasiz Llama icindi.
+    meta:       parseFloat(process.env.AI_BUDGET_META_USD       ?? '15'),
   };
 
   // Probe basina maliyet TAVANI — tablo ve gerekceleri citation-providers.ts'te
@@ -212,7 +203,8 @@ export class AiCitationService {
     // Web aramali olcum (Kasim 2026): saglayicilarin resmi arama orneklerindeki modeller
     xai:       process.env.XAI_CITATION_MODEL       ?? 'grok-4.7',
     deepseek:  process.env.DEEPSEEK_CITATION_MODEL  ?? 'deepseek-v4-pro',
-    meta:      process.env.GROQ_LLAMA_MODEL         ?? 'llama-3.3-70b-versatile',
+    // dev.meta.ai/docs/search-grounding ornek modeli (11.11.2026)
+    meta:      process.env.META_CITATION_MODEL      ?? 'muse-spark-1.3',
   };
 
   /**
@@ -280,19 +272,8 @@ export class AiCitationService {
     // teknik env adi yazilmaz. Eski metinler "<ENV> env yok" ve "kendi API
     // anahtarini bagla (BYOK)" idi; BYOK yalniz Kurumsal planda ve Meta icin
     // hic yok (site-ai-keys.service VALID_PROVIDERS).
-
-    // 3) Plan listesinde ama RanksUp anahtari tanimsiz
-    if (this.quota.getPlanPool(plan).includes(provider)) {
-      return { key: null, source: 'none', reason: noPoolKeyReason(provider) };
-    }
-
-    // 4) Plan listesinde olmayan saglayici: bugun yalniz Meta AI (Llama)
-    // (PLAN_POOL_PROVIDERS'ta yok). runProvider model tanimsizken buraya hic
-    // gelmez (LLAMA_UNCONFIGURED_REASON); gelirse eksik olan Groq anahtaridir.
-    // Model kontrolu yine de burada: baska bir cagiran icin de dogru soylesin.
-    if (provider === 'meta') {
-      return { key: null, source: 'none', reason: llamaModelConfigured() ? LLAMA_NO_POOL_KEY_REASON : LLAMA_NO_MODEL_REASON };
-    }
+    // Plan listesinde olsun olmasin (Meta AI PLAN_POOL_PROVIDERS'ta yok) eksik
+    // olan RanksUp anahtaridir; neden metni ayni.
     return { key: null, source: 'none', reason: noPoolKeyReason(provider) };
   }
 
@@ -840,10 +821,9 @@ export class AiCitationService {
     const out = await Promise.all(providers.map(async (provider) => {
       const label = PROVIDER_LABELS[provider];
       const key = process.env[POOL_ENV_KEY[provider]];
-      // Yapilandirilmamis saglayici CAGRILMAZ: anahtar yok ya da Meta/Llama
-      // icin GROQ_LLAMA_MODEL tanimsiz. Eskiden GROQ_API_KEY varken Llama her
-      // kontrolde Groq'un kaldirdigi modele soruluyordu; panel karnesi
-      // (prospect/karne.service.ts) "Meta AI (Llama) — ölçülemedi" yaziyordu.
+      // Yapilandirilmamis saglayici (anahtar yok) CAGRILMAZ. Eskiden Groq
+      // anahtari varken Llama her kontrolde Groq'un kaldirdigi modele
+      // soruluyordu; panel karnesi "Meta AI (Llama) — ölçülemedi" yaziyordu.
       // reason TAM OLARAK 'NO_KEY' kalmali: karne-html yalniz bunu kapsam disi
       // sayar; App Prompt Lab ve public checker bu satiri listeden duser.
       if (!key || isUnconfiguredProvider(provider)) {
@@ -1019,14 +999,6 @@ export class AiCitationService {
     const label = PROVIDER_LABELS[provider];
     const siteOlcumu = olcum.tekrar !== undefined;
     const istenenTekrar = siteOlcumu ? Math.max(1, Math.floor(olcum.tekrar as number) || 1) : 1;
-    // Llama modeli tanimsizken (GROQ_LLAMA_MODEL; Groq varsayilan modeli
-    // kapatti — citation-providers.ts) site olcumu de Groq'a gitmez. Eskiden
-    // anahtar varsa kaldirilmis modele bosuna istek atiliyor, yoksa musteriye
-    // "kendi API anahtarini bagla (BYOK)" deniyordu; model olmadan anahtar da
-    // ise yaramazdi.
-    if (provider === 'meta' && !llamaModelConfigured()) {
-      return { provider, label, available: false, score: null, probes: [], reason: LLAMA_UNCONFIGURED_REASON };
-    }
     const resolved = await this.resolveKey(siteId, provider, plan, ownerRole);
 
     if (!resolved.key) {
@@ -1370,15 +1342,28 @@ export class AiCitationService {
    * onermedi demektir. tool_choice zorlanmaz (dokumanda yok); arama talimatla istenir.
    */
   private async probeXai(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+    return this.probeResponsesWebSearch('Grok', 'https://api.x.ai/v1/responses', this.MODELS.xai, 1500, key, host, brand, queries, systemPrompt, competitors);
+  }
+
+  /**
+   * OpenAI bicimli Responses API + `{ type: 'web_search' }` araci olan saglayici
+   * (Grok, Meta Muse). Kaynaklar output_text.annotations icinde url_citation;
+   * yalniz bunlar alinti sayilir (openaiSources). ChatGPT probeOpenAI'de kalir
+   * (kendi istek alanlari var).
+   */
+  private async probeResponsesWebSearch(
+    label: string, url: string, model: string, maxOutputTokens: number,
+    key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[],
+  ): Promise<CitationProbe[]> {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
-        const data = await withProbeRetry(() => this.postJson('https://api.x.ai/v1/responses', key, {
-          model: this.MODELS.xai,
+        const data = await withProbeRetry(() => this.postJson(url, key, {
+          model,
           instructions: `${systemPrompt} Cevaplamadan once mutlaka web aramasi yap ve guncel kaynaklara dayan.`,
           input: q,
           tools: [{ type: 'web_search' }],
-          max_output_tokens: 1500,
+          max_output_tokens: maxOutputTokens,
         }));
         const parts = (Array.isArray(data?.output) ? data.output : [])
           .filter((o: any) => o?.type === 'message')
@@ -1394,7 +1379,7 @@ export class AiCitationService {
         probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host, cited));
       } catch (err: any) {
         if (err instanceof ProviderConfigError) throw err;
-        this.log.warn(`Grok probe failed (${q}): ${safeErrorText(err)}`);
+        this.log.warn(`${label} probe failed (${q}): ${safeErrorText(err)}`);
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
       }
     }
@@ -1458,46 +1443,23 @@ export class AiCitationService {
   }
 
   /**
-   * Meta AI (Llama) via Groq — OpenAI-compatible endpoint.
-   * Ekim 2026: Groq'ta Llama sohbet modeli kalmadi (llama-3.3-70b-versatile
-   * kaldirildi). GROQ_LLAMA_MODEL tanimsizken Llama HIC cagrilmaz: public yol
-   * (runPublicProbes) 'NO_KEY', site yolu (runProvider) LLAMA_UNCONFIGURED_REASON
-   * doner. Verilen model Groq'ta yoksa 404 saglayiciyi "kullanilamaz" yapar
-   * (ProviderConfigError), HATA satiri uretmez.
+   * Meta AI — Muse, Meta Model API Responses + web_search (Kasim 2026).
+   *
+   * NEDEN: Meta'nin asistani (meta.ai, Muse uygulamasi, WhatsApp) Muse
+   * modelleriyle web'de arayarak cevapliyor. Kasim 2026'ya kadar bu satir Groq
+   * uzerinden aramasiz Llama idi; Groq Llama sohbet modellerini 16.08.2026'da
+   * kapatti ve satir o tarihten beri olculmuyordu.
+   * Dayanak (dev.meta.ai, 11.11.2026): base URL https://api.meta.ai/v1
+   * (docs/quickstart); arama yalniz Responses ve Messages API'de,
+   * Chat Completions'ta YOK; Responses'ta tools: [{ type: 'web_search' }],
+   * kaynaklar output_text.annotations icinde url_citation (docs/search-grounding)
+   * — Grok/ChatGPT ile ayni bicim. Muse akil yurutme modeli; akil yurutme
+   * tokenlari cikti tavanindan yer, bu yuzden tavan Grok'un iki kati.
+   * Model aramaya kendi karar verir (dokuman: "arama garantisi yok"); arama
+   * talimatla istenir, tool_choice zorlanmaz.
    */
   private async probeMeta(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
-    return this.probeChatCompletions('Meta/Llama', 'https://api.groq.com/openai/v1/chat/completions', this.MODELS.meta, key, host, brand, queries, systemPrompt, competitors);
-  }
-
-  /** OpenAI uyumlu chat/completions ucu olan aramasiz saglayici (Llama). Grok ve DeepSeek Kasim 2026'dan beri aramali (probeXai, probeDeepseek). */
-  private async probeChatCompletions(
-    label: string, url: string, model: string,
-    key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[],
-  ): Promise<CitationProbe[]> {
-    const probes: CitationProbe[] = [];
-    for (const q of queries) {
-      try {
-        const data = await withProbeRetry(() => this.postJson(url, key, {
-          model,
-          max_tokens: 1000,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: q },
-          ],
-        }));
-        const text = data?.choices?.[0]?.message?.content ?? '';
-        if (!text.trim()) {
-          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (finish_reason=${safeReasonToken(data?.choices?.[0]?.finish_reason)})` });
-          continue;
-        }
-        probes.push(this.buildProbe(q, text, host, brand, competitors));
-      } catch (err: any) {
-        if (err instanceof ProviderConfigError) throw err;
-        this.log.warn(`${label} probe failed (${q}): ${safeErrorText(err)}`);
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
-      }
-    }
-    return probes;
+    return this.probeResponsesWebSearch('Meta Muse', 'https://api.meta.ai/v1/responses', this.MODELS.meta, 3000, key, host, brand, queries, systemPrompt, competitors);
   }
 
   /**

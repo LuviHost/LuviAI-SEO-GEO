@@ -434,8 +434,8 @@ export class PublicCitationSubscriberService {
    * Marka ve alan adi KACISLANIR: alan adi abone formundan, marka kontrol
    * kaydindan (taranan sitenin og:site_name / basligi — yine disaridan gelen
    * metin) gelir; kacislanmasa baskasinin adresine bizim gondericimizden
-   * istenen HTML (sahte link) gonderilebilirdi. Asistan listesi plans.ts ile ayni (6; Llama yalniz
-   * GROQ_LLAMA_MODEL tanimliyken olculuyor — ai-citation.service.ts).
+   * istenen HTML (sahte link) gonderilebilirdi. Asistan listesi plans.ts ile ayni (6; Meta (Muse) yalniz
+   * META_MODEL_API_KEY tanimliyken olculuyor — ai-citation.service.ts).
    */
   private welcomeEmailHtml(p: { brand: string; domain: string; confirmUrl: string; unsubscribeUrl: string; locale: string; pazarlama?: boolean }): string {
     const tr = p.locale === 'tr';

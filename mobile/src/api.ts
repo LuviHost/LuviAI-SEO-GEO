@@ -78,7 +78,7 @@ export const PROVIDER_META: Record<ProviderKey, { name: string; mono: string; co
 };
 
 /**
- * Bir alan adını olculen AI motorlarinda (6 asistan; Llama yalniz sunucuda GROQ_LLAMA_MODEL
+ * Bir alan adını olculen AI motorlarinda (6 asistan; Meta (Muse) yalniz sunucuda META_MODEL_API_KEY
  * tanimliyken) gerçek olarak analiz eder. Saglayici listesi cevaptan okunur.
  * Sunucu 24 saat cache'ler; ilk çağrı ~30-60 sn sürebilir.
  */

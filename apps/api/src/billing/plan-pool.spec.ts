@@ -32,7 +32,7 @@ describe('getPlanPool', () => {
     }
   });
 
-  it('Llama (meta) havuzda yok — yalniz GROQ_LLAMA_MODEL ile olculur; geri kalan her saglayicinin env adi var', () => {
+  it('Meta AI (Muse) plan havuzunda yok — yalniz META_MODEL_API_KEY tanimliyken olculur; geri kalan her saglayicinin env adi var', () => {
     expect(PLAN_POOL_PROVIDERS).not.toContain('meta');
     const envProviders = Object.keys(POOL_ENV_KEY).filter((p) => p !== 'meta').sort();
     expect([...PLAN_POOL_PROVIDERS].sort()).toEqual(envProviders);

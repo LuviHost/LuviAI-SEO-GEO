@@ -209,8 +209,8 @@ describe('fiyat karti maddeleri = kod', () => {
     }
   });
 
-  it('Llama kosulsuz vaat edilmiyor (Groq modeli kaldirdi; GROQ_LLAMA_MODEL olmadan olculmuyor)', () => {
-    for (const m of [...tr, ...en]) expect(m, m).not.toMatch(/llama/i);
+  it('Meta AI kosulsuz vaat edilmiyor (eskiden Groq Llama; Kasim 2026dan beri Muse yalniz META_MODEL_API_KEY tanimliyken)', () => {
+    for (const m of [...tr, ...en]) expect(m, m).not.toMatch(/llama|\bmuse\b|meta ai/i);
   });
 
   it('maddedeki asistan sayisi listelenen asistan adlariyla ayni', () => {
@@ -416,7 +416,7 @@ function offenders(sources: Source[], re: RegExp, allow: (line: string) => boole
 }
 
 /** Sartli anma ("yalnızca ... tanımlıyken", "only when") Llama icin kabul edilir */
-const LLAMA_CONDITIONAL = /yaln[ıi]z(ca)?|only (when|if)|GROQ_LLAMA_MODEL|tan[ıi]ml[ıi]yken|ölçülmüyor|olculmuyor/i;
+const LLAMA_CONDITIONAL = /yaln[ıi]z(ca)?|only (when|if)|GROQ_LLAMA_MODEL|META_MODEL_API_KEY|tan[ıi]ml[ıi]yken|ölçülmüyor|olculmuyor/i;
 
 describe('Musteriye gorunen metinler = kod', () => {
   it('web, mobil ve belgelerde bulunan dosya sayisi makul (tarayici bos donmuyor)', () => {
@@ -1554,8 +1554,9 @@ describe('Rehber (/rehber) = ürün', () => {
   const tum = walk(REHBER, /\.ts$/).map((f) => ({ rel: path.relative(REHBER, f), text: stripComments(read(f)) }));
   const planAdi = (f: keyof typeof FEATURE_MIN_PLAN) => findPlan(FEATURE_MIN_PLAN[f])!.name_tr;
 
-  it('rehber veri modulleri bulunuyor (7 makale + kayit + kaynaklar + tipler)', () => {
-    expect(tum.length).toBe(10);
+  it('rehber veri modulleri bulunuyor (8 makale + kayit + kaynaklar + tipler)', () => {
+    // 11.11.2026: yapay-zeka-gorunurlugu eklendi (PR #68); sayi orada guncellenmemisti.
+    expect(tum.length).toBe(11);
   });
 
   it('RanksUp plan fiyatlari plans.ts ile ayni; elle yazilmis bayat tutar yok', () => {

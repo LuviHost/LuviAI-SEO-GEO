@@ -18,7 +18,7 @@ import { AiCitationService } from '../src/audit/ai-citation.service.js';
 const [, , soru = 'Mevduat faizi nasıl hesaplanır?', host = 'kobipratik.com', marka = 'KobiPratik'] = process.argv;
 
 // Yalniz Grok + DeepSeek: digerleri bu calismada "anahtar yok" sayilir
-for (const k of ['ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'OPENAI_API_KEY', 'PERPLEXITY_API_KEY', 'GROQ_API_KEY']) delete process.env[k];
+for (const k of ['ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'OPENAI_API_KEY', 'PERPLEXITY_API_KEY', 'META_MODEL_API_KEY']) delete process.env[k];
 
 async function deepseekHamBloklar(): Promise<string> {
   const key = process.env.DEEPSEEK_API_KEY;

@@ -21,7 +21,7 @@ import {
  * 6 asistan satiyor, olcum motoru da (ai-citation.service resolveKey) env
  * anahtari olan saglayiciyi her planda olcuyordu; liste yalniz panel rozetini
  * ve hata metnini yaniltiyordu. Kota sayilarina (citationTests) dokunulmadi.
- * Llama (meta) burada yok: yalniz GROQ_LLAMA_MODEL tanimliyken olculur
+ * Meta AI (meta) burada yok: yalniz META_MODEL_API_KEY tanimliyken olculur
  * (audit/citation-providers.ts llamaModelConfigured).
  */
 export const PLAN_POOL_PROVIDERS: readonly string[] = Object.freeze([

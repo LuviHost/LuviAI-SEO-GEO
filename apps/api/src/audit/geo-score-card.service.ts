@@ -15,7 +15,7 @@ export { crawlAccessNewerThanAudit };
 
 /**
  * Olculen AI asistanlari (ai-citation.service.ts runForSite). Llama ('meta')
- * yalniz GROQ_LLAMA_MODEL tanimliyken olculur; snapshot'ta gorunurse o da
+ * yalniz META_MODEL_API_KEY tanimliyken olculur; snapshot'ta gorunurse o da
  * sayilir (checkAiCitation).
  */
 const OLCULEN_ASISTANLAR = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];

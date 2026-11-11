@@ -12,7 +12,7 @@ import { UNLOCK_DOMAIN_KEY } from '@/lib/unlock-return';
 type UnlockResult = Awaited<ReturnType<typeof api.publicCitationUnlock>>;
 
 /*
-  Motor sayisi plans.ts ile ayni: 6 asistan olculur (Llama yalniz GROQ_LLAMA_MODEL tanimliyken —
+  Motor sayisi plans.ts ile ayni: 6 asistan olculur (Meta (Muse) yalniz META_MODEL_API_KEY tanimliyken —
   ai-citation.service.ts). Sonuc ekrani saglayicilari API cevabindan listeler.
   "Haftalik otomatik retest" vaadi kaldirildi: otomatik gunluk/haftalik olcum kapali
   (AI_CITATION_DAILY_CRON=false, AUDIT_CRON varsayilan kapali); olcumu kullanici baslatir,

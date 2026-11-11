@@ -135,7 +135,7 @@ export class KarneService {
    * Olcumu kos, karneyi uret ve DB'ye kaydet. Paylasim linki doner.
    *
    * Maliyet: olculen asistanlar (6 — Claude, Gemini, ChatGPT, Perplexity, Grok,
-   * DeepSeek; Meta Llama yalniz GROQ_LLAMA_MODEL tanimliyken) x en fazla 10
+   * DeepSeek; Meta AI (Muse) yalniz META_MODEL_API_KEY tanimliyken) x en fazla 10
    * soru. Probe basina TAVAN audit/citation-providers.ts COST_PER_PROBE_USD'de;
    * Ekim 2026 tablosuyla 10 soruda tavan ~2,7 USD (Claude 2 + Gemini 0,4 +
    * ChatGPT 0,3 + digerleri ~0,015), gercek tutar genelde daha dusuk. Harcama

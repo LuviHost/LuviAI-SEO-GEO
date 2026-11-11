@@ -83,8 +83,8 @@ export class DemoSeederService {
           schema_markup: { id: 'schema_markup', name: 'Schema.org markup', found: true, valid: false, score: 60, issues: [] },
           meta_title: { id: 'meta_title', name: 'Meta Title', found: true, valid: true, score: 85, issues: [] },
           https: { id: 'https', name: 'HTTPS', found: true, valid: true, score: 100, issues: [] },
-          // Olculen 6 asistan (ai-citation.service.ts runForSite; Llama yalniz
-          // GROQ_LLAMA_MODEL ile). Eskiden ad 4 asistan sayiyordu ve ChatGPT /
+          // Olculen 6 asistan (ai-citation.service.ts runForSite; Meta (Muse) yalniz
+          // META_MODEL_API_KEY ile). Eskiden ad 4 asistan sayiyordu ve ChatGPT /
           // Perplexity satirlari musteriye "OPENAI_API_KEY env yok" gibi ic
           // yapilandirma metni gosteriyordu. score = saglayici skorlarinin
           // yuvarlanmis ortalamasi (250 / 6 → 42), gercek denetimle ayni kural.

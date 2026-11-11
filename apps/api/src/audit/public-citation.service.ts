@@ -241,7 +241,7 @@ function isErrorExcerpt(excerpt: unknown): boolean {
 /**
  * measured alani eklenmeden yazilmis bir satir, saglayici HIC calismadan mi
  * olustu? Eski kayitlarda anahtari olmayan / kullanilamayan saglayici (uretimde
- * Meta Llama: GROQ_LLAMA_MODEL tanimsiz) her soruya alintisiz ve sonucsuz bir
+ * Meta AI (Muse): META_MODEL_API_KEY tanimsiz) her soruya alintisiz ve sonucsuz bir
  * satir olarak yaziliyordu. Gercek cevaptan gelen probe her zaman alinti tasir
  * (buildProbe: cevabin ilk 220 karakteri), bos cevap ise 'HATA:' satiridir.
  */
@@ -268,7 +268,7 @@ const isOpenRow = (q: any): boolean => !!q && q.locked !== true && Array.isArray
  * Sonucun satirlarini "yalniz olculen cevap sayilir" kuralina getirir.
  *
  * NEDEN: payda eskiden runPublicProbes'un dondurdugu TUM saglayicilardi —
- * anahtari olmayan/kullanilamayan saglayici (uretimde Meta Llama) ve HATA
+ * anahtari olmayan/kullanilamayan saglayici (uretimde Meta AI (Muse)) ve HATA
  * probe'u da "anilmadi" sayiliyordu: 6 asistanin hepsinde anilan marka 6/7
  * (skor 86) goruyordu, metin "6 AI motoru" derken. Kural:
  *   - calismayan saglayicinin satiri yoktur (taze sonucta available=false

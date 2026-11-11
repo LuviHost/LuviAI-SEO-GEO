@@ -27,7 +27,7 @@ const ENGINES: Array<{ label: string; vendor: VendorName }> = [
 const TILE_LOGOS = new Set<VendorName>(['chatgpt', 'claude-ai']);
 /**
  * Olculen 6 asistanin logo dizisi (plans.ts ile ayni) — dikkat ceken ust serit (eski orbital
- * diyagramin yerine). Meta AI (Llama) yok: yalniz GROQ_LLAMA_MODEL tanimliyken olculur
+ * diyagramin yerine). Meta AI (Muse) yok: yalniz META_MODEL_API_KEY tanimliyken olculur
  * (ai-citation.service.ts); "olculen" diye kosulsuz gostermek yanlis vaat olurdu.
  */
 const MEASURED: Array<{ label: string; vendor: VendorName }> = [

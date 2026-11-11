@@ -20,7 +20,7 @@ const { QuotaService } = await import('../billing/quota.service.js');
  * calistirma tavani fiilen yoktu. ADMIN rota kapilarindaki gibi muaf.
  */
 
-const ENV_KEYS = [...new Set([...Object.values(POOL_ENV_KEY), 'GEMINI_API_KEY', 'GROQ_LLAMA_MODEL'])];
+const ENV_KEYS = [...new Set([...Object.values(POOL_ENV_KEY), 'GEMINI_API_KEY'])];
 let backup: Record<string, string | undefined> = {};
 beforeEach(() => {
   backup = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));

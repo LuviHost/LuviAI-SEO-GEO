@@ -12,8 +12,8 @@
  *  - Olculmeyen saglayici (anahtar yok / saglayici hatasi) sunucuda ya hic
  *    gonderilmez ya da measured:false (eski taslak: available:false) ile
  *    isaretlenir. Iki bicimde de pay ve paydadan cikar; boylece "6 AI asistani"
- *    metni ile kutucuklar ve paydalar ayni seyi soyler (ornek: Meta/Llama yalniz
- *    GROQ_LLAMA_MODEL tanimliyken olculur).
+ *    metni ile kutucuklar ve paydalar ayni seyi soyler (ornek: Meta/Meta (Muse) yalniz
+ *    META_MODEL_API_KEY tanimliyken olculur).
  *
  * Sunucu tutarli oldugunda (citedCount = gosteren saglayici sayisi, totalProviders =
  * saglayici sayisi) sonuc web summarize() ile birebir aynidir; visibility.spec.ts

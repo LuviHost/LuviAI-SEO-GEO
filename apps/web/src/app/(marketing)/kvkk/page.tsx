@@ -20,9 +20,10 @@ export default function KvkkPage() {
             ayrica yazilir (okuyan neyin degistigini de gorsun). Tarih bu icerigin yayin gunu
             (28 Ekim 2026: aktarim listesi, ucretsiz test ve LinkedIn), gizlilik sayfasiyla ayni gun.
             2 Kasim 2026: Canli Tarayici kodunun bot dogrulamasi icin ilettigi (saklanmayan) IP adresi
-            Islenen Kisisel Veriler bolumune eklendi; gizlilik sayfasiyla ayni gun. */}
+            Islenen Kisisel Veriler bolumune eklendi; gizlilik sayfasiyla ayni gun.
+            11 Kasim 2026: Aktarilan Taraflar'a AI olcumu icin Meta (Muse) eklendi; gizlilik sayfasiyla ayni gun. */}
         <p className="text-sm text-muted-foreground mb-1">Yürürlük: 27 Nisan 2026</p>
-        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 2 Kasım 2026</p>
+        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 11 Kasım 2026</p>
         <p className="text-sm text-muted-foreground mb-8">
           Değişiklik: Aktarılan Taraflar bölümüne yalnız çerez onayınızla yüklenen Google ve Microsoft araçları ile sizi
           davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi. İşlenen Kişisel Veriler bölümüne RanksUp
@@ -32,7 +33,8 @@ export default function KvkkPage() {
           Meta ve Apple hizmetleri); ücretsiz AI görünürlük testi ve tekrar ölçüm e-postaları için yeni bölüm eklendi;
           Kurumsal İletişim bölümü LinkedIn kanalını da kapsayacak şekilde genişletildi (28 Ekim 2026). İşlenen Kişisel
           Veriler bölümüne, Canlı Tarayıcı kodunun bot doğrulaması için ilettiği ve saklanmayan IP adresi eklendi
-          (2 Kasım 2026).
+          (2 Kasım 2026). Aktarılan Taraflar bölümüne AI görünürlük ölçümü için Meta (Muse, ABD) eklendi (11 Kasım
+          2026).
         </p>
 
         <div className="space-y-6 text-sm leading-relaxed">
@@ -84,13 +86,13 @@ export default function KvkkPage() {
 
           <section>
             <h2 className="text-xl font-bold mb-2">Aktarılan Taraflar</h2>
-            {/* Liste koddan dogrulandi (28.10.2026; ayrinti privacy/page.tsx baslik yorumu). Groq (Llama)
-                uretimde cagrilmiyor (GROQ_LLAMA_MODEL tanimsiz) — listede yok. Ulke bilgisi yalniz AI
+            {/* Liste koddan dogrulandi (28.10.2026; ayrinti privacy/page.tsx baslik yorumu). Meta (Muse)
+                yalniz META_MODEL_API_KEY tanimliyken cagrilir; aktarim baslamadan listede (11.11.2026). Ulke bilgisi yalniz AI
                 olcum saglayicilari ve PayTR icin yazili; digerleri "yurt disi" olarak gecer. */}
             <ul className="text-muted-foreground space-y-1">
               <li>
                 • AI görünürlük ölçümü ve içerik üretimi: Anthropic (Claude, ABD), Google (Gemini, ABD), OpenAI (ChatGPT,
-                ABD), Perplexity (ABD), xAI (Grok, ABD) ve DeepSeek (Çin). Ölçümde marka adı, alan adı, sektör, varsa rakip
+                ABD), Perplexity (ABD), xAI (Grok, ABD), DeepSeek (Çin) ve yalnız ölçümde Meta (Muse, ABD). Ölçümde marka adı, alan adı, sektör, varsa rakip
                 adları ve ölçüm soruları; içerik üretiminde site ve marka bilgileri, anahtar kelimeler ve içerik taslakları
                 gönderilir.
               </li>

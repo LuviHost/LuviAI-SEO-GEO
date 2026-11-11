@@ -169,8 +169,8 @@ export interface BasePlan {
  *
  * REFERANS (rakip, Agu 2026): withmaya.ai — Starter $99 (yalniz ChatGPT,
  * 50 prompt run, 1.500 LLM yaniti), Premium $399 (4 platform, 200 run,
- * 24.000 yanit), Enterprise custom. Bizde 6 saglayici olcum (Llama yalniz
- * GROQ_LLAMA_MODEL tanimliyken — ai-citation.service.ts) + icerik uretimi +
+ * 24.000 yanit), Enterprise custom. Bizde 6 saglayici olcum (Meta (Muse) yalniz
+ * META_MODEL_API_KEY tanimliyken — ai-citation.service.ts) + icerik uretimi +
  * yayinlama + ASO ayni pakette.
  *
  * MADDE KURALI (2026-10): sabit MCP arac sayisi yazilmaz (kayit degistikce
