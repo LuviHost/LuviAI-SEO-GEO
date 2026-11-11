@@ -5,6 +5,28 @@ import {
   duzen, dugme, olcuSatiri, bilgiKutusu, kacisla, h, etiket, p, liste, baglanti,
   kahramanOlcu, karsilastirmaCubugu, sutunGrafik, bolucu, MARKA,
 } from './email-layout.js';
+import { ENGINE_LABELS, articleOfferPlan, planEngines } from '../billing/plans.js';
+
+/**
+ * Deneme hesabinin olctugu asistanlar, e-posta cumlesi olarak ("A, B, C ve D") — plans.ts
+ * planEngines('trial'). 11.11.2026 (uc paket): deneme ve Baslangic dort asistan olcer; Grok,
+ * DeepSeek ve (anahtari tanimliysa) Muse Profesyonel ve ustunde. Hos geldin e-postasi yeni
+ * (deneme) hesaba gider: alti asistan yazmak olcmeyecegimiz ikisini vaat ederdi.
+ */
+export const DENEME_ASISTANLARI: string = (() => {
+  const adlar = planEngines('trial').map((e) => ENGINE_LABELS[e]);
+  return adlar.length > 1 ? `${adlar.slice(0, -1).join(', ')} ve ${adlar[adlar.length - 1]}` : adlar.join('');
+})();
+
+/**
+ * Makale ureten en dusuk SATISTAKI planin adi (plans.ts). 11.11.2026 (uc paket): makale
+ * uretimi yalniz Profesyonel ve ustunde, Baslangic'ta yok — deneme bitisi e-postalari
+ * "bir plan sec, daha fazla makale" diyemez (trial-expiry-wording.spec.ts).
+ */
+export const MAKALE_PLANI: string = articleOfferPlan().name_tr;
+
+/** Deneme bitisi e-postalarinin ortak cumle parcasi: plan ne kazandirir */
+const PLAN_KAZANCI = `Daha fazla site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda)`;
 
 export type EmailTemplate =
   | 'welcome_day0'
@@ -278,7 +300,8 @@ export class EmailService {
         // kendiliginden calisan yalniz tarama (worker ONBOARDING_CHAIN runAudit) ve
         // otomatik akis acikken (varsayilan) ilk AI gorunurluk olcumudur; sonraki
         // olcumleri kullanici baslatir (kayan 7 gunde 1, billing/measurement-allowance.ts).
-        // Asistan listesi plans.ts ile ayni 6 asistan.
+        // Asistan listesi plans.ts ile ayni: DENEME hesabinin olctugu dort asistan
+        // (11.11.2026'ya kadar her planda ayni 6 asistandi; simdi Grok ve DeepSeek Profesyonel ve ustunde).
         return yap(
           `RanksUp'a hoş geldin, ${name}`,
           'Hesabın hazır: 14 gün ücretsiz, kart gerekmez. İlk siteni bağlayınca tarama hemen başlar.',
@@ -286,7 +309,7 @@ export class EmailService {
             p('Hesabın oluşturuldu ve 14 günlük ücretsiz denemen başladı; kart bilgisi gerekmez. İlk siteni bağladığında seni şunlar bekliyor:') +
             liste([
               '<strong>SEO sağlık taraması</strong> — 14 kontrol, sayfa sayfa; siteni eklediğin anda başlar',
-              '<strong>AI görünürlük ölçümü</strong> — ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek seni kaynak gösteriyor mu; ilk ölçüm kurulumda yapılır, sonrakileri haftada 1 kez sen başlatırsın',
+              `<strong>AI görünürlük ölçümü</strong> — ${DENEME_ASISTANLARI} seni kaynak gösteriyor mu; ilk ölçüm kurulumda yapılır, sonrakileri haftada 1 kez sen başlatırsın`,
               '<strong>Makalelerin</strong> — denemede toplam 2 makale. Yapay zekâ konu başlıklarını hazırlar ama makaleyi kendiliğinden yazmaz: sitene bir yayın hedefi (ör. WordPress) bağladıktan sonra “Şimdi üret” ile sen başlatırsın',
             ]) +
             dugme('İlk siteni bağla', `${baseUrl}/onboarding`),
@@ -353,12 +376,15 @@ export class EmailService {
       // MEASUREMENT_WINDOW_MS, plana bakmaz). Planlar makale, site ve AYLIK AI
       // gorunurluk calistirmasi tavaninda ayrisir (plans.ts). trial-expiry-wording.spec.ts
       // metni plans.ts sayilarina baglar.
+      // 11.11.2026 (uc paket): "daha fazla makale ... icin bir plan sec" artik HER plan icin
+      // dogru degil — Baslangic'ta makale uretimi yok (0 < denemenin 2'si). Her satin alinabilir
+      // planin denemeden fazla verdigi: site ve aylik calistirma; makale ayri soylenir (MAKALE_PLANI).
       case 'trial_expiry_d11':
         return yap(
           'Deneme süreni bitmesine 3 gün kaldı',
-          'Daha fazla makale, site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin.',
+          `Daha fazla site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda).`,
           h(`${name}, deneme süreni bitmesine 3 gün kaldı`) +
-            p('14 günlük ücretsiz denemenin 11 günü doldu. Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.') +
+            p(`14 günlük ücretsiz denemenin 11 günü doldu. ${PLAN_KAZANCI}; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.`) +
             p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
@@ -368,7 +394,7 @@ export class EmailService {
           'Deneme süren yarın bitiyor',
           'Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.',
           h(`${name}, deneme süren yarın bitiyor`) +
-            p('Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin. Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır; kaldığın yerden devam edersin.') +
+            p(`${PLAN_KAZANCI}. Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır; kaldığın yerden devam edersin.`) +
             p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
@@ -378,7 +404,7 @@ export class EmailService {
           'Deneme süren doldu',
           'Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor.',
           h(`${name}, deneme süren doldu`) +
-            p('Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor. Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin; plan seçtiğinde kaldığın yerden devam edersin.') +
+            p(`Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor. ${PLAN_KAZANCI}; plan seçtiğinde kaldığın yerden devam edersin.`) +
             p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
@@ -543,18 +569,31 @@ export class EmailService {
         );
       }
 
-      case 'plan_upgraded':
+      case 'plan_upgraded': {
+        // 11.11.2026 (uc paket): ozet olcumle baslar, makale yalniz hakki olan planda yazilir.
+        // Eski metin "Aylık kotan: N makale, M site" idi; Baslangic'ta (makale uretimi yok)
+        // "0 makale" ve "Aylık makale 0" kutusu cikiyordu. Calistirma sayisi aylik TAVANDIR
+        // (olcum haftada 1; plans.ts aiRunsPerMonth) — bu yuzden "en fazla".
+        const makale = Number(data.articleQuota ?? 0);
+        const calistirma = Number(data.runQuota ?? 0);
+        const ozet = [
+          ...(calistirma > 0 ? [`en fazla ${sayi(calistirma)} AI görünürlük çalıştırması`] : []),
+          `${sayi(data.siteQuota ?? 0)} site`,
+          ...(makale > 0 ? [`${sayi(makale)} makale`] : []),
+        ];
         return yap(
           `Plan aktif: ${kacisla(String(data.planName ?? ''))}`,
-          `Aylık kotan: ${sayi(data.articleQuota ?? 0)} makale, ${sayi(data.siteQuota ?? 0)} site.`,
+          `Aylık kotan: ${ozet.join(', ')}.`,
           h(`${kacisla(String(data.planName ?? 'Planın'))} aktif`) +
             p('Aboneliğin başladı.') +
             olcuSatiri([
-              { etiket: 'Aylık makale', deger: sayi(data.articleQuota ?? 0) },
+              ...(calistirma > 0 ? [{ etiket: 'Aylık AI çalıştırması (en fazla)', deger: sayi(calistirma) }] : []),
               { etiket: 'Site', deger: sayi(data.siteQuota ?? 0) },
+              ...(makale > 0 ? [{ etiket: 'Aylık makale', deger: sayi(makale) }] : []),
             ]) +
             dugme('Panele git', `${baseUrl}/dashboard`),
         );
+      }
 
       case 'renewal_failed': {
         const kalan = Math.max(0, Number(data.maxAttempts ?? 3) - Number(data.attempt ?? 1));

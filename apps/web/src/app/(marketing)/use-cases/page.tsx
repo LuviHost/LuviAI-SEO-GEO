@@ -13,6 +13,11 @@ import { VitrinBand, VitrinHero, VITRIN_CELL, VITRIN_GRID } from '@/components/v
 // yayin WordPress REST hedefiyle yapilir. Kurumsal kartindaki "Ozel hesap
 // yoneticisi + SLA, sozlesmeli kurulum" maddesi de kaldirildi (30.10.2026):
 // kodda ve operasyonda karsiligi yoktu.
+// 11.11.2026 paket yapisi (api billing/plans.ts): Ajans plani satistan kalkti; Urun Radari ve
+// GEO isi haritasi yeni musteride Kurumsal planda (featureOfferPlan). "Ajans" karti bir KITLE
+// (ajanslar) olarak durur; plan sayilari satistaki planlardan (Profesyonel 5 site / 40 makale,
+// Kurumsal 50 site / 350 makale). Asistan sayisi plana bagli: Baslangic 4, Profesyonel ve ustu 6.
+// public-docs.spec.ts denetler.
 const USE_CASES = {
   tr: {
     eyebrow: '🎯 Kullanım Senaryoları',
@@ -24,7 +29,7 @@ const USE_CASES = {
         icon: '🛒',
         title: 'E-ticaret',
         bullets: [
-          'Ürün Radarı — haftalık rakip ses payı ve kategori sırası (Ajans planı)',
+          'Ürün Radarı — haftalık rakip ses payı ve kategori sırası (Kurumsal planı)',
           'Ürün karşılaştırma blogları (organic traffic)',
           'WordPress / WooCommerce sitelerine WordPress REST ile otomatik yayın',
           'Sezonsal kampanya yazıları (Black Friday, Sevgililer Günü)',
@@ -47,8 +52,8 @@ const USE_CASES = {
         title: 'Ajans',
         bullets: [
           'Müşteri sitesi başına ayrı marka beyni ve marka sesi',
-          'Ajans planında 15 site ve ayda 100 makale',
-          'Ürün Radarı ve GEO ısı haritası (Ajans planı)',
+          'Profesyonel planda 5 site ve ayda 40 makale; Kurumsal planda 50 site ve ayda 350 makale',
+          'Ürün Radarı ve GEO ısı haritası (Kurumsal planı)',
           'Haftalık e-posta performans raporu',
         ],
         cta: 'Ajans için başla',
@@ -81,7 +86,7 @@ const USE_CASES = {
           '"X hosting nedir" tarz teknik makaleler',
           'WHMCS Knowledge Base entegrasyonu',
           'cPanel/SFTP/FTP otomatik yayın',
-          'AI aramadaki görünürlüğünü 6 asistanda ölç',
+          'AI aramadaki görünürlüğünü ölç: Başlangıç planında 4, Profesyonel ve üstünde 6 asistan',
         ],
         cta: 'Hosting için başla',
       },
@@ -97,7 +102,7 @@ const USE_CASES = {
         icon: '🛒',
         title: 'E-commerce',
         bullets: [
-          'Product Radar — weekly competitor share of voice and category rank (Agency plan)',
+          'Product Radar — weekly competitor share of voice and category rank (Enterprise plan)',
           'Product comparison blogs (organic traffic)',
           'Auto-publish to WordPress / WooCommerce sites via WordPress REST',
           'Seasonal campaign articles (Black Friday, Valentine\'s Day)',
@@ -120,8 +125,8 @@ const USE_CASES = {
         title: 'Agency',
         bullets: [
           'Separate brand brain and brand voice per client site',
-          '15 sites and 100 articles a month on the Agency plan',
-          'Product Radar and GEO Heatmap (Agency plan)',
+          '5 sites and 40 articles a month on the Professional plan; 50 sites and 350 articles a month on the Enterprise plan',
+          'Product Radar and GEO Heatmap (Enterprise plan)',
           'Weekly performance report by email',
         ],
         cta: 'Start for Agency',
@@ -154,7 +159,7 @@ const USE_CASES = {
           '"What is X hosting" technical articles',
           'WHMCS Knowledge Base integration',
           'cPanel/SFTP/FTP auto-publish',
-          'Measure your AI search visibility on 6 assistants',
+          'Measure your AI search visibility: 4 assistants on the Starter plan, 6 on Professional and up',
         ],
         cta: 'Start for Hosting',
       },

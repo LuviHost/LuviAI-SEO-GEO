@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_PLANS, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, VIDEOS_PER_MONTH, findPlan, type BasePlan } from '../billing/plans.js';
+import {
+  BASE_ENGINES, BASE_PLANS, CONDITIONAL_ENGINES, ENGINE_LABELS, ENGINES_BULLET, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS,
+  PLAN_RANK, PURCHASABLE_PLAN_IDS, STANDARD_ENGINES, VIDEOS_PER_MONTH, articleOfferPlan, featureOfferPlan, findPlan, planEngines, publicPlans,
+  type BasePlan, type MeasurementEngine,
+} from '../billing/plans.js';
+import { planFeatures } from '../billing/billing.service.js';
 import { MEASUREMENT_WINDOW_MS } from '../billing/measurement-allowance.js';
 import { TRIAL_DAYS } from '../billing/trial-policy.js';
 import { RANKSUP_BOT_UA } from '../common/safe-fetch.js';
@@ -55,19 +60,41 @@ function fiyatBolumu(md: string): string {
 }
 
 interface FiyatSatiri {
-  ad: string; aylik: number; yillik: number | null; makale: number; enFazla: boolean; calistirma: number;
-  site: number; uygulama: number; destek: string; satir: string;
+  ad: string; aylik: number | null; yillik: number | null; teklifle: boolean; makale: number | null; enFazla: boolean;
+  calistirma: number; asistan: number; site: number; uygulama: number; destek: string; satir: string;
 }
+
+/**
+ * PAKET YAPISI (11.11.2026, plans.ts): belgeler SATISTAKI planlari listeler (publicPlans —
+ * satistan kalkan Ajans yok). Musterinin FIYAT gordugu planlar: herkese acik, ucretli ve
+ * teklifle satilmayan planlar (Baslangic, Profesyonel). Kurumsal'in liste fiyati hicbir
+ * musteri metninde yazilmaz ("fiyat teklifle").
+ */
+const SATISTAKI = publicPlans();
+const FIYATLI = SATISTAKI.filter((p) => p.monthly_usd > 0 && !p.contactSales);
+/** Musteriye gosterilmeyen tutarlar: teklifle satilan ve satistan kalkan planlarin aylik / yillik fiyati */
+const GIZLI_FIYATLAR = BASE_PLANS.filter((p) => p.monthly_usd > 0 && (p.contactSales || p.legacy))
+  .flatMap((p) => [p.monthly_usd, p.annual_usd]);
+/** 1499 -> "1499", "1.499", "1,499" (ayiricisiz + TR / EN binlik ayirici) */
+const yazimlar = (n: number) => [...new Set([String(n), n.toLocaleString('tr-TR'), n.toLocaleString('en-US')])];
+/** Bir planin her kurulumda olctugu asistan sayisi (kosullu Muse haric) — plans.ts planEngines */
+const sabitAsistan = (p: BasePlan) => planEngines(p.id).filter((e) => !CONDITIONAL_ENGINES.includes(e)).length;
+const asistanAdi = (e: MeasurementEngine) => ENGINE_LABELS[e];
 
 // Her satir haftalik olcum hakkini ("haftada 1 AI olcumu") tasimak ZORUNDA: eski
 // satir yalniz "20 gorunurluk calistirmasi/ay" diyordu ve AI asistanlari bunu
 // "ayda 20 olcum" diye aktariyordu (measurement-allowance.ts: 7 gunde 1).
-const SATIR = /^- \*\*(.+?)\*\*[^:\n]*: \$([\d.]+)(?:\/ay, yıllık \$([\d.]+))? — ([\d.]+) AI makale(?:\/ay)?, haftada 1 AI ölçümü, (en fazla )?([\d.]+) görünürlük çalıştırması(?:\/ay)?, (\d+) site, (\d+) izlenen uygulama · destek: ([^·\n]+)/gm;
+//
+// 11.11.2026 paket yapisi: fiyat yerine "fiyat teklifle" (Kurumsal — liste fiyati yazilmaz),
+// makale sayisi yerine "makale üretimi yok" (Baslangic, articlesPerMonth 0) yazilabilir ve her
+// satir planin olctugu asistan sayisini tasir ("4 AI asistanı" / "6 AI asistanı").
+const SATIR = /^- \*\*(.+?)\*\*[^:\n]*: (?:\$([\d.]+)(?:\/ay, yıllık \$([\d.]+))?|(fiyat teklifle)) — (?:([\d.]+) AI makale(?:\/ay)?|(makale üretimi yok)), haftada 1 AI ölçümü, (en fazla )?([\d.]+) görünürlük çalıştırması(?:\/ay)?, (\d+) AI asistanı, (\d+) site, (\d+) izlenen uygulama · destek: ([^·\n]+)/gm;
 
 function fiyatSatirlari(bolum: string): FiyatSatiri[] {
   return [...bolum.matchAll(SATIR)].map((m) => ({
-    ad: m[1], aylik: sayi(m[2]), yillik: m[3] ? sayi(m[3]) : null, makale: sayi(m[4]), enFazla: !!m[5],
-    calistirma: sayi(m[6]), site: Number(m[7]), uygulama: Number(m[8]), destek: m[9].trim(), satir: m[0],
+    ad: m[1], aylik: m[2] ? sayi(m[2]) : null, yillik: m[3] ? sayi(m[3]) : null, teklifle: !!m[4],
+    makale: m[5] ? sayi(m[5]) : null, enFazla: !!m[7], calistirma: sayi(m[8]), asistan: Number(m[9]),
+    site: Number(m[10]), uygulama: Number(m[11]), destek: m[12].trim(), satir: m[0],
   }));
 }
 
@@ -80,16 +107,31 @@ describe.each([
   const bolum = fiyatBolumu(doc);
   const satirlar = fiyatSatirlari(bolum);
 
-  it('her plan tam bir kez listelenmis, fazladan plan yok', () => {
-    expect(satirlar.map((s) => s.ad).sort()).toEqual(BASE_PLANS.map((p) => p.name_tr).sort());
+  it('satistaki her plan tam bir kez listelenmis; fazladan plan ve satistan kalkan plan yok', () => {
+    expect(satirlar.map((s) => s.ad).sort()).toEqual(SATISTAKI.map((p) => p.name_tr).sort());
+    // Satistan kalkan plan (Ajans) bolumde plan olarak hic anilmaz: ne fiyat satiri ne "plana gore" maddesi
+    const kalkan = BASE_PLANS.filter((p) => p.legacy);
+    expect(kalkan.map((p) => p.id)).toEqual(['agency']);
+    for (const p of kalkan) expect(bolum, p.id).not.toContain(`**${p.name_tr}**`);
   });
 
-  it('fiyat ve limitler plans.ts ile birebir ayni', () => {
-    for (const p of BASE_PLANS) {
+  it('fiyat ve limitler plans.ts ile birebir ayni; teklifle satilan planin fiyati yazilmiyor', () => {
+    for (const p of SATISTAKI) {
       const s = satirlar.find((x) => x.ad === p.name_tr)!;
-      expect(s.aylik, `${p.id} aylik`).toBe(p.monthly_usd);
-      expect(s.yillik, `${p.id} yillik`).toBe(p.monthly_usd === 0 ? null : p.annual_usd);
-      expect(s.makale, `${p.id} makale`).toBe(p.articlesPerMonth);
+      if (p.contactSales) {
+        // Kurumsal: "fiyat teklifle" — satirda hicbir tutar yok
+        expect(s.teklifle, `${p.id} "fiyat teklifle"`).toBe(true);
+        expect(s.satir, `${p.id} satirinda tutar`).not.toMatch(/\$\s?\d/);
+      } else {
+        expect(s.teklifle, `${p.id} teklifle degil`).toBe(false);
+        expect(s.aylik, `${p.id} aylik`).toBe(p.monthly_usd);
+        expect(s.yillik, `${p.id} yillik`).toBe(p.monthly_usd === 0 ? null : p.annual_usd);
+      }
+      // Makale uretimi olmayan plan (Baslangic) "0 AI makale" degil "makale üretimi yok" yazar
+      expect(s.makale, `${p.id} makale`).toBe(p.articlesPerMonth === 0 ? null : p.articlesPerMonth);
+      // Asistan sayisi plan kapsamiyla ayni: Baslangic kapsami 4, Profesyonel ve ustu 6
+      expect(s.asistan, `${p.id} asistan`).toBe(p.aiProviders);
+      expect(s.asistan, `${p.id} asistan = planEngines`).toBe(sabitAsistan(p));
       expect(s.calistirma, `${p.id} calistirma`).toBe(p.aiRunsPerMonth);
       // Ucretli planda sayi bir TAVAN (QuotaService citationTests); haftalik hak
       // ayrica gecerli oldugu icin "ayda 75 olcum" gibi okunmamali.
@@ -100,6 +142,36 @@ describe.each([
       if (p.popular) expect(s.satir).toContain('en çok tercih edilen');
       if (p.contactSales) expect(s.satir).toContain('satış ekibiyle');
     }
+    // Musteriye gosterilmeyen tutarlar (Kurumsal liste fiyati, satistan kalkan Ajans) belgenin hicbir yerinde yok
+    for (const n of GIZLI_FIYATLAR) for (const y of yazimlar(n)) expect(doc, `gizli fiyat ${y}`).not.toContain(`$${y}`);
+    // Hangi plan nasil alinir: PURCHASABLE_PLAN_IDS panelden, contactSales satis ekibiyle
+    expect(PURCHASABLE_PLAN_IDS.map((id) => findPlan(id)!.name_tr)).toEqual(FIYATLI.map((p) => p.name_tr));
+    expect(bolum).toContain(`${FIYATLI.map((p) => p.name_tr).join(' ve ')} panelden satın alınır`);
+  });
+
+  it('plan kapsami: Baslangic ve deneme dort asistan, Grok ve DeepSeek Profesyonel ve ustu, Muse kosullu; makale uretimi Profesyonel ve ustu', () => {
+    const dort = STANDARD_ENGINES.map(asistanAdi).join(', ');
+    const ek = BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi);
+    const ust = findPlan('pro')!;
+    expect(planEngines('trial')).toEqual([...STANDARD_ENGINES]);
+    expect(planEngines('starter')).toEqual([...STANDARD_ENGINES]);
+    expect(doc).toContain(`(${dort})`);
+    expect(doc).toContain(`${ek.join(' ve ')} ${ust.name_tr} ve üstü planlarda eklenir`);
+    // Kosullu asistan (Muse): yalniz ust kapsamda ve yalniz anahtari tanimliyken
+    expect(planEngines('pro')).toContain('meta');
+    expect(planEngines('starter')).not.toContain('meta');
+    expect(doc).toContain(`Muse yalnızca ${ust.name_tr} ve üstü planlarda ve RanksUp'ta Meta anahtarı tanımlıyken ölçülür`);
+    // Makale: uretimi olan en dusuk satistaki plan (Profesyonel); Baslangic'ta yok, denemede toplam hak
+    const ucretli = SATISTAKI.filter((p) => p.id !== 'trial');
+    const makalePlani = ucretli.filter((p) => p.articlesPerMonth > 0).sort((a, b) => PLAN_RANK[a.id] - PLAN_RANK[b.id])[0];
+    expect(makalePlani.id).toBe('pro');
+    expect(articleOfferPlan().id, 'plans.ts articleOfferPlan ayni plani verir').toBe(makalePlani.id);
+    const makalesiz = ucretli.filter((p) => p.articlesPerMonth === 0);
+    expect(makalesiz.map((p) => p.id)).toEqual(['starter']);
+    expect(doc).toContain(`Makale üretimi ${makalePlani.name_tr} ve üstü planlardadır; ${makalesiz[0].name_tr} planında makale üretimi yoktur, Ücretsiz Deneme'de toplam ${findPlan('trial')!.articlesPerMonth} makale üretilebilir.`);
+    // Deneme: takvimin geri kalani "plan secince" degil, makale uretimi olan planda yazilir
+    expect(doc).toContain(`takvimin geri kalanı ${makalePlani.name_tr} planda yazılır`);
+    expect(doc).not.toMatch(/plan seçilince yazılır/);
   });
 
   it('sabit TL fiyati yok — TL her gun TCMB kuruyla hesaplaniyor (FxService)', () => {
@@ -199,9 +271,17 @@ describe('llms-full.txt bayat icerik tasimiyor', () => {
   });
 });
 
+/**
+ * Kartta GORUNEN maddeler. Asistan maddesi plans.ts'te yer tutucudur (ENGINES_BULLET); metni
+ * billing.service planFeatures, O AN olculen asistan listesinden uretir. Testler iki durumu da
+ * kurar: Muse olculmuyor (her kurulumdaki alti asistan) ve Muse olculuyor.
+ */
+const MUSE_YOK: readonly string[] = [...BASE_ENGINES];
+const MUSE_VAR: readonly string[] = [...BASE_ENGINES, ...CONDITIONAL_ENGINES];
+
 describe('fiyat karti maddeleri = kod', () => {
-  const tr = BASE_PLANS.flatMap((p) => p.features_tr);
-  const en = BASE_PLANS.flatMap((p) => p.features_en);
+  const tr = BASE_PLANS.flatMap((p) => planFeatures(p, 'tr', MUSE_YOK));
+  const en = BASE_PLANS.flatMap((p) => planFeatures(p, 'en', MUSE_YOK));
 
   it('MCP maddesi sabit arac sayisi yazmiyor (kayit degistikce bayatliyordu: "26 arac")', () => {
     for (const m of [...tr, ...en].filter((x) => /\bMCP\b/.test(x))) {
@@ -210,16 +290,60 @@ describe('fiyat karti maddeleri = kod', () => {
   });
 
   it('Meta AI kosulsuz vaat edilmiyor (eskiden Groq Llama; Kasim 2026dan beri Muse yalniz META_MODEL_API_KEY tanimliyken)', () => {
+    // Muse olculmuyorken kartta gorunen hicbir madde (uretilen asistan maddesi dahil) onu anmaz;
+    // plans.ts'te elle yazili maddeler hicbir durumda anmaz
     for (const m of [...tr, ...en]) expect(m, m).not.toMatch(/llama|\bmuse\b|meta ai/i);
+    for (const p of BASE_PLANS) for (const m of [...p.features_tr, ...p.features_en]) expect(m, m).not.toMatch(/llama|\bmuse\b|meta ai/i);
   });
 
-  it('maddedeki asistan sayisi listelenen asistan adlariyla ayni', () => {
-    for (const [maddeler, sayiRe] of [[tr, /(\d+) AI asistan/], [en, /(\d+) AI assistants/]] as const) {
-      const sayiMaddesi = maddeler.find((m) => sayiRe.test(m));
-      const liste = maddeler.find((m) => m.startsWith('ChatGPT · '));
-      expect(sayiMaddesi, 'asistan sayisi maddesi').toBeDefined();
-      expect(liste, 'asistan listesi maddesi').toBeDefined();
-      expect(Number(sayiMaddesi!.match(sayiRe)![1])).toBe(liste!.split(' · ').length);
+  // Eski kural "her plan ayni alti asistani listeler" idi (tek "6 AI asistanı" maddesi + tek
+  // "ChatGPT · …" listesi). 11.11.2026 paket yapisi: kapsam plana bagli (plans.ts planEngines,
+  // olcum motoru dayatir) ve madde elle yazilmaz, kapsamdan uretilir.
+  it('asistan maddesi plan kapsamindan uretilir: Baslangic kapsami dort asistan (adlariyla), Profesyonel ve ustu alti; Muse yalniz olculuyorsa', () => {
+    // Kural: deneme ve Baslangic dort asistan; Profesyonel ve ustu altisi + kosullu Muse
+    expect(STANDARD_ENGINES.map(asistanAdi)).toEqual(['ChatGPT', 'Gemini', 'Claude', 'Perplexity']);
+    expect(BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi)).toEqual(['Grok', 'DeepSeek']);
+    expect(CONDITIONAL_ENGINES.map(asistanAdi)).toEqual(['Muse']);
+    for (const p of BASE_PLANS) {
+      const ust = PLAN_RANK[p.id] >= PLAN_RANK.pro;
+      expect(planEngines(p.id), p.id).toEqual(ust ? [...BASE_ENGINES, ...CONDITIONAL_ENGINES] : [...STANDARD_ENGINES]);
+      expect(p.aiProviders, `${p.id} aiProviders`).toBe(ust ? BASE_ENGINES.length : STANDARD_ENGINES.length);
+    }
+    // Elle yazilmis asistan sayisi yok; kendi asistan maddesi olan planlarda yer tutucu tam bir kez
+    const sayiRe = { tr: /(\d+) AI asistan/, en: /(\d+) (?:AI )?assistants/ } as const;
+    for (const p of BASE_PLANS) {
+      for (const m of p.features_tr) expect(m, `${p.id}: elle yazilmis asistan sayisi`).not.toMatch(sayiRe.tr);
+      for (const m of p.features_en) expect(m, `${p.id}: elle yazilmis asistan sayisi`).not.toMatch(sayiRe.en);
+    }
+    for (const id of ['starter', 'pro'] as const) {
+      expect(findPlan(id)!.features_tr.filter((m) => m === ENGINES_BULLET), `${id} TR`).toHaveLength(1);
+      expect(findPlan(id)!.features_en.filter((m) => m === ENGINES_BULLET), `${id} EN`).toHaveLength(1);
+    }
+    // Kendi maddesi olmayan ucretli plan (Kurumsal, eski Ajans) maddeyi miras zincirinden alir
+    for (const p of BASE_PLANS.filter((x) => x.id !== 'trial' && !x.features_tr.includes(ENGINES_BULLET))) {
+      let ata = p.inheritsFrom ? findPlan(p.inheritsFrom) : undefined;
+      while (ata && !ata.features_tr.includes(ENGINES_BULLET)) ata = ata.inheritsFrom ? findPlan(ata.inheritsFrom) : undefined;
+      expect(ata, `${p.id} asistan maddesini miras almiyor`).toBeDefined();
+      expect(planEngines(ata!.id), `${p.id} kapsami miras aldigi planla ayni`).toEqual(planEngines(p.id));
+    }
+    const beklenenSayi = { starter: [4, 4], pro: [6, 7] } as const; // [Muse olculmuyor, Muse olculuyor]
+    for (const [i, olculen] of [MUSE_YOK, MUSE_VAR].entries()) {
+      for (const id of ['starter', 'pro'] as const) {
+        const p = findPlan(id)!;
+        const kapsam = planEngines(id).filter((e) => olculen.includes(e));
+        expect(kapsam.length, `${id} kapsam`).toBe(beklenenSayi[id][i]);
+        // Adlar: Baslangic kapsami butun asistanlarini, ust paket alt pakete EKLENENLERI sayar
+        const beklenen = (id === 'starter' ? kapsam : kapsam.filter((e) => !STANDARD_ENGINES.includes(e))).map(asistanAdi).sort();
+        for (const dil of ['tr', 'en'] as const) {
+          const maddeler = planFeatures(p, dil, olculen);
+          expect(maddeler, `${id} ${dil}: yer tutucu kartta kalmis`).not.toContain(ENGINES_BULLET);
+          const sayili = maddeler.filter((m) => sayiRe[dil].test(m));
+          expect(sayili, `${id} ${dil}: tek asistan maddesi`).toHaveLength(1);
+          expect(Number(sayili[0].match(sayiRe[dil])![1]), sayili[0]).toBe(kapsam.length);
+          const anilan = Object.values(ENGINE_LABELS).filter((a) => new RegExp(`\\b${a}\\b`).test(sayili[0])).sort();
+          expect(anilan, sayili[0]).toEqual(beklenen);
+        }
+      }
     }
   });
 });
@@ -266,8 +390,14 @@ describe('kart maddeleri = teslim edilen', () => {
     const teslim = publishTargetCatalog().filter((e) => !e.adminOnly && !EXPORT_TARGET_TYPES.has(e.type));
     const n = teslim.length;
     expect(n).toBe(13);
-    expect(madde(tr, `${n} yayın hedefi — `)).toBeTruthy();
-    expect(madde(en, `${n} publishing targets — `)).toBeTruthy();
+    // 11.11.2026: sayi artik kendi maddesinde degil, makale maddesinin icinde ("… 13 yayın hedefi").
+    // Maddenin sozu degil sayisi denetlenir: kartta sayiyi anan en az bir madde var ve hepsi katalogla ayni.
+    const sayilar = (liste: string[], re: RegExp) => liste.flatMap((m) => [...m.matchAll(re)].map((x) => Number(x[1])));
+    const kartTr = sayilar(tr, /(\d+) yayın hedefi/g);
+    const kartEn = sayilar(en, /(\d+) publishing targets/g);
+    expect(kartTr.length, 'TR kart yayin hedefi sayisi anmiyor').toBeGreaterThan(0);
+    expect(kartEn.length, 'EN kart yayin hedefi sayisi anmiyor').toBeGreaterThan(0);
+    for (const s of [...kartTr, ...kartEn]) expect(s, 'kart maddesi').toBe(n);
     const yerler: Array<[string, string, RegExp]> = [
       ['llms.txt', llms, /(\d+) yayın hedefi/g],
       ['llms-full.txt', llmsFull, /(\d+) yayın hedefi/g],
@@ -285,20 +415,35 @@ describe('kart maddeleri = teslim edilen', () => {
   });
 
   it('kosula bagli ozellikler kosuluyla yaziliyor (TR + EN)', () => {
-    // Harf notu yalniz GEO skor kartinda (geo-score-card.service grade); denetim harf vermez
-    expect(madde(tr, 'Site SEO/GEO denetimi')).toContain('GEO Lab');
-    expect(madde(en, 'Site SEO/GEO audit')).toContain('GEO Lab');
-    // Site keyword sirasi yalniz Search Console verisinden (analytics.service)
-    expect(madde(tr, 'Google Search Console bağlıyken günlük')).toContain('keyword sıra takibi');
-    expect(madde(en, 'Daily automated keyword rank tracking')).toContain('Google Search Console');
+    // 11.11.2026: kart maddeleri kisaldi ve yeniden siralandi; asagidaki denetimler maddenin
+    // tam cumlesini degil KURALI arar (kosul sozu, sayi, yasak iddia) — madde yeniden kisalirsa
+    // kural yerinde kaldikca test gecer.
+    const iceren = (liste: string[], re: RegExp, ne: string) => {
+      const bulunan = liste.filter((m) => re.test(m));
+      expect(bulunan.length, `${ne} maddesi`).toBeGreaterThan(0);
+      return bulunan;
+    };
+    // Harf notu GEO skor kartinin notudur (geo-score-card.service gradeOf: A+ … F); site denetimi
+    // harf vermez. Notu anan madde onu DENETIMIN degil GEO'nun notu diye anar, olcek servisle ayni.
+    // (Eski madde yerini de soyluyordu: "GEO Lab’de A+–F GEO notu"; kisa maddede yer sozu yok.)
+    expect(read(path.resolve(HERE, '../audit/geo-score-card.service.ts'))).toContain("export type GeoGrade = 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';");
+    for (const m of iceren(tr, /A\+/, 'TR harf notu')) expect(m, m).toMatch(/A\+–F GEO notu/);
+    for (const m of iceren(en, /A\+/, 'EN harf notu')) expect(m, m).toMatch(/A\+–F GEO grade/);
+    for (const m of [...tr, ...en]) expect(m, m).not.toMatch(/denetim notu|harf notu|audit grade|letter grade/i);
+    // Site anahtar kelime sirasi yalniz Search Console verisinden (analytics.service): siteyi
+    // anan her sira takibi maddesi kosulu da yazar. Magaza sira takibi (ASO) ayri ozellik.
+    for (const m of iceren(tr, /(?:anahtar kelime|keyword) sıra takibi/, 'TR site sira takibi')) expect(m, m).toContain('Search Console bağlıyken');
+    for (const m of iceren(en, /keyword rank tracking/, 'EN site sira takibi')) expect(m, m).toMatch(/once (?:Google )?Search Console is connected/);
     // Metadata AI onerisi; Google Play'e yazma yok, App Store'a yazma Pro ASC ile
-    expect(madde(tr, 'ASO:')).toContain('AI öneri');
-    expect(madde(en, 'ASO:')).toContain('suggestions');
-    for (const m of [madde(tr, 'ASO:'), madde(en, 'ASO:')]) expect(m).not.toMatch(/optimize et|AI-optimize/);
-    // ASC yorumlarina duygu analizi yapilmiyor (asc.service fetchReviews); yanit taslagi var
-    expect(madde(tr, 'App Store Connect')).toContain('yanıt taslağı');
-    expect(madde(en, 'App Store Connect')).toContain('reply drafts');
-    for (const m of [madde(tr, 'App Store Connect'), madde(en, 'App Store Connect')]) expect(m).not.toMatch(/duygu|sentiment/i);
+    for (const m of iceren(tr, /metadata/i, 'TR ASO metadata')) expect(m, m).toMatch(/öneri/);
+    for (const m of iceren(en, /metadata/i, 'EN ASO metadata')) expect(m, m).toMatch(/suggestions/);
+    for (const m of [...tr, ...en].filter((x) => /\bASO\b/.test(x))) expect(m, m).not.toMatch(/optimize et|AI-optimize/);
+    // ASC yorumlarina duygu analizi yapilmiyor (asc.service fetchReviews); yorum ozelligi anilirsa
+    // o bir "yanit taslagi"dir. Kisa madde ASC'yi yalniz adiyla aniyor; kural yine dayatilir.
+    for (const m of [...iceren(tr, /App Store Connect/, 'TR ASC'), ...iceren(en, /App Store Connect/, 'EN ASC')]) expect(m, m).not.toMatch(/duygu|sentiment/i);
+    for (const m of [...tr, ...en]) expect(m, m).not.toMatch(/duygu analizi|sentiment analysis/i);
+    for (const m of tr.filter((x) => /yorum/i.test(x))) expect(m, m).toContain('yanıt taslağı');
+    for (const m of en.filter((x) => /\breviews?\b/i.test(x))) expect(m, m).toContain('reply drafts');
     // Tespit Search Console ister; geri alma yalniz RanksUp'in yazisinda (STUCK_REVERT_EXTERNAL)
     expect(madde(tr, 'Takılmış sayfa')).toMatch(/Search Console[\s\S]*RanksUp’ın yayınladığı/);
     expect(madde(en, 'Stuck page')).toMatch(/Search Console[\s\S]*RanksUp published/);
@@ -307,8 +452,10 @@ describe('kart maddeleri = teslim edilen', () => {
     for (const m of [...tr, ...en]) expect(m, m).not.toMatch(/Programmatic SEO|programatik SEO|81 il|81 provinces|şehir sayfa|city pages/i);
     // Agent Readiness maddesi llms.txt'i satmaz; robots.txt onizlemeli, site haritasi yoksa olusturulur (auto-fix.service)
     for (const m of [madde(tr, 'Agent Readiness'), madde(en, 'Agent Readiness')]) expect(m).not.toContain('llms.txt');
-    expect(madde(tr, 'Agent Readiness')).toMatch(/robots\.txt’e önizlemeli ekleme[\s\S]*site haritası yoksa oluşturulur/);
-    expect(madde(en, 'Agent Readiness')).toMatch(/previewed additions to robots\.txt[\s\S]*sitemap created if missing/);
+    // Iki kosul da maddede: robots.txt degisikligi onizlemeli; site haritasi yalniz eksikse olusturulur
+    // (11.11.2026 kisa madde: "eksik site haritası" / "missing sitemap created")
+    expect(madde(tr, 'Agent Readiness')).toMatch(/robots\.txt’e önizlemeli ekleme[\s\S]*(?:eksik site haritası|site haritası yoksa oluşturulur)/);
+    expect(madde(en, 'Agent Readiness')).toMatch(/previewed additions to robots\.txt[\s\S]*(?:missing sitemap created|sitemap created if missing)/);
   });
 });
 
@@ -438,8 +585,10 @@ describe('Musteriye gorunen metinler = kod', () => {
   it('"X, Y, Z ve N asistan daha" toplamı ölçülen asistan sayısını aşmıyor', () => {
     // Landing'de "ChatGPT, Gemini, Claude ve dört asistanda" = 7 yaziyordu; sayi
     // regex'i (7 asistan) bunu yakalamiyordu. Ad listesi + "N asistan" toplanir.
-    const liste = BASE_PLANS.flatMap((p) => p.features_tr).find((m) => m.startsWith('ChatGPT · '))!;
-    const olculen = liste.split(' · ').length;
+    // Ust sinir: her kurulumda olculen asistanlar (plans.ts BASE_ENGINES — Profesyonel ve ustu
+    // kapsami; eskiden karttaki "ChatGPT · …" listesinden sayiliyordu, o madde 11.11.2026'da kalkti)
+    const olculen = BASE_ENGINES.length;
+    expect(olculen).toBe(6);
     const SAYI: Record<string, number> = {
       bir: 1, iki: 2, 'üç': 3, uc: 3, 'dört': 4, dort: 4, 'beş': 5, bes: 5, 'altı': 6, alti: 6, yedi: 7,
       one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
@@ -631,6 +780,21 @@ describe('Pazarlama sayfaları = ürün', () => {
     const [tr, en] = anahtar('land.cmp.note');
     expect(tr).toContain(`RanksUp ${starter.name_tr}`);
     expect(en).toContain(`RanksUp ${starter.name_en}`);
+    // Fiyat satiri en dusuk ucretli plan (Baslangic) ama RanksUp sutunu ust planlarin ozelliklerini
+    // de tikliyor. 11.11.2026'dan beri makale uretimi de onlardan biri: not, tiklenen satirlardan
+    // hangilerinin fiyati yazilan planda OLMADIGINI adiyla ve planiyla soyler.
+    expect(landing).toContain("plansTr.find((p) => p.id === 'starter')");
+    const pro = findPlan('pro')!;
+    expect(starter.articlesPerMonth, 'Baslangic makale uretirse land.cmp.note guncellenmeli').toBe(0);
+    for (const f of ['asaEnabled', 'agentReadiness'] as const) expect(FEATURE_MIN_PLAN[f], f).toBe('pro');
+    const satirAdi = (k: string) => anahtar(k).map((l) => l.match(/': '(.*)',\s*$/)![1]);
+    for (const k of ['land.cmp.row4', 'land.cmp.row5', 'land.cmp.row7']) {
+      const [adTr, adEn] = satirAdi(k);
+      expect(tr, `${k} TR`).toContain(adTr);
+      expect(en, `${k} EN`).toContain(adEn);
+    }
+    expect(tr).toContain(`${pro.name_tr} ve üstü planlardadır`);
+    expect(en).toContain(`on the ${pro.name_en} plan and up`);
     for (const r of rakipler) {
       expect(tr).toContain(r);
       expect(en).toContain(r);
@@ -678,6 +842,108 @@ describe('Pazarlama sayfaları = ürün', () => {
     for (const rel of ['about/page.tsx', 'use-cases/page.tsx']) {
       expect(m(rel), rel).not.toMatch(/sosyal medya planla|White-label dashboard|Faz 3|Phase 3|KKB|ETBİS/i);
     }
+  });
+
+  // ─── PAKET YAPISI (11.11.2026) — pazarlama sayfalari ─────────────────────────
+  //
+  // NEDEN: uc paket (Baslangic, Profesyonel, Kurumsal). Ajans satistan kalkti; ozellikleri
+  // yeni musteride Kurumsal'da (featureOfferPlan). Baslangic dort asistan olcer ve makale
+  // uretmez. Sayfalar eski adlari ("Büyüme", "Ajans planı"), eski sayilari ("Ajans planında 15
+  // site") ve "6 asistan"i plansiz yaziyordu. Sayilar ve plan adlari koddan okunur.
+  it('use-cases: plan adları ve sayıları plans.ts ile aynı; satıştan kalkan Ajans plan olarak anılmıyor (TR + EN)', () => {
+    const uc = m('use-cases/page.tsx');
+    const [bas, pro, ent] = [findPlan('starter')!, findPlan('pro')!, findPlan('enterprise')!];
+    // "Ajans" bir KITLE karti olarak durur (title: 'Ajans'); plan olarak anilmaz
+    expect(uc).toContain("title: 'Ajans',");
+    expect(uc).not.toMatch(/Ajans plan|Agency plan|Büyüme|Growth plan/);
+    expect(uc).toContain(`${pro.name_tr} planda ${pro.sites} site ve ayda ${pro.articlesPerMonth} makale; ${ent.name_tr} planda ${ent.sites} site ve ayda ${ent.articlesPerMonth} makale`);
+    expect(uc).toContain(`${pro.sites} sites and ${pro.articlesPerMonth} articles a month on the ${pro.name_en} plan; ${ent.sites} sites and ${ent.articlesPerMonth} articles a month on the ${ent.name_en} plan`);
+    expect(uc).toContain(`${ent.name_tr} planda ${ent.sites} site, ayda ${ent.articlesPerMonth} makale`);
+    expect(uc).toContain(`${ent.sites} sites and ${ent.articlesPerMonth} articles a month on the ${ent.name_en} plan`);
+    // Plan kapilari: musteriye soylenen plan featureOfferPlan (Urun Radari, GEO isi haritasi → Kurumsal)
+    for (const f of ['productRadar', 'geoHeatmap'] as const) expect(featureOfferPlan(f).id, f).toBe('enterprise');
+    expect(uc).toContain(`kategori sırası (${featureOfferPlan('productRadar').name_tr} planı)`);
+    expect(uc).toContain(`Ürün Radarı ve GEO ısı haritası (${featureOfferPlan('geoHeatmap').name_tr} planı)`);
+    expect(uc).toContain(`category rank (${featureOfferPlan('productRadar').name_en} plan)`);
+    expect(uc).toContain(`Product Radar and GEO Heatmap (${featureOfferPlan('geoHeatmap').name_en} plan)`);
+    // Asistan sayisi plana bagli yazilir
+    expect(uc).toContain(`${bas.name_tr} planında ${bas.aiProviders}, ${pro.name_tr} ve üstünde ${pro.aiProviders} asistan`);
+    expect(uc).toContain(`${bas.aiProviders} assistants on the ${bas.name_en} plan, ${pro.aiProviders} on ${pro.name_en} and up`);
+    expect(uc).not.toMatch(/6 asistanda ölç|on 6 assistants'/);
+  });
+
+  it('/compare: özet kartındaki fiyat, kartın saydığı dört alanın hepsini içeren en düşük planın fiyatı; plan kapıları ve asistan kapsamı kodla aynı (TR + EN)', () => {
+    const cmp = m('compare/compare-view.tsx');
+    const fiyat = stripComments(read(path.join(MARKETING, 'compare/compare-prices.ts')));
+    const [bas, pro] = [findPlan('starter')!, findPlan('pro')!];
+    // Kart: "SEO içerik üretimi ve yayın", "AI görünürlük ölçümü (6 asistan)", reklam otopilotu, Agent Readiness
+    expect(cmp).toContain("'SEO içerik üretimi ve yayın (Surfer / Jasper alternatifi)',");
+    expect(cmp).toContain("'AI görünürlük ölçümü (6 asistan)',");
+    expect(cmp).toContain("'Agent Readiness (AXO) taraması',");
+    // Dort alanin hepsi ayni planda: makale (articleOfferPlan), 6 asistan (planEngines), AXO (FEATURE_MIN_PLAN)
+    expect(articleOfferPlan().id).toBe('pro');
+    expect(sabitAsistan(pro)).toBe(6);
+    expect(sabitAsistan(bas)).toBe(4);
+    expect(FEATURE_MIN_PLAN.agentReadiness).toBe('pro');
+    // … bu yuzden fiyati yazilan plan yalniz o plan; giris plani (Baslangic) listede yok
+    expect(fiyat).toContain(`COMPARE_PRICE_PLAN_IDS: readonly string[] = ['${articleOfferPlan().id}'];`);
+    // Fiyat elle yazilmaz (plan verisinden); sayfada hicbir RanksUp tutari sabit degil
+    expect(cmp).not.toMatch(/\$\s?\d/);
+    // Tablo: makale satiri planini soyler; asistan hucresi ve ipucu kapsami plana gore yazar
+    expect(cmp).toContain(`RanksUp: ${pro.name_tr} ve üstü planlarda; ücretsiz denemede toplam ${findPlan('trial')!.articlesPerMonth} makale. ${bas.name_tr} planında makale üretimi yoktur.`);
+    expect(cmp).toContain(`RanksUp: on the ${pro.name_en} plan and up; the free trial includes ${findPlan('trial')!.articlesPerMonth} articles in total. The ${bas.name_en} plan does not include article generation.`);
+    expect(cmp).toContain(`luviai: '${sabitAsistan(pro)} asistan (${bas.name_tr}’ta ${sabitAsistan(bas)})'`);
+    expect(cmp).toContain(`luviai: '${sabitAsistan(pro)} assistants (${sabitAsistan(bas)} on ${bas.name_en})'`);
+    const dort = STANDARD_ENGINES.map(asistanAdi);
+    const ek = BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi);
+    expect(cmp).toContain(`RanksUp: ${dort.slice(0, -1).join(', ')} ve ${dort.at(-1)} her planda, ${ek.join(' ve ')} ${pro.name_tr} ve üstü planlarda;`);
+    expect(cmp).toContain(`RanksUp: ${dort.slice(0, -1).join(', ')} and ${dort.at(-1)} on every plan, ${ek.join(' and ')} on the ${pro.name_en} plan and up;`);
+    // GEO isi haritasi: musteriye soylenen plan featureOfferPlan (Ajans degil)
+    expect(cmp).toContain(`GEO ısı haritası (rakip × AI asistanı) (${featureOfferPlan('geoHeatmap').name_tr} planda)`);
+    expect(cmp).toContain(`GEO heatmap (competitor × AI assistant) (${featureOfferPlan('geoHeatmap').name_en} plan)`);
+    expect(cmp).not.toMatch(/Ajans ve üstü|Agency and above/);
+  });
+
+  it('eski plan adı (Büyüme / Growth) ve satıştan kalkan Ajans planı hiçbir müşteri metninde plan olarak anılmıyor', () => {
+    // "Büyüme" siradan bir sozcuk de (menu grubu, unvan); yalniz plan adi olarak kullanimlar aranir.
+    // "Ajans" bir kitle ve bir panel modulu olarak durur ("Ajans paneli", "ajanslar"); plan olarak anilmaz.
+    expect(BASE_PLANS.map((p) => p.name_tr)).not.toContain('Büyüme');
+    expect(BASE_PLANS.map((p) => p.name_en)).not.toContain('Growth');
+    const eskiAd = /RanksUp Büyüme|Büyüme plan|Büyüme, Profesyonel|Büyüme \$|Büyüme(?:'|’)(?:de|ye|den)|STARTER: 'Büyüme'|RanksUp Growth|Growth, Professional|Everything in Growth|the Growth plan/;
+    const ajansPlani = /Ajans plan|Ajans ve üstü|Ajans(?:'|’)taki her şey|Profesyonel(?: ve|,) Ajans|Agency plan|Agency and above|Professional and Agency|Everything in Agency/;
+    const kaynaklar = [...webSources, ...docSources].filter((s) => !s.rel.startsWith(`app${path.sep}(admin)`));
+    expect(offenders(kaynaklar, eskiAd)).toEqual([]);
+    expect(offenders(kaynaklar, ajansPlani)).toEqual([]);
+  });
+
+  // Denemede kilitli kalan takvim konulari ve makale uretimine devam: "plan seçince / planını
+  // yükselttiğinde yazılır" Baslangic'i da kapsardi (Baslangic makale uretmez). Metinler makale
+  // ureten en dusuk satistaki plani (plans.ts articleOfferPlan) adiyla yazar.
+  it('kilitli takvim ve makale üretimine devam: "plan seçince / yükseltince yazılır" yok, plan adı articleOfferPlan ile aynı', () => {
+    const plan = articleOfferPlan();
+    expect(plan.id).toBe('pro');
+    expect(findPlan('starter')!.articlesPerMonth).toBe(0);
+    const belirsiz = /(?:plan(?:ını)? (?:yükselttiğinde|yükseltilince|seçilince|seçince|seçtiğinde))\s+yazılır|(?:is|are) written when you (?:upgrade|choose a plan)|aylık makale hakkın başlar, takvimindeki|plan seçtiğinde aylık kotan başlar|Yeni makale üretmek için planını yükselt\./i;
+    const kaynaklar = [...webSources, ...docSources].filter((s) => !s.rel.startsWith(`app${path.sep}(admin)`));
+    expect(offenders(kaynaklar, belirsiz)).toEqual([]);
+    // Ayni kural olumlu: panel ve belgeler plan adini yaziyor
+    const lib = (rel: string) => stripComments(read(path.join(WEB_SRC, 'lib', rel)));
+    expect(lib('plan-lock.ts')).toContain(`title: 'Bu makale ${plan.name_tr} plana geçtiğinde yazılır',`);
+    expect(lib('plan-lock.ts')).toContain(`rowHint: '${plan.name_tr} plana geçtiğinde yazılır',`);
+    expect(lib('article-allowance.ts')).toContain(`Yeni makale üretmek için ${plan.name_tr} plana geç.`);
+    expect(lib('article-quota.ts')).toContain(`Takvimindeki diğer konular ${plan.name_tr} plana geçtiğinde yazılır.`);
+    expect(lib('trial-access.ts')).toContain(`Takvimindeki diğer konular ${plan.name_tr} plana geçtiğinde yazılır.`);
+    expect(lib('glossary.ts')).toContain(`Takvimin geri kalanı kilitli görünür ve ${plan.name_tr} plana geçince yazılır;`);
+    const yardim = (slug: string) => stripComments(read(path.join(MARKETING, 'help', slug, 'page.tsx')));
+    expect(yardim('getting-started')).toContain(`panelde kilitli görünür ve ${plan.name_tr} plana geçtiğinde yazılır.`);
+    expect(yardim('auto-pilot')).toContain(`panelde kilitli görünür ve ${plan.name_tr} plana geçtiğinde yazılır`);
+    expect(yardim('auto-pilot')).toContain(`${plan.name_tr} ve üstü planlarda ilk makale hemen üretilir (${findPlan('starter')!.name_tr} planında makale üretimi yoktur)`);
+    const i18nSrc = read(path.join(WEB_SRC, 'lib/i18n.ts'));
+    const satir = (k: string) => i18nSrc.split('\n').filter((l) => l.includes(`'${k}':`));
+    expect(satir('land.faq.a2')[0]).toContain(`panelde kilitli görünür ve ${plan.name_tr} plana geçtiğinde yazılır`);
+    expect(satir('land.faq.a2')[1]).toContain(`is written when you move to the ${plan.name_en} plan`);
+    expect(satir('land.how.s3.body')[0]).toContain(`${plan.name_tr} ve üstü planlarda ilk makale hemen üretilir`);
+    expect(satir('land.how.s3.body')[1]).toContain(`On the ${plan.name_en} plan and up your first article is generated right away`);
   });
 
   it('privacy: yürürlük tarihi korunur; son güncelleme ve değişiklik notu TR + EN', () => {
@@ -957,9 +1223,26 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(lay).not.toMatch(/sosyal medya planlay|otomatik post|Social Media Management|Shopify|1800-2500/i);
     expect(lay).toContain("priceCurrency: 'USD'");
     expect(lay).not.toContain("priceCurrency: 'TRY'");
-    const ucretli = BASE_PLANS.filter((p) => p.monthly_usd > 0);
-    expect(lay).toContain(`lowPrice: '${Math.min(...ucretli.map((p) => p.monthly_usd))}'`);
-    expect(lay).toContain(`highPrice: '${Math.max(...ucretli.map((p) => p.monthly_usd))}'`);
+    // Aralik = musterinin FIYAT gordugu planlar (FIYATLI: herkese acik, ucretli, teklifle degil).
+    // Eskiden butun ucretli planlar uzerinden hesaplaniyordu; Kurumsal artik teklifle, Ajans satista degil.
+    expect(FIYATLI.map((p) => p.id)).toEqual(['starter', 'pro']);
+    expect(lay).toContain(`lowPrice: '${Math.min(...FIYATLI.map((p) => p.monthly_usd))}'`);
+    expect(lay).toContain(`highPrice: '${Math.max(...FIYATLI.map((p) => p.monthly_usd))}'`);
+    expect(lay).toContain(`offerCount: ${FIYATLI.length},`);
+    // Gosterilmeyen tutarlar (Kurumsal liste fiyati, Ajans) yapisal veride de yok
+    for (const n of GIZLI_FIYATLAR) expect(lay, `gizli fiyat ${n}`).not.toMatch(new RegExp(`['"$]${n}\\b`));
+  });
+
+  // 11.11.2026 paket yapisi: Kurumsal'in liste fiyati ve satistan kalkan Ajans'in fiyati hicbir
+  // musteri metninde yazilmaz. Web kaynagi (yorumlar haric), ajan belgeleri ve mobil taranir;
+  // admin araclari (ic kullanim) ve spec'ler haric.
+  it('musteriye gosterilmeyen fiyatlar (Kurumsal liste fiyati, satistan kalkan Ajans) hicbir musteri metninde yok', () => {
+    expect(GIZLI_FIYATLAR.length).toBeGreaterThanOrEqual(4);
+    const tutar = GIZLI_FIYATLAR.flatMap(yazimlar).map((y) => y.replace('.', '\\.')).join('|');
+    const re = new RegExp(`\\$\\s?(?:${tutar})(?![\\d.,]*\\d)|(?<![\\d.,])(?:${tutar})\\s?(?:\\$|USD|dolar)`);
+    const kaynaklar = [...webSources, ...docSources, ...mobileSources]
+      .filter((s) => !s.rel.startsWith(`app${path.sep}(admin)`) && !/\.spec\.m?tsx?$/.test(s.rel));
+    expect(offenders(kaynaklar, re)).toEqual([]);
   });
 
   it('fiyat sayfası yıllık indirimi doğru söylüyor (10 ay fiyatına 12 ay)', () => {
@@ -1028,13 +1311,35 @@ describe('Panel metinleri = kod', () => {
   it('AI anahtarları paneli: anahtarsız sağlayıcı "Ölçülmüyor" der; silme onayı RanksUp anahtarının varlığına bakar', () => {
     // effectiveSource 'none' = ne BYOK ne RanksUp env anahtari: olcum motoru
     // (ai-citation resolveKey) o saglayiciyi olcmez. Eski rozet "Kendi anahtarın
-    // bağlı değil", eski onay "havuza düşecek (plana dahilse)" diyordu; 6 asistan
-    // her planda dahil, belirleyici olan anahtarin tanimli olmasi.
+    // bağlı değil", eski onay "havuza düşecek (plana dahilse)" diyordu; plan
+    // kapsamindaki asistanda belirleyici olan anahtarin tanimli olmasi.
     const p = comp('ai-keys-panel.tsx');
     expect(p).toContain("'Ölçülmüyor — RanksUp anahtarı tanımlı değil'");
     expect(p).not.toMatch(/Kendi anahtarın bağlı değil|plana dahilse|havuzuna düşecek/);
     expect(p).toMatch(/poolKeyAvailable\s*\?\s*'Ölçüm RanksUp anahtarıyla sürer/);
     expect(p).toContain('RanksUp anahtarı tanımlı olmadığı için bu sağlayıcı artık ölçülmez.');
+  });
+
+  // 11.11.2026 paket yapisi: Baslangic ve deneme dort asistan olcer. Kapsam disindaki asistan
+  // icin durum ucu effectiveSource 'none' + inPlan false + offerPlanName doner; panel bunu
+  // "anahtar tanimli degil" diye DEGIL, asistani olcen planin adiyla soyler.
+  it('AI anahtarları paneli: plan kapsamı dışındaki asistan "… planında ölçülür" der (durum ucu inPlan / offerPlanName)', () => {
+    const svc = stripComments(read(path.resolve(HERE, '../sites/site-ai-keys.service.ts')));
+    expect(svc).toContain('const kapsam = new Set<string>(ownerEngines(site.user));');
+    expect(svc).toContain('const inPlan = kapsam.has(provider);');
+    expect(svc).toMatch(/!inPlan \? 'none' :/);
+    expect(svc).toContain('offerPlanName: inPlan ? undefined : engineOfferPlanName(provider),');
+    expect(svc).toContain('publicPlans().find((p) => planEngines(p.id).includes(provider))?.name_tr');
+    // Kapsam disinda kalan asistanlari olcen en dusuk satistaki plan (panelde gorunen ad)
+    for (const e of BASE_ENGINES.filter((x) => !STANDARD_ENGINES.includes(x))) {
+      expect(publicPlans().find((pl) => planEngines(pl.id).includes(e))?.name_tr, e).toBe(findPlan('pro')!.name_tr);
+    }
+    const p = comp('ai-keys-panel.tsx');
+    expect(p).toMatch(/inPlan\?: boolean;[\s\S]*offerPlanName\?: string;/);
+    // Rozet: once kapsam (alan yoksa — eski API — kapsamda sayilir), sonra anahtar kaynagi
+    expect(p).toMatch(/p\.inPlan === false\s*\?\s*\{ text: `\$\{p\.offerPlanName \?\? 'Üst'\} planında ölçülür`, cls: 'text-muted-foreground' \}\s*:\s*p\.effectiveSource === 'byok'/);
+    // Silme onayi kapsam disindaki asistanda "RanksUp anahtarıyla sürer" demez
+    expect(p).toMatch(/info\?\.inPlan === false;[\s\S]*kapsamDisi\s*\?\s*'Bu sağlayıcı planının kapsamında olmadığı için zaten ölçülmüyor\.'/);
   });
 });
 
@@ -1145,10 +1450,26 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     const en = cevap("q: 'What happens if I exceed my monthly article quota?'");
     expect(tr).toContain('Yeni makale üretilmez: kendi başlattığın üretimler durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; takvimde bekleyen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler.');
     expect(tr).toContain('Her makale, üretime alındığı anda hakkından bir kez düşer;');
-    expect(tr).toContain('Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; denemede makaleleri sen başlatırsın, site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır.');
+    // 11.11.2026 paket yapisi: makale uretimi yalniz Profesyonel ve ustunde. Kilitli konular
+    // "plan yukseltince" degil makale uretimi olan planda yazilir; Baslangic'ta makale yok;
+    // panelden alinan planlar PURCHASABLE_PLAN_IDS (Ajans satista degil).
+    const makalePlani = findPlan('pro')!;
+    const makalesiz = findPlan('starter')!;
+    expect(makalesiz.articlesPerMonth).toBe(0);
+    expect(makalePlani.articlesPerMonth).toBeGreaterThan(0);
+    const satilan = PURCHASABLE_PLAN_IDS.map((id) => findPlan(id)!);
+    expect(tr).toContain(`Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; denemede makaleleri sen başlatırsın, site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve ${makalePlani.name_tr} plana geçtiğinde yazılır.`);
+    expect(tr).toContain(`${makalesiz.name_tr} planında makale üretimi yoktur.`);
+    expect(tr).toContain(`${satilan.map((p) => p.name_tr).join(' ve ')} planlarını panelden satın alırsın; ${findPlan('enterprise')!.name_tr} plan satış ekibiyle`);
+    expect(en).toContain(`The ${makalesiz.name_en} plan does not include article generation.`);
+    expect(en).toContain(`You buy the ${satilan.map((p) => p.name_en).join(' and ')} plans from the dashboard; the ${findPlan('enterprise')!.name_en} plan is set up`);
+    for (const p of BASE_PLANS.filter((x) => x.legacy)) {
+      expect(tr, `${p.id} satista degil`).not.toContain(p.name_tr);
+      expect(en, `${p.id} satista degil`).not.toContain(p.name_en);
+    }
     expect(en).toContain('No new articles are generated: generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; scheduled articles also wait until your allowance renews or you upgrade.');
     expect(en).toContain('Each article uses your allowance once, when it enters generation;');
-    expect(en).toContain('the other topics scheduled when your site was added appear locked in the dashboard and are written when you upgrade your plan.');
+    expect(en).toContain(`the other topics scheduled when your site was added appear locked in the dashboard and are written when you move to the ${makalePlani.name_en} plan.`);
     // Basarisiz uretimin hakki iade edilir (articles/allowance-refund.ts, sahip karari 20.10.2026)
     expect(tr).toContain('üretim makale çıkmadan başarısız olursa o hak geri verilir (yeniden denediğinde yeniden düşer)');
     expect(en).toContain('if the generation fails without producing an article, that allowance is given back (a retry uses it again)');
@@ -1162,7 +1483,14 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     expect(consume).toContain('where: { id: userId, articlesUsedThisMonth: { lt: limit } }');
     expect(consume).toContain('throw this.articleQuotaError(user.plan, limit);');
     const hata = quota.slice(quota.indexOf('private articleQuotaError('), quota.indexOf('async consumeArticleAllowance('));
-    expect(hata).toMatch(/plan === 'TRIAL'[\s\S]*plan seç[\s\S]*Plan yükseltebilir/);
+    // Hata metinleri (11.11.2026): deneme "Profesyonel plana geç" ("plan seç" Baslangic'i da
+    // kapsardi), makale hakki olmayan plan "bu pakette yok", digerleri "Plan yükseltebilir"
+    // Plan adi koddan: makale ureten en dusuk satistaki plan (plans.ts articleOfferPlan)
+    expect(articleOfferPlan().id).toBe(makalePlani.id);
+    const PLAN = String.raw`(?:${makalePlani.name_tr}|\$\{articleOfferPlan\(\)\.name_tr\})`;
+    expect(hata).toMatch(new RegExp(String.raw`plan === 'TRIAL'[\s\S]*Makale üretimine devam etmek için ${PLAN} plana geç[\s\S]*limit === 0[\s\S]*Makale üretimi bu pakette yok\. Makale üretmek için ${PLAN} plana geç[\s\S]*Plan yükseltebilir`));
+    expect(hata).not.toMatch(/Devam etmek için plan seç/);
+    expect(read(path.resolve(HERE, '../billing/quota.service.ts'))).toMatch(/STARTER:\s*\{ articles: 0,/);
     const ekle = scheduler.slice(scheduler.indexOf('async scheduleTopic('), scheduler.indexOf('const slug =', scheduler.indexOf('async scheduleTopic(')));
     expect(ekle).toMatch(/if \(!allowed\) \{\s*[\s\S]*?throw new ForbiddenException/);
     const tarama = scheduler.slice(scheduler.indexOf('async processDueArticles('), scheduler.indexOf('private dueArticlesWhere('));
@@ -1221,8 +1549,11 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
   /** Kartta gorunen maddeler: planin kendi maddeleri + "X'teki her sey, arti:" zinciri */
   const zincir = (p: BasePlan, dil: 'features_tr' | 'features_en'): string[] =>
     [...p[dil], ...(p.inheritsFrom ? zincir(findPlan(p.inheritsFrom)!, dil) : [])];
-  const HAFTALIK_TR = 'Hesap başına haftada 1 AI görünürlük ölçümü';
-  const HAFTALIK_EN = '1 AI visibility measurement per account per week';
+  // Haftalik kuralin kartta ARANAN cekirdegi: "haftada 1 ölçüm" + "hesap başına" ayni maddede
+  // (11.11.2026 kisa madde: "Haftada 1 ölçüm (hesap başına) · …"; eskisi "Hesap başına haftada 1
+  // AI görünürlük ölçümü — …" idi). Maddenin tam cumlesi degil kural aranir.
+  const haftalikTr = (m: string) => /haftada 1 (?:AI görünürlük )?ölçüm/i.test(m) && /hesap başına/i.test(m);
+  const haftalikEn = (m: string) => /1 (?:AI visibility )?measurement (?:a|per) week|1 (?:AI visibility )?measurement per account per week/i.test(m) && /per account/i.test(m);
 
   it('kod sabitleri: pencere 7 gun, hak hesap basina, paneldeki "Tümünü çalıştır" limiti bulunuyor', () => {
     expect(MEASUREMENT_WINDOW_MS, 'pencere degisti: "haftada 1" / "7 günde 1" metinlerini guncelle').toBe(7 * 24 * 60 * 60 * 1000);
@@ -1263,17 +1594,20 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
 
   it('fiyat kartı: haftalık ölçüm her ücretli planda görünüyor (miras zinciriyle), denemede "haftada en fazla 1"', () => {
     for (const p of ucretli) {
-      expect(zincir(p, 'features_tr').some((m) => m.startsWith(HAFTALIK_TR)), `${p.id} TR`).toBe(true);
-      expect(zincir(p, 'features_en').some((m) => m.startsWith(HAFTALIK_EN)), `${p.id} EN`).toBe(true);
+      expect(zincir(p, 'features_tr').some(haftalikTr), `${p.id} TR`).toBe(true);
+      expect(zincir(p, 'features_en').some(haftalikEn), `${p.id} EN`).toBe(true);
     }
     expect(trial.features_tr.join('\n')).toContain(`${trial.aiRunsPerMonth} görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
     expect(trial.features_en.join('\n')).toContain(`${trial.aiRunsPerMonth} visibility runs (at most 1 measurement per week)`);
   });
 
   it('fiyat kartı: çalıştırma sayısı plans.ts ile aynı ve tavan olarak yazılıyor; birim tanımlı', () => {
+    // Madde basinda buyuk harfle de yazilabilir ("Ayda en fazla 75 çalıştırma", "Up to 75 runs/mo"):
+    // yalniz ilk harfin buyuklugu serbest; "en fazla" / "up to" ve sayi zorunlu
+    const kacis = (s: string) => s.replace(/[.,]/g, '\\$&');
     for (const p of ucretli) {
-      expect(p.features_tr.join('\n'), `${p.id} TR`).toContain(`ayda en fazla ${fmtTr(p.aiRunsPerMonth)} çalıştırma`);
-      expect(p.features_en.join('\n'), `${p.id} EN`).toContain(`up to ${fmtEn(p.aiRunsPerMonth)} runs/mo`);
+      expect(p.features_tr.join('\n'), `${p.id} TR`).toMatch(new RegExp(`[Aa]yda en fazla ${kacis(fmtTr(p.aiRunsPerMonth))} çalıştırma`));
+      expect(p.features_en.join('\n'), `${p.id} EN`).toMatch(new RegExp(`[Uu]p to ${kacis(fmtEn(p.aiRunsPerMonth))} runs/mo`));
       // Ust plan alicisi yukseltmenin olcum sikligini artirdigini sanmasin
       if (p.inheritsFrom) {
         expect(p.features_tr.join('\n'), `${p.id} TR`).toContain('ölçüm yine haftada 1');
@@ -1282,8 +1616,28 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
     }
     const tr = BASE_PLANS.flatMap((p) => p.features_tr);
     const en = BASE_PLANS.flatMap((p) => p.features_en);
-    expect(tr.some((m) => m.includes('AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma'))).toBe(true);
-    expect(en.some((m) => m.includes('an AI test is 1 run, each Prompt Lab question or branch is 1'))).toBe(true);
+    // BIRIM TANIMI. Eskiden kart maddesinin icindeydi ("… (AI testi 1, Prompt Lab’de her soru ve
+    // her dal 1 çalıştırma)"); 11.11.2026 kisa maddelerinde yok. Tanim kartlarin gosterildigi yerde
+    // durmali: ana sayfada kartlarin hemen altindaki dipnot (land.pric.footer_note, app/page.tsx).
+    // /pricing kartlarinin altinda da AYNI not durur (pricing-view.tsx).
+    const landing = stripComments(read(path.join(WEB_SRC, 'app/page.tsx')));
+    expect(landing).toMatch(/<PricingSection[^>]*\/>\s*<\/div>\s*<p[^>]*><T k="land\.pric\.footer_note" \/><\/p>/);
+    expect(stripComments(read(path.join(WEB_SRC, 'app/(marketing)/pricing/pricing-view.tsx')))).toContain("{t('land.pric.footer_note')}");
+    const [notTr, notEn] = i18n.split('\n').filter((l) => l.includes("'land.pric.footer_note':"));
+    expect(notTr).toContain('AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma');
+    expect(notEn).toContain('an AI test is 1 run, each Prompt Lab question or branch is 1');
+    // Dipnot ASISTAN SAYISI YAZMAZ: sayi kosullu (Muse yalniz olculuyorken sayilir) ve kartta, o an
+    // olculen listeden uretilir (enginesBullet + plan.engines logolari). Dipnota sabit "4 / 6" yazilirsa
+    // Muse olculurken kartin "7 AI asistanı" maddesiyle ayni ekranda celisir. Dipnot karti gosterir.
+    const [bas, pro] = [findPlan('starter')!, findPlan('pro')!];
+    for (const l of [notTr, notEn]) expect(l).not.toMatch(/\d+\s+(?:AI\s+)?(?:asistan|assistants?)/i);
+    expect(notTr).toContain('hangi asistanların ölçüldüğü kartlarda');
+    expect(notEn).toContain('the cards show which assistants each plan measures');
+    expect(bas.articlesPerMonth).toBe(0);
+    expect(notTr).toContain(`makale üretimi ${pro.name_tr} ve üstünde`);
+    expect(notEn).toContain(`article generation on ${pro.name_en} and up`);
+    // Eski not: "Ücretli her planda: 13 yayın hedefi · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında"
+    for (const l of [notTr, notEn]) expect(l).not.toMatch(/Ücretli her planda|On every paid plan|ölçümü, 6 AI asistanında|across 6 AI assistants/);
     for (const m of tr) expect(m, m).not.toMatch(/görünürlük çalıştırması\s*\/\s*ay|her çalıştırma \d+ AI/);
     for (const m of en) expect(m, m).not.toMatch(/visibility runs\/mo|every run queries/);
   });
@@ -1347,10 +1701,23 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
 
   it('yardım: plan listesi plans.ts ile aynı; haftalık kural ve "Tümünü çalıştır" örneği panelle aynı', () => {
     const bill = sayfa('help/billing/page.tsx');
-    for (const p of BASE_PLANS) {
+    // Liste = satistaki planlar (publicPlans); satistan kalkan Ajans listede yok
+    const planSatirlari = bill.split('\n').filter((l) => /<li><strong>[^<]+<\/strong>(?: \([^)]*\))? — /.test(l) && /çalıştırma/.test(l) && / site/.test(l));
+    expect(planSatirlari).toHaveLength(SATISTAKI.length);
+    for (const p of BASE_PLANS.filter((x) => x.legacy)) expect(bill, `${p.id} satista degil`).not.toContain(`<strong>${p.name_tr}</strong>`);
+    for (const p of SATISTAKI) {
       const li = bill.split('\n').find((l) => l.includes(`<li><strong>${p.name_tr}</strong>`));
       expect(li, `${p.id} satiri`).toBeDefined();
-      expect(li!).toContain(`${p.articlesPerMonth} makale`);
+      // Makale uretimi olmayan plan (Baslangic) "0 makale" degil "makale üretimi yok" yazar
+      if (p.articlesPerMonth === 0) {
+        expect(li!, `${p.id} makale`).toContain('makale üretimi yok');
+        expect(li!, `${p.id} makale`).not.toMatch(/\d+ makale/);
+      } else {
+        expect(li!, `${p.id} makale`).toContain(`${p.articlesPerMonth} makale`);
+      }
+      // Asistan sayisi plan kapsamiyla ayni (Baslangic kapsami 4, Profesyonel ve ustu 6)
+      expect(li!, `${p.id} asistan`).toContain(`${p.aiProviders} AI asistanı`);
+      expect(p.aiProviders, `${p.id} aiProviders = planEngines`).toBe(sabitAsistan(p));
       expect(li!).toContain(`${p.sites} site`);
       expect(li!).toContain(p.id === 'trial'
         ? `${p.aiRunsPerMonth} AI görünürlük çalıştırması (haftada en fazla 1 ölçüm)`
@@ -1397,12 +1764,18 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
 // ayni committe guncellenir.
 describe('RanksUp Video belgeleri = kod', () => {
   const minPlan = findPlan(FEATURE_MIN_PLAN.articleVideo)!.name_tr;
-  const sayilar = `Profesyonel ${VIDEOS_PER_MONTH.pro}, Ajans ${VIDEOS_PER_MONTH.agency}, Kurumsal ${VIDEOS_PER_MONTH.enterprise} video`;
+  // Belgeler SATISTAKI planlarin hakkini yazar (11.11.2026: Ajans satistan kalkti, listede yok)
+  const videoPlanlari = SATISTAKI.filter((p) => VIDEOS_PER_MONTH[p.id] > 0);
+  const sayilar = `${videoPlanlari.map((p) => `${p.name_tr} ${VIDEOS_PER_MONTH[p.id]}`).join(', ')} video`;
   const videoSrc = path.resolve(HERE, '../videos');
 
   it('plan kapisi Profesyonel; llms.txt ve llms-full.txt aylik haklari plans.ts ile ayni yaziyor', () => {
     expect(minPlan).toBe('Profesyonel');
+    expect(videoPlanlari.map((p) => p.id)).toEqual(['pro', 'enterprise']);
+    expect(sayilar).toBe(`Profesyonel ${VIDEOS_PER_MONTH.pro}, Kurumsal ${VIDEOS_PER_MONTH.enterprise} video`);
     for (const [ad, doc] of [['llms.txt', llms], ['llms-full.txt', llmsFull]] as const) {
+      // Satistan kalkan planin hakki belgede anilmaz
+      for (const p of BASE_PLANS.filter((x) => x.legacy)) expect(doc, `${ad}: ${p.id}`).not.toContain(`${p.name_tr} ${VIDEOS_PER_MONTH[p.id]}`);
       expect(doc, ad).toContain(`aylık hak: ${sayilar}`.replace('aylık hak', ad === 'llms.txt' ? 'aylık hak' : 'Aylık hak'));
       expect(doc, ad).toContain('https://ranksup.ai/help/video');
       expect(doc, ad).toContain('RanksUp videoyu hiçbir platformda yayınlamaz');
@@ -1482,9 +1855,20 @@ describe('RanksUp Video belgeleri = kod', () => {
     expect(help).toContain('Makale, site ve ürün videoları aynı aylık haktan düşer');
     expect(llms).toContain('sitenin kendi alan adındaki bir ürün/hizmet sayfasından ürün tanıtımı');
     expect(llmsFull).toContain('Makale, site ve ürün videoları aynı haktan düşer');
-    const kart = BASE_PLANS.find((p) => p.id === 'pro')!;
-    expect(kart.features_tr.join('\n')).toContain('RanksUp Video — makale, site ve ürün tanıtım videoları');
-    expect(kart.features_en.join('\n')).toContain('RanksUp Video — article, site and product promo videos');
+    // Fiyat karti (11.11.2026 kisa madde): uc turu saymaz, yalniz aylik hakki yazar. Hak sayisi
+    // VIDEOS_PER_MONTH ile ayni; hakki olan her planin kendi video maddesi var, olmayanin yok.
+    for (const p of BASE_PLANS) {
+      const tr = p.features_tr.filter((m) => m.startsWith('RanksUp Video'));
+      const en = p.features_en.filter((m) => m.startsWith('RanksUp Video'));
+      if (VIDEOS_PER_MONTH[p.id] === 0) {
+        expect([...tr, ...en], `${p.id}: video hakki yok ama madde var`).toEqual([]);
+        continue;
+      }
+      expect(tr, `${p.id} TR video maddesi`).toHaveLength(1);
+      expect(en, `${p.id} EN video maddesi`).toHaveLength(1);
+      expect(tr[0], p.id).toMatch(new RegExp(`ayda ${VIDEOS_PER_MONTH[p.id]} video\\b`));
+      expect(en[0], p.id).toMatch(new RegExp(`\\b${VIDEOS_PER_MONTH[p.id]} videos/mo\\b`));
+    }
     // Dayanaklar: alan adi kurali (yonlendirme dahil), iki kaynakli fiyat, ortak hak, modele gorsel gitmez
     const src = stripComments(read(path.join(videoSrc, 'promo-video-source.ts')));
     expect(src).toContain('allowRedirect: (next) => sameSiteHost(next.hostname, siteUrl)');
@@ -1552,7 +1936,10 @@ describe('Rehber (/rehber) = ürün', () => {
   const REHBER = path.join(WEB_SRC, 'content/rehber');
   const dosya = (slug: string) => stripComments(read(path.join(REHBER, `${slug}.ts`)));
   const tum = walk(REHBER, /\.ts$/).map((f) => ({ rel: path.relative(REHBER, f), text: stripComments(read(f)) }));
-  const planAdi = (f: keyof typeof FEATURE_MIN_PLAN) => findPlan(FEATURE_MIN_PLAN[f])!.name_tr;
+  // Musteriye SOYLENEN plan: ozelligi iceren en dusuk SATISTAKI plan (plans.ts featureOfferPlan).
+  // Kapi FEATURE_MIN_PLAN'da durur ama Ajans 11.11.2026'da satistan kalkti: rehber "Ajans
+  // planındaki" derse okuyani alamayacagi bir plana yollar (Canli Tarayici artik Kurumsal'da satilir).
+  const planAdi = (f: keyof typeof FEATURE_MIN_PLAN) => featureOfferPlan(f).name_tr;
 
   it('rehber veri modulleri bulunuyor (8 makale + kayit + kaynaklar + tipler)', () => {
     // 11.11.2026: yapay-zeka-gorunurlugu eklendi (PR #68); sayi orada guncellenmemisti.
@@ -1560,18 +1947,30 @@ describe('Rehber (/rehber) = ürün', () => {
   });
 
   it('RanksUp plan fiyatlari plans.ts ile ayni; elle yazilmis bayat tutar yok', () => {
-    let sayi = 0;
-    for (const p of BASE_PLANS.filter((x) => x.monthly_usd > 0)) {
+    // Fiyati yazilabilen planlar: musterinin fiyat gordugu planlar (FIYATLI — Baslangic, Profesyonel)
+    const sayi: Record<string, number> = {};
+    for (const p of FIYATLI) {
       const re = new RegExp(`${p.name_tr} \\$([\\d.,]+)\\/ay`, 'g');
       for (const s of tum) {
         for (const m of s.text.matchAll(re)) {
-          sayi++;
+          sayi[p.id] = (sayi[p.id] ?? 0) + 1;
           expect(Number(m[1].replace(/[.,]/g, '')), `${s.rel}: ${m[0]}`).toBe(p.monthly_usd);
         }
       }
     }
-    expect(sayi, 'karsilastirma makalesi RanksUp baslangic fiyatini plans.ts adiyla yaziyor').toBeGreaterThan(0);
+    expect(sayi.starter ?? 0, 'karsilastirma makalesi RanksUp baslangic fiyatini plans.ts adiyla yaziyor').toBeGreaterThan(0);
+    // 11.11.2026: Baslangic makale uretmez; karsilastirma makale uretimini de sattigi icin
+    // makale uretimi olan planin (Profesyonel) fiyatini da plans.ts adiyla yazar
+    expect(sayi.pro ?? 0, 'karsilastirma makalesi makale uretimi olan planin fiyatini yaziyor').toBeGreaterThan(0);
+    // Eski plan adi + fiyat, satistan kalkan planin ve teklifle satilan planin fiyati rehberde yok
+    for (const s of tum) {
+      expect(s.text, `${s.rel}: eski plan adi`).not.toMatch(/Büyüme (?:planı|\$)/);
+      for (const p of BASE_PLANS.filter((x) => x.legacy || x.contactSales)) expect(s.text, `${s.rel}: ${p.id} fiyati`).not.toMatch(new RegExp(`${p.name_tr} \\$`));
+      for (const n of GIZLI_FIYATLAR) for (const y of yazimlar(n)) expect(s.text, `${s.rel}: gizli fiyat ${y}`).not.toContain(`$${y}/ay`);
+    }
     expect(dosya('yapay-zeka-gorunurluk-araclari')).toContain(`${findPlan('starter')!.name_tr} $${findPlan('starter')!.monthly_usd}/ay`);
+    // Baslangic fiyatinin yaninda o planin kapsami da yazili: dort asistan, makale uretimi yok
+    expect(dosya('yapay-zeka-gorunurluk-araclari')).toContain(`makale üretimi ${findPlan('pro')!.name_tr} $${findPlan('pro')!.monthly_usd}/ay`);
     // Fiyat notu Kullanim Sartlari ile ayni: "KDV dahil"
     expect(read(path.join(MARKETING, 'terms/page.tsx'))).toContain('Aylık veya yıllık ödeme. KDV dahil.');
     expect(dosya('yapay-zeka-gorunurluk-araclari')).toContain(`${findPlan('starter')!.name_tr} $${findPlan('starter')!.monthly_usd}/ay, KDV dahil`);
@@ -1600,9 +1999,22 @@ describe('Rehber (/rehber) = ürün', () => {
   });
 
   it('ölçülen asistanlar plans.ts listesiyle ayni; altı asistanın hepsi web aramalı (Kasım 2026)', () => {
-    const liste = BASE_PLANS.flatMap((p) => p.features_tr).find((m) => m.startsWith('ChatGPT · '))!.split(' · ');
-    const metin = `${liste.slice(0, -1).join(', ')} ve ${liste.at(-1)}`;
-    expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain(metin);
+    // Liste plans.ts BASE_ENGINES'ten (eskiden karttaki "ChatGPT · …" maddesinden okunuyordu; o madde
+    // 11.11.2026'da kalkti). Kapsam plana bagli: rehber "siten icin … sorar" derken deneme ve
+    // Baslangic'in dort asistan olctugunu, Grok ve DeepSeek'in Profesyonel ve ustunde eklendigini de yazar.
+    const virgullu = (adlar: string[]) => `${adlar.slice(0, -1).join(', ')} ve ${adlar.at(-1)}`;
+    const alti = BASE_ENGINES.map(asistanAdi);
+    const dort = STANDARD_ENGINES.map(asistanAdi);
+    const ek = BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi);
+    expect(alti).toHaveLength(6);
+    expect(dort).toHaveLength(4);
+    const metin = virgullu(alti);
+    const kapsam = `Ücretsiz denemede ve ${findPlan('starter')!.name_tr} planında ${virgullu(dort)} ölçülür; ${virgullu(ek)} ${findPlan('pro')!.name_tr} ve üstü planlarda eklenir.`;
+    expect(planEngines('trial')).toEqual(planEngines('starter'));
+    for (const slug of ['chatgpt-markam-gorunuyor-mu', 'yapay-zeka-gorunurlugu']) {
+      expect(dosya(slug), slug).toContain(metin);
+      expect(dosya(slug), slug).toContain(kapsam);
+    }
     const citation = read(path.resolve(HERE, '../audit/ai-citation.service.ts'));
     // Aramali: Claude web_search araci, Gemini googleSearch, ChatGPT web_search, Perplexity sonar,
     // Grok xAI Responses + web_search, DeepSeek Anthropic uyumlu uc + web_search_20250305
@@ -1618,3 +2030,85 @@ describe('Rehber (/rehber) = ürün', () => {
     expect(dosya('yapay-zeka-gorunurluk-araclari')).not.toContain('Grok ve DeepSeek ölçümünde web araması yoktur');
   });
 });
+
+/**
+ * KONUMLANDIRMA (sahip karari 11.11.2026): RanksUp "AI makale araci" degil "yapay zeka gorunurluk
+ * platformu" diye satilir. Deneme slogani ("14 gün ücretsiz …") makaleyle BASLAMAZ; denemenin 2
+ * makalesi olgu olarak SSS, yardim ve plan ozetlerinde durur (asagida denetlenmez).
+ *
+ * ASISTAN SAYISI: ana sayfadaki anonim test her yapilandirilmis asistana sorar (alti + anahtari
+ * tanimliysa Muse); kilidi acilan tam rapor hesabin plan kapsamiyla olculur (Baslangic 4,
+ * Profesyonel ve ustu 6 + Muse — public-citation.controller unlock). Bu ekranlarda sabit
+ * "6 AI motorunda" hem Muse olculurken hem Baslangic hesabinda yanlistir.
+ */
+describe('konumlandirma: deneme slogani ve test ekranlari', () => {
+  const MOBILE = path.resolve(HERE, '../../../../mobile');
+  const i18n = stripComments(read(path.join(WEB_SRC, 'lib/i18n.ts')));
+  const satirlar = (k: string) => i18n.split('\n').filter((l) => l.includes(`'${k}':`));
+  const MAKALE = /makale|article/i;
+
+  it('deneme sloganlari makale saymaz (TR + EN): fiyat sayfasi, ana sayfa fiyat bolumu, kapanis cagrisi', () => {
+    for (const k of ['pricing.subtitle', 'pricing.cta', 'pricing.note_free_trial', 'land.pricing.subtitle', 'land.pric.subtitle', 'land.cta.subtitle']) {
+      const [tr, en] = satirlar(k);
+      expect(tr, k).toBeTruthy();
+      expect(en, k).toBeTruthy();
+      expect(tr, k).not.toMatch(MAKALE);
+      expect(en, k).not.toMatch(MAKALE);
+    }
+    // Deneme suresi ve kart sarti soylenmeye devam eder
+    expect(satirlar('pricing.subtitle')[0]).toContain('14 gün ücretsiz');
+    expect(satirlar('pricing.subtitle')[0]).toContain('Kart gerekmez');
+    expect(satirlar('land.cta.subtitle')[0]).toContain('14 gün ücretsiz deneme, kart gerekmez');
+  });
+
+  it('sayfa basliklari ve arama/sosyal ozetleri "2 makale" ile satmaz', () => {
+    const kaynaklar: Array<[string, string]> = [
+      ['app/layout.tsx', stripComments(read(path.join(WEB_SRC, 'app/layout.tsx'))).split('\n').filter((l) => l.includes('OG_DESCRIPTION =')).join('\n')],
+      ['pricing/layout.tsx', stripComments(read(path.join(WEB_SRC, 'app/(marketing)/pricing/layout.tsx'))).split('\n').filter((l) => /^\s*(title|description):/.test(l)).join('\n')],
+      ['pricing/pricing-view.tsx', stripComments(read(path.join(WEB_SRC, 'app/(marketing)/pricing/pricing-view.tsx'))).split('\n').filter((l) => /\brail=/.test(l)).join('\n')],
+      ['signin/page.tsx', stripComments(read(path.join(WEB_SRC, 'app/(auth)/signin/page.tsx'))).split('\n').filter((l) => l.includes('14 gün ücretsiz')).join('\n')],
+      ['compare-view.tsx', stripComments(read(path.join(WEB_SRC, 'app/(marketing)/compare/compare-view.tsx'))).split('\n').filter((l) => /ctaSub:|name: '(Ücretsiz deneme|Free trial)'/.test(l)).join('\n')],
+      ['checker-copy.ts', stripComments(read(path.join(WEB_SRC, 'components/landing/checker-copy.ts'))).split('\n').filter((l) => l.includes('ctaPrimary:')).join('\n')],
+    ];
+    for (const [ad, metin] of kaynaklar) {
+      expect(metin.length, ad).toBeGreaterThan(0);
+      // "makale üretimi Profesyonel ve üstünde" bir ozellik bilgisidir; yasak olan deneme sloganindaki sayi
+      expect(metin, ad).not.toMatch(/2 makale|2 articles|2 AI makale/i);
+    }
+    // Karsilastirma tablosundaki deneme satiri sureyi soyler (rakip sutunlari da sure yaziyor)
+    const cmp = kaynaklar.find(([ad]) => ad === 'compare-view.tsx')![1];
+    expect(cmp).toContain("luviai: '14 gün, kart yok'");
+    expect(cmp).toContain("luviai: '14 days, no card'");
+  });
+
+  it('test ve kilit ekranlari sabit asistan sayisi yazmaz; kilit metni plan kapsamini soyler', () => {
+    const SABIT = /\b6 (?:AI )?(?:motor|asistan)|\b6 (?:AI )?(?:engines|assistants)|all 6 engines/i;
+    const checker = stripComments(read(path.join(WEB_SRC, 'components/landing/checker-copy.ts')));
+    const unlock = stripComments(read(path.join(WEB_SRC, 'app/(dashboard)/unlock/page.tsx')));
+    // Plan kapsamini SOYLEYEN satirlar ("Başlangıç … 4, Profesyonel ve üstü 6") haric: orada 6 planin sayisidir
+    const kapsamSatiri = /Başlangıç|Starter/;
+    for (const [ad, src] of [['checker-copy.ts', checker], ['unlock/page.tsx', unlock]] as const) {
+      const ihlal = src.split('\n').filter((l) => SABIT.test(l) && !kapsamSatiri.test(l));
+      expect(ihlal, ad).toEqual([]);
+    }
+    const [bas, pro] = [findPlan('starter')!, findPlan('pro')!];
+    expect(planEngines('starter')).toHaveLength(4);
+    expect(checker).toContain(`${bas.name_tr} planı ${bas.aiProviders}, ${pro.name_tr} ve üstü ${pro.aiProviders} AI motorunda ölçer`);
+    expect(checker).toContain(`${bas.name_en} measures ${bas.aiProviders} AI engines, ${pro.name_en} and up ${pro.aiProviders}`);
+    expect(unlock).toContain(`${bas.name_tr} planında ${bas.aiProviders} AI motorunda (ChatGPT, Gemini, Claude, Perplexity), ${pro.name_tr} ve üstünde ${pro.aiProviders} (ayrıca Grok, DeepSeek)`);
+    expect(unlock).toContain('planındaki AI motorlarında ölçülüyor');
+    // Dayanak: kilit ucu kapsami hesabin planindan gecirir
+    const ctrl = read(path.resolve(HERE, '../audit/public-citation.controller.ts'));
+    expect(ctrl).toContain('const scope = { engines: ownerEngines(user), tier: ownerModelTier(user) };');
+    expect(ctrl).toContain("this.citation.check(domain, clientIp(req), 'signup_baseline', { scope })");
+  });
+
+  it('mobil uygulama metinleri sabit asistan sayisi yazmaz (anonim test: alti + olculuyorsa Muse)', () => {
+    const SABIT = /\b6 AI|\b6 asistan|\b6 assistants|\b6 motor/i;
+    for (const rel of ['src/i18n.ts', 'app/analyze.tsx', 'app/index.tsx', 'src/screens/Visibility.tsx']) {
+      const ihlal = stripComments(read(path.join(MOBILE, rel))).split('\n').filter((l) => SABIT.test(l));
+      expect(ihlal, rel).toEqual([]);
+    }
+  });
+});
+

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_ENGINES, measuredEngines } from './measured-engines.js';
-import { BASE_PLANS } from './plans.js';
+import { BASE_PLANS, planEngines } from './plans.js';
 
 /**
  * Ana sayfadaki "N asistanda ölçülür" seridi = bu kurulumda gercekten olculenler.
@@ -22,8 +22,18 @@ describe('measuredEngines', () => {
     expect(measuredEngines({ META_MODEL_API_KEY: 'x' })).toEqual([...BASE_ENGINES, 'meta']);
   });
 
-  it('sabit liste plan kartlarinin vaat ettigi sayiyla ayni (aiProviders)', () => {
-    for (const p of BASE_PLANS) expect(p.aiProviders, p.id).toBe(BASE_ENGINES.length);
+  // 11.11.2026 (uc paket): sabit liste urunun EN GENIS kapsami. Eskiden her plan bu sayiyi
+  // vaat ediyordu; artik Baslangic ve deneme dort asistan olcer (plans.ts planEngines).
+  it('sabit liste = Profesyonel ve ustunun vaat ettigi sayi; Baslangic ve deneme kapsamindaki dort (aiProviders)', () => {
+    for (const p of BASE_PLANS) {
+      const kapsam = planEngines(p.id).filter((e) => BASE_ENGINES.includes(e));
+      expect(p.aiProviders, p.id).toBe(kapsam.length);
+      // Hicbir plan, her kurulumda olculenden fazlasini vaat etmez
+      expect(p.aiProviders, p.id).toBeLessThanOrEqual(BASE_ENGINES.length);
+    }
+    for (const id of ['pro', 'agency', 'enterprise']) expect(BASE_PLANS.find((p) => p.id === id)!.aiProviders, id).toBe(BASE_ENGINES.length);
+    for (const id of ['trial', 'starter']) expect(BASE_PLANS.find((p) => p.id === id)!.aiProviders, id).toBe(4);
+    expect(BASE_ENGINES).toHaveLength(6);
   });
 });
 

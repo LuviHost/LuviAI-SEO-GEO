@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { TRIAL_TRANSLATION_REFUSED, TranslatorService } from './translator.service.js';
+import { NO_ARTICLE_PLAN_TRANSLATION_REFUSED, TRIAL_TRANSLATION_REFUSED, TranslatorService } from './translator.service.js';
+import { articleOfferPlan, findPlan, planHasArticles } from '../billing/plans.js';
 
 /**
  * TranslatorService — kapsam, dil izin listesi ve gereksiz model cagrisi.
@@ -14,7 +15,8 @@ const ART = { id: 'a1', siteId: 's1', slug: 'sac-bakimi', language: 'tr', title:
 
 function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any; plan?: string } = {}) {
   const prisma = {
-    site: { findUnique: vi.fn(async () => ({ user: { plan: opts.plan ?? 'STARTER' } })) },
+    // Varsayilan: makale uretimi OLAN ucretli plan (11.11.2026 uc paket: Baslangic'ta yok)
+    site: { findUnique: vi.fn(async () => ({ user: { plan: opts.plan ?? 'PRO' } })) },
     article: {
       findFirst: vi.fn(async ({ where }: any) => {
         if (where.frontmatter) return opts.existing ? { id: 'tr-old' } : null;
@@ -99,5 +101,47 @@ describe('TranslatorService — deneme hesabi (toplam 2 AI makale)', () => {
     const bulk = await svc.bulkTranslateSite('s1', ['en', 'de']);
     expect(bulk.scheduled).toBe(0);
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 11.11.2026 (uc paket): Baslangic'ta makale uretimi yok. Ceviri yeni bir makale kaydi acan
+ * LLM cagrisidir ve makale hakkindan dusmez; kapi yalniz denemeye bakarken Baslangic hesabi
+ * sinirsiz makale (ceviri) uretebiliyordu. Kural plans.ts planHasArticles.
+ */
+describe('TranslatorService — makale uretimi olmayan plan (Baslangic)', () => {
+  it('on kosul: Baslangic\'ta aylik makale hakki 0, Profesyonel\'de var', () => {
+    expect(findPlan('starter')!.articlesPerMonth).toBe(0);
+    expect(planHasArticles('STARTER')).toBe(false);
+    expect(planHasArticles('PRO')).toBe(true);
+    // Deneme: omur boyu 2 makale — kendi reddi ayri (TRIAL_TRANSLATION_REFUSED)
+    expect(planHasArticles('TRIAL')).toBe(true);
+  });
+
+  it('Baslangic hesabi ceviri yapamaz: model cagrisi ve yeni kayit yok; metin makale ureten plani soyler', async () => {
+    const { svc, prisma, create } = build({ plan: 'STARTER' });
+    const r = await svc.translate('a1', 'en', 's1');
+    expect(r).toMatchObject({ ok: false, error: NO_ARTICLE_PLAN_TRANSLATION_REFUSED });
+    expect(NO_ARTICLE_PLAN_TRANSLATION_REFUSED).toContain(`${articleOfferPlan().name_tr} plana geçtiğinde çeviri açılır`);
+    expect(NO_ARTICLE_PLAN_TRANSLATION_REFUSED).not.toMatch(/deneme/i);
+    expect(create).not.toHaveBeenCalled();
+    expect(prisma.article.create).not.toHaveBeenCalled();
+    const bulk = await svc.bulkTranslateSite('s1', ['en', 'de']);
+    expect(bulk.scheduled).toBe(0);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('tanimsiz plan da cevirmez (kapi acik unutulmaz)', async () => {
+    const { svc, create } = build({ plan: 'BILINMEYEN' });
+    expect((await svc.translate('a1', 'en', 's1')).ok).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('makale uretimi olan her ucretli plan cevirir', async () => {
+    for (const plan of ['PRO', 'AGENCY', 'ENTERPRISE']) {
+      const { svc, create } = build({ plan });
+      expect((await svc.translate('a1', 'en', 's1')).ok, plan).toBe(true);
+      expect(create, plan).toHaveBeenCalledTimes(1);
+    }
   });
 });

@@ -19,7 +19,7 @@ import { PLAN_LOCK_COPY, UPGRADE_HREF } from './plan-lock';
  * takvim ayi basinda sifirlanir (quota.service maybeResetMonthlyQuota).
  */
 
-export type GenerationLockReason = 'trial_used' | 'monthly_used' | 'allowance_used' | 'source_required';
+export type GenerationLockReason = 'trial_used' | 'monthly_used' | 'allowance_used' | 'source_required' | 'no_article_plan';
 
 export interface GenerationLock {
   locked: boolean;
@@ -32,15 +32,21 @@ export interface GenerationLock {
   hint: string | null;
 }
 
+// 11.11.2026 paket yapisi (api billing/plans.ts): makale uretimi yalniz Profesyonel ve ustunde;
+// Baslangic makale uretmez. Deneme metni "planini yukselt" diyordu — Baslangic'i da kapsardi.
+// Sunucunun deneme 403'u ile ayni yonlendirme (quota.service articleQuotaError).
 export const GENERATION_LOCK_COPY = {
   trial: (limit: number) =>
-    `Ücretsiz denemedeki ${limit} makale hakkını kullandın. Yeni makale üretmek için planını yükselt.`,
+    `Ücretsiz denemedeki ${limit} makale hakkını kullandın. Yeni makale üretmek için Profesyonel plana geç.`,
   monthly: (limit: number) =>
     `Bu ayki ${limit} makale hakkını kullandın. Hakkın gelecek ayın başında yenilenir; beklemeden devam etmek için planını yükselt.`,
   // Plan okunamadi ama sayilar hakkin bittigini soyluyor: "ay basinda yenilenir"
   // denemede yalan olurdu, o yuzden yenilenme iddiasi yok
   generic: (limit: number) =>
-    `${limit} makale hakkının tamamını kullandın. Yeni makale üretmek için planını yükselt.`,
+    `${limit} makale hakkının tamamını kullandın. Yeni makale üretmek için planını yükselt; makale üretimi Profesyonel ve üstü planlardadır.`,
+  // Makale uretimi olmayan paket (Baslangic). Sunucunun 403'u ile AYNI cumle
+  // (api billing/quota.service articleQuotaError, limit 0).
+  noArticles: 'Makale üretimi bu pakette yok. Makale üretmek için Profesyonel plana geç.',
 } as const;
 
 /**
@@ -92,9 +98,15 @@ export function generationLock(
     };
   }
   if (!q) return OPEN;
-  // Kilit yalniz sayilar birbirini tutuyorsa: limit > 0 (sunucuda limit 0 olan plan
-  // yok; 0 bozuk/bilinmeyen veri demek), kalan 0 ve kullanilan limite ulasmis.
+  // Kilit yalniz sayilar birbirini tutuyorsa: limit > 0, kalan 0 ve kullanilan limite ulasmis.
   // Tutarsiz sayiyla dugme kilitlenmez, karar sunucunun.
+  // Makale uretimi olmayan paket (11.11.2026: Baslangic, api plans.ts articlesPerMonth 0).
+  // Sunucu kurali: deneme DISI plan + limit 0 → 403 "Makale üretimi bu pakette yok…"
+  // (quota.service articleQuotaError). Dugme ayni kuralla onceden kilitlenir; musteri tiklayip
+  // hata okumaz. Plan okunamadiysa ya da deneme ise limit 0 bozuk veridir: kilit gosterilmez.
+  if (q.limit === 0 && q.remaining === 0 && planKnown(plan) && !isTrialPlan(plan)) {
+    return { locked: true, reason: 'no_article_plan', label: PLAN_LOCK_COPY.cta, href: UPGRADE_HREF, hint: GENERATION_LOCK_COPY.noArticles };
+  }
   if (q.limit <= 0 || q.remaining > 0 || q.used < q.limit) return OPEN;
   if (isTrialPlan(plan)) {
     return { locked: true, reason: 'trial_used', label: PLAN_LOCK_COPY.cta, href: UPGRADE_HREF, hint: GENERATION_LOCK_COPY.trial(q.limit) };

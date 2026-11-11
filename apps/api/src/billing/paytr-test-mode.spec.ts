@@ -10,6 +10,7 @@ import {
 } from './paytr.service.js';
 import { BillingController } from './billing.controller.js';
 import { measuredEngines } from './measured-engines.js';
+import { PURCHASABLE_PLAN_IDS, findPlan } from './plans.js';
 
 /**
  * PayTR TEST MODU ucretli plan dagitmamali.
@@ -422,6 +423,39 @@ describe('kayitli karttan yenileme cekimi', () => {
     await expect(w.svc.chargeStoredCard(CUSTOMER)).resolves.toEqual({ result: 'failed', reason: 'Kayıtlı kart bulunamadı' });
     expect(fetchMock.mock.calls[0][0]).toBe('https://www.paytr.com/odeme/capi/list');
     expect([...w.invoices.values()]).toEqual([expect.objectContaining({ isRenewal: true, status: 'FAILED' })]);
+  });
+
+  // 11.11.2026 (uc paket): Ajans satistan kalkti (plans.ts legacy, PURCHASABLE_PLAN_IDS'te yok) ama
+  // "bu plandaki mevcut hesaplar limitlerini ve yenilemesini korur". Satin alma kapisi yenilemeyi de kesmemeli.
+  it('satistan kalkan plan (Ajans): mevcut abonenin kayitli karttan yenilemesi calisir, tutar plans.ts fiyatindan', async () => {
+    const w = world('0');
+    Object.assign(w.users.get(CUSTOMER)!, { plan: 'AGENCY', subscriptionStatus: 'ACTIVE', paytrUtoken: 'ut-1', autoRenew: true });
+    fetchMock.mockImplementation(async (url: string) => (String(url).endsWith('/capi/list')
+      ? { json: async () => [{ ctoken: 'ct-1', last_4: '4242', require_cvv: '0' }] }
+      : { json: async () => ({ status: 'success' }) }));
+    await expect(w.svc.chargeStoredCard(CUSTOMER)).resolves.toEqual({ result: 'success' });
+    const agency = findPlan('agency')!;
+    expect(agency.legacy).toBe(true);
+    expect(PURCHASABLE_PLAN_IDS).not.toContain('agency');
+    // Fatura yenileme olarak acildi ve odendi; tutar Ajans'in liste fiyati x kur (40)
+    expect([...w.invoices.values()]).toEqual([
+      expect.objectContaining({ isRenewal: true, status: 'PAID', amountUsd: agency.monthly_usd, amount: agency.monthly_usd * 40 }),
+    ]);
+    expect(w.users.get(CUSTOMER)).toMatchObject({ plan: 'AGENCY', subscriptionStatus: 'ACTIVE' });
+  });
+
+  it('satistan kalkan plan YENI satin alinamaz: Ajans icin odeme baslatma 400, fatura acilmaz (o plandaki hesap icin de)', async () => {
+    const w = world('0');
+    for (const plan of ['TRIAL', 'PRO', 'AGENCY']) {
+      Object.assign(w.users.get(CUSTOMER)!, { plan, subscriptionStatus: plan === 'TRIAL' ? 'TRIAL' : 'ACTIVE' });
+      const err = await w.svc.createPaymentToken({ ...checkout(CUSTOMER), planId: 'agency' }).catch((e) => e);
+      expect(err, plan).toBeInstanceOf(BadRequestException);
+      expect(err.message, plan).toContain(findPlan('agency')!.name_tr);
+    }
+    expect(w.prisma.invoice.create).not.toHaveBeenCalled();
+    // Teklifle satilan Kurumsal da kart akisindan alinamaz
+    await expect(w.svc.createPaymentToken({ ...checkout(CUSTOMER), planId: 'enterprise' as never })).rejects.toBeInstanceOf(BadRequestException);
+    expect(w.prisma.invoice.create).not.toHaveBeenCalled();
   });
 });
 

@@ -4,6 +4,8 @@ import { SRC } from './sources';
 /**
  * Her botun adi ve amaci ureticinin kendi belgesinden (24.10.2026). Bytespider icin
  * ByteDance'in resmi bir belgesi bulunamadi; amaci dogrulanamadigi icin tabloya alinmadi.
+ * 11.11.2026 paket yapisi: Canli Tarayici'yi satan plan Ajans degil Kurumsal (Ajans satistan
+ * kalkti; api plans.ts featureOfferPlan('liveCrawler')).
  */
 export const article: RehberArticle = {
   slug: 'yapay-zeka-botlari-robots-txt',
@@ -156,7 +158,7 @@ Disallow: /`,
         },
         {
           t: 'p',
-          text: 'RanksUp’ın Agent Readiness (AXO) taraması robots.txt’deki yapay zekâ bot duruşunu denetler; eksik bot gruplarını mevcut kurallarını koruyarak, önizleyip onayladığında ekler (Profesyonel ve üstü). Ajans planındaki Canlı Tarayıcı, yapay zekâ botlarının canlı akışını gösterir. Kendi botumuzun ne okuduğunu [RanksUpBot sayfasında](/bot) anlattık. Planlar [fiyatlandırma sayfasında](/pricing).',
+          text: 'RanksUp’ın Agent Readiness (AXO) taraması robots.txt’deki yapay zekâ bot duruşunu denetler; eksik bot gruplarını mevcut kurallarını koruyarak, önizleyip onayladığında ekler (Profesyonel ve üstü). Kurumsal planındaki Canlı Tarayıcı, yapay zekâ botlarının canlı akışını gösterir. Kendi botumuzun ne okuduğunu [RanksUpBot sayfasında](/bot) anlattık. Planlar [fiyatlandırma sayfasında](/pricing).',
         },
       ],
     },

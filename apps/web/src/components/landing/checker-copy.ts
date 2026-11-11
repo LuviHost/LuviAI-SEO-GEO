@@ -2,9 +2,10 @@
  * Landing AI gorunurluk testi metinleri (TR "sen" dili + EN). Form (ai-visibility-checker)
  * ve sonuc katmani (checker-overlay) ayni sozlugu paylasir. Emoji yok — ikonlar lucide.
  *
- * Motor sayisi plans.ts ile ayni: 6 asistan (ChatGPT, Claude, Gemini, Perplexity, Grok,
- * DeepSeek). Meta AI (Muse) yalniz META_MODEL_API_KEY tanimliyken olculur (ai-citation.service.ts);
- * kosulsuz yazilmaz. Sonuc katmani saglayicilari API cevabindan listeler.
+ * MOTOR SAYISI YAZILMAZ (11.11.2026). Anonim test her yapilandirilmis asistana sorar: alti
+ * asistan + anahtari tanimliysa Muse (yedi) — sabit "6" Muse olculurken yanlisti. Kilidi acan
+ * tam rapor ise hesabin PLAN kapsamiyla olculur (Baslangic 4, Profesyonel ve ustu 6 + Muse;
+ * api public-citation.controller unlock). Sonuc katmani saglayicilari API cevabindan listeler.
  */
 export const CHECKER_COPY = {
   tr: {
@@ -13,7 +14,7 @@ export const CHECKER_COPY = {
     tagFree: 'Ücretsiz',
     tagNoCard: 'Kart bilgisi yok',
     tagFast: '~1 dakika',
-    loadingTitle: 'Markan 6 AI motorunda aranıyor…',
+    loadingTitle: 'Markan AI motorlarında aranıyor…',
     loadingSubtitle: 'Bu işlem genelde bir dakikadan kısa sürer',
     resultsHeader: 'Markan bu AI cevaplarında geçti mi?',
     competitorHeader: 'Rakip karşılaştırması',
@@ -22,7 +23,7 @@ export const CHECKER_COPY = {
     reusedBody: 'Ücretsiz test her site için bir kez yapılır; aynı siteyi yeniden test etmek bu sonucu tekrar gösterir. Bugünkü durumu, kilitli soruları ve düzenli takibi görmek için ücretsiz hesap aç ya da bir plan seç.',
     reusedCtaSignup: 'Ücretsiz hesap aç',
     reusedCtaPlans: 'Planları gör',
-    ctaPrimary: '2 makaleyi ücretsiz dene',
+    ctaPrimary: '14 gün ücretsiz dene',
     ctaSecondary: 'Nasıl çalışır? Videoyu izle',
     competitorEmpty: 'Bu sorularda öne çıkan rakip bulunamadı.',
     domainHint: 'Sadece alan adını yaz (örn. kobipratik.com)',
@@ -33,13 +34,13 @@ export const CHECKER_COPY = {
     noCitedResponses: 'Hiçbir motor markanı cevabında geçirmedi.',
     aiAnswer: 'AI cevabı',
     truncated: '… (kısaltıldı)',
-    lockedHint: 'Bu soru henüz sorulmadı — kilidi açınca 6 motorda ölçülür.',
+    lockedHint: 'Bu soru henüz sorulmadı — kilidi açınca planındaki AI motorlarında ölçülür.',
     unlockTitle: '{n} soru daha kilitli',
-    unlockBody: 'Ücretsiz testte {open} soru ölçülüyor. Kalan {locked} soruyu 6 AI motorunda ölçmek, AI cevaplarının tam metnini ve rakip payını görmek için bir plan seç.',
+    unlockBody: 'Ücretsiz testte {open} soru ölçülüyor. Kalan {locked} soruyu ölçmek, AI cevaplarının tam metnini ve rakip payını görmek için bir plan seç (Başlangıç planı 4, Profesyonel ve üstü 6 AI motorunda ölçer).',
     unlockCta: 'Tüm raporu aç',
     unlockNote: 'Planlar aylık · İstediğin zaman iptal',
     optinHeader: '90 gün boyunca markanı takip edelim',
-    optinBody: '15, 30, 60 ve 90. günlerde 6 AI motorunda otomatik yeniden test yapıp sana raporu e-postayla gönderelim. Markanın AI cevaplarındaki değişimini izle.',
+    optinBody: '15, 30, 60 ve 90. günlerde AI motorlarında otomatik yeniden test yapıp sana raporu e-postayla gönderelim. Markanın AI cevaplarındaki değişimini izle.',
     optinPlaceholder: 'sen@ornek.com',
     optinConsent: 'Bu e-postaları almayı kabul ediyorum (KVKK uyumlu, istediğin zaman iptal)',
     // NEDEN ayri kutu: pazarlama izni rapor onayindan ayri ve varsayilan bos olmali (Mailjet AUP, 6563 md. 6/1)
@@ -70,7 +71,7 @@ export const CHECKER_COPY = {
     tagFree: 'Free',
     tagNoCard: 'No card',
     tagFast: '~1 min',
-    loadingTitle: 'Searching your brand on 6 AI engines…',
+    loadingTitle: 'Searching your brand across AI engines…',
     loadingSubtitle: 'This usually takes under a minute',
     resultsHeader: 'Did your brand appear in these AI answers?',
     competitorHeader: 'Competitor ranking',
@@ -79,7 +80,7 @@ export const CHECKER_COPY = {
     reusedBody: 'The free test runs once per site; testing the same site again shows this result. To see today\'s status, the locked questions and ongoing tracking, create a free account or choose a plan.',
     reusedCtaSignup: 'Create free account',
     reusedCtaPlans: 'See plans',
-    ctaPrimary: 'Try 2 articles free',
+    ctaPrimary: 'Try free for 14 days',
     ctaSecondary: 'How it works? Watch the video',
     competitorEmpty: 'No competitors stood out in these queries.',
     domainHint: 'Just the domain (e.g. kobipratik.com)',
@@ -90,13 +91,13 @@ export const CHECKER_COPY = {
     noCitedResponses: 'No engine cited your brand in their answer.',
     aiAnswer: 'AI answer',
     truncated: '… (truncated)',
-    lockedHint: 'Not asked yet — unlock to measure it across all 6 engines.',
+    lockedHint: 'Not asked yet — unlock to measure it across the AI engines in your plan.',
     unlockTitle: '{n} more prompts locked',
-    unlockBody: 'The free test measures {open} prompts. Choose a plan to run the remaining {locked} across 6 AI engines and see full answer text plus competitor share.',
+    unlockBody: 'The free test measures {open} prompts. Choose a plan to run the remaining {locked} and see full answer text plus competitor share (Starter measures 4 AI engines, Professional and up 6).',
     unlockCta: 'Unlock full report',
     unlockNote: 'Monthly plans · Cancel anytime',
     optinHeader: 'Track your brand for 90 days',
-    optinBody: "We'll automatically retest your domain on 6 AI engines at 15, 30, 60 and 90 days and email you the report. Track how your AI visibility evolves.",
+    optinBody: "We'll automatically retest your domain across AI engines at 15, 30, 60 and 90 days and email you the report. Track how your AI visibility evolves.",
     optinPlaceholder: 'you@example.com',
     optinConsent: 'I agree to receive these emails (GDPR-compliant, unsubscribe anytime)',
     optinMarketing: 'Optional: I also want RanksUp product news, tips and promotional emails (unsubscribe anytime)',

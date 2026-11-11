@@ -58,7 +58,10 @@ describe('QuotaService.consumeArticleAllowance — denemede yayin hedefi sarti',
     const q = new QuotaService(prisma);
     await expect(q.consumeArticleAllowance('u1', 's1')).resolves.toEqual({ remaining: 1 });
     await expect(q.consumeArticleAllowance('u1', 's1')).resolves.toEqual({ remaining: 0 });
-    await expect(q.consumeArticleAllowance('u1', 's1')).rejects.toThrow('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın.');
+    // 11.11.2026: devam yolu Profesyonel ("plan seç" Baslangic'i da kapsardi; orada makale yok)
+    const doldu = await q.consumeArticleAllowance('u1', 's1').catch((e) => e);
+    expect(doldu).toBeInstanceOf(ForbiddenException);
+    expect(doldu.message).toBe('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Makale üretimine devam etmek için Profesyonel plana geç.');
     expect(prisma.row.articlesUsedThisMonth).toBe(2);
   });
 
@@ -67,11 +70,28 @@ describe('QuotaService.consumeArticleAllowance — denemede yayin hedefi sarti',
     await expect(q.consumeArticleAllowance('u1', 's1')).rejects.toThrow('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın.');
   });
 
+  // 11.11.2026 (uc paket): eskiden Buyume (STARTER, kalan 14) ile sinaniyordu; makale yazabilen
+  // en dusuk ucretli plan artik Profesyonel (40).
   it('ucretli plan: hedefsiz de uretir, hedef sorgusu yapilmaz (davranis degismedi)', async () => {
-    const prisma: any = db({ plan: 'STARTER', articlesUsedThisMonth: 0 }, []);
+    const prisma: any = db({ plan: 'PRO', articlesUsedThisMonth: 0 }, []);
     const q = new QuotaService(prisma);
-    await expect(q.consumeArticleAllowance('u1', 's1')).resolves.toEqual({ remaining: 14 });
+    await expect(q.consumeArticleAllowance('u1', 's1')).resolves.toEqual({ remaining: 39 });
     expect(prisma.publishTarget.findMany).not.toHaveBeenCalled();
+  });
+
+  it('Baslangic: makale uretimi yok — hedef bagli olsa da 403 "bu pakette yok", hak dusmez, hedef sorgusu yapilmaz', async () => {
+    for (const targets of [[], [{ type: 'WORDPRESS_REST', isActive: true }]]) {
+      const prisma: any = db({ plan: 'STARTER', articlesUsedThisMonth: 0 }, targets);
+      const q = new QuotaService(prisma);
+      const err = await q.consumeArticleAllowance('u1', 's1').catch((e) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect(err.message).toBe('Makale üretimi bu pakette yok. Makale üretmek için Profesyonel plana geç.');
+      // Kaynak (yayin hedefi) kodu degil: hedef baglamak Baslangic'ta makale actirmaz
+      expect((err.getResponse() as any)?.code).not.toBe(TRIAL_SOURCE_REQUIRED_CODE);
+      expect(prisma.row.articlesUsedThisMonth).toBe(0);
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
+      expect(prisma.publishTarget.findMany).not.toHaveBeenCalled();
+    }
   });
 
   it('generationReadiness: panel ayni karari okur', async () => {

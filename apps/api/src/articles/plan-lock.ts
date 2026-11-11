@@ -22,6 +22,11 @@ import { DEMO_SITE_URL, hasAllowanceCharge } from './article-scheduler.service.j
  * geri donmus) kilitli degildir: uretilecek. Ucretli planda kilit yok: hak her
  * ay yenilenir, tarama bekleyen yaziyi yeni ayda alir.
  *
+ * 11.11.2026 (uc paket): aylik makale hakki OLMAYAN ucretli plan (Baslangic, hak 0) da
+ * ayni durumdadir — takvimdeki hicbir yazi uretilmez (chargeArticle hak 0'da dusmez).
+ * Kural "plan TRIAL ya da makale hakki 0": kalan hak 0 oldugu icin hakki dusulmemis
+ * butun takvim yazilari kilitlidir. Panel metni plana gore degisir (web lib/plan-lock.ts).
+ *
  * Plan yukseltilince (paytr.service activateSubscription) plan TRIAL olmaktan
  * cikar, kilit kalkar; vadesi gecmis yazilari hemen uretime almak icin kullanici
  * icin tarama kuyruga atilir (scheduled-kick.ts).
@@ -46,7 +51,8 @@ export function planLockedIds(input: {
   candidates: ReadonlyArray<PlanLockCandidate>;
 }): Set<string> {
   const locked = new Set<string>();
-  if (input.plan !== 'TRIAL') return locked;
+  // Kilit yalniz denemede ve aylik makale hakki olmayan planda (hak 0) vardir
+  if (input.plan !== 'TRIAL' && input.limit > 0) return locked;
   const remaining = Math.max(0, input.limit - Math.max(0, input.used));
   const time = (c: PlanLockCandidate) => {
     const t = c.scheduledAt ? new Date(c.scheduledAt).getTime() : NaN;
@@ -76,7 +82,10 @@ export async function loadPlanLockedIds(
       where: { id: userId },
       select: { plan: true, articlesUsedThisMonth: true },
     });
-    if (!user || user.plan !== 'TRIAL') return new Set();
+    if (!user) return new Set();
+    const limit = quota.articleLimitFor(user.plan);
+    // Makale hakki olan ucretli planda kilit yok (hak her ay yenilenir) — tek sorguyla cik
+    if (user.plan !== 'TRIAL' && limit > 0) return new Set();
     const candidates = await prisma.article.findMany({
       where: {
         status: 'SCHEDULED' as any,
@@ -90,7 +99,7 @@ export async function loadPlanLockedIds(
     return planLockedIds({
       plan: user.plan,
       used: user.articlesUsedThisMonth,
-      limit: quota.articleLimitFor(user.plan),
+      limit,
       candidates,
     });
   } catch {

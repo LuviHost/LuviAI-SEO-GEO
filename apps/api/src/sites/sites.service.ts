@@ -9,6 +9,8 @@ import { crawlAccessKey, readCrawlAccess, type CrawlAccessRecord } from './crawl
 import { asaStateKeys, promptLocalKeys } from '../me/unscoped-kv-keys.js';
 import { removeSiteVideoFiles } from '../videos/article-video.config.js';
 import { DEFAULT_PUBLISH_APPROVAL_MODE } from '../articles/publish-approval.js';
+import { ownerEngines } from '../billing/plan-engines.js';
+import { measuredEngines } from '../billing/measured-engines.js';
 
 /**
  * Site satirindaki sirlar — API cevabina ASLA cikmamali.
@@ -145,6 +147,29 @@ export class SitesService {
       throw new ForbiddenException('Bu site sana ait degil');
     }
     return site;
+  }
+
+  /**
+   * Bu sitenin olcumlerinde SU AN sorulan asistanlar (saglayici kimlikleri): SITE SAHIBININ plan
+   * kapsami (billing/plan-engines ownerEngines; ADMIN sahip muaf) ∩ bu kurulumda olculenler.
+   *
+   * NEDEN SITEDEN: panel bu listeyi /me'deki kendi haklarindan okuyordu. Yonetici ya da ajans
+   * hesabi baskasinin (Baslangic / deneme) sitesini actiginda baslik KENDI planinin asistanlarini
+   * gosteriyordu; olcum motoru ise site sahibinin planina bakar (ai-citation.service). Kaynak
+   * olcum motoruyla ayni olmali. Sahip okunamazsa null: panel sayi ve serit cizmez.
+   */
+  async getMeasurementEngines(siteId: string): Promise<string[] | null> {
+    try {
+      const site = await this.prisma.site.findUnique({
+        where: { id: siteId },
+        select: { user: { select: { plan: true, role: true } } },
+      });
+      if (!site?.user) return null;
+      const measured = measuredEngines();
+      return ownerEngines(site.user).filter((e) => measured.includes(e));
+    } catch {
+      return null;
+    }
   }
 
   async update(id: string, dto: UpdateSiteDto, user: RequestingUser) {

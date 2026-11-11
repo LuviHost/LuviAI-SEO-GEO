@@ -74,7 +74,7 @@ export default function Analyze() {
           </View>
           <EmberButton label={loading ? 'Analiz ediliyor…' : 'AI görünürlüğünü analiz et'} onPress={run} style={{ marginTop: 10 }} />
           <Text style={{ fontFamily: fonts.mono, fontSize: 10, letterSpacing: 0.5, color: colors.textFaint, marginTop: 10, textAlign: 'center' }}>
-            6 AI MOTORUNDA GERÇEK ÖLÇÜM · api.ranksup.ai
+            AI MOTORLARINDA GERÇEK ÖLÇÜM · api.ranksup.ai
           </Text>
         </View>
 
@@ -83,7 +83,7 @@ export default function Analyze() {
           <View style={{ alignItems: 'center', paddingVertical: 44 }}>
             <Orb size={58} />
             <ActivityIndicator color={colors.ember} style={{ marginTop: 20 }} />
-            <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.textMute, marginTop: 14 }}>6 AI motorunda taranıyor…</Text>
+            <Text style={{ fontFamily: fonts.body, fontSize: 13, color: colors.textMute, marginTop: 14 }}>AI motorlarında taranıyor…</Text>
             <Text style={{ fontFamily: fonts.mono, fontSize: 10, color: colors.textFaint, marginTop: 4 }}>ilk analiz ~30-60 sn sürebilir</Text>
           </View>
         )}
@@ -328,7 +328,7 @@ function TrackCta({ result }: { result: AnalyzeResult }) {
         <Text style={{ fontFamily: fonts.displayBold, fontSize: 15, color: R.card }}>90 gün boyunca takip et</Text>
       </View>
       <Text style={{ fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, color: 'rgba(255,255,255,0.88)' }}>
-        E-postanı onayladıktan sonra markanı 15, 30, 60 ve 90. günlerde 6 AI asistanında yeniden test edip her raporu e-postayla gönderelim.
+        E-postanı onayladıktan sonra markanı 15, 30, 60 ve 90. günlerde AI asistanlarında yeniden test edip her raporu e-postayla gönderelim.
       </Text>
 
       {status === 'done' ? (

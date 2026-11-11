@@ -5,6 +5,8 @@ import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
+import { ownerEngines } from '../billing/plan-engines.js';
+import { publicPlans, planEngines } from '../billing/plans.js';
 // Havuz anahtarinin env adi TEK KAYNAKTAN: olcum motoru (ai-citation.service
 // resolveKey) da bu tabloyu okur. Eskiden burada yerel bir kopyasi vardi;
 // iki tablo ayrisirsa panel rozeti olcumden baska bir sey soylerdi.
@@ -34,6 +36,11 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   deepseek:   'DeepSeek',
 };
 
+/** Bir asistani olcen en dusuk satistaki planin adi (plans.ts planEngines) — "Profesyonel" */
+function engineOfferPlanName(provider: Provider): string | undefined {
+  return publicPlans().find((p) => planEngines(p.id).includes(provider))?.name_tr;
+}
+
 @Injectable()
 export class SiteAiKeysService {
   private readonly log = new Logger(SiteAiKeysService.name);
@@ -61,24 +68,33 @@ export class SiteAiKeysService {
     // 'byok' varken kullanir; rozet de ayni kurali soylemeli. hasByok kayit
     // durumunu tasimaya devam eder: plani dusen kullanici anahtarini gorup silebilir.
     const byokOn = ownerHasPlanFeature(site.user, 'byok');
+    // Plan kapsami (11.11.2026): Baslangic ve deneme dort asistan olcer; olcum motoru
+    // kapsam disindaki asistani hic sormaz (ai-citation.service ownerEngines). Rozet de
+    // ayni kurali soylemeli — yoksa Baslangic hesabinda Grok "Planına dahil" gorunur.
+    const kapsam = new Set<string>(ownerEngines(site.user));
 
     const providers = VALID_PROVIDERS.map((provider) => {
       const byok = byokMap.get(provider);
       // inPool yalniz bilgi: planin olculen asistan listesi (QuotaService
-      // PLAN_POOL_PROVIDERS — her planda ayni 6 asistan).
+      // getPlanPool — plan kapsamindaki asistanlar: Baslangic ve denemede dort, ustunde alti).
       const inPool = pool.includes(provider);
+      const inPlan = kapsam.has(provider);
       // Rozet olcum motoruyla AYNI kuralla: ai-citation.service resolveKey
       // once BYOK'a, sonra env anahtarina bakar ve env anahtari olan
       // saglayiciyi HER planda olcer. Eskiden `inPool && env` idi; eski pool
       // listesinde olmayan saglayici olculurken panel "anahtar yok" diyordu.
       const poolKeyAvailable = !!process.env[POOL_ENV_KEY[provider]];
       const effectiveSource: 'byok' | 'pool' | 'none' =
-        byok && byokOn ? 'byok' : (poolKeyAvailable ? 'pool' : 'none');
+        !inPlan ? 'none' : byok && byokOn ? 'byok' : (poolKeyAvailable ? 'pool' : 'none');
 
       return {
         provider,
         label: PROVIDER_LABELS[provider],
         inPool,
+        /** Bu asistan sahibin planinda olculuyor mu (false ise effectiveSource 'none') */
+        inPlan,
+        /** Kapsam disindaysa: asistani olcen en dusuk SATISTAKI planin adi (panel bunu soyler) */
+        offerPlanName: inPlan ? undefined : engineOfferPlanName(provider),
         poolKeyAvailable,
         hasByok: !!byok,
         byokVerified: byok?.verified ?? false,

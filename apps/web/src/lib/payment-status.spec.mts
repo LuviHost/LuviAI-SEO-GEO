@@ -33,7 +33,9 @@ const CUSTOMER_IN_TEST = { open: false, testMode: true, message: 'Ödeme altyap�
 
 const current = (status: string, planId: string, checkout: unknown = LIVE) => ({
   status,
-  plan: { id: planId, name: ({ trial: 'Ücretsiz Deneme', starter: 'Büyüme', pro: 'Profesyonel', agency: 'Ajans' } as Record<string, string>)[planId] ?? planId },
+  // Adlar api plans.ts name_tr ile ayni (11.11.2026: starter "Büyüme" -> "Başlangıç"; Ajans satistan
+  // kalkti ama o plandaki mevcut hesap icin tanimi durur)
+  plan: { id: planId, name: ({ trial: 'Ücretsiz Deneme', starter: 'Başlangıç', pro: 'Profesyonel', agency: 'Ajans' } as Record<string, string>)[planId] ?? planId },
   checkout,
 });
 const inv = (merchantOid: string, status: string, createdAt = 1): PaymentInvoice => ({ merchantOid, status, createdAt });
@@ -63,7 +65,7 @@ describe('paymentOutcome: aktivasyon yalniz plan gercekten acikken', () => {
   it('aynı planın yeniden alınması (elle yenileme): PENDING iken "aktif" denmez, PAID olunca aktif', () => {
     expect(paymentOutcome({ current: current('ACTIVE', 'starter'), invoice: inv(OID_STA, 'PENDING'), timedOut: false })).toEqual({ kind: 'verifying' });
     expect(paymentOutcome({ current: current('ACTIVE', 'starter'), invoice: inv(OID_STA, 'PAID'), timedOut: false }))
-      .toEqual({ kind: 'active', planName: 'Büyüme', paymentConfirmed: true });
+      .toEqual({ kind: 'active', planName: 'Başlangıç', paymentConfirmed: true });
   });
 
   it('sipariş numarasından plan okunamazsa karar yalnız faturaya bakar: PENDING doğrulanıyor, PAID aktif', () => {
@@ -188,7 +190,7 @@ describe('yardımcılar', () => {
     expect(keepPolling({ kind: 'verifying' }, false)).toBe(true);
     expect(keepPolling({ kind: 'unknown' }, false)).toBe(true);
     expect(keepPolling({ kind: 'unknown' }, true)).toBe(false);
-    for (const o of [{ kind: 'active', planName: 'Büyüme', paymentConfirmed: true }, { kind: 'failed' }, { kind: 'unconfirmed' }] as PaymentOutcome[]) {
+    for (const o of [{ kind: 'active', planName: 'Başlangıç', paymentConfirmed: true }, { kind: 'failed' }, { kind: 'unconfirmed' }] as PaymentOutcome[]) {
       expect(keepPolling(o, false), o.kind).toBe(false);
     }
   });

@@ -45,7 +45,7 @@ const TITLE = 'RanksUp — Yapay zekâ görünürlük ölçümü, GEO ve SEO';
 const DESCRIPTION = 'Markan ChatGPT, Gemini, Claude, Perplexity, Grok ve DeepSeek cevaplarında anılıyor mu? Ölç, rakiplerini gör; GEO, SEO ve ASO tek panelde.';
 // WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
 const OG_TITLE = 'RanksUp — Senin yerine pazarlama yapan AI';
-const OG_DESCRIPTION = 'GEO · SEO · ASO · Apple Search Ads — hepsi tek panel. 14 gün ücretsiz, 2 makale, kart gerekmez.';
+const OG_DESCRIPTION = 'GEO · SEO · ASO · Apple Search Ads — hepsi tek panel. 14 gün ücretsiz, kart gerekmez.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -209,12 +209,15 @@ const orgJsonLd = {
       // hesaplandigi icin schema'ya yazilamaz. Eskiden bayat TL araligi
       // (₺1.499 - ₺34.999) yayinlaniyordu. Deger pricing/layout.tsx ile ayni;
       // public-docs.spec.ts denetler.
+      // 11.11.2026 paket yapisi: aralik musterinin FIYAT gordugu planlardan (Baslangic $99,
+      // Profesyonel $349). Kurumsal teklifle satilir (liste fiyati yayimlanmaz), Ajans satistan
+      // kalkti; eski aralik $149 – $1.499 ve dort teklifti.
       offers: {
         '@type': 'AggregateOffer',
         priceCurrency: 'USD',
-        lowPrice: '149',
-        highPrice: '1499',
-        offerCount: 4,
+        lowPrice: '99',
+        highPrice: '349',
+        offerCount: 2,
       },
       // Yalniz calisan ozellikler: Shopify yayin hedefi yok (13 hedef: katalogdaki
       // musteri hedefleri; KOBIPRATIK yalniz admin, Markdown ZIP indirme vermez —

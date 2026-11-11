@@ -925,7 +925,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
               <h2 className="font-semibold">Google Search Console</h2>
               <p className="text-xs text-muted-foreground mt-1">
                 Konu önerilerine gerçek arama verisini katar ve Performans sekmesini açar. İsteğe bağlı; bağlamasan da RanksUp çalışır.
-                Not: Search Console AI cevaplarında görünüp görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez — RanksUp bunu 6 AI asistanına (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) doğrudan sorarak ölçer; GSC bunun yanına Google'daki gerçek tıklamayı koyar (markalı/markasız ayrımıyla).
+                Not: Search Console AI cevaplarında görünüp görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez — RanksUp bunu AI asistanlarına (ChatGPT, Gemini, Claude, Perplexity; Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek) doğrudan sorarak ölçer; GSC bunun yanına Google'daki gerçek tıklamayı koyar (markalı/markasız ayrımıyla).
               </p>
             </div>
           </div>

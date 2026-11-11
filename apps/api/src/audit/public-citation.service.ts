@@ -11,6 +11,7 @@ import type { Audience } from '../llm/model-tier.js';
 import { safeFetchText, SafeFetchError } from '../common/safe-fetch.js';
 import { detectBlock } from '../common/block-detect.js';
 import { assertPublicDomainResolves, normalizePublicDomainInput, type PublicResolver } from '../sites/site-url-policy.js';
+import { BASE_ENGINES, CONDITIONAL_ENGINES, planEngines, type MeasurementEngine, type ModelTier } from '../billing/plans.js';
 
 /**
  * Public AI Citation Check — landing page demo (anonim).
@@ -184,8 +185,15 @@ export function publicDailyBudgetUsd(): number {
   return Number.isFinite(n) && n > 0 ? n : 10;
 }
 
+/**
+ * Deneme hesabinin olctugu asistan sayisi (plans.ts planEngines('trial')). 11.11.2026 (uc paket):
+ * deneme dort asistan olcer; anonim test ise yapilandirilmis butun asistanlara sorar. Eski metinler
+ * "deneme hesabi ac, 6 asistanda olc" diyordu — deneme artik anonim testten FAZLA asistan olcmez.
+ */
+export const TRIAL_ASSISTANT_COUNT = planEngines('trial').length;
+
 export const PUBLIC_BUDGET_MESSAGE =
-  'Bugünkü ücretsiz test kotası doldu. Yarın tekrar deneyebilir ya da 14 gün ücretsiz deneme hesabı açıp siteni hemen 6 asistanda ölçebilirsin.';
+  `Bugünkü ücretsiz test kotası doldu. Yarın tekrar deneyebilir ya da 14 gün ücretsiz deneme hesabı açıp siteni hemen ${TRIAL_ASSISTANT_COUNT} asistanda ölçebilirsin.`;
 
 /** "1 Kasım" — hak yenilenme tarihi, Istanbul saatiyle */
 function trDay(d: Date): string {
@@ -303,18 +311,52 @@ function resultTier(result: unknown): 'anon' | 'member' {
 }
 
 /**
+ * Tam rapor kilidinin PLAN KAPSAMI (11.11.2026, uc paket): uye raporu hesabin planindaki
+ * asistanlarla ve model kademesiyle olculur — Baslangic dort asistan + hizli modeller,
+ * Profesyonel ve ustu butun asistanlar + gelismis modeller (billing/plan-engines.ts).
+ * Eskiden her ucretli hesap butun asistanlarda olculuyordu: Baslangic musterisi ana
+ * sayfadaki testin kilidini acarak paketinde olmayan asistanlari olcturebiliyordu.
+ */
+export interface PublicCheckScope {
+  engines: readonly MeasurementEngine[];
+  tier: ModelTier;
+}
+
+/** Kapsam verilmeyen olcumun (anonim test, 11.11.2026 oncesi uye raporu) kapsami: butun asistanlar, gelismis modeller */
+const FULL_SCOPE_KEY = scopeKeyOf({ engines: [...BASE_ENGINES, ...CONDITIONAL_ENGINES], tier: 'premium' });
+
+/** Kapsamin onbellek anahtari — asistan kumesi (sira onemsiz) + kademe */
+function scopeKeyOf(scope: PublicCheckScope): string {
+  return `${scope.tier}:${[...new Set(scope.engines)].sort().join(',')}`;
+}
+
+/** Kayitli sonucun kapsam anahtari; damga yoksa (eski kayit) tam kapsam */
+function resultScopeKey(result: unknown): string {
+  const k = (result as { access?: { scope?: unknown } } | null | undefined)?.access?.scope;
+  return typeof k === 'string' && k ? k : FULL_SCOPE_KEY;
+}
+
+/**
  * Onbellekten verilecek kayit: kademesi TUTAN en yeni kayit (recent yeniden eskiye).
  * 24 saatten tazeyse her kademede gecerli. Daha eskiyse yalniz anonim kademede ve
  * gercekten olculmusse (>=1 LLM cagrisi) — hicbir saglayicinin calismadigi bos
  * olcum sonsuza dek tekrar gosterilmez, yeniden olculur.
+ *
+ * `scope` (yalniz uye kademesi): kayit AYNI plan kapsamiyla olculmus olmali. Yoksa iki yonde
+ * de yanlis olur: Baslangic hesabi bir Profesyonel hesabin 24 saat icinde actigi butun
+ * asistanli raporu alir (paketinde olmayan olcum), ya da Profesyonel hesap bir Baslangic
+ * hesabin dort asistanli raporunu alip hakkini eksik raporla harcar.
  */
 export function pickReusableSnapshot<T extends { createdAt: Date; result: unknown }>(
   recent: T[],
   audience: 'anon' | 'member',
   now: number,
+  scope?: PublicCheckScope,
 ): T | undefined {
+  const wanted = audience === 'member' ? (scope ? scopeKeyOf(scope) : FULL_SCOPE_KEY) : null;
   return recent.find((c) => {
     if (resultTier(c.result) !== audience) return false;
+    if (wanted !== null && resultScopeKey(c.result) !== wanted) return false;
     if (now - c.createdAt.getTime() <= DAY_MS) return true;
     return audience === 'anon' && Number((c.result as { totalLlmCalls?: unknown } | null)?.totalLlmCalls) > 0;
   });
@@ -406,6 +448,12 @@ export interface PublicCheckOptions {
    * siki kademe hicbir ayarda normal kademeden genis olamaz.
    */
   ipDailyLimit?: number;
+  /**
+   * Tam rapor kilidi (kaynak 'signup_baseline'): olcum bu plan kapsamiyla yapilir ve
+   * onbellekten yalniz ayni kapsamla olculmus rapor verilir (bkz. PublicCheckScope).
+   * Anonim test ve abone retest'i VERMEZ: onlar her yapilandirilmis asistana sorar.
+   */
+  scope?: PublicCheckScope;
 }
 
 /** Kayitli bir public kontrol satiri — retest tabani ve kiyas girdisi. */
@@ -542,6 +590,8 @@ export interface PublicCheckResult {
     unlockedQueries: number;
     totalQueries: number;
     lockedQueries: number;
+    /** Uye raporunun plan kapsami damgasi (kademe + asistan kumesi); anonim testte ve eski kayitta yok */
+    scope?: string;
   };
   competitorRanking: Array<{
     name: string;
@@ -791,7 +841,7 @@ export class PublicCitationService {
         orderBy: { createdAt: 'desc' },
         take: 20,
       });
-      const cached = pickReusableSnapshot(recent, audience, Date.now());
+      const cached = pickReusableSnapshot(recent, audience, Date.now(), opts.scope);
       if (cached) {
         // Eski bicimli hata satiri (ham saglayici metni) anonim cevaba gitmesin;
         // eski kayittaki calismayan saglayici satiri ve HATA paydasi da
@@ -808,7 +858,7 @@ export class PublicCitationService {
       if (!rl.ok) {
         const sinir = limit === 1 ? '1 alan adı' : `en fazla ${limit} farklı alan adı`;
         throw new HttpException(
-          `Haftalık ücretsiz test hakkınız doldu: aynı IP adresinden 7 günde ${sinir} test edilebilir; hakkınız ${rl.resetIn ?? '7 gün içinde yenilenir'}. Daha sık ve 6 asistanda ölçüm için 14 gün ücretsiz deneme hesabı açabilirsiniz.`,
+          `Haftalık ücretsiz test hakkınız doldu: aynı IP adresinden 7 günde ${sinir} test edilebilir; hakkınız ${rl.resetIn ?? '7 gün içinde yenilenir'}. Daha sık ölçüm için 14 gün ücretsiz deneme hesabı açabilirsiniz.`,
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }
@@ -876,11 +926,14 @@ export class PublicCitationService {
     }
 
     // 7) Probe providers (paralel) — SADECE acik sorgular icin
+    // Plan kapsami yalniz uye raporunda (opts.scope): asistan listesi ve model kademesi
+    const scope = audience === 'member' ? opts.scope : undefined;
     const providerResults = await this.ai.runPublicProbes({
       brand,
       host,
       queries: measured.map((q) => q.query),
       competitors: [],
+      ...(scope ? { only: [...scope.engines], tier: scope.tier } : {}),
     });
 
     if (source === 'manual') {
@@ -975,6 +1028,8 @@ export class PublicCitationService {
         unlockedQueries: measured.length,
         totalQueries: measured.length + lockedQueries.length,
         lockedQueries: lockedQueries.length,
+        // Uye raporunun plan kapsami damgasi — onbellek yalniz ayni kapsama verir (pickReusableSnapshot)
+        ...(scope ? { scope: scopeKeyOf(scope) } : {}),
       },
     };
 

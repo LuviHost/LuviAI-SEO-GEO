@@ -26,6 +26,14 @@ type ProviderInfo = {
   byokPrefix?: string;
   byokError?: string;
   effectiveSource: 'pool' | 'byok' | 'none';
+  /**
+   * Asistan site sahibinin planinin kapsaminda mi (api SiteAiKeysService.getStatus, plans.ts
+   * planEngines). 11.11.2026: Baslangic ve deneme dort asistan olcer. Alan yoksa (eski API
+   * yaniti) kapsamda sayilir.
+   */
+  inPlan?: boolean;
+  /** inPlan false iken: asistani olcen en dusuk satistaki planin adi ("Profesyonel") */
+  offerPlanName?: string;
 };
 
 type Status = {
@@ -51,11 +59,12 @@ const PROVIDER_HINTS: Record<string, { url: string; example: string; help: strin
 };
 
 /**
- * Plan adlari apps/api/src/billing/plans.ts name_tr ile ayni. Eskiden STARTER
- * "Baslangic" yaziyordu; satilan planin adi "Buyume".
+ * Plan adlari apps/api/src/billing/plans.ts name_tr ile ayni (public-docs.spec.ts denetler).
+ * 11.11.2026 paket yapisi: STARTER'in adi "Büyüme"den "Başlangıç"a dondu. Ajans satistan
+ * kalkti ama tanimi durur; o plandaki mevcut hesaplar icin etiketi burada kalir.
  */
 const PLAN_LABELS: Record<string, string> = {
-  TRIAL: 'Ücretsiz Deneme', STARTER: 'Büyüme', PRO: 'Profesyonel', AGENCY: 'Ajans', ENTERPRISE: 'Kurumsal',
+  TRIAL: 'Ücretsiz Deneme', STARTER: 'Başlangıç', PRO: 'Profesyonel', AGENCY: 'Ajans', ENTERPRISE: 'Kurumsal',
 };
 
 /**
@@ -112,12 +121,16 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
   const remove = async (provider: string) => {
     // Silince ne olacagi durum ucunun poolKeyAvailable alanindan (sunucuda
     // RanksUp anahtari tanimli mi) okunur; olcum motoru (ai-citation resolveKey)
-    // ayni kurali uygular. Eski metin "plana dahilse" diyordu: 6 asistan her
-    // planda dahil, belirleyici olan anahtarin tanimli olmasi. Havuz anahtariyla
-    // olcum aylik calistirma hakkindan duser; hak dolunca yalniz kendi anahtari
-    // olan saglayicilar olculur (runForSite).
+    // ayni kurali uygular. Havuz anahtariyla olcum aylik calistirma hakkindan
+    // duser; hak dolunca yalniz kendi anahtari olan saglayicilar olculur
+    // (runForSite). 11.11.2026: asistan planin kapsaminda degilse (inPlan false;
+    // Baslangic ve denemede Grok / DeepSeek) anahtar olsa da olculmez — "RanksUp
+    // anahtariyla surer" demek yanlis olurdu.
     const info = status?.providers.find((x) => x.provider === provider);
-    const sonrasi = info?.poolKeyAvailable
+    const kapsamDisi = info?.inPlan === false;
+    const sonrasi = kapsamDisi
+      ? 'Bu sağlayıcı planının kapsamında olmadığı için zaten ölçülmüyor.'
+      : info?.poolKeyAvailable
       ? 'Ölçüm RanksUp anahtarıyla sürer; aylık çalıştırma hakkın dolunca bu sağlayıcı ölçülmez.'
       : 'RanksUp anahtarı tanımlı olmadığı için bu sağlayıcı artık ölçülmez.';
     if (!confirm(`${info?.label ?? provider} anahtarı silinsin mi? ${sonrasi}`)) return;
@@ -183,8 +196,13 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
           // ai-citation resolveKey): BYOK > RanksUp env anahtari > yok. 'none' bu
           // saglayicinin olculmedigi demek: ne musterinin anahtari ne RanksUp'in
           // anahtari var (olcum sonucundaki neden de ayni sozu soyler).
+          // 11.11.2026: asistan planin kapsaminda degilse (inPlan false) effectiveSource
+          // yine 'none' gelir ama neden anahtar degil plandir; rozet asistani olcen plani
+          // soyler. Alan yoksa (eski API yaniti) kapsamda sayilir.
           const sourceBadge =
-            p.effectiveSource === 'byok'
+            p.inPlan === false
+              ? { text: `${p.offerPlanName ?? 'Üst'} planında ölçülür`, cls: 'text-muted-foreground' }
+              : p.effectiveSource === 'byok'
               ? { text: p.byokVerified ? 'Senin anahtarınla çalışıyor' : 'Senin anahtarın — test başarısız', cls: p.byokVerified ? 'text-success' : 'text-warning' }
               : p.effectiveSource === 'pool'
               ? { text: 'Planına dahil · RanksUp anahtarıyla ölçülür', cls: 'text-muted-foreground' }

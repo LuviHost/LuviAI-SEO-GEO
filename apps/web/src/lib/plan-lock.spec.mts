@@ -5,6 +5,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+// plans.ts'in importu yok — API'nin tek kaynagi dogrudan okunur (ranksup-md.spec.mts ile ayni yol)
+import { PLAN_RANK, findPlan, publicPlans } from '../../../api/src/billing/plans';
 import { PLAN_LOCK_COPY, UPGRADE_HREF, isPlanLocked, placeholderParagraphs, scheduledCounts, splitScheduled } from './plan-lock';
 
 describe('isPlanLocked — karar sunucunun lockedByPlan alanindan', () => {
@@ -73,10 +75,24 @@ describe('kilitli kart metinleri — durust', () => {
     expect(PLAN_LOCK_COPY.cta).toBe('Planını yükselt');
   });
 
-  it('yazinin YUKSELTINCE yazilacagini soyler, yazildigini iddia etmez', () => {
-    expect(PLAN_LOCK_COPY.title).toBe('Bu makale planını yükselttiğinde yazılır');
+  // 11.11.2026 paket yapisi: makale uretimi olan en dusuk satistaki plan Profesyonel (Baslangic
+  // makale uretmez). Metin "planini yukselttiginde" derse Baslangic'a gecen hesap yaniltilir.
+  it('yazinin PROFESYONEL PLANA GECINCE yazilacagini soyler (plans.ts: makale uretimi olan en dusuk plan), yazildigini iddia etmez', () => {
+    const makalePlani = publicPlans()
+      .filter((p) => p.id !== 'trial' && p.articlesPerMonth > 0)
+      .sort((a, b) => PLAN_RANK[a.id] - PLAN_RANK[b.id])[0];
+    expect(makalePlani.id).toBe('pro');
+    expect(findPlan('starter')!.articlesPerMonth).toBe(0);
+    expect(PLAN_LOCK_COPY.title).toBe(`Bu makale ${makalePlani.name_tr} plana geçtiğinde yazılır`);
+    expect(PLAN_LOCK_COPY.body).toContain(`${makalePlani.name_tr} plana geçtiğinde takvimdeki sırasıyla yazılır`);
+    expect(PLAN_LOCK_COPY.rowHint).toBe(`${makalePlani.name_tr} plana geçtiğinde yazılır`);
+    expect(all).not.toMatch(/planını yükselttiğinde|plan seçtiğinde/i);
     expect(PLAN_LOCK_COPY.body).toContain('makale henüz yazılmadı');
     expect(PLAN_LOCK_COPY.body).toContain('toplam 2 makale');
+    // Kilit makale uretimi olmayan pakette de gelir (api articles/plan-lock.ts: hak 0) — govde o
+    // hesaba "denemedeki hakkin doldu" demez, paketin adini ve kuralini soyler
+    expect(PLAN_LOCK_COPY.body).toContain(`${findPlan('starter')!.name_tr} planında makale üretimi yoktur`);
+    expect(PLAN_LOCK_COPY.body).not.toContain('bu hak doldu');
     expect(PLAN_LOCK_COPY.placeholderNote).toContain('yer tutucudur');
     expect(all).not.toMatch(/makalen hazır|yazıldı\b|hazırlandı|kilidini aç ve oku/i);
   });

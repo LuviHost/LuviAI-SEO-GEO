@@ -50,7 +50,9 @@ function timeAgo(ts: string | Date): string {
 export default function CrawlerLivePage() {
   const { site } = useSiteContext();
   const { can, requirementFor } = useEntitlements();
-  // Canli Tarayici Ajans planinda (api liveCrawler kapisi). Alt planda uclar
+  // Canli Tarayici kapisi api'de 'agency' (liveCrawler). 11.11.2026: Ajans satistan kalkti;
+  // o plandaki mevcut hesap hakkini korur, yeni musteride ozellik Kurumsal'dadir ve kilit
+  // kartindaki plan adi sunucudan gelir (requirementFor → featureOfferPlan). Alt planda uclar
   // 403 doner; sayfa hata/bos akis yerine kilit kartini gosterir.
   const allowed = can('liveCrawler');
   const [data, setData] = useState<any>(null);

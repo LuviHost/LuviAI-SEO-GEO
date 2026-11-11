@@ -13,6 +13,10 @@ import { findPlan } from './plans.js';
  * makale uretebiliyordu; SSS, yardim ve sozluk sayacin her takvim ayinin
  * basinda sifirlandigini soyluyor. Sayac artik yalniz GERCEK plan degisiminde
  * sifirlanir.
+ *
+ * 11.11.2026 (uc paket): Baslangic'ta (eski Buyume) makale uretimi yok (0). "Ay ortasi
+ * yenileme ikinci kota vermez" kurali artik makale hakki olan Profesyonel (40) ile sinanir;
+ * STARTER + dolu sayac yalniz gecis senaryosudur (paket degisikliginden once uretmis hesap).
  */
 type Row = Record<string, any>;
 
@@ -121,8 +125,8 @@ describe('activateSubscription — sayac yalniz gercek plan degisiminde sifirlan
   });
 
   it('ayni planin elle yeniden satin alinmasi (isRenewal=false, otomatik yenileme kapaliyken canli yol) sifirlamaz', async () => {
-    const w = world({ plan: 'STARTER', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: 15, articlesQuotaResetAt: thisMonth() });
-    await w.pay('STA', false);
+    const w = world({ plan: 'PRO', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: 15, articlesQuotaResetAt: thisMonth() });
+    await w.pay('PRO', false);
     expect(activationData(w.prisma)).not.toHaveProperty('articlesUsedThisMonth');
     expect(w.user.articlesUsedThisMonth).toBe(15);
   });
@@ -153,6 +157,7 @@ describe('activateSubscription — sayac yalniz gercek plan degisiminde sifirlan
   });
 
   it('plan degisimi (yukseltme) sifirlar', async () => {
+    // Gecis senaryosu: 11.11.2026 oncesinde (Buyume, 15 makale) bu ay uretmis hesap Profesyonel'e geciyor
     const w = world({ plan: 'STARTER', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: 15, articlesQuotaResetAt: thisMonth() });
     await w.pay('PRO', false);
     expect(w.user.articlesUsedThisMonth).toBe(0);
@@ -176,6 +181,7 @@ describe('activateSubscription — sayac yalniz gercek plan degisiminde sifirlan
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(local(2026, 11, 20));
     const w = world({
+      // Gecis senaryosu: paket degisikliginden once (Buyume, 15 makale) bu ay uretmis hesap
       plan: 'STARTER', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: 15,
       articlesQuotaResetAt: local(2026, 11, 1), videosUsedThisMonth: 1, aiCostThisMonthUsd: 4.5,
     });
@@ -185,25 +191,48 @@ describe('activateSubscription — sayac yalniz gercek plan degisiminde sifirlan
 });
 
 describe('takvim ayi tek donem: ay ortasi yenileme ikinci kota vermez', () => {
-  it('her ayin 14\'unde yenileyen Baslangic musterisi Kasim\'da 15 makale uretir (eskiden 30)', async () => {
+  // 11.11.2026 (uc paket): eskiden Baslangic (15 makale; "eskiden 30") ile sinaniyordu. Baslangic'ta
+  // artik makale yok — o haliyle test 0 = 0 diye bos gecerdi. Makale hakki olan Profesyonel (40).
+  it('her ayin 14\'unde yenileyen Profesyonel musterisi Kasim\'da 40 makale uretir (eski kuralla 80 olurdu)', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
-    const limit = findPlan('starter')!.articlesPerMonth;
+    const limit = findPlan('pro')!.articlesPerMonth;
+    expect(limit).toBe(40);
     vi.setSystemTime(local(2026, 11, 1));
-    const w = world({ plan: 'STARTER', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: limit, articlesQuotaResetAt: local(2026, 10, 15) });
+    const w = world({ plan: 'PRO', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: limit, articlesQuotaResetAt: local(2026, 10, 15) });
 
     let november = await w.generateUntilBlocked(); // 1 Kasim: takvim sifirlamasi
     expect(november).toBe(limit);
 
     vi.setSystemTime(local(2026, 11, 14));
-    await w.pay('STA', true); // otomatik yenileme
+    await w.pay('PRO', true); // otomatik yenileme
     november += await w.generateUntilBlocked();
     vi.setSystemTime(local(2026, 11, 20));
-    await w.pay('STA', false); // ayni plani elle yeniden alma
+    await w.pay('PRO', false); // ayni plani elle yeniden alma
     november += await w.generateUntilBlocked();
     expect(november).toBe(limit);
 
     vi.setSystemTime(local(2026, 12, 1));
     expect(await w.generateUntilBlocked()).toBe(limit);
+  });
+
+  it('Baslangic musterisi hicbir ay makale uretemez: takvim sifirlamasi, yenileme ya da yeniden satin alma hak acmaz', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    expect(findPlan('starter')!.articlesPerMonth).toBe(0);
+    vi.setSystemTime(local(2026, 11, 1));
+    const w = world({ plan: 'STARTER', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: 0, articlesQuotaResetAt: local(2026, 10, 15) });
+    expect(await w.generateUntilBlocked()).toBe(0);
+    vi.setSystemTime(local(2026, 11, 14));
+    await w.pay('STA', true);
+    expect(await w.generateUntilBlocked()).toBe(0);
+    vi.setSystemTime(local(2026, 11, 20));
+    await w.pay('STA', false);
+    expect(await w.generateUntilBlocked()).toBe(0);
+    vi.setSystemTime(local(2026, 12, 1));
+    expect(await w.generateUntilBlocked()).toBe(0);
+    expect(w.user.articlesUsedThisMonth).toBe(0);
+    // Profesyonel'e gecince hak acilir
+    await w.pay('PRO', false);
+    expect(await w.generateUntilBlocked()).toBe(findPlan('pro')!.articlesPerMonth);
   });
 });
 
@@ -220,6 +249,9 @@ describe('plan_upgraded e-postasi gercek kotayi soyler', () => {
       expect(w.user.plan).toBe(plan);
       expect((await w.quota.checkArticleQuota('u1')).limit).toBe(mail.data.articleQuota);
       expect((await w.quota.checkSiteQuota('u1')).limit).toBe(mail.data.siteQuota);
+      // 11.11.2026: e-posta olcumle baslar — calistirma tavani da plans.ts'ten ve kota ile ayni
+      expect(mail.data.runQuota).toBe(findPlan(id)!.aiRunsPerMonth);
+      expect((await w.quota.checkCitationQuota('u1')).limit).toBe(mail.data.runQuota);
     }
   });
 

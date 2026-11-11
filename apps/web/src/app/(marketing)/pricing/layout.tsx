@@ -1,14 +1,18 @@
 import type { Metadata } from 'next';
 import { pageUpdated, SITE_URL } from '@/lib/page-updated';
 
+// 11.11.2026 paket yapisi (api plans.ts): uc ucretli plan — Baslangic $99 (4 asistan, makale
+// uretimi yok), Profesyonel $349 (6 asistan, makale, 13 yayin hedefi), Kurumsal teklifle (liste
+// fiyati YAZILMAZ). Ajans satistan kalkti. Eski metin "Büyüme $149 / Ajans $749 / Kurumsal
+// $1.499" ve "ücretli her planda 6 AI asistanı, 13 yayın hedefi" diyordu.
 export const metadata: Metadata = {
-  title: 'Fiyatlandırma — Büyüme $149 / Profesyonel $349 / Ajans $749',
-  description: 'Büyüme $149, Profesyonel $349, Ajans $749, Kurumsal $1.499 — aylık iptal, taahhüt yok. 14 gün ücretsiz dene, 2 makale üret (kart gerekmez), PayTR ile güvenli ödeme. Ücretli her planda: 6 AI asistanında görünürlük ölçümü, ASO, 13 yayın hedefi. Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
+  title: 'Fiyatlandırma — Başlangıç $99 / Profesyonel $349 / Kurumsal teklifle',
+  description: 'Başlangıç $99, Profesyonel $349, Kurumsal teklifle — aylık iptal, taahhüt yok. 14 gün ücretsiz dene (kart gerekmez), PayTR ile güvenli ödeme. Başlangıç’ta 4, Profesyonel ve üstünde 6 AI asistanında görünürlük ölçümü; makale üretimi ve 13 yayın hedefi Profesyonel ve üstünde. Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
   alternates: { canonical: `${SITE_URL}/pricing` },
   openGraph: {
-    title: 'RanksUp Fiyatlandırma — $149 / $349 / $749 / $1.499',
+    title: 'RanksUp Fiyatlandırma — Başlangıç $99 / Profesyonel $349 / Kurumsal teklifle',
     // Ozellikler plana gore kademeli (plans.ts FEATURE_MIN_PLAN); "tüm özellikler dahil" yanlisti
-    description: '14 gün ücretsiz, 2 makale, kart gerekmez. 4 ücretli plan; özellikler plana göre artar.',
+    description: '14 gün ücretsiz, kart gerekmez. 3 ücretli plan; özellikler plana göre artar.',
     url: `${SITE_URL}/pricing`,
   },
 };
@@ -23,11 +27,12 @@ export const metadata: Metadata = {
 // yani Google'a rich result olarak GERCEGIN BESTE BIRI fiyat yayinlaniyordu.
 // Fiyat USD'de kanoniktir; TL gunun kuruyla hesaplandigi icin schema'ya
 // yazilamaz.
+// 11.11.2026: yalniz musterinin FIYAT gordugu planlar (herkese acik, ucretli, teklifle degil).
+// Kurumsal teklifle satilir — liste fiyati yayimlanmaz ve fiyatsiz Offer gecersizdir, bu yuzden
+// listede yok; Ajans satistan kalkti. Aralik da bu iki plandan: $99 – $349.
 const PLANS = [
-  { name: 'Büyüme',      price: '149',  desc: 'İki site, KOBİ ve freelancer için AI görünürlük ölçümü + içerik otomasyonu. Aylık 15 makale.' },
-  { name: 'Profesyonel', price: '349',  desc: 'Büyüyen markalar için Apple Search Ads, App Store Connect ve App Prompt Lab dahil. Aylık 40 makale.' },
-  { name: 'Ajans',       price: '749',  desc: 'Çoklu site yönetimi, Product Radar, GEO Heatmap ve Live Crawler ile ajanslara özel.' },
-  { name: 'Kurumsal',    price: '1499', desc: 'BYOK, MCP sunucusu, REST API ve AI maliyet muhasebesiyle kurumsal ölçek.' },
+  { name: 'Başlangıç',   price: '99',   desc: 'İki site, KOBİ ve freelancer için 4 AI asistanında görünürlük ölçümü, site SEO/GEO denetimi ve ASO. Makale üretimi yok.' },
+  { name: 'Profesyonel', price: '349',  desc: 'Büyüyen markalar için 6 AI asistanında ölçüm, Apple Search Ads, App Store Connect ve App Prompt Lab dahil. Aylık 40 makale.' },
 ];
 
 const pricingJsonLd = {
@@ -46,8 +51,8 @@ const pricingJsonLd = {
       offers: {
         '@type': 'AggregateOffer',
         priceCurrency: 'USD',
-        lowPrice: '149',
-        highPrice: '1499',
+        lowPrice: '99',
+        highPrice: '349',
         offerCount: PLANS.length,
         offers: PLANS.map((p) => ({
           '@type': 'Offer',

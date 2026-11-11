@@ -74,7 +74,7 @@ export default function Page() {
       </Step>
 
       <Tip kind="success">
-        Bu noktada AI siteni taradı, eksikleri buldu ve konu önerilerini çıkardı. Ücretsiz deneme 14 gün sürer ve toplam 2 makale hakkın var: denemede makale kendiliğinden yazılmaz, sitene bir yayın hedefi bağladıktan sonra &ldquo;Üret&rdquo; ile sen başlatırsın. Takvimdeki diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır. 14 gün dolunca plan seçene kadar hesabın salt okunur olur; verilerin silinmez.
+        Bu noktada AI siteni taradı, eksikleri buldu ve konu önerilerini çıkardı. Ücretsiz deneme 14 gün sürer ve toplam 2 makale hakkın var: denemede makale kendiliğinden yazılmaz, sitene bir yayın hedefi bağladıktan sonra &ldquo;Üret&rdquo; ile sen başlatırsın. Takvimdeki diğer konular panelde kilitli görünür ve Profesyonel plana geçtiğinde yazılır. 14 gün dolunca plan seçene kadar hesabın salt okunur olur; verilerin silinmez.
       </Tip>
 
       <h2>Sonraki adımlar</h2>

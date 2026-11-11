@@ -15,7 +15,7 @@ import path from 'node:path';
 /**
  * RanksUp Video istek / silme (API sureci). Gercek QuotaService (kosullu UPDATE) + bellek ici
  * sahte tablo. Kapilar: plan (istek sahibi + site sahibi), makale yayinda, ayni makale icin
- * suren video yok, aylik hak; kuyruk hatasi -> FAILED + iade. Deneme / Buyume'de hicbir sey
+ * suren video yok, aylik hak; kuyruk hatasi -> FAILED + iade. Deneme / Baslangic'ta hicbir sey
  * kuyruga girmez ve sayac degismez.
  */
 
@@ -206,7 +206,7 @@ describe('controller kapilari', () => {
     expect(meta('remove')).toBeUndefined();
   });
 
-  it('PlanFeatureGuard: Buyume istegi 403, Profesyonel gecer', () => {
+  it('PlanFeatureGuard: Baslangic istegi 403, Profesyonel gecer', () => {
     const quota = new QuotaService({} as any);
     const guard = new PlanFeatureGuard(new Reflector(), quota);
     const ctx = (plan: string) => ({

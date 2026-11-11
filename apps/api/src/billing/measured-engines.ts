@@ -1,4 +1,5 @@
 import { isUnconfiguredProvider } from '../audit/citation-providers.js';
+import { BASE_ENGINES as PLAN_BASE_ENGINES, CONDITIONAL_ENGINES } from './plans.js';
 
 /**
  * Bu kurulumda SU AN olculen AI asistanlari — saf modul (Nest, Prisma, ag yok).
@@ -7,14 +8,15 @@ import { isUnconfiguredProvider } from '../audit/citation-providers.js';
  * gosteriyordu. Meta'nin asistani Muse yalniz META_MODEL_API_KEY tanimliyken
  * olculur (citation-providers.ts); seride kosulsuz eklemek, anahtar yokken
  * olcmedigimiz bir asistani vaat etmek olurdu. Web bu listeyi GET /billing/plans
- * yanitindan okur ve Muse'u ancak listede varsa gosterir.
+ * yanitindan okur ve Muse'u ancak listede varsa gosterir. Fiyat kartlarindaki
+ * asistan maddesi de ayni listeden uretilir (billing.service planFeatures).
  *
- * Ilk alti HER kurulumda vaat edilen asistanlardir: plan kartlari ve pazarlama
- * metinleri "6 asistan" der (plans.ts aiProviders, plans-ai-providers.spec).
- * Sira web'deki seritle ayni (engine-logo.tsx MEASURED_ENGINES).
+ * Liste urunun EN GENIS kapsamidir (Profesyonel ve ustu); bir planin bunlardan
+ * hangilerini olctugu plans.ts planEngines'te. Asistan kimlikleri ve sirasi
+ * plans.ts'ten gelir — ikinci bir liste tutulmaz.
  */
-export const BASE_ENGINES = ['openai', 'gemini', 'anthropic', 'perplexity', 'xai', 'deepseek'] as const;
+export const BASE_ENGINES = PLAN_BASE_ENGINES;
 
 export function measuredEngines(env: NodeJS.ProcessEnv = process.env): string[] {
-  return isUnconfiguredProvider('meta', env) ? [...BASE_ENGINES] : [...BASE_ENGINES, 'meta'];
+  return [...BASE_ENGINES, ...CONDITIONAL_ENGINES.filter((e) => !isUnconfiguredProvider(e, env))];
 }

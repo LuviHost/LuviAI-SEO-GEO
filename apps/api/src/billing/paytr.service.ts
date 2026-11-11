@@ -465,7 +465,8 @@ export class PaytrService {
 
     const fx = await this.fx.getRate();
     if (fx.stale) return { result: 'skipped', reason: 'kur bayat' };
-    const plan = await this.getPlanPriceForUser(userId, planId, cycle);
+    // planId kullanicinin MEVCUT plani: yenileme (satistan kalkan Ajans dahil — getPlanDetails)
+    const plan = await this.getPlanPriceForUser(userId, planId, cycle, { renewal: true });
 
     const merchantOid = this.generateOrderId(userId, planId);
     const paymentAmount = plan.price.toFixed(2);
@@ -730,6 +731,8 @@ export class PaytrService {
           planName: parsed.planId.toUpperCase(),
           articleQuota: purchased?.articlesPerMonth ?? 0,
           siteQuota: purchased?.sites ?? 0,
+          // Aylik AI gorunurluk calistirma tavani (QuotaService citationTests ile ayni sayi)
+          runQuota: purchased?.aiRunsPerMonth ?? 0,
         },
       }).catch((err) => this.log.warn(`plan_upgraded mail: ${err.message}`));
     }
@@ -965,7 +968,7 @@ export class PaytrService {
    * TL tutari SIPARIS ANINDAKI kurla hesaplanir ve faturaya yazilir; boylece
    * odeme ile fatura arasinda kur farki olusmaz.
    */
-  private async getPlanDetails(planId: string, cycle: 'monthly' | 'annual') {
+  private async getPlanDetails(planId: string, cycle: 'monthly' | 'annual', opts: { renewal?: boolean } = {}) {
     const p = findPlan(planId);
     if (!p) throw new BadRequestException(`Bilinmeyen plan: ${planId}`);
 
@@ -973,7 +976,14 @@ export class PaytrService {
     // edilmiyordu, bu yuzden fiyat karti "Bizimle iletisime gec" dese de
     // Kurumsal plan diger planlarla ayni PayTR kart akisindan satin
     // alinabiliyordu — "sozlesmeli kurulum" vaadinin tersi. Artik dayatiliyor.
-    if (!PURCHASABLE_PLAN_IDS.includes(p.id)) {
+    //
+    // 11.11.2026 (uc paket): Ajans satistan kalkti (plans.ts `legacy`) ve bu listeden cikti;
+    // ama o plandaki mevcut hesap yenilemesini korur. Kapi YENILEMEYI de kesiyordu: kayitli
+    // karttan cekim (chargeStoredCard) burada 400 aliyor, abone odeyemeden deneme duzeyine
+    // dusuyordu. Istisna yalniz yenileme + satistan kalkan plan: yeni satin alma (iFrame ve
+    // Direkt API) ve Kurumsal bu kapidan eskisi gibi doner.
+    const legacyRenewal = opts.renewal === true && p.legacy === true;
+    if (!PURCHASABLE_PLAN_IDS.includes(p.id) && !legacyRenewal) {
       throw new BadRequestException(
         `${p.name_tr} plani kart ile satin alinamaz — satis ekibimizle iletisime gecin.`,
       );
@@ -1002,13 +1012,15 @@ export class PaytrService {
     userId: string,
     planId: string,
     cycle: 'monthly' | 'annual',
+    /** renewal: kullanicinin MEVCUT planinin yenilemesi (satistan kalkan plan da yenilenir — getPlanDetails) */
+    opts: { renewal?: boolean } = {},
   ): Promise<{ name: string; price: number; priceUsd: number; fxRate: number; isGrandfathered: boolean }> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { grandfatheredUntil: true, legacyMonthlyPriceTry: true },
     });
 
-    const fresh = await this.getPlanDetails(planId, cycle);
+    const fresh = await this.getPlanDetails(planId, cycle, opts);
     const now = new Date();
     const isGrandfathered = !!(user.grandfatheredUntil && user.grandfatheredUntil > now);
 

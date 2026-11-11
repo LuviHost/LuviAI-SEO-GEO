@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { BadRequestException, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
-  ArticleSchedulerService, DEMO_SITE_URL, DUE_SCAN_LIMITS, GENERATION_CLAIM_SKIP_REASON, SCHEDULED_GENERATION_JOB_PREFIX, isScheduledGenerationJobId, scheduledGenerationJobId,
+  ARTICLE_PLAN_NAME, ArticleSchedulerService, DEMO_SITE_URL, DUE_SCAN_LIMITS, GENERATION_CLAIM_SKIP_REASON, SCHEDULED_GENERATION_JOB_PREFIX, isScheduledGenerationJobId, scheduleQuotaFullMessage, scheduledGenerationJobId,
 } from './article-scheduler.service.js';
 import { findPlan } from '../billing/plans.js';
 import { QuotaService } from '../billing/quota.service.js';
@@ -51,11 +51,13 @@ function queryDue(rows: any[], args: any): any[] {
   for (const k of Object.keys(s)) {
     if (!['autopilot', 'url', 'userId', 'user'].includes(k)) throw new Error(`queryDue: desteklenmeyen site kosulu ${k}`);
   }
-  // Deneme hesabi suzgeci (site.user.plan.not): satirin planinin kaynagi site.user.plan
-  if (s.user !== undefined && (Object.keys(s.user).join() !== 'plan' || Object.keys(s.user.plan ?? {}).join() !== 'not')) {
+  // Plan suzgeci (site.user.plan.notIn — deneme + makale uretimi olmayan planlar; 11.11.2026'ya
+  // kadar yalniz `not: 'TRIAL'` idi): satirin planinin kaynagi site.user.plan
+  if (s.user !== undefined && (Object.keys(s.user).join() !== 'plan' || !['not', 'notIn'].includes(Object.keys(s.user.plan ?? {}).join()))) {
     throw new Error(`queryDue: desteklenmeyen kullanici kosulu ${JSON.stringify(s.user)}`);
   }
   const planNot = s.user?.plan?.not;
+  const planNotIn: string[] | null = Array.isArray(s.user?.plan?.notIn) ? s.user.plan.notIn : null;
   const notIn = Array.isArray(s.userId?.notIn) ? new Set(s.userId.notIn) : null;
   let out = rows.filter((r) => {
     if (typeof where.status === 'string' && r.status !== where.status) return false;
@@ -69,6 +71,7 @@ function queryDue(rows: any[], args: any): any[] {
     if (typeof s.userId === 'string' && userOf(r) !== s.userId) return false;
     if (notIn && notIn.has(userOf(r))) return false;
     if (planNot !== undefined && r.site?.user?.plan === planNot) return false;
+    if (planNotIn && planNotIn.includes(r.site?.user?.plan)) return false;
     if (Array.isArray(where.OR) && !where.OR.some((c: any) => keyset(r, c))) return false;
     return true;
   });
@@ -237,7 +240,8 @@ describe('processDueArticles — saatlik tarama', () => {
     const { svc, prisma } = build({ due: [] });
     await svc.processDueArticles();
     const where = (prisma.article.findMany.mock.calls[0][0] as any).where;
-    expect(where.site).toEqual({ autopilot: true, url: { not: DEMO_SITE_URL }, user: { plan: { not: 'TRIAL' } } });
+    // Deneme + makale uretimi olmayan plan (Baslangic) SQL'de elenir (plans.ts NO_AUTO_ARTICLE_PLANS)
+    expect(where.site).toEqual({ autopilot: true, url: { not: DEMO_SITE_URL }, user: { plan: { notIn: ['TRIAL', 'STARTER'] } } });
     // Tek kaynak: demo kurucusu ayni adresi yaziyor
     const seeder = readFileSync(new URL('../sites/demo-seeder.service.ts', import.meta.url), 'utf8');
     expect(seeder).toContain(`url: '${DEMO_SITE_URL}'`);
@@ -294,16 +298,32 @@ describe('processDueArticles — saatlik tarama', () => {
       expect(left.u1.articlesUsedThisMonth).toBe(2);
     });
 
-    it('hak tablosu elle uretimi kesen kuralla ayni: Buyume (STARTER) 15 (plans.ts = QuotaService.LIMITS)', async () => {
-      const starter = findPlan('starter')!.articlesPerMonth;
-      expect(starter).toBe(15);
-      const underUsers = { u1: { plan: 'STARTER', articlesUsedThisMonth: starter - 1, articlesQuotaResetAt: new Date() } };
+    // 11.11.2026 (uc paket): eskiden Buyume (STARTER) 15 ile sinaniyordu. Baslangic'ta artik makale
+    // uretimi yok (0); makale hakki olan en dusuk ucretli plan Profesyonel (40). Ikisi de sinanir.
+    it('hak tablosu elle uretimi kesen kuralla ayni: Profesyonel (PRO) 40 (plans.ts = QuotaService.LIMITS)', async () => {
+      const pro = findPlan('pro')!.articlesPerMonth;
+      expect(pro).toBe(40);
+      const underUsers = { u1: { plan: 'PRO', articlesUsedThisMonth: pro - 1, articlesQuotaResetAt: new Date() } };
       const under = build({ due: [due()], quota: realQuota(underUsers).quota, users: underUsers });
       expect((await under.svc.processDueArticles()).processed).toBe(1);
-      expect(underUsers.u1.articlesUsedThisMonth).toBe(starter);
-      const fullUsers = { u1: { plan: 'STARTER', articlesUsedThisMonth: starter, articlesQuotaResetAt: new Date() } };
+      expect(underUsers.u1.articlesUsedThisMonth).toBe(pro);
+      const fullUsers = { u1: { plan: 'PRO', articlesUsedThisMonth: pro, articlesQuotaResetAt: new Date() } };
       const full = build({ due: [due()], quota: realQuota(fullUsers).quota, users: fullUsers });
       expect((await full.svc.processDueArticles()).skippedQuota).toBe(1);
+    });
+
+    it('Baslangic (STARTER): makale uretimi yok (plans.ts 0 = QuotaService.LIMITS) — takvim yazisi hicbir ay uretime alinmaz, hak dusmez', async () => {
+      const starter = findPlan('starter')!.articlesPerMonth;
+      expect(starter).toBe(0);
+      // Sayac 0'da da, yeni ayin ilk taramasinda da (sifirlama sonrasi) uretim yok
+      for (const resetAt of [new Date(), LAST_MONTH]) {
+        const users = { u1: { plan: 'STARTER', articlesUsedThisMonth: 0, articlesQuotaResetAt: resetAt } };
+        const ctx = build({ due: [due()], quota: realQuota(users).quota, users });
+        expect(await ctx.svc.processDueArticles()).toEqual({ processed: 0, skippedQuota: 1, alreadyClaimed: 0, failed: 0 });
+        expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
+        expect(ctx.prisma.article.updateMany).not.toHaveBeenCalled();
+        expect(users.u1.articlesUsedThisMonth).toBe(0);
+      }
     });
 
     it('takvim yazisi uretime alinirken haktan BIR KEZ duser (eskiden hic dusmuyordu); hak kullanici basina bir kez okunur', async () => {
@@ -560,14 +580,25 @@ describe('dispatchScheduledArticle — gecikmeli takvim isi uretmez, sahiplenip 
   });
 
   it('hak doluysa uretmez: yazi SCHEDULED kalir, kuyruk yok (eskiden gecikmeli is hakka hic bakmiyordu)', async () => {
-    const users = { u1: { plan: 'STARTER', articlesUsedThisMonth: 15, articlesQuotaResetAt: new Date() } };
+    const users = { u1: { plan: 'PRO', articlesUsedThisMonth: 40, articlesQuotaResetAt: new Date() } };
     const row: Record<string, unknown> = SCHEDULED();
     const ctx = build({ articles: [row], quota: realQuota(users).quota, users });
     expect(await ctx.svc.dispatchScheduledArticle('a1')).toEqual({ skipped: true, reason: 'QUOTA_EXHAUSTED' });
     expect(row.status).toBe('SCHEDULED');
     expect(ctx.prisma.article.updateMany).not.toHaveBeenCalled();
     expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
-    expect(users.u1.articlesUsedThisMonth).toBe(15);
+    expect(users.u1.articlesUsedThisMonth).toBe(40);
+  });
+
+  it('Baslangic (makale uretimi yok): gecikmeli takvim isi de uretmez — yazi SCHEDULED kalir, kuyruk yok, sayac 0', async () => {
+    const users = { u1: { plan: 'STARTER', articlesUsedThisMonth: 0, articlesQuotaResetAt: new Date() } };
+    const row: Record<string, unknown> = SCHEDULED();
+    const ctx = build({ articles: [row], quota: realQuota(users).quota, users });
+    expect(await ctx.svc.dispatchScheduledArticle('a1')).toEqual({ skipped: true, reason: 'QUOTA_EXHAUSTED' });
+    expect(row.status).toBe('SCHEDULED');
+    expect(ctx.prisma.article.updateMany).not.toHaveBeenCalled();
+    expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
+    expect(users.u1.articlesUsedThisMonth).toBe(0);
   });
 });
 
@@ -759,14 +790,33 @@ describe('scheduleTopic — hak mesaji ve tarih dogrulamasi', () => {
     expect(prisma.article.create).not.toHaveBeenCalled();
   });
 
-  it('hak doluysa 403; metin her planda dogru (deneme hesabinin hakki "aylik" degil)', async () => {
-    const quota = { checkArticleQuota: vi.fn(async () => ({ allowed: false, remaining: 0, limit: 2 })) };
-    const { svc, prisma } = build({ quota });
-    const err = await svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT }).catch((e) => e);
-    expect(err).toBeInstanceOf(ForbiddenException);
-    expect(err.message).toBe('Makale hakkın doldu (2 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
-    expect(err.message).not.toMatch(/makale\/ay/);
-    expect(prisma.article.create).not.toHaveBeenCalled();
+  it('hak doluysa 403; metin her planda dogru (deneme hesabinin hakki "aylik" degil; makale yalniz Profesyonel ve ustunde)', async () => {
+    const refuse = async (plan: string, limit: number) => {
+      const quota = { checkArticleQuota: vi.fn(async () => ({ allowed: false, remaining: 0, limit })) };
+      const { svc, prisma } = build({ quota, site: { ...SITE(), user: { plan } } as any });
+      const err = await svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT }).catch((e) => e);
+      expect(err, plan).toBeInstanceOf(ForbiddenException);
+      expect(err.message, plan).not.toMatch(/makale\/ay/);
+      expect(prisma.article.create, plan).not.toHaveBeenCalled();
+      return err.message as string;
+    };
+    // Soylenen plan plans.ts'ten: makale ureten en dusuk satistaki plan
+    expect(ARTICLE_PLAN_NAME).toBe('Profesyonel');
+    expect(ARTICLE_PLAN_NAME).toBe(findPlan('pro')!.name_tr);
+    expect(findPlan('starter')!.articlesPerMonth).toBe(0);
+    // Deneme: "planını yükselt" Baslangic'i da kapsardi (orada makale yok) — Profesyonel soylenir
+    const trial = await refuse('TRIAL', 2);
+    expect(trial).toBe('Makale hakkın doldu (2 makale). Yeni yazıyı takvime eklemek için Profesyonel plana geçebilirsin.');
+    expect(trial).not.toMatch(/planını yükselt/);
+    // Baslangic: "hakkın doldu (0 makale)" denmez; QuotaService.articleQuotaError ile ayni cumle
+    const starter = await refuse('STARTER', 0);
+    expect(starter).toBe('Makale üretimi bu pakette yok. Makale üretmek için Profesyonel plana geç.');
+    expect(starter).not.toMatch(/0 makale/);
+    // Makalesi olan ucretli plan: eski metin aynen
+    expect(await refuse('PRO', 40)).toBe('Makale hakkın doldu (40 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
+    // Saf fonksiyon ayni metinleri uretir
+    expect(scheduleQuotaFullMessage('TRIAL', 2)).toBe(trial);
+    expect(scheduleQuotaFullMessage('STARTER', 0)).toBe(starter);
   });
 
   it('kalan hak takvimde bekleyen yazilara ayrildiysa 403 ve ne yapilabilecegi (yayinlamak yer acmaz)', async () => {
@@ -791,7 +841,7 @@ describe('scheduleTopic — hak mesaji ve tarih dogrulamasi', () => {
     await expect(trial.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT })).resolves.toMatchObject({ status: 'SCHEDULED', topic: 'Konu' });
     expect(trial.prisma.article.create).toHaveBeenCalledTimes(1);
     // Ucretli plan ayni durumda ayirmayi korur (otomasyon uretir)
-    const paid = build({ quota, articles: onboardingTopics, site: { ...SITE(), user: { plan: 'STARTER' } } as any });
+    const paid = build({ quota, articles: onboardingTopics, site: { ...SITE(), user: { plan: 'PRO' } } as any });
     await expect(paid.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT })).rejects.toBeInstanceOf(ForbiddenException);
     // Hak bittiyse denemede de 403 (panelde tek kilitli dugme)
     const used = build({ quota: { checkArticleQuota: vi.fn(async () => ({ allowed: false, remaining: 0, limit: 2 })) }, site: { ...SITE(), user: { plan: 'TRIAL' } } as any });
@@ -1022,6 +1072,10 @@ describe('rv18 F5 — daha once yayinlanmis yazi kalan hakki tuketmez ve takvimd
 describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami hakki asamaz', () => {
   type Art = Record<string, any>;
   const PAST = () => new Date(Date.now() - 60 * 60_000);
+  // 11.11.2026 (uc paket): defter eskiden Buyume (STARTER, 15 makale) ile kuruluyordu. Baslangic'ta
+  // artik makale uretimi yok; "makale yazabilen ucretli plan" Profesyonel'dir (plans.ts, 40).
+  const HAK = findPlan('pro')!.articlesPerMonth;
+  expect(HAK).toBe(40);
 
   function ledger(plan: string, used: number, seed: Art[] = []) {
     const users: Record<string, any> = {
@@ -1115,9 +1169,10 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     + 'Yeni yazı eklemek için takvimden yazı çıkarabilir ya da planını yükseltebilirsin.';
 
   it('kullanicinin baslattigi, henuz yayinlanmamis uretim bir kez sayilir: kapasite = hak - dusulen (eskiden bekleyen de sayilip iki kez kuculuyordu)', async () => {
-    const w = ledger('STARTER', 0);
+    // Ay icinde hakkin 15'i kalmis Profesyonel hesabi (takvim listesi 30 satir doner; sayilar onun altinda)
+    const w = ledger('PRO', HAK - 15);
     for (let i = 0; i < 3; i++) await w.articles.queueGeneration('s1', `Elle konu ${i}`);
-    expect(w.users.u1.articlesUsedThisMonth).toBe(3);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(HAK - 12);
     // Biri uretimi bitirip onay bekliyor, biri editorde, biri uretimde; hicbiri yayinlanmadi
     w.rows[0].status = 'READY_TO_PUBLISH';
     w.rows[1].status = 'EDITING';
@@ -1130,7 +1185,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
   });
 
   it('takvim yazisi takvimde bekleyen olarak bir kez, uretime alininca sayacta bir kez sayilir; 403 metnindeki sayi dogru', async () => {
-    const w = ledger('STARTER', 10);
+    const w = ledger('PRO', HAK - 5);
     const first = await fill(w);
     expect(first.added).toBe(5);
     expect(first.refusal.message).toBe(waitingText(5, 5));
@@ -1138,7 +1193,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     let n = 0;
     w.makeDue(() => n++ < 2);
     expect(await w.scheduler.processDueArticles()).toEqual({ processed: 2, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
-    expect(w.users.u1.articlesUsedThisMonth).toBe(12);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(HAK - 3);
     expect((await w.schedule()).message).toBe(waitingText(3, 3));
     // Uretim bitti, onay bekliyor: yine bir kez (sayacta)
     w.finishGeneration();
@@ -1152,7 +1207,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
   });
 
   it('yayinla-yeniden doldur: ayin toplami planin hakkini asamaz (eskiden takvim uretimi haktan dusmuyordu, yayinlanan yazinin yeri yeniden doluyordu)', async () => {
-    const w = ledger('STARTER', 0);
+    const w = ledger('PRO', 0);
     for (let round = 0; round < 4; round++) {
       await fill(w);
       w.makeDue();
@@ -1160,10 +1215,10 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
       w.finishGeneration();
       w.publishAll();
     }
-    expect(w.generationJobs()).toBe(15);
-    expect(w.users.u1.articlesUsedThisMonth).toBe(15);
-    expect(w.rows.filter((r) => r.status === 'PUBLISHED')).toHaveLength(15);
-    expect((await w.schedule()).message).toBe('Makale hakkın doldu (15 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
+    expect(w.generationJobs()).toBe(HAK);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(HAK);
+    expect(w.rows.filter((r) => r.status === 'PUBLISHED')).toHaveLength(HAK);
+    expect((await w.schedule()).message).toBe(`Makale hakkın doldu (${HAK} makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.`);
   });
 
   /** Onboarding: akis acikken 8 konu (worker ONBOARDING_CHAIN) */
@@ -1197,10 +1252,17 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     await w.articles.triggerNow('s1', second.id);
     expect(w.generationJobs()).toBe(2);
     expect(w.users.u1.articlesUsedThisMonth).toBe(2);
-    await expect(w.articles.triggerNow('s1', third.id)).rejects.toThrow('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Devam etmek için plan seç.');
-    await expect(w.articles.queueGeneration('s1', 'Bir konu daha')).rejects.toThrow('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Devam etmek için plan seç.');
+    // 11.11.2026: makale uretimi yalniz Profesyonel ve ustunde — "plan seç" Baslangic'i da kapsardi
+    const denemeDoldu = 'Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Makale üretimine devam etmek için Profesyonel plana geç.';
+    const ucuncu = await w.articles.triggerNow('s1', third.id).catch((e: any) => e);
+    expect(ucuncu).toBeInstanceOf(ForbiddenException);
+    expect(ucuncu.message).toBe(denemeDoldu);
+    const uret = await w.articles.queueGeneration('s1', 'Bir konu daha').catch((e: any) => e);
+    expect(uret).toBeInstanceOf(ForbiddenException);
+    expect(uret.message).toBe(denemeDoldu);
+    expect(denemeDoldu).not.toMatch(/plan seç/);
     expect(w.generationJobs()).toBe(2);
-    expect((await w.schedule()).message).toBe('Makale hakkın doldu (2 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
+    expect((await w.schedule()).message).toBe('Makale hakkın doldu (2 makale). Yeni yazıyı takvime eklemek için Profesyonel plana geçebilirsin.');
   });
 
   it('deneme hesabinin takvime ekledigi konu icin gecikmeli uretim isi kurulmaz (ucretli planda kurulur)', async () => {
@@ -1238,7 +1300,43 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
 
   it('ucretli planda takvim yazisi kilitli gorunmez (hak her ay yenilenir)', async () => {
     const seed = Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, siteId: 's1', topic: `Konu ${i}`, status: 'SCHEDULED', scheduledAt: new Date(Date.now() + (i + 1) * 86400000) }));
-    const w = ledger('STARTER', 15, seed);
+    const w = ledger('PRO', HAK, seed);
+    expect(await lockedOf(w)).toEqual([]);
+  });
+
+  // 11.11.2026 (uc paket): onboarding'in ILK yazisi 'onboarding_free' isaretiyle, hak okunmadan
+  // dogrudan uretime girer. Kural "plan TRIAL degil" iken Baslangic hesabi da eklenen her site
+  // icin bir makale aliyordu — "makale üretimi yok" denen pakette. Bagimsiz inceleme buldu.
+  it('Baslangic: onboarding hicbir yazi uretmez (ilk yazi dahil) — yalniz konu basliklari, hepsi kilitli; Profesyonel\'de ilk yazi hemen uretilir', async () => {
+    const w = ledger('STARTER', 0);
+    await onboardTrial(w);
+    expect(w.generationJobs()).toBe(0);
+    expect(w.rows.filter((r) => r.status === 'GENERATING')).toHaveLength(0);
+    expect(w.rows.filter((r) => r.status === 'SCHEDULED')).toHaveLength(8);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(0);
+    expect(await lockedOf(w)).toHaveLength(8);
+    // Ayni kurulum makale uretimi olan planda ilk yaziyi hemen uretir (degismedi)
+    const pro = ledger('PRO', 0);
+    await onboardTrial(pro);
+    expect(pro.generationJobs()).toBe(1);
+    expect(pro.rows.filter((r) => r.status === 'GENERATING')).toHaveLength(1);
+  });
+
+  // 11.11.2026 (uc paket): Baslangic'ta makale uretimi yok (hak 0). Takvimdeki yazilar hicbir ay
+  // uretilmez; panel onlari siradan "Takvimde" yazisi gibi gosterirse musteri yazilacagini sanar.
+  // Kilit kurali "plan TRIAL ya da makale hakki 0" (articles/plan-lock.ts).
+  it('Baslangic (makale hakki 0): takvimdeki butun yazilar kilitli gorunur; Profesyonel\'e gecince kilit kalkar', async () => {
+    const seed = Array.from({ length: 3 }, (_, i) => ({ id: `b${i}`, siteId: 's1', topic: `Konu ${i}`, status: 'SCHEDULED', scheduledAt: new Date(Date.now() + (i + 1) * 86400000) }));
+    const w = ledger('STARTER', 0, seed);
+    expect((await lockedOf(w)).sort()).toEqual(['b0', 'b1', 'b2']);
+    const list = await w.articles.list('s1');
+    expect(list.filter((a: any) => a.lockedByPlan)).toHaveLength(3);
+    expect((await w.articles.findOneForPanel('b0', 's1'))!.lockedByPlan).toBe(true);
+    // Sayac ne olursa olsun (gecis: eskiden uretilmis yazilar) hak 0 → kilitli
+    w.users.u1.articlesUsedThisMonth = 7;
+    expect(await lockedOf(w)).toHaveLength(3);
+    // Makale uretimi olan plana gecis: kilit kalkar
+    Object.assign(w.users.u1, { plan: 'PRO', articlesUsedThisMonth: 0 });
     expect(await lockedOf(w)).toEqual([]);
   });
 
@@ -1276,15 +1374,15 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
 
   it('son hak icin gecikmeli takvim isi ile saatlik tarama yarisirsa hak asilmaz', async () => {
     const seed = ['a', 'b'].map((id, i) => ({ id, siteId: 's1', topic: `Konu ${id}`, status: 'SCHEDULED', scheduledAt: new Date(Date.now() - (5 - i) * 60_000) }));
-    const w = ledger('STARTER', 14, seed);
+    const w = ledger('PRO', HAK - 1, seed);
     await Promise.all([w.scheduler.dispatchScheduledArticle('b'), w.scheduler.processDueArticles()]);
-    expect(w.users.u1.articlesUsedThisMonth).toBe(15);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(HAK);
     expect(w.generationJobs()).toBe(1);
     expect(w.rows.filter((r) => r.status === 'SCHEDULED')).toHaveLength(1);
   });
 
   it('dustukten sonra takvime donen yazi (takili uretim supurucusu) bekleyen sayilmaz ve yeniden uretime alinirken ikinci kez dusmez', async () => {
-    const w = ledger('STARTER', 0);
+    const w = ledger('PRO', 0);
     expect(await w.schedule()).toBe('ok');
     w.makeDue();
     await w.scheduler.processDueArticles();
@@ -1294,13 +1392,43 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     // Supurucu: yazinin canli isi yok → takvime geri koyar (agentOutputs'a dokunmaz)
     row.status = 'SCHEDULED';
     const { added, refusal } = await fill(w);
-    expect(added).toBe(14);
-    expect(refusal.message).toBe(waitingText(14, 14));
+    expect(added).toBe(HAK - 1);
+    expect(refusal.message).toBe(waitingText(HAK - 1, HAK - 1));
     // Hak simdi tamamen dolu olsa da daha once odenmis yazi uretilir ve yeniden dusmez
-    w.users.u1.articlesUsedThisMonth = 15;
+    w.users.u1.articlesUsedThisMonth = HAK;
     expect(await w.scheduler.processDueArticles()).toMatchObject({ processed: 1 });
     expect(row.status).toBe('GENERATING');
-    expect(w.users.u1.articlesUsedThisMonth).toBe(15);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(HAK);
+  });
+
+  it('Baslangic (STARTER, 11.11.2026): makale uretimi yok — Uret, Simdi uret ve Takvime 403 "bu pakette yok"; tarama ve takvim isi hicbir sey uretmez, sayac 0', async () => {
+    expect(findPlan('starter')!.articlesPerMonth).toBe(0);
+    const yok = 'Makale üretimi bu pakette yok. Makale üretmek için Profesyonel plana geç.';
+    // Denemeden kalan takvim yazisi (vadesi gecmis) ile baslar
+    const seed = [{ id: 'k1', siteId: 's1', topic: 'Denemeden kalan konu', status: 'SCHEDULED', scheduledAt: new Date(Date.now() - 3600_000) }];
+    const w = ledger('STARTER', 0, seed);
+    for (const cagri of [() => w.articles.queueGeneration('s1', 'Elle konu'), () => w.articles.triggerNow('s1', 'k1')]) {
+      const err = await cagri().catch((e: any) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect(err.message).toBe(yok);
+    }
+    const takvime = await w.schedule();
+    expect(takvime).toBeInstanceOf(ForbiddenException);
+    expect(takvime.message).toBe(yok);
+    // Otomasyon bu planda hic uretmez (trial-policy automaticGenerationAllowed): tarama yaziyi
+    // almaz, gecikmeli is hakka bile bakmadan doner — deneme hesabiyla ayni yol
+    for (let saat = 0; saat < 3; saat++) {
+      expect(await w.scheduler.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+      expect(await w.scheduler.dispatchScheduledArticle('k1')).toEqual({ skipped: true, reason: 'TRIAL_MANUAL_ONLY' });
+    }
+    expect(w.generationJobs()).toBe(0);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(0);
+    expect(w.rows.find((r) => r.id === 'k1')!.status).toBe('SCHEDULED');
+    // Profesyonel'e gecince ayni yazi ilk taramada uretime alinir
+    Object.assign(w.users.u1, { plan: 'PRO', articlesUsedThisMonth: 0 });
+    for (const r of w.rows) if (r.site?.userId === 'u1') r.site = { ...r.site, user: { id: 'u1', plan: 'PRO' } };
+    expect(await w.scheduler.processDueArticles()).toEqual({ processed: 1, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+    expect(w.users.u1.articlesUsedThisMonth).toBe(1);
   });
 });
 

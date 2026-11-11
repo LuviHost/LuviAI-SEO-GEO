@@ -27,7 +27,8 @@ vi.mock('../common/safe-fetch.js', async (importOriginal) => {
   };
 });
 
-import { PUBLIC_BUDGET_MESSAGE, PublicCitationService, pickReusableSnapshot, publicDailyBudgetUsd, withMeasuredCounts } from './public-citation.service.js';
+import { PUBLIC_BUDGET_MESSAGE, PublicCitationService, TRIAL_ASSISTANT_COUNT, pickReusableSnapshot, publicDailyBudgetUsd, withMeasuredCounts } from './public-citation.service.js';
+import { planEngines } from '../billing/plans.js';
 
 const ALTI = [
   ['anthropic', 'Anthropic Claude'], ['gemini', 'Google Gemini'], ['openai', 'OpenAI ChatGPT'],
@@ -235,8 +236,19 @@ describe('IP basina haftalik hak (7 gunde 1 taze test) — kayittaki hash ile so
     expect(msg).toContain('7 günde 1 alan adı');
     expect(msg).toContain('itibarıyla yenilenir');
     expect(msg).toContain('14 gün ücretsiz deneme');
+    // 11.11.2026: deneme dort asistan olcer, anonim test hepsine sorar — "deneme hesabiyla 6 asistanda" denmez
+    expect(msg).not.toMatch(/\d+\s*(AI )?asistan/i);
+    expect(msg).toContain('Daha sık ölçüm için 14 gün ücretsiz deneme hesabı açabilirsiniz.');
     expect(t.ai.runPublicProbes).not.toHaveBeenCalled();
     expect(t.niche.detectFromUrl).not.toHaveBeenCalled();
+  });
+
+  it('deneme daveti denemenin GERCEK kapsamini soyler: asistan sayisi plans.ts deneme planindan (4), 6 degil', () => {
+    expect(TRIAL_ASSISTANT_COUNT).toBe(planEngines('trial').length);
+    expect(TRIAL_ASSISTANT_COUNT).toBe(4);
+    expect(PUBLIC_BUDGET_MESSAGE).toContain(`siteni hemen ${TRIAL_ASSISTANT_COUNT} asistanda ölçebilirsin`);
+    const sayilar = [...PUBLIC_BUDGET_MESSAGE.matchAll(/(\d+)\s*asistan/g)].map((m) => Number(m[1]));
+    expect(sayilar).toEqual([TRIAL_ASSISTANT_COUNT]);
   });
 
   it('yenilenme gunu: en son testten 7 gun sonra (Istanbul saatiyle gun adi)', async () => {
@@ -367,5 +379,84 @@ describe('anonim ziyaretci ayni siteyi gunler sonra test ederse eski sonuc doner
     expect(pickReusableSnapshot([{ createdAt: taze, result: uye }], 'anon', now)).toBeUndefined();
     const ikisi = [{ createdAt: taze, result: uye }, { createdAt: eski, result: anonKayit(6) }];
     expect(pickReusableSnapshot(ikisi, 'anon', now)?.createdAt).toBe(eski);
+  });
+
+  /**
+   * 11.11.2026 (uc paket): uye raporu hesabin plan kapsamiyla olculur ve onbellek kapsamlar
+   * ARASINDA paylasilmaz. Paylasilsa: Baslangic hesabi, bir Profesyonel hesabin 24 saat icinde
+   * actigi butun asistanli raporu alir (paketinde olmayan olcum); Profesyonel hesap da bir
+   * Baslangic hesabin dort asistanli raporunu alip hakkini eksik raporla harcar.
+   */
+  describe('uye raporu plan kapsami', () => {
+    const DORT = ['openai', 'gemini', 'anthropic', 'perplexity'] as const;
+    const HEPSI = [...DORT, 'xai', 'deepseek', 'meta'] as const;
+    const baslangic = { engines: DORT, tier: 'standard' as const };
+    const pro = { engines: HEPSI, tier: 'premium' as const };
+    const now = Date.now();
+    const taze = new Date(now - 2 * 60 * 60 * 1000);
+    const uye = (scope?: string) => ({ access: { tier: 'member', ...(scope ? { scope } : {}) }, totalLlmCalls: 40 });
+
+    it('pickReusableSnapshot: yalniz AYNI kapsamla olculmus uye raporu verilir (iki yonde de)', () => {
+      const proKaydi = uye('premium:anthropic,deepseek,gemini,meta,openai,perplexity,xai');
+      const basKaydi = uye('standard:anthropic,gemini,openai,perplexity');
+      expect(pickReusableSnapshot([{ createdAt: taze, result: proKaydi }], 'member', now, pro)).toBeDefined();
+      expect(pickReusableSnapshot([{ createdAt: taze, result: proKaydi }], 'member', now, baslangic)).toBeUndefined();
+      expect(pickReusableSnapshot([{ createdAt: taze, result: basKaydi }], 'member', now, baslangic)).toBeDefined();
+      expect(pickReusableSnapshot([{ createdAt: taze, result: basKaydi }], 'member', now, pro)).toBeUndefined();
+      // Ayni asistanlar, farkli model kademesi de ayni rapor degildir
+      expect(pickReusableSnapshot([{ createdAt: taze, result: uye('premium:anthropic,gemini,openai,perplexity') }], 'member', now, baslangic)).toBeUndefined();
+      // Asistan sirasi anahtari degistirmez
+      expect(pickReusableSnapshot([{ createdAt: taze, result: basKaydi }], 'member', now, { engines: [...DORT].reverse(), tier: 'standard' })).toBeDefined();
+    });
+
+    it('damgasiz (11.11.2026 oncesi) uye raporu tam kapsam sayilir: Profesyonel alir, Baslangic almaz', () => {
+      const eskiBicim = [{ createdAt: taze, result: uye() }];
+      expect(pickReusableSnapshot(eskiBicim, 'member', now, pro)).toBeDefined();
+      expect(pickReusableSnapshot(eskiBicim, 'member', now)).toBeDefined();
+      expect(pickReusableSnapshot(eskiBicim, 'member', now, baslangic)).toBeUndefined();
+    });
+
+    it('anonim kademede kapsam hic bakilmaz (anonim test her yapilandirilmis asistana sorar)', () => {
+      expect(pickReusableSnapshot([{ createdAt: taze, result: anonKayit(6) }], 'anon', now, baslangic)).toBeDefined();
+      expect(pickReusableSnapshot([{ createdAt: taze, result: uye('standard:anthropic,gemini,openai,perplexity') }], 'anon', now, baslangic)).toBeUndefined();
+    });
+
+    it('check(signup_baseline, scope): prob kosucusuna yalniz kapsamdaki asistanlar ve kademe gider; sonuc damgalanir', async () => {
+      const t = servis({ probeFor: (_p, q) => andi(q) });
+      const r = await t.svc.check('kobipratik.com', '1.2.3.4', 'signup_baseline', { scope: baslangic });
+      const arg = (t.ai.runPublicProbes.mock.calls[0] as unknown[])[0] as { only?: string[]; tier?: string };
+      expect(arg.only).toEqual([...DORT]);
+      expect(arg.tier).toBe('standard');
+      expect(r.access).toMatchObject({ tier: 'member', scope: 'standard:anthropic,gemini,openai,perplexity' });
+      // Kaydedilen rapor da damgayi tasir (onbellek kurali bunu okur)
+      const kayit = (t.prisma.publicCitationCheck.create.mock.calls[0] as any[])[0].data.result;
+      expect(kayit.access.scope).toBe('standard:anthropic,gemini,openai,perplexity');
+    });
+
+    it('anonim test ve abone retest\'i kapsam ALMAZ: prob kosucusuna asistan listesi ve kademe gitmez', async () => {
+      const t = servis({ probeFor: (_p, q) => andi(q) });
+      const r = await t.svc.check('kobipratik.com', '1.2.3.4');
+      const arg = (t.ai.runPublicProbes.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+      expect(arg).not.toHaveProperty('only');
+      expect(arg).not.toHaveProperty('tier');
+      expect(r.access).not.toHaveProperty('scope');
+      // Kapsam yanlislikla anonim istege verilse bile uygulanmaz (yalniz uye kademesi)
+      const t2 = servis({ probeFor: (_p, q) => andi(q) });
+      await t2.svc.check('kobipratik.com', '1.2.3.4', 'manual', { scope: baslangic });
+      expect((t2.ai.runPublicProbes.mock.calls[0] as unknown[])[0]).not.toHaveProperty('only');
+    });
+
+    it('Baslangic hesabi, Profesyonel hesabin taze raporu onbellekteyken yeniden OLCER (dort asistanla)', async () => {
+      const proRapor = { ...anonKayit(6), access: { tier: 'member', unlockedQueries: 10, totalQueries: 10, lockedQueries: 0 } };
+      const t = servis({ probeFor: (_p, q) => andi(q), cached: [{ id: 'pro', createdAt: taze, result: proRapor }] });
+      const r = await t.svc.check('kobipratik.com', '1.2.3.4', 'signup_baseline', { scope: baslangic });
+      expect(r.fromCache).toBe(false);
+      expect(t.ai.runPublicProbes).toHaveBeenCalledTimes(1);
+      // Ayni onbellek Profesyonel hesaba verilir (olcum yok)
+      const t2 = servis({ probeFor: (_p, q) => andi(q), cached: [{ id: 'pro', createdAt: taze, result: proRapor }] });
+      const r2 = await t2.svc.check('kobipratik.com', '1.2.3.4', 'signup_baseline', { scope: pro });
+      expect(r2.fromCache).toBe(true);
+      expect(t2.ai.runPublicProbes).not.toHaveBeenCalled();
+    });
   });
 });

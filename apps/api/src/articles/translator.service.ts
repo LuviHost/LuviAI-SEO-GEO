@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { articleOfferPlan, planHasArticles } from '../billing/plans.js';
 import { TRANSLATION_LANGUAGES } from './articles.dto.js';
 
 export interface TranslationResult {
@@ -39,6 +40,14 @@ function isTranslationLanguage(v: unknown): v is TranslationLanguage {
  * dogrulama hatasi verirdi.
  */
 const TRANSLATED_FROM_PATH = '$.translated_from';
+
+/**
+ * Makale uretimi olmayan planda (Baslangic) ceviri reddi (kullaniciya gider). Ceviri yeni bir
+ * makale kaydi acan LLM cagrisidir ve makale hakkindan dusmez; kapisi yalniz denemeye bakarken
+ * "makale uretimi yok" denen pakette sinirsiz makale uretilebiliyordu.
+ */
+export const NO_ARTICLE_PLAN_TRANSLATION_REFUSED =
+  `Makale çevirisi bu pakette yok: çeviri yeni bir makale üretir, makale üretimi ${articleOfferPlan().name_tr} ve üzeri planlarda. ${articleOfferPlan().name_tr} plana geçtiğinde çeviri açılır.`;
 
 /** Deneme hesabinda ceviri reddi (kullaniciya gider) */
 export const TRIAL_TRANSLATION_REFUSED =
@@ -101,6 +110,10 @@ export class TranslatorService {
     });
     if (String(owner?.user?.plan ?? '') === 'TRIAL') {
       return { ok: false, fromLanguage, toLanguage, error: TRIAL_TRANSLATION_REFUSED };
+    }
+    // Makale uretimi olmayan plan (Baslangic) ve tanimsiz plan: LLM'e gitmeden reddet
+    if (!planHasArticles(owner?.user?.plan)) {
+      return { ok: false, fromLanguage, toLanguage, error: NO_ARTICLE_PLAN_TRANSLATION_REFUSED };
     }
 
     if (fromLanguage === toLanguage) {

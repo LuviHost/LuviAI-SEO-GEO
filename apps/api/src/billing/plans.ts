@@ -55,7 +55,9 @@ export const FEATURE_MIN_PLAN: Record<PlanFeature, PlanId> = {
   // RanksUp Video (makale, site ve urun tanitim videolari; ortak aylik hak) — sahip karari 21.10.2026: Profesyonel ve ustu.
   // Alt planlar kilitli onizleme gorur; render ve LLM maliyeti olusmaz (videos/videos.service.ts).
   articleVideo: 'pro',
-  // Ajans — portfoy olcegi
+  // Ajans — portfoy olcegi. Ajans 11.11.2026'da satistan kalkti; kapi burada durur ki mevcut
+  // Ajans hesaplari hakkini korusun. Yeni musteride bu ozellikler Kurumsal'dadir ve musteriye
+  // soylenen plan adi featureOfferPlan'dan gelir (asagida).
   programmaticSeo: 'agency',
   productRadar: 'agency',
   geoHeatmap: 'agency',
@@ -149,6 +151,12 @@ export interface BasePlan {
    */
   support_tr: string;
   support_en: string;
+  /**
+   * Kartta plan adinin altindaki tek satir: plan KIME, NE ICIN. Ozellik sayilmaz, vaat
+   * yazilmaz — yalniz o planda calisan seyin ozeti (maddelerle celismemeli).
+   */
+  tagline_tr?: string;
+  tagline_en?: string;
   /** Kart bu planin maddelerini "X'teki her sey, arti:" diye gosterir */
   inheritsFrom?: PlanId;
   /** Fiyat karti maddeleri — TEK KAYNAK. Her madde calisan bir ozellige dayanmali. */
@@ -156,6 +164,8 @@ export interface BasePlan {
   features_en: string[];
   popular?: boolean;
   contactSales?: boolean;
+  /** Satistan kalkan plan: mevcut hesaplar icin tanimli kalir; listede, kartta ve satin almada gorunmez */
+  legacy?: boolean;
 }
 
 /**
@@ -207,6 +217,105 @@ export interface BasePlan {
  * Mevcut aboneler: User.grandfatheredUntil / legacyMonthlyPriceTry alanlariyla
  * korunur — bkz. PaytrService.getPlanPriceForUser().
  */
+/**
+ * PAKET YAPISI (11.11.2026, sahip karari): UC paket — Baslangic, Profesyonel,
+ * Kurumsal. Konumlandirma "AI makale araci" degil "yapay zeka gorunurluk
+ * platformu": kartlar olcumle baslar, makale yalniz Profesyonel'de tek satirdir.
+ *
+ *  - Baslangic 99 USD: 4 asistan (ChatGPT, Gemini, Claude, Perplexity), HIZLI
+ *    modeller, makale uretimi YOK (articlesPerMonth 0).
+ *  - Profesyonel 349 USD: butun asistanlar (Grok, DeepSeek ve — anahtari
+ *    tanimliysa — Muse eklenir), gelismis modeller, makale ve icerik araclari.
+ *  - Kurumsal: teklifle (contactSales). Eski Ajans paketinin ozellikleri
+ *    (Product Radar, GEO Heatmap, Live Crawler) artik bu kartta.
+ *  - Ajans SATISTAN KALKTI ama tanimi durur (`legacy: true`): bu plandaki
+ *    hesap limitlerini korur ve kayitli karttan otomatik yenileme calisir
+ *    (paytr.service chargeStoredCard). Liste, kart ve yeni satin almada gorunmez
+ *    (publicPlans, PURCHASABLE_PLAN_IDS). ELLE yenileme yolu YOK: otomatik yenileme
+ *    kapaliyken bu plan donem sonunda duser. 11.11.2026'da Ajans'ta odeyen hesap
+ *    olmadigi icin (sahip) yazilmadi; boyle bir hesap acilirsa once bu yol eklenir.
+ *
+ * Hangi pakette hangi asistan ve hangi model kademesi: planEngines /
+ * planModelTier (asagida) — olcum motoru (ai-citation.service) bunlari DAYATIR;
+ * kart maddesi de ayni fonksiyondan uretilir (enginesBullet), elle yazilmaz.
+ */
+
+/** Olcum asistanlari — audit/ai-citation.service `Provider` ile AYNI dizgeler */
+export type MeasurementEngine = 'openai' | 'gemini' | 'anthropic' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
+
+/** Kart ve seritte gorunen adlar */
+export const ENGINE_LABELS: Record<MeasurementEngine, string> = {
+  openai: 'ChatGPT',
+  gemini: 'Gemini',
+  anthropic: 'Claude',
+  perplexity: 'Perplexity',
+  xai: 'Grok',
+  deepseek: 'DeepSeek',
+  meta: 'Muse',
+};
+
+/** Baslangic ve deneme: en bilinen dort asistan */
+export const STANDARD_ENGINES: readonly MeasurementEngine[] = ['openai', 'gemini', 'anthropic', 'perplexity'];
+
+/** Her kurulumda olculen alti asistan (Profesyonel ve ustu). Sira ana sayfadaki seritle ayni. */
+export const BASE_ENGINES: readonly MeasurementEngine[] = [...STANDARD_ENGINES, 'xai', 'deepseek'];
+
+/**
+ * KOSULLU asistan: Meta'nin Muse'u yalniz META_MODEL_API_KEY tanimliyken olculur
+ * (audit/citation-providers.ts). Plan KAPSAMINDA Profesyonel ve ustundedir; kart
+ * metnine ve "N asistan" sayisina ancak gercekten olculuyorsa girer.
+ */
+export const CONDITIONAL_ENGINES: readonly MeasurementEngine[] = ['meta'];
+
+/** Olcumde kullanilan model kademesi: 'standard' = saglayicinin hizli/ucuz modeli */
+export type ModelTier = 'standard' | 'premium';
+
+function isStandardScope(plan: PlanId): boolean {
+  return PLAN_RANK[plan] < PLAN_RANK.pro;
+}
+
+/** Bu planin KAPSAMINDAKI asistanlar (kosullu olanlar dahil — olculup olculmeyecegini anahtar belirler) */
+export function planEngines(plan: PlanId): MeasurementEngine[] {
+  return isStandardScope(plan) ? [...STANDARD_ENGINES] : [...BASE_ENGINES, ...CONDITIONAL_ENGINES];
+}
+
+/** Bu planin olcumlerinde kullanilan model kademesi */
+export function planModelTier(plan: PlanId): ModelTier {
+  return isStandardScope(plan) ? 'standard' : 'premium';
+}
+
+/**
+ * Fiyat kartindaki asistan maddesinin yer tutucusu. Metin elle yazilmaz:
+ * billing.service bu maddeyi enginesBullet ile, O AN olculen asistan listesinden
+ * uretir (Muse yalniz olculuyorsa gorunur).
+ */
+export const ENGINES_BULLET = '@asistanlar@';
+
+function joinNames(names: string[], locale: 'tr' | 'en'): string {
+  if (names.length <= 1) return names.join('');
+  const and = locale === 'tr' ? 've' : 'and';
+  return `${names.slice(0, -1).join(', ')} ${and} ${names[names.length - 1]}`;
+}
+
+/**
+ * Asistan maddesi. `measured`: su an olculen asistanlar (billing/measured-engines.ts).
+ *  - Baslangic kapsami: dort asistanin adlari.
+ *  - Ust paketler: alt pakete EKLENEN asistanlar ve toplam sayi.
+ */
+export function enginesBullet(plan: PlanId, locale: 'tr' | 'en', measured: readonly string[]): string {
+  const scope = planEngines(plan).filter((e) => measured.includes(e));
+  if (isStandardScope(plan)) {
+    const names = scope.map((e) => ENGINE_LABELS[e]).join(', ');
+    return locale === 'tr'
+      ? `${scope.length} AI asistanında görünürlük ölçümü — ${names}`
+      : `AI visibility measurement across ${scope.length} assistants — ${names}`;
+  }
+  const extras = scope.filter((e) => !STANDARD_ENGINES.includes(e)).map((e) => ENGINE_LABELS[e]);
+  return locale === 'tr'
+    ? `${scope.length} AI asistanı — ${joinNames(extras, 'tr')} eklenir`
+    : `${scope.length} AI assistants — adds ${joinNames(extras, 'en')}`;
+}
+
 export const BASE_PLANS: BasePlan[] = [
   {
     id: 'trial',
@@ -217,7 +326,7 @@ export const BASE_PLANS: BasePlan[] = [
     articlesPerMonth: 2,
     sites: 1,
     aiRunsPerMonth: 3,
-    aiProviders: 6,
+    aiProviders: STANDARD_ENGINES.length,
     publishTargets: 'limited',
     trackedApps: 1,
     videosPerMonth: VIDEOS_PER_MONTH.trial,
@@ -225,73 +334,75 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'email',
     // Sahip karari 21.10.2026: deneme 14 gun (billing/trial-policy.ts), 2 makale TOPLAM (ay basi
     // sifirlanmaz) ve makaleyi kullanici baslatir (yayin hedefi sarti); takvimin hakki asan
-    // konulari kilitli bekler, plan secilince yazilir (articles/plan-lock.ts). Sure dolunca
-    // hesap salt okunur (satin alma acikken; trial-expiry.guard.ts).
+    // konulari kilitli bekler (articles/plan-lock.ts). Sure dolunca hesap salt okunur (satin
+    // alma acikken; trial-expiry.guard.ts). 11.11.2026: makale uretimi yalniz Profesyonel ve
+    // ustunde oldugu icin kilitli konular "plan secince" degil Profesyonel'de yazilir.
     features_tr: [
       '14 gün · 2 AI makale · 3 görünürlük çalıştırması (haftada en fazla 1 ölçüm)',
-      'Makaleleri yayın hedefini bağlayıp sen başlatırsın; takvimin geri kalanı plan seçince yazılır',
+      'Makaleleri yayın hedefini bağlayıp sen başlatırsın; takvimin geri kalanı Profesyonel planda yazılır',
       '1 site',
       'Kredi kartı istemez',
     ],
     features_en: [
       '14 days · 2 AI articles · 3 visibility runs (at most 1 measurement per week)',
-      'You start articles yourself after connecting a publish target; the rest of your calendar is written when you choose a plan',
+      'You start articles yourself after connecting a publish target; the rest of your calendar is written on the Professional plan',
       '1 site',
       'No credit card required',
     ],
   },
   {
     id: 'starter',
-    name_tr: 'Büyüme',
-    name_en: 'Growth',
-    monthly_usd: 149,
-    annual_usd: 1490,
-    articlesPerMonth: 15,
+    name_tr: 'Başlangıç',
+    name_en: 'Starter',
+    tagline_tr: 'Markan AI cevaplarında nerede duruyor, gör.',
+    tagline_en: 'See where your brand stands in AI answers.',
+    monthly_usd: 99,
+    annual_usd: 990,
+    // Makale uretimi bu pakette yok (QuotaService.LIMITS.STARTER.articles ile ayni)
+    articlesPerMonth: 0,
     sites: 2,
     aiRunsPerMonth: 20,
-    aiProviders: 6,
+    aiProviders: STANDARD_ENGINES.length,
     publishTargets: 'all',
     trackedApps: 1,
     videosPerMonth: VIDEOS_PER_MONTH.starter,
     support_tr: 'e-posta',
     support_en: 'email',
     features_tr: [
-      '15 AI makale / ay — 5 ajanlı üretim hattı, yayın öncesi QA kapısı',
-      'Hesap başına haftada 1 AI görünürlük ölçümü — AI testi, Prompt Lab ve diğer ölçümler bu hakkı paylaşır',
-      'AI testi ve Prompt Lab’in ana sorusu 6 AI asistanına birden sorulur, Prompt Lab dalları 3 asistana (ChatGPT, Claude, Gemini); ölçümlerde ayda en fazla 20 çalıştırma (AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma)',
-      'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
-      '2 site',
-      'Site SEO/GEO denetimi — 14 teknik kontrol + PageSpeed önerileri; GEO Lab’de A+–F GEO notu',
-      'ASO: uygulamanı bağla — App Store + Google Play metadata’sı için AI önerileri, günlük mağaza sıra takibi',
-      'Google Search Console bağlıyken günlük otomatik keyword sıra takibi',
-      '13 yayın hedefi — WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…',
-      'İçerik takvimi, zamanlanmış üretim ve otomatik yayın',
-      'Haftalık e-posta performans raporu',
+      ENGINES_BULLET,
+      'Haftada 1 ölçüm (hesap başına) · ayda en fazla 20 çalıştırma',
+      'Rakip ve kaynak takibi — cevapta kim anılıyor, hangi siteler kaynak gösteriliyor',
+      'Prompt Lab — kendi sorularınla ölçüm',
+      'Site SEO/GEO denetimi — 14 teknik kontrol, PageSpeed önerileri, A+–F GEO notu',
+      'Günlük anahtar kelime sıra takibi — Search Console bağlıyken',
+      'ASO, 1 uygulama — App Store ve Google Play sıra takibi, metadata önerileri',
+      '2 site · haftalık e-posta raporu',
+      'Hızlı modellerle ölçüm',
     ],
     features_en: [
-      '15 AI articles/mo — 5-agent pipeline with a pre-publish QA gate',
-      '1 AI visibility measurement per account per week — the AI test, Prompt Lab and other measurements share it',
-      'The AI test and the main Prompt Lab question go to 6 AI assistants at once, Prompt Lab branches to 3 (ChatGPT, Claude, Gemini); up to 20 runs/mo across measurements (an AI test is 1 run, each Prompt Lab question or branch is 1)',
-      'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
-      '2 sites',
-      'Site SEO/GEO audit — 14 technical checks + PageSpeed suggestions; A+–F GEO grade in GEO Lab',
-      'ASO: connect your app — AI metadata suggestions for App Store + Google Play, daily store rank tracking',
-      'Daily automated keyword rank tracking once Google Search Console is connected',
-      '13 publishing targets — WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity…',
-      'Content calendar, scheduled generation and auto-publish',
-      'Weekly performance report by email',
+      ENGINES_BULLET,
+      '1 measurement a week (per account) · up to 20 runs/mo',
+      'Competitor and source tracking — who gets mentioned and which sites are cited',
+      'Prompt Lab — measure with your own questions',
+      'Site SEO/GEO audit — 14 technical checks, PageSpeed suggestions, A+–F GEO grade',
+      'Daily keyword rank tracking — once Search Console is connected',
+      'ASO, 1 app — App Store and Google Play rank tracking, metadata suggestions',
+      '2 sites · weekly email report',
+      'Measured with fast models',
     ],
   },
   {
     id: 'pro',
     name_tr: 'Profesyonel',
     name_en: 'Professional',
+    tagline_tr: 'Ölç, eksiği içerikle kapat, yeniden ölç.',
+    tagline_en: 'Measure, close the gap with content, measure again.',
     monthly_usd: 349,
     annual_usd: 3490,
     articlesPerMonth: 40,
     sites: 5,
     aiRunsPerMonth: 75,
-    aiProviders: 6,
+    aiProviders: BASE_ENGINES.length,
     publishTargets: 'all',
     trackedApps: 3,
     videosPerMonth: VIDEOS_PER_MONTH.pro,
@@ -299,30 +410,36 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'email',
     inheritsFrom: 'starter',
     features_tr: [
-      '40 AI makale / ay · ayda en fazla 75 çalıştırma (ölçüm yine haftada 1) · 5 site',
-      'Apple Search Ads — kampanya kurulumu, senkron ve günlük oto-pilot',
-      'App Store Connect — sürüm senkronu, yorumları çekme + AI yanıt taslağı',
-      'App Prompt Lab — AI asistanları uygulamanı öneriyor mu, ölç',
-      'Screenshot Studio — AI arka plan + caption, 1290×2796 canvas editör',
-      'Agent Readiness (AXO) — AI bot ve ajan keşif dosyaları taraması; robots.txt’e önizlemeli ekleme (mevcut kurallar korunur), site haritası yoksa oluşturulur',
-      'Takılmış sayfa tespiti (Search Console ile) — LLM ile kurtarma; RanksUp’ın yayınladığı yazıda tek tıkla geri alma',
-      'İçerik fırsatları — kaybettiğin promptlardan makale üretip yeniden ölçen kapalı döngü',
-      `RanksUp Video — makale, site ve ürün tanıtım videoları, sitenin markasıyla (ayda ${VIDEOS_PER_MONTH.pro} video)`,
+      ENGINES_BULLET,
+      // Bugun gercek olan fark: Claude Haiku → Opus; Grok ve DeepSeek zaten en ust modelleriyle.
+      // ChatGPT, Gemini ve Perplexity iki pakette de ayni (hizli) modelle olculur — degisirse madde de degisir.
+      'Claude, Grok ve DeepSeek’te en gelişmiş modeller',
+      '5 site · ayda en fazla 75 çalıştırma (ölçüm yine haftada 1)',
+      'GEO içerik, ayda 40 makale — 5 ajanlı üretim, kalite kapısı, 13 yayın hedefi',
+      'İçerik fırsatları — kaybettiğin soruya içerik üretir, sonra yeniden ölçer',
+      'Agent Readiness (AXO) — AI bot ve ajan keşif taraması; robots.txt’e önizlemeli ekleme, eksik site haritası',
+      'Takılmış sayfa tespiti — Search Console verisiyle; RanksUp’ın yayınladığı yazıda tek tıkla geri alma',
+      'ASO, 3 uygulama — Apple Search Ads ve App Store Connect',
+      'App Prompt Lab ve Screenshot Studio',
+      `RanksUp Video — ayda ${VIDEOS_PER_MONTH.pro} video`,
     ],
     features_en: [
-      '40 AI articles/mo · up to 75 runs/mo (still 1 measurement a week) · 5 sites',
-      'Apple Search Ads — campaign setup, sync and daily auto-pilot',
-      'App Store Connect — release sync, review ingest + AI reply drafts',
-      'App Prompt Lab — measure whether AI assistants recommend your app',
-      'Screenshot Studio — AI backgrounds + captions, 1290×2796 canvas editor',
-      'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed additions to robots.txt (existing rules kept), sitemap created if missing',
-      'Stuck page detection (via Search Console) — LLM-driven recovery; one-click revert on articles RanksUp published',
-      'Content opportunities — closed loop that writes for lost prompts and re-measures',
-      `RanksUp Video — article, site and product promo videos in your site's branding (${VIDEOS_PER_MONTH.pro} videos/mo)`,
+      ENGINES_BULLET,
+      'The most capable models on Claude, Grok and DeepSeek',
+      '5 sites · up to 75 runs/mo (still 1 measurement a week)',
+      'GEO content, 40 articles/mo — 5-agent pipeline, quality gate, 13 publishing targets',
+      'Content opportunities — writes for the questions you lose, then re-measures',
+      'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed additions to robots.txt, missing sitemap created',
+      'Stuck page detection — from Search Console data; one-click revert on articles RanksUp published',
+      'ASO, 3 apps — Apple Search Ads and App Store Connect',
+      'App Prompt Lab and Screenshot Studio',
+      `RanksUp Video — ${VIDEOS_PER_MONTH.pro} videos/mo`,
     ],
     popular: true,
   },
   {
+    // SATISTAN KALKTI (11.11.2026) — bkz. yukaridaki PAKET YAPISI notu. Tanim, bu plandaki
+    // mevcut hesaplar icin durur; ozellikleri yeni musteride Kurumsal kartinda satilir.
     id: 'agency',
     name_tr: 'Ajans',
     name_en: 'Agency',
@@ -331,7 +448,7 @@ export const BASE_PLANS: BasePlan[] = [
     articlesPerMonth: 100,
     sites: 15,
     aiRunsPerMonth: 300,
-    aiProviders: 6,
+    aiProviders: BASE_ENGINES.length,
     publishTargets: 'all',
     trackedApps: 10,
     videosPerMonth: VIDEOS_PER_MONTH.agency,
@@ -352,37 +469,47 @@ export const BASE_PLANS: BasePlan[] = [
       'Live Crawler — live AI bot stream + server log ingestion',
       `RanksUp Video — ${VIDEOS_PER_MONTH.agency} videos/mo`,
     ],
+    legacy: true,
   },
   {
     id: 'enterprise',
     name_tr: 'Kurumsal',
     name_en: 'Enterprise',
+    tagline_tr: 'Çok markalı ekipler için: API, MCP ve kendi anahtarların.',
+    tagline_en: 'For multi-brand teams: API, MCP and your own keys.',
+    // Liste fiyati kartta GOSTERILMEZ (contactSales: teklifle); sozlesme tabani olarak durur
     monthly_usd: 1499,
     annual_usd: 14990,
     articlesPerMonth: 350,
     sites: 50,
     aiRunsPerMonth: 1_000,
-    aiProviders: 6,
+    aiProviders: BASE_ENGINES.length,
     publishTargets: 'all',
     trackedApps: 50,
     videosPerMonth: VIDEOS_PER_MONTH.enterprise,
     support_tr: 'e-posta',
     support_en: 'email',
-    inheritsFrom: 'agency',
+    inheritsFrom: 'pro',
     features_tr: [
-      '350 AI makale / ay · ayda en fazla 1.000 çalıştırma (ölçüm yine haftada 1) · 50 site',
-      'BYOK — kendi sağlayıcı anahtarların; aylık çalıştırma tavanı dolsa da ölçüm bu anahtarlarla sürer (haftada 1 ölçüm kuralı geçerli)',
-      'MCP sunucusu — Claude Code, Cursor ya da özel başlık gönderebilen kendi ajanından bağlan',
-      'REST API + API anahtarları — scope’lar site, makale, denetim, reklam ve analitik uçlarını kapsar',
-      'AI maliyet ve token muhasebesi — panelde son 7 gün toplamı, token ve en çok harcayan bağlamlar; sağlayıcı ve gün kırılımı API’de',
+      '50 site · ayda en fazla 1.000 çalıştırma (ölçüm yine haftada 1) · 350 makale',
+      'Product Radar — haftalık rakip ses payı ve kategori sırası',
+      'GEO Heatmap — asistan bazında görünürlük ısı haritası',
+      'Live Crawler — AI botlarının canlı akışı, sunucu logu yükleme',
+      'BYOK — kendi sağlayıcı anahtarlarınla ölçüm; aylık tavan dolsa da sürer (haftada 1 ölçüm kuralı geçerli)',
+      'MCP sunucusu — Claude Code, Cursor ya da özel başlık gönderebilen kendi ajanın',
+      'REST API ve API anahtarları — site, makale, denetim, reklam ve analitik uçları',
+      'AI maliyet ve token muhasebesi — panelde son 7 gün; sağlayıcı ve gün kırılımı API’de',
       `RanksUp Video — ayda ${VIDEOS_PER_MONTH.enterprise} video`,
     ],
     features_en: [
-      '350 AI articles/mo · up to 1,000 runs/mo (still 1 measurement a week) · 50 sites',
-      'BYOK — your own provider keys; measurement continues on them past the monthly run cap (the weekly measurement rule still applies)',
-      'MCP server — connect from Claude Code, Cursor or your own agent that can send a custom header',
-      'REST API + API keys — scopes cover site, article, audit, ads and analytics endpoints',
-      'AI cost and token accounting — last-7-day total, tokens and top contexts in the dashboard; provider and day breakdown via the API',
+      '50 sites · up to 1,000 runs/mo (still 1 measurement a week) · 350 articles',
+      'Product Radar — weekly competitor share-of-voice and category rank',
+      'GEO Heatmap — per-assistant visibility heatmap',
+      'Live Crawler — live AI bot stream, server log upload',
+      'BYOK — measure with your own provider keys, also past the monthly cap (the weekly measurement rule still applies)',
+      'MCP server — Claude Code, Cursor or your own agent that can send a custom header',
+      'REST API and API keys — site, article, audit, ads and analytics endpoints',
+      'AI cost and token accounting — last 7 days in the dashboard; provider and day breakdown via the API',
       `RanksUp Video — ${VIDEOS_PER_MONTH.enterprise} videos/mo`,
     ],
     contactSales: true,
@@ -393,5 +520,57 @@ export function findPlan(id: string): BasePlan | undefined {
   return BASE_PLANS.find((p) => p.id === id);
 }
 
-/** Satin alinabilir planlar (trial ucretsiz, enterprise satis ekibi uzerinden) */
-export const PURCHASABLE_PLAN_IDS: PlanId[] = ['starter', 'pro', 'agency'];
+/** Listede ve kartlarda gorunen planlar — satistan kalkanlar (legacy) haric */
+export function publicPlans(): BasePlan[] {
+  return BASE_PLANS.filter((p) => !p.legacy);
+}
+
+/**
+ * Kapali bir ozellikte musteriye SOYLENECEK plan: ozelligi iceren en dusuk SATISTAKI plan.
+ *
+ * Kapi FEATURE_MIN_PLAN'da durur (Ajans'taki mevcut hesaplar Product Radar, GEO Heatmap ve
+ * Live Crawler hakkini korur). Ama Ajans 11.11.2026'da satistan kalkti: "Ajans planina
+ * dahildir" demek musteriyi alamayacagi bir plana yollar. Hata mesajlari ve panelin kilitli
+ * kartlari (entitlements `required`) plan adini BURADAN alir.
+ */
+export function featureOfferPlan(feature: PlanFeature): BasePlan {
+  const min = PLAN_RANK[FEATURE_MIN_PLAN[feature]];
+  const offered = publicPlans()
+    .filter((p) => PLAN_RANK[p.id] >= min)
+    .sort((a, b) => PLAN_RANK[a.id] - PLAN_RANK[b.id])[0];
+  return offered ?? BASE_PLANS.find((p) => p.id === FEATURE_MIN_PLAN[feature])!;
+}
+
+/**
+ * Bu planda yapay zekayla makale uretimi var mi (aylik makale hakki > 0)?
+ *
+ * 11.11.2026 (uc paket): Baslangic'ta YOK. Makale ureten her yol ayni kurala bakar: kullanicinin
+ * baslattigi uretim ve takvim (QuotaService), ceviri (translator.service), otomatik yeniden
+ * yazim (content-pivot.service), takvim kilidi (articles/plan-lock). Yalniz kotaya bakmak
+ * yetmiyordu: ceviri ve yeniden yazim makale hakkindan dusmez, eskiden yalniz denemeyi eliyordu.
+ * Deneme true doner (omur boyu 2 makale); denemenin kendi kurallari ayri (trial-policy, plan-lock).
+ */
+export function planHasArticles(plan: string | null | undefined): boolean {
+  const p = BASE_PLANS.find((x) => x.id === String(plan ?? '').toLowerCase());
+  return !!p && p.articlesPerMonth > 0;
+}
+
+/**
+ * Makale ureten en dusuk SATISTAKI ucretli plan — "makale icin su plana gec" diyen her metin
+ * plan adini BURADAN alir (hak mesajlari, deneme bitisi e-postalari, ceviri reddi).
+ */
+export function articleOfferPlan(): BasePlan {
+  return publicPlans().find((p) => p.monthly_usd > 0 && p.articlesPerMonth > 0) ?? BASE_PLANS.find((p) => p.id === 'pro')!;
+}
+
+/**
+ * Otomatik makale isleri (haftalik yeniden yazim taramasi) bu plan enum degerlerinde CALISMAZ:
+ * deneme + aylik makale hakki olmayan planlar. Prisma `notIn` icin BUYUK harf.
+ */
+export const NO_AUTO_ARTICLE_PLANS: string[] = [
+  'TRIAL',
+  ...BASE_PLANS.filter((p) => p.id !== 'trial' && p.articlesPerMonth === 0).map((p) => p.id.toUpperCase()),
+];
+
+/** Satin alinabilir planlar (trial ucretsiz, enterprise satis ekibi uzerinden, agency satistan kalkti) */
+export const PURCHASABLE_PLAN_IDS: PlanId[] = ['starter', 'pro'];

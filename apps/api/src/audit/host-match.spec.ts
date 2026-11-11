@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hostMentioned, hostMentionIndex, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs, CITATION_MATCH_VERSION, SITE_MEASUREMENT_VERSION } from './host-match.js';
+import { hostMentioned, hostMentionIndex, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs, CITATION_MATCH_VERSION, SITE_MEASUREMENT_VERSION, STANDARD_TIER_VERSION_OFFSET, siteMeasurementVersion } from './host-match.js';
 
 describe('hostMentioned — etiket sinirli', () => {
   it('kendi alan adi ve alt alan adi eslesir; cumle sonu noktasi sorun degil', () => {
@@ -73,5 +73,20 @@ describe('SITE_MEASUREMENT_VERSION — site olcumu (tekrar + aralik)', () => {
   it('6: eslesme surumunun ustunde; ayni numara iki yontemi anlatmaz', () => {
     expect(SITE_MEASUREMENT_VERSION).toBe(6);
     expect(SITE_MEASUREMENT_VERSION).toBeGreaterThan(CITATION_MATCH_VERSION);
+  });
+
+  // 11.11.2026 (uc paket): Baslangic / deneme Claude'u hizli modelle ve dort asistanla olcer.
+  // Ayni hesabin iki olcumu farkli kademeyle yapildiysa fark MODELIN farkidir; surum ayni kalsa
+  // trend ve dusus alarmi bunu "gorunurluk dustu" diye okurdu.
+  it('model kademesi ayri surum tasir: standard = guncel + 100; premium (Profesyonel ve ustu) DEGISMEZ', () => {
+    expect(siteMeasurementVersion('premium')).toBe(SITE_MEASUREMENT_VERSION);
+    expect(siteMeasurementVersion()).toBe(SITE_MEASUREMENT_VERSION);
+    expect(siteMeasurementVersion(null)).toBe(SITE_MEASUREMENT_VERSION);
+    expect(siteMeasurementVersion(undefined)).toBe(SITE_MEASUREMENT_VERSION);
+    expect(siteMeasurementVersion('standard')).toBe(SITE_MEASUREMENT_VERSION + STANDARD_TIER_VERSION_OFFSET);
+    expect(siteMeasurementVersion('standard')).not.toBe(siteMeasurementVersion('premium'));
+    // Ofset, ilerideki surum artislariyla cakismayacak kadar buyuk; iki numara da eslesme surumunun ustunde
+    expect(STANDARD_TIER_VERSION_OFFSET).toBeGreaterThanOrEqual(100);
+    expect(siteMeasurementVersion('standard')).toBeGreaterThan(CITATION_MATCH_VERSION);
   });
 });

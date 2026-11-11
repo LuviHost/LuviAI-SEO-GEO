@@ -100,7 +100,9 @@ function world(opts: { text: Record<string, unknown>; status: string; publishedT
     status: opts.status, qaStatus: 'PASS', qaReport: null, publishedAt: LAST_WRITE, publishedTo: opts.publishedTo,
     performanceMetrics: METRICS, performanceCheckedAt: null, agentOutputs: { writer: { output: 'taslak' } },
     updatedAt: new Date(Date.now() - DAY),
-    site: { id: 's1', url: SITE, name: 'Site', userId: 'u1', publishTargets: [WP_T] },
+    // Sahibin plani: otomatik yeniden yazim yalniz makale uretimi olan planda calisir
+    // (11.11.2026 uc paket — plans.ts planHasArticles; plansiz kayit engellenir)
+    site: { id: 's1', url: SITE, name: 'Site', userId: 'u1', publishTargets: [WP_T], user: { plan: 'PRO' } },
   };
   let tick = 0;
   const apply = (data: any) => {

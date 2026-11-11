@@ -75,7 +75,8 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'AI İçerik Üretimi',
     icon: <Sparkles className="h-4 w-4" />,
     rows: [
-      { name: 'AI ile makale üretimi', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true, seoyen: true },
+      // 11.11.2026 paket yapisi (api plans.ts): makale uretimi yalniz Profesyonel ve ustunde (Baslangic 0)
+      { name: 'AI ile makale üretimi', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true, seoyen: true, hint: 'RanksUp: Profesyonel ve üstü planlarda; ücretsiz denemede toplam 2 makale. Başlangıç planında makale üretimi yoktur.' },
       // Uretim hatti 5 ajan: apps/api/src/articles/pipeline.service.ts (yayin bir ajan degil)
       { name: '5 ajanlı üretim hattı + yayın öncesi kalite kapısı', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'Anahtar kelime → taslak → yazar → editör → görsel; kaynaksız sayı, uydurma iç bağlantı ve yapı kontrolleri yayından önce yapılır.' },
       { name: 'Marka sesi (her site için ayrı marka beyni)', luviai: true, surfer: 'Brand Knowledge', jasper: 'Brand Voice', ahrefs: null, frase: 'Brand Voice' },
@@ -88,8 +89,9 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
     rows: [
-      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '6 asistan', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 asistan', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek; ölçümü sen başlatırsın, hesap başına 7 günde 1. Rakiplerde kapsam plana göre değişir; Google AI Overviews / AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez.' },
-      { name: 'GEO ısı haritası (rakip × AI asistanı) (Ajans ve üstü)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      // 11.11.2026 paket yapisi (api plans.ts planEngines): Baslangic ve deneme dort asistan, Grok ve DeepSeek Profesyonel ve ustu
+      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '6 asistan (Başlangıç’ta 4)', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 asistan', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Gemini, Claude ve Perplexity her planda, Grok ve DeepSeek Profesyonel ve üstü planlarda; ölçümü sen başlatırsın, hesap başına 7 günde 1. Rakiplerde kapsam plana göre değişir; Google AI Overviews / AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez.' },
+      { name: 'GEO ısı haritası (rakip × AI asistanı) (Kurumsal planda)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'GEO Skor Kartı (6 başlık, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI görünürlük düşüş alarmı (e-posta)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'uyarılar' },
       { name: 'AI tarayıcı takibi (GPTBot, PerplexityBot vb.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
@@ -164,7 +166,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     rows: [
       // Surfer SSS'si "up to 17%" diyor (surferseo.com/pricing, 18.10.2026); "~%17" degil
       { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%17\'ye kadar', jasper: '~%20', ahrefs: '%17\'ye kadar', frase: '%20', geon: '%20', seoyen: '%20' },
-      { name: 'Ücretsiz deneme', luviai: '2 makale, kart yok', surfer: null, jasper: '7 gün', ahrefs: 'Ahrefs Free (sınırlı)', frase: '7 gün, kart yok', geon: '5 ücretsiz kredi', seoyen: 'ücretli: 50 TL, 7 gün' },
+      { name: 'Ücretsiz deneme', luviai: '14 gün, kart yok', surfer: null, jasper: '7 gün', ahrefs: 'Ahrefs Free (sınırlı)', frase: '7 gün, kart yok', geon: '5 ücretsiz kredi', seoyen: 'ücretli: 50 TL, 7 gün' },
       { name: 'Aylık plan — uzun taahhüt yok', luviai: true, surfer: true, jasper: true, ahrefs: 'Enterprise hariç', frase: true, geon: true, seoyen: true },
     ],
   },
@@ -176,7 +178,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'AI Content Generation',
     icon: <Sparkles className="h-4 w-4" />,
     rows: [
-      { name: 'AI article generation', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true, seoyen: true },
+      { name: 'AI article generation', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true, seoyen: true, hint: 'RanksUp: on the Professional plan and up; the free trial includes 2 articles in total. The Starter plan does not include article generation.' },
       { name: '5-agent pipeline + pre-publish quality gate', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'Keyword → outline → writer → editor → visuals; unsourced numbers, made-up internal links and structure are checked before publishing.' },
       { name: 'Brand voice (separate brand brain per site)', luviai: true, surfer: 'Brand Knowledge', jasper: 'Brand Voice', ahrefs: null, frase: 'Brand Voice' },
       { name: 'Turkish optimized', luviai: 'native', surfer: 'partial', jasper: 'partial', ahrefs: 'partial', frase: 'partial' },
@@ -188,8 +190,8 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
     rows: [
-      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '6 assistants', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 assistants', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; you start each measurement, once every 7 days per account. Competitor coverage depends on the plan; some track engines such as Google AI Overviews / AI Mode and Copilot, which RanksUp does not measure.' },
-      { name: 'GEO heatmap (competitor × AI assistant) (Agency and above)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '6 assistants (4 on Starter)', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 assistants', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Gemini, Claude and Perplexity on every plan, Grok and DeepSeek on the Professional plan and up; you start each measurement, once every 7 days per account. Competitor coverage depends on the plan; some track engines such as Google AI Overviews / AI Mode and Copilot, which RanksUp does not measure.' },
+      { name: 'GEO heatmap (competitor × AI assistant) (Enterprise plan)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'GEO Score Card (6 pillars, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI visibility drop alert (email)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'alerts' },
       { name: 'AI crawler tracking (GPTBot, PerplexityBot etc.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
@@ -263,7 +265,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     icon: <Award className="h-4 w-4" />,
     rows: [
       { name: 'Yearly discount', luviai: '17%', surfer: 'up to 17%', jasper: '~20%', ahrefs: 'up to 17%', frase: '20%', geon: '20%', seoyen: '20%' },
-      { name: 'Free trial', luviai: '2 articles, no card', surfer: null, jasper: '7 days', ahrefs: 'Ahrefs Free (limited)', frase: '7 days, no card', geon: '5 free credits', seoyen: 'paid: TRY 50, 7 days' },
+      { name: 'Free trial', luviai: '14 days, no card', surfer: null, jasper: '7 days', ahrefs: 'Ahrefs Free (limited)', frase: '7 days, no card', geon: '5 free credits', seoyen: 'paid: TRY 50, 7 days' },
       { name: 'Monthly plan — no long commitment', luviai: true, surfer: true, jasper: true, ahrefs: 'except Enterprise', frase: true, geon: true, seoyen: true },
     ],
   },
@@ -330,7 +332,7 @@ const COPY = {
     badge4: '✓ 13 yayın hedefi',
     hc1Num: '6',
     hc1Title: 'AI asistanında ölçüm',
-    hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Marka adı geçen sorular manşet skora girmez.',
+    hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek; Başlangıç planı ilk dördünü ölçer. Marka adı geçen sorular manşet skora girmez.',
     hc2Title: 'GEO/AEO aracı',
     hc2Desc: 'AI görünürlük takibi, ısı haritası, skor kartı, düşüş alarmı, siteye eklenen AI sohbet aracı ve kapalı döngü.',
     hc3Num: 'SEO + Reklam',
@@ -354,11 +356,11 @@ const COPY = {
     sumRightItems: [
       'Tek abonelik, tek panel',
       'Türkçe destek, KVKK, Türk lirasıyla ödeme',
-      'AI asistanlarında görünürlük ölçümü (Grok ve DeepSeek dahil 6 asistan)',
+      'AI asistanlarında görünürlük ölçümü (Profesyonel ve üstü planlarda Grok ve DeepSeek dahil 6 asistan; Başlangıç planında 4)',
       'Kurumsal planda BYOK: kendi sağlayıcı anahtarınla ölçüm',
     ],
     ctaTitle: 'Saatler süren işi dakikaya indir',
-    ctaSub: '14 gün ücretsiz deneme, 2 makale, kart gerekmez. SEO ve AI aramadaki görünürlüğünü tek panelden ölç ve iyileştir.',
+    ctaSub: '14 gün ücretsiz deneme, kart gerekmez. SEO ve AI aramadaki görünürlüğünü tek panelden ölç ve iyileştir.',
     ctaPrimary: '14 günlük ücretsiz denemeyi başlat →',
     ctaSecondary: 'Fiyatlandırmayı incele',
   },
@@ -374,7 +376,7 @@ const COPY = {
     badge4: '✓ 13 publish targets',
     hc1Num: '6',
     hc1Title: 'AI assistants measured',
-    hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek. Questions that contain your brand stay out of the headline score.',
+    hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; the Starter plan measures the first four. Questions that contain your brand stay out of the headline score.',
     hc2Title: 'GEO/AEO tools',
     hc2Desc: 'AI visibility tracking, heatmap, score card, drop alert, an AI chat widget for your site and the closed loop.',
     hc3Num: 'SEO + Ads',
@@ -398,11 +400,11 @@ const COPY = {
     sumRightItems: [
       'One subscription, one dashboard',
       'Turkish support, KVKK, payment in Turkish lira',
-      'AI visibility measurement on 6 assistants, Grok and DeepSeek included',
+      'AI visibility measurement on 6 assistants on the Professional plan and up, Grok and DeepSeek included (4 on the Starter plan)',
       'BYOK on the Enterprise plan: measure with your own provider keys',
     ],
     ctaTitle: 'Cut hours-long work to minutes',
-    ctaSub: '14-day free trial with 2 articles, no card. Measure and improve your visibility in SEO and AI search from one dashboard.',
+    ctaSub: '14-day free trial, no card. Measure and improve your visibility in SEO and AI search from one dashboard.',
     ctaPrimary: 'Start your 14-day free trial →',
     ctaSecondary: 'See pricing',
   },
@@ -641,7 +643,9 @@ export function CompareView({ initialPrices }: { initialPrices: Record<Locale, C
               {/* RanksUp fiyatlari ELLE YAZILMAZ. Burada '₺1.499 ($37)' ve
                   '₺4.999 ($125)' sabitleri duruyordu; gercek fiyatlar $149 ve
                   $349 oldugu icin sayfa dort kata varan yanlis fiyat
-                  gosteriyordu. Artik /billing/plans ile ayni kaynak. */}
+                  gosteriyordu. Artik /billing/plans ile ayni kaynak.
+                  11.11.2026 paket yapisi: yalniz Profesyonel yazilir — yukaridaki dort
+                  alanin hepsini iceren en dusuk plan (compare-prices.ts notu). */}
               {planPrices.map((p, i) => (
                 <span key={p.id}>
                   {i === 0 ? c.sumLeftNote2 : c.sumLeftNote3}

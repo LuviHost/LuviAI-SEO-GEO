@@ -83,7 +83,7 @@ export default function AuditPage() {
         links={[
           { href: siteHref(site.id, 'snippet'), label: 'Sayfa SEO İyileştir', description: 'Meta + SSS otomatik düzeltme', icon: FileText },
           { href: siteHref(site.id, 'geoLab'), label: 'GEO Lab', description: 'AI arama optimizasyonu (6 sütun)', icon: Award },
-          { href: siteHref(site.id, 'visibility'), label: 'AI Görünürlük', description: '6 AI asistanında marka ve atıf takibi', icon: Sparkles },
+          { href: siteHref(site.id, 'visibility'), label: 'AI Görünürlük', description: 'AI asistanlarında marka ve atıf takibi', icon: Sparkles },
           { href: siteHref(site.id, 'publishTargets'), label: 'Yayın Hedefleri', description: 'Otomatik düzeltme dosyaları buraya yüklenir', icon: Send },
         ]}
       />

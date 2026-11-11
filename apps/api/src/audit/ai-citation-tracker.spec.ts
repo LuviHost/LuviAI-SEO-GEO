@@ -318,3 +318,96 @@ describe('AiCitationTrackerService — tekrar ve aralik (v6)', () => {
     expect(runs[1]).toMatchObject({ tekrar: 1, gorunme: { gorunen: 0, olculen: 5 } });
   });
 });
+
+/**
+ * 11.11.2026 (uc paket) — bagimsiz incelemenin iki bulgusu:
+ *  1. Model kademesi yontem surumune damgalanir (host-match siteMeasurementVersion). Deneme /
+ *     Baslangic hesabi Claude'u hizli modelle olcer; surum ayni kalsa Opus → Haiku gecisi trendde
+ *     ve dusus alarminda "gorunurluk degisti" diye okunurdu.
+ *  2. Gecmis, hesabin BUGUN olctugu asistanlarla okunur. Paketi daralan hesabin eski Grok /
+ *     DeepSeek satirlari manset ortalamasinda ve "son sonuc" listesinde duruyordu.
+ */
+describe('AiCitationTrackerService — model kademesi ve plan kapsami', () => {
+  const sonuc = (provider: string, score: number, modelTier?: string) => ({
+    provider, label: provider, available: true, score, probes: [], ...(modelTier ? { modelTier } : {}),
+  });
+  async function kaydet(results: any[]) {
+    const upserts: any[] = [];
+    let runData: any = null;
+    const prisma = {
+      aiCitationSnapshot: { upsert: vi.fn(async (a: any) => { upserts.push(a); return {}; }) },
+      aiCitationRun: { create: vi.fn(async (a: any) => { runData = a.data; return { id: 'run1' }; }) },
+    };
+    await new AiCitationTrackerService(prisma as any, { runForSite: vi.fn(async () => results) } as any).snapshotSite('s1', { trigger: 'system' });
+    return { upserts, runData };
+  }
+
+  it('standard kademe (Baslangic, deneme): snapshot ve kosum 106 damgasi; premium ve damgasiz sonuc 6', async () => {
+    const std = await kaydet([sonuc('openai', 40, 'standard'), sonuc('anthropic', 20, 'standard')]);
+    expect(std.upserts.map((u) => [u.create.matchVersion, u.update.matchVersion])).toEqual([[106, 106], [106, 106]]);
+    expect(std.runData.matchVersion).toBe(106);
+    const pre = await kaydet([sonuc('openai', 40, 'premium'), sonuc('xai', 20, 'premium')]);
+    expect(pre.upserts.every((u) => u.create.matchVersion === 6 && u.update.matchVersion === 6)).toBe(true);
+    expect(pre.runData.matchVersion).toBe(6);
+    // Kademe tasimayan sonuc (eski cagiran): eski surum
+    expect((await kaydet([sonuc('openai', 40)])).runData.matchVersion).toBe(6);
+  });
+
+  it('getHistory: kademe degisimi (6 → 106) Claude serisinde "yontem degisti" okunur, fark hesaplanmaz', async () => {
+    const { svc } = trackerWith([
+      { provider: 'anthropic', date: gunOnce(9), score: 60, matchVersion: 6 },
+      { provider: 'anthropic', date: gunOnce(2), score: 20, matchVersion: 106 },
+    ]);
+    const h: any = await svc.getHistory('s1', 30);
+    const t = h.trends.find((x: any) => x.provider === 'anthropic');
+    expect(t.methodChanged).toBe(true);
+    expect(t.delta).toBeNull();
+    expect(h.headline.methodChanged).toBe(true);
+    expect(h.headline.deltaVsPrev).toBeNull();
+  });
+
+  function kapsamli(plan: string, role: string, snaps: Snap[]) {
+    const t = trackerWith(snaps);
+    ((t.svc as any).prisma as any).site = { findUnique: vi.fn(async () => ({ user: { plan, role } })) };
+    return t.svc;
+  }
+  const ESKI_VE_YENI: Snap[] = [
+    // Paket daralmadan once: alti asistan (v6)
+    ...['openai', 'gemini', 'anthropic', 'perplexity'].map((provider) => ({ provider, date: gunOnce(9), score: 20, matchVersion: 6 })),
+    { provider: 'xai', date: gunOnce(9), score: 80, matchVersion: 6 },
+    { provider: 'deepseek', date: gunOnce(9), score: 80, matchVersion: 6 },
+    // Sonra: dort asistan (standard kademe, v106)
+    ...['openai', 'gemini', 'anthropic', 'perplexity'].map((provider) => ({ provider, date: gunOnce(2), score: 20, matchVersion: 106 })),
+  ];
+
+  it('Baslangic / deneme hesabi: eski Grok ve DeepSeek satirlari mansete, trende ve son sonuclara girmez', async () => {
+    for (const plan of ['STARTER', 'TRIAL']) {
+      const h: any = await kapsamli(plan, 'USER', ESKI_VE_YENI).getHistory('s1', 30);
+      expect(Object.keys(h.byProvider).sort(), plan).toEqual(['anthropic', 'gemini', 'openai', 'perplexity']);
+      expect(h.trends.map((t: any) => t.provider).sort(), plan).toEqual(['anthropic', 'gemini', 'openai', 'perplexity']);
+      expect(h.latestResults.map((r: any) => r.provider).sort(), plan).toEqual(['anthropic', 'gemini', 'openai', 'perplexity']);
+      // Manset yalniz olculen dort asistandan: 20 (eskiden bayat 80'lerle 40 cikiyordu)
+      expect(h.headline.score, plan).toBe(20);
+    }
+  });
+
+  it('Profesyonel ve ustu ile ADMIN: hicbir asistan suzulmez (davranis degismedi)', async () => {
+    const hepsiV6: Snap[] = ['openai', 'gemini', 'anthropic', 'perplexity', 'xai', 'deepseek', 'meta']
+      .map((provider) => ({ provider, date: gunOnce(2), score: 30, matchVersion: 6 }));
+    for (const [plan, role] of [['PRO', 'USER'], ['AGENCY', 'USER'], ['ENTERPRISE', 'USER'], ['TRIAL', 'ADMIN']] as const) {
+      const h: any = await kapsamli(plan, role, hepsiV6).getHistory('s1', 30);
+      expect(Object.keys(h.byProvider).sort(), plan).toEqual(['anthropic', 'deepseek', 'gemini', 'meta', 'openai', 'perplexity', 'xai']);
+      expect(h.latestResults).toHaveLength(7);
+    }
+  });
+
+  it('site ya da sahibi okunamazsa suzme yapilmaz (gecmis dusmez)', async () => {
+    const { svc } = trackerWith(ESKI_VE_YENI); // prisma.site yok
+    const h: any = await svc.getHistory('s1', 30);
+    expect(Object.keys(h.byProvider)).toContain('xai');
+    const t = trackerWith(ESKI_VE_YENI);
+    ((t.svc as any).prisma as any).site = { findUnique: vi.fn(async () => { throw new Error('db'); }) };
+    expect(Object.keys(((await t.svc.getHistory('s1', 30)) as any).byProvider)).toContain('deepseek');
+  });
+});
+

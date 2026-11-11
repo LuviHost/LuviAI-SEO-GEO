@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check } from 'lucide-react';
 import { useT, type Locale } from '@/lib/i18n';
 import { trackCta } from '@/lib/landing-track';
 import { cn } from '@/lib/utils';
 import type { LandingPlan } from './landing-data';
+import { PlanEngineRow } from '@/components/plan-engine-row';
+import { PlanFeatureList } from '@/components/plan-feature-list';
 
 /**
  * Landing fiyat kartlari. Plan verisi SUNUCUDA (ISR) iki dil icin cekilip prop olarak
@@ -54,9 +55,10 @@ export function PricingSection({ initialPlans }: { initialPlans: Record<Locale, 
       </div>
 
       {/* Bitisik hucreler: kartlar arasi bosluk yerine tek ince cizgi */}
-      <div className="grid border-l border-t border-border sm:grid-cols-2 lg:grid-cols-4">
+      {/* Uc paket (11.11.2026): Baslangic, Profesyonel, Kurumsal — /pricing ile ayni kart duzeni */}
+      <div className="grid border-l border-t border-border lg:grid-cols-3">
         {plans.length === 0
-          ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-96 animate-pulse border-b border-r border-border bg-card" />)
+          ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-96 animate-pulse border-b border-r border-border bg-card" />)
           : plans
               .filter((p) => p.id !== 'trial')
               .map((p) => {
@@ -66,11 +68,14 @@ export function PricingSection({ initialPlans }: { initialPlans: Record<Locale, 
                   <PriceCard
                     key={p.id}
                     name={p.name}
+                    tagline={p.tagline}
+                    engines={p.engines}
+                    enginesLabel={locale === 'en' ? 'AI assistants measured' : 'Ölçülen AI asistanları'}
                     price={p.contactSales ? t('land.pric.enterprise_label') : `$${monthlyEq.toLocaleString('en-US')}`}
                     period={p.contactSales ? '' : t('land.pric.per_month')}
                     annualNote={
                       p.contactSales
-                        ? ''
+                        ? (locale === 'en' ? 'Scope and price are agreed in a call.' : 'Kapsam ve fiyat görüşmeyle belirlenir.')
                         : billing === 'annual'
                           ? `${t('land.pric.annual_billed_prefix')} $${p.annual.toLocaleString('en-US')} ${t('land.pric.annual_billed_suffix')}`
                           : t('land.pric.monthly_billed')
@@ -90,9 +95,14 @@ export function PricingSection({ initialPlans }: { initialPlans: Record<Locale, 
 }
 
 function PriceCard({
-  name, price, period, annualNote, bullets, inheritLabel, cta, popularLabel, highlighted, onCtaClick,
+  name, tagline, engines, enginesLabel, price, period, annualNote, bullets, inheritLabel, cta, popularLabel, highlighted, onCtaClick,
 }: {
   name: string; price: string; period: string; annualNote: string;
+  /** Plan adinin altindaki tek satir tanim (plans.ts tagline) */
+  tagline?: string;
+  /** Bu planin olctugu asistanlar (saglayici kimlikleri) — API'den */
+  engines?: string[];
+  enginesLabel: string;
   bullets: string[];
   /** "X'teki her sey, arti:" — ust planlar yalniz FARKI listeler */
   inheritLabel?: string;
@@ -104,26 +114,22 @@ function PriceCard({
       {/* Onerilen plan: ustte turuncu cizgi + etiket (cerceve/halka yerine) */}
       {highlighted && <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-vivid" aria-hidden />}
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-base font-medium">{name}</h3>
+        <h3 className="text-xl font-medium tracking-[-0.02em]">{name}</h3>
         {highlighted && <p className="font-mono text-vitrin-rail text-brand-vivid">{popularLabel}</p>}
       </div>
+      <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground">{tagline}</p>
       <div className="mb-1 mt-6 flex items-baseline gap-1">
         <span className="text-5xl font-[450] tracking-[-0.05em] tabular-nums">{price}</span>
         <span className="text-sm text-muted-foreground">{period}</span>
       </div>
       <p className="min-h-4 text-xs text-muted-foreground">{annualNote}</p>
-      {inheritLabel && <p className="mt-6 text-sm text-muted-foreground">{inheritLabel}</p>}
-      <ul className={cn('mb-8 flex-1 space-y-2.5 text-sm leading-relaxed', inheritLabel ? 'mt-3' : 'mt-6')}>
-        {bullets.map((b, i) => (
-          <li key={i} className="flex items-start gap-2.5">
-            <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-brand-vivid" aria-hidden />
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-      <Link href="/pricing" onClick={onCtaClick} className={cn(highlighted ? 'v-btn' : 'v-btn-line', 'w-full')}>
+      {/* Buton fiyatin hemen altinda (/pricing ile ayni sira): madde listesinin sonuna inmeden gorunur */}
+      <Link href="/pricing" onClick={onCtaClick} className={cn(highlighted ? 'v-btn' : 'v-btn-line', 'mt-6 w-full')}>
         {cta}
       </Link>
+      <PlanEngineRow engines={engines} label={enginesLabel} className="mt-7 border-t border-border pt-6" />
+      {inheritLabel && <p className="mt-5 text-sm text-muted-foreground">{inheritLabel}</p>}
+      <PlanFeatureList features={bullets} className={inheritLabel ? 'mt-3' : 'mt-5'} />
     </div>
   );
 }

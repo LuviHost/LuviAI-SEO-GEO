@@ -21,6 +21,10 @@ export const metadata = yardimMeta('billing', 'Plan, fatura, iptal ve kotalar ·
 //    Prompt Lab'de her soru ve her dal 1. Panelin "Tumunu calistir" dugmesi tek
 //    olcumde en fazla 25 soru calistirir (prompt-lab-panel runAllPrompts limit).
 //    Eski liste "20 calistirma" diyordu ve ayda 20 olcum gibi okunuyordu.
+//  - 11.11.2026 paket yapisi (api plans.ts): uc ucretli plan — Baslangic (eski Buyume;
+//    makale uretimi yok, 4 asistan), Profesyonel, Kurumsal (teklifle; eski Ajans
+//    ozellikleri bu planda). Ajans satistan kalkti, listede yok. Liste satistaki
+//    planlari (publicPlans) ve plan basina asistan sayisini yazar; public-docs.spec.ts denetler.
 export default function Page() {
   return (
     <HelpArticle slug="billing"
@@ -40,11 +44,10 @@ export default function Page() {
         (ayrıntı aşağıda, <a href="#kotalar">Kotalar</a> bölümünde).
       </p>
       <ul>
-        <li><strong>Ücretsiz Deneme</strong> — 2 makale + 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) + 1 site (kart gerekmez)</li>
-        <li><strong>Büyüme</strong> — 15 makale + ayda en fazla 20 çalıştırma + 2 site</li>
-        <li><strong>Profesyonel</strong> (en çok tercih edilen) — 40 makale + ayda en fazla 75 çalıştırma + 5 site, Apple Search Ads ve App Store Connect dahil</li>
-        <li><strong>Ajans</strong> — 100 makale + ayda en fazla 300 çalıştırma + 15 site, Product Radar, GEO Heatmap ve Live Crawler dahil</li>
-        <li><strong>Kurumsal</strong> — 350 makale + ayda en fazla 1.000 çalıştırma + 50 site, BYOK, MCP, REST API, AI maliyet ve token muhasebesi</li>
+        <li><strong>Ücretsiz Deneme</strong> — 2 makale + 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) + 4 AI asistanı + 1 site (kart gerekmez)</li>
+        <li><strong>Başlangıç</strong> — makale üretimi yok + ayda en fazla 20 çalıştırma + 4 AI asistanı + 2 site</li>
+        <li><strong>Profesyonel</strong> (en çok tercih edilen) — 40 makale + ayda en fazla 75 çalıştırma + 6 AI asistanı + 5 site, Apple Search Ads ve App Store Connect dahil</li>
+        <li><strong>Kurumsal</strong> (satış ekibiyle, fiyatı teklifle) — 350 makale + ayda en fazla 1.000 çalıştırma + 6 AI asistanı + 50 site, Product Radar, GEO Heatmap, Live Crawler, BYOK, MCP, REST API, AI maliyet ve token muhasebesi</li>
       </ul>
       <p>
         Güncel fiyatlar için <a href="/pricing">fiyatlandırma sayfasına</a> bakın. Fiyatlar ABD doları
@@ -57,7 +60,7 @@ export default function Page() {
         Hesap menüsünden <strong>Abonelik</strong> sayfasına git ve <strong>&ldquo;Planları karşılaştır&rdquo;</strong> butonuna bas.
       </Step>
       <Step n={2} title="Yeni planı seç">
-        Fiyatlandırma sayfasında Büyüme, Profesyonel ya da Ajans planını seç. Kurumsal plan satış ekibiyle, sözleşmeli kurulur.
+        Fiyatlandırma sayfasında Başlangıç ya da Profesyonel planını seç. Kurumsal plan satış ekibiyle, sözleşmeli kurulur.
       </Step>
       <Step n={3} title="Ödemeyi tamamla">
         Ödeme PayTR ile alınır. Ödeme onaylanınca yeni plan hemen etkinleşir.

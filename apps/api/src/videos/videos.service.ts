@@ -45,7 +45,7 @@ export interface VideoRequestInput {
  * (@RequiresPlan('articleVideo'), istek sahibinin plani) -> burada: kaynak gecerli (makale bu
  * sitenin ve YAYINDA / urun adresi sitenin alan adinda) -> ayni kaynak icin suren video yok ->
  * site SAHIBININ aylik hakki (kosullu UPDATE) -> Video satiri -> kuyruk. Kuyruga eklenemezse satir FAILED olur ve hak geri verilir.
- * Deneme / Buyume planinda hicbir indirme, model cagrisi ya da render yapilmaz.
+ * Deneme / Baslangic planinda hicbir indirme, model cagrisi ya da render yapilmaz.
  */
 @Injectable()
 export class VideosService {

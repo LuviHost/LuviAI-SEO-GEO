@@ -94,7 +94,7 @@ describe('tool kapisi — listeleme (a: model olmayan araci gormesin)', () => {
     }
   });
 
-  it('Buyume (starter) planinda kilitli tool\'lardan HICBIRI gorunmuyor', () => {
+  it('Baslangic (starter) planinda kilitli tool\'lardan HICBIRI gorunmuyor', () => {
     const svc = toolsService('STARTER');
     const visible = svc.listForUser(userOf('STARTER')).map((t) => t.name);
     for (const tool of Object.keys(EXPECTED_GATES)) {

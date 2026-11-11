@@ -8,6 +8,9 @@ import { SRC } from './sources';
  * basina 7 gunde 1 olcum (billing/measurement-allowance.ts).
  * 11.11.2026: "her soruyu bir kez sorar" eskimisti — 08.11'den beri ucretli planda her soru 3 kez,
  * denemede 1 kez (api audit/citation-repeat.ts; prod CITATION_TEKRAR tanimsiz = varsayilan 3).
+ * 11.11.2026 paket yapisi (api plans.ts planEngines): deneme ve Baslangic dort asistan (ChatGPT,
+ * Gemini, Claude, Perplexity) olcer; Grok ve DeepSeek Profesyonel ve ustunde eklenir. Alti asistan
+ * listesinin sirasi plans.ts BASE_ENGINES ile ayni (public-docs.spec.ts denetler).
  */
 export const article: RehberArticle = {
   slug: 'chatgpt-markam-gorunuyor-mu',
@@ -114,7 +117,7 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            'Siten için seçilen en fazla 5 soruyu ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’e sorar.',
+            'Siten için seçilen en fazla 5 soruyu ChatGPT, Gemini, Claude, Perplexity, Grok ve DeepSeek’e sorar. Ücretsiz denemede ve Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity ölçülür; Grok ve DeepSeek Profesyonel ve üstü planlarda eklenir.',
             'Altı asistanın hepsi ölçümde web’de arama yaparak cevap verir; Perplexity kendi arama altyapısını kullanır.',
             'Puanlama: siten kaynak gösterildiyse 100, marka yalnız anıldıysa 50, hiç geçmiyorsa 0. Marka adı geçen sorular puana girmez.',
             'Ölçümü sen başlatırsın. Hesap başına 7 günde bir ölçüm yapılır ve tüm sitelerin bu hakkı paylaşır.',

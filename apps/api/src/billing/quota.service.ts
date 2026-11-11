@@ -2,7 +2,7 @@ import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  findPlan, planHasFeature, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, VIDEOS_PER_MONTH,
+  findPlan, articleOfferPlan, featureOfferPlan, planEngines, planHasFeature, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, VIDEOS_PER_MONTH,
   type PlanFeature, type PlanId,
 } from './plans.js';
 import { acquireCronLock } from '../common/cron-lock.js';
@@ -12,10 +12,12 @@ import {
 } from './trial-policy.js';
 
 /**
- * Her planda RanksUp anahtariyla (havuz) olculen asistanlar — plans.ts kart
- * maddesi "ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek" ve
- * aiProviders: 6 ile ayni liste (plan-pool.spec.ts denetler).
+ * RanksUp anahtariyla (havuz) olculebilen alti asistan — plans.ts BASE_ENGINES ile
+ * ayni kume (plan-pool.spec.ts denetler). Bir planin bunlardan HANGILERINI olctugu
+ * 11.11.2026'dan beri plana baglidir: getPlanPool → plans.ts planEngines (Baslangic
+ * ve deneme dort asistan, Profesyonel ve ustu altisi).
  *
+ * TARIHCE:
  * NEDEN: eskiden LIMITS[plan].pool plana gore 1-6 saglayici listeliyordu
  * (TRIAL yalniz gemini, STARTER gemini+anthropic...). Fiyat karti her planda
  * 6 asistan satiyor, olcum motoru da (ai-citation.service resolveKey) env
@@ -62,7 +64,8 @@ export class QuotaService {
    */
   private readonly LIMITS = {
     TRIAL:      { articles: 2,    sites: 1,  publishTargets: ['MARKDOWN_ZIP', 'WORDPRESS_REST'] as string[], citationTests: 3 },
-    STARTER:    { articles: 15,   sites: 2,  publishTargets: 'all' as const,                                  citationTests: 20 },
+    // 11.11.2026: Baslangic paketinde makale uretimi yok (plans.ts articlesPerMonth 0)
+    STARTER:    { articles: 0,    sites: 2,  publishTargets: 'all' as const,                                  citationTests: 20 },
     PRO:        { articles: 40,   sites: 5,  publishTargets: 'all' as const,                                  citationTests: 75 },
     AGENCY:     { articles: 100,  sites: 15, publishTargets: 'all' as const,                                  citationTests: 300 },
     ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000 },
@@ -111,10 +114,17 @@ export class QuotaService {
     return { remaining };
   }
 
-  /** Makale hakki dolu 403'u — deneme "plan sec", ucretli plan "plan yukselt" */
+  /**
+   * Makale hakki dolu 403'u — deneme "Profesyonel'e gec", makale hakki OLMAYAN plan
+   * (Baslangic, 11.11.2026) "bu pakette yok", digerleri "plan yukselt".
+   */
   private articleQuotaError(plan: string, limit: number): ForbiddenException {
     if (plan === 'TRIAL') {
-      return new ForbiddenException(`Deneme hesabındaki ${limit} ücretsiz makale hakkını kullandın. Devam etmek için plan seç.`);
+      // Makale uretimi yalniz Profesyonel ve ustunde: "plan sec" Baslangic'i da kapsardi ve yanlis olurdu
+      return new ForbiddenException(`Deneme hesabındaki ${limit} ücretsiz makale hakkını kullandın. Makale üretimine devam etmek için ${articleOfferPlan().name_tr} plana geç.`);
+    }
+    if (limit === 0) {
+      return new ForbiddenException(`Makale üretimi bu pakette yok. Makale üretmek için ${articleOfferPlan().name_tr} plana geç.`);
     }
     return new ForbiddenException(`Aylık ${limit} makale kotan doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsin.`);
   }
@@ -236,7 +246,7 @@ export class QuotaService {
   /**
    * Bir video icin hak dus — kuyruga atmadan ONCE. Tek kosullu UPDATE
    * (`videosUsedThisMonth < hak`): ayni anda gelen iki istek son hakki iki kez alamaz
-   * (consumeArticleAllowance ile ayni kalip). Hak 0 ise (Deneme/Buyume) ozellik yok mesaji;
+   * (consumeArticleAllowance ile ayni kalip). Hak 0 ise (Deneme/Baslangic) ozellik yok mesaji;
    * hak dolduysa aylik doldu mesaji. ADMIN sayac artirmadan gecer (charged=false) — iade
    * de yapilmaz.
    */
@@ -401,7 +411,8 @@ export class QuotaService {
     const planId = plan.toLowerCase() as PlanId;
     if (planHasFeature(planId, feature)) return;
 
-    const needed = findPlan(FEATURE_MIN_PLAN[feature])?.name_tr ?? 'üst';
+    // Ozelligi iceren en dusuk SATISTAKI plan (Ajans satistan kalkti → Kurumsal)
+    const needed = featureOfferPlan(feature).name_tr;
     throw new ForbiddenException(
       `${PLAN_FEATURE_LABELS[feature]} ${needed} planına dahildir. Planını yükselterek kullanabilirsin.`,
     );
@@ -573,12 +584,17 @@ export class QuotaService {
   }
 
   /**
-   * Planin havuzdan (RanksUp anahtariyla) olculen saglayicilari — her bilinen
-   * planda ayni 6 asistan (PLAN_POOL_PROVIDERS); bilinmeyen plan bos liste.
+   * Planin havuzdan (RanksUp anahtariyla) olculen saglayicilari: PLAN_POOL_PROVIDERS ile
+   * planin kapsaminin (plans.ts planEngines) kesisimi — Baslangic ve denemede dort,
+   * Profesyonel ve ustunde alti asistan; bilinmeyen plan bos liste.
    * Gercekten olculup olculmeyecegini env anahtari belirler (resolveKey).
    */
   getPlanPool(plan: string): string[] {
-    return Object.prototype.hasOwnProperty.call(this.LIMITS, plan) ? [...PLAN_POOL_PROVIDERS] : [];
+    if (!Object.prototype.hasOwnProperty.call(this.LIMITS, plan)) return [];
+    // 11.11.2026: kapsam plana gore (plans.ts planEngines) — Baslangic ve deneme 4 asistan.
+    // Kosullu asistan (Meta/Muse) havuz listesinde yok: olculup olculmeyecegini anahtar belirler.
+    const kapsam = new Set<string>(planEngines(plan.toLowerCase() as PlanId));
+    return PLAN_POOL_PROVIDERS.filter((p) => kapsam.has(p));
   }
 
   getPlanCitationLimit(plan: string): number {

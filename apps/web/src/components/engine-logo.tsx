@@ -44,21 +44,30 @@ export function EngineLogo({ provider, size = 16, className }: { provider: strin
  */
 export const MEASURED_ENGINES = ['openai', 'gemini', 'anthropic', 'perplexity', 'xai', 'deepseek'] as const;
 
-const ENGINE_NAMES: Record<(typeof MEASURED_ENGINES)[number], string> = {
+const ENGINE_NAMES: Record<string, string> = {
   openai: 'ChatGPT',
   gemini: 'Gemini',
   anthropic: 'Claude',
   perplexity: 'Perplexity',
   xai: 'Grok',
   deepseek: 'DeepSeek',
+  meta: 'Muse',
 };
 
-/** Basliklarin altinda "hangi asistanlarda olculur" logo dizisi */
-export function EngineStrip({ className }: { className?: string }) {
+/**
+ * Basliklarin altinda "hangi asistanlarda olculur" logo dizisi.
+ *
+ * `engines`: HESABIN olctugu asistanlar (lib/entitlements → api billing/entitlements.ts).
+ * 11.11.2026 paket yapisi: Baslangic ve deneme dort asistan olcer; serit sabit alti logo
+ * cizerse o hesaba olcmedigimiz iki asistani gosterir. Verilmezse (urunun genel anlatimi)
+ * her kurulumda olculen alti asistan cizilir.
+ */
+export function EngineStrip({ className, engines }: { className?: string; engines?: readonly string[] }) {
+  const list = (engines ?? MEASURED_ENGINES).filter((p) => ENGINE_NAMES[p] && engineVendor(p));
   return (
     <ul className={cn('flex flex-wrap items-center gap-1.5', className)} aria-label="Ölçülen AI asistanları">
-      {MEASURED_ENGINES.map((p) => (
-        <li key={p} className="grid h-7 w-7 place-items-center rounded-full border border-border bg-white" title={ENGINE_NAMES[p]}>
+      {list.map((p) => (
+        <li key={p} className="relative grid h-7 w-7 place-items-center rounded-full border border-border bg-white" title={ENGINE_NAMES[p]}>
           <EngineLogo provider={p} size={16} />
           <span className="sr-only">{ENGINE_NAMES[p]}</span>
         </li>

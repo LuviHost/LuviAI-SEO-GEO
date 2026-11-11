@@ -27,6 +27,9 @@ export const metadata = yardimMeta('auto-pilot', 'Otomatik akış ve Auto-Pilot 
 //      (articles/plan-lock.ts lockedByPlan) ve plan yukseltilince uretilir
 //      (paytr activateSubscription → scheduled-kick.ts kullanici taramasi).
 //      Eski "takvim uretimi hakka sayilmaz" artik yanlis.
+//      11.11.2026 paket yapisi (api plans.ts): makale uretimi yalniz Profesyonel
+//      ve ustunde (Baslangic 0 makale). Ilk makale ve kilitli takvim "ucretli
+//      plan" / "plan yukseltince" degil Profesyonel'de uretilir.
 //    * Yeniden yazim (icerik pivotu) ve ceviri deneme hesabinda calismaz.
 //    * "15 dk once" yalniz gecikmeli iste dogru: scheduleTopic (Takvime ekle)
 //      ve rescheduleArticle (tarih ata / tasi) LEAD_TIME_MS ile is kurar.
@@ -78,10 +81,10 @@ export default function Page() {
         Site menüsündeki <strong>Otomatik Akış</strong> sayfasından açıp durdurursun. Site eklediğinde açık başlar.
       </p>
       <ul>
-        <li>Site eklenince konu motorunun öncelikli konuları takvime yerleşir (otomatik akış açıkken en fazla 8, kapalıyken en fazla 3) ve ücretli planlarda ilk makale hemen üretilir. Bu ilk takvimin diğer makaleleri otomatik akış açıkken zamanı gelince üretilir, akış durdurulmuşsa bekler. Her makale üretime alınırken makale hakkından bir kez düşer; üretim makale çıkmadan başarısız olursa o hak geri verilir. Hakkın dolduysa takvimdeki makaleler hakkın yenilenene ya da planını yükseltene kadar bekler. Ücretsiz denemede (14 gün) makale kendiliğinden yazılmaz: konu başlıkları takvime yerleşir, sitene yayın hedefi bağladıktan sonra toplam 2 makaleyi &ldquo;Şimdi üret&rdquo; ile sen başlatırsın; takvimin geri kalanı panelde kilitli görünür ve planını yükselttiğinde yazılır</li>
+        <li>Site eklenince konu motorunun öncelikli konuları takvime yerleşir (otomatik akış açıkken en fazla 8, kapalıyken en fazla 3) ve Profesyonel ve üstü planlarda ilk makale hemen üretilir (Başlangıç planında makale üretimi yoktur). Bu ilk takvimin diğer makaleleri otomatik akış açıkken zamanı gelince üretilir, akış durdurulmuşsa bekler. Her makale üretime alınırken makale hakkından bir kez düşer; üretim makale çıkmadan başarısız olursa o hak geri verilir. Hakkın dolduysa takvimdeki makaleler hakkın yenilenene ya da planını yükseltene kadar bekler. Ücretsiz denemede (14 gün) makale kendiliğinden yazılmaz: konu başlıkları takvime yerleşir, sitene yayın hedefi bağladıktan sonra toplam 2 makaleyi &ldquo;Şimdi üret&rdquo; ile sen başlatırsın; takvimin geri kalanı panelde kilitli görünür ve Profesyonel plana geçtiğinde yazılır</li>
         <li>Site eklenirken FTP, SFTP ya da cPanel yayın hedefi tanımlıysa eksik sitemap.xml ve llms.txt oluşturulup yüklenir; hedefi sonradan eklersen düzeltmeyi Site Skoru sayfasından başlatırsın. robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır</li>
         <li>Akış açıkken takvime kendin eklediğin, tarih atadığın ya da başka güne taşıdığın makaleler planlanan saatten 15 dakika önce üretime alınır; site eklenirken takvime yerleşenleri saatlik tarama alır (planlanan saatin en fazla 15 dakika öncesinden yaklaşık 45 dakika sonrasına kadar). Akış durdurulmuşsa takvim bekler; üretim birkaç dakika sürer</li>
-        <li>Ücretli planlarda, otomatik akış açık ve Search Console bağlıysa, yayından en az 30 gün geçmiş ve Search Console verisinde gösterim alıp tıklaması ya da sırası zayıf kalan makaleler haftalık taramada yeniden yazılabilir; Yarı otomatikte yeni hali onayını bekler</li>
+        <li>Profesyonel ve üstü planlarda, otomatik akış açık ve Search Console bağlıysa, yayından en az 30 gün geçmiş ve Search Console verisinde gösterim alıp tıklaması ya da sırası zayıf kalan makaleler haftalık taramada yeniden yazılabilir; Yarı otomatikte yeni hali onayını bekler</li>
         <li>Profesyonel ve üstü planlarda, Search Console bağlı, akış açık ve Tam otomatik moddaysan Google&apos;da 4-15. sırada takılı kalan RanksUp makaleleri her hafta (site başına en fazla 5) iyileştirilip yeniden yayınlanır; Yarı otomatikte bunları Takılı Sayfalar ekranından sen başlatırsın</li>
       </ul>
 

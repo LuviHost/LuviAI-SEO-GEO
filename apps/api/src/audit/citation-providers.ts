@@ -68,6 +68,32 @@ export const COST_PER_PROBE_USD: Readonly<Record<Provider, number>> = {
   meta:       0.08,
 };
 
+/**
+ * 'standard' kademede (Baslangic paketi ve deneme — billing/plan-engines.ts) modeli
+ * DEGISEN saglayicilarin probe tavani. Burada olmayan saglayici iki kademede de ayni
+ * modelle olculur ve COST_PER_PROBE_USD'deki tavani kullanir.
+ *
+ * anthropic (claude-haiku-5-5 + web_search_20250305, max_uses 2; 11.11.2026):
+ *   Haiku 5.5'in IKI fiyat karti var: istem 100K token ya da azsa $0.10 / $0.50, daha
+ *   uzunsa $0.50 / $2.50 per 1M. Temel arama sonuclarin TAMAMINI baglama yukler (dinamik
+ *   suzme yok); beklenen iki arama + ara turlarla ~45K girdi → ~$0.026. Ama tavan
+ *   ortalama degil UST SINIR olmali: istem 100K'yi gecerse pahali kart devreye girer.
+ *   Tavan pahali kartla 200K girdiye kadar hesaplanir: 200K x $0.50/1M = $0.10
+ *   + cikti max_tokens 3000 x $2.50/1M = $0.0075 (thinking ciktiya dahil) + en fazla
+ *   2 arama x $0.01 = $0.02 → $0.1275, yuvarlanip 0.13. (Ilk surum 0.05 idi; yalniz ucuz
+ *   karti kapsiyordu — bagimsiz inceleme.) Yine de Opus tavaninin (0.2) altinda.
+ *   Kaynak: platform.claude.com web search tool sayfasi + model fiyat tablosu.
+ */
+export const COST_PER_PROBE_USD_STANDARD: Readonly<Partial<Record<Provider, number>>> = {
+  anthropic: 0.13,
+};
+
+/** Probe basina maliyet tavani — kademeye gore (butce guard'i ve muhasebe ayni fonksiyonu kullanir) */
+export function costPerProbe(provider: Provider, tier: 'standard' | 'premium' = 'premium'): number {
+  const standard = tier === 'standard' ? COST_PER_PROBE_USD_STANDARD[provider] : undefined;
+  return standard ?? COST_PER_PROBE_USD[provider] ?? 0;
+}
+
 /** Bir saglayicinin olcum sonucu (runPublicProbes satiri) — yalniz kuralin baktigi alanlar */
 export interface ProviderRunState {
   provider: string;

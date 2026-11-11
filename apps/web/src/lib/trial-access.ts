@@ -89,10 +89,13 @@ export interface TrialPopup {
   body: string;
 }
 
+// 11.11.2026 paket yapisi (api billing/plans.ts): aylik makale hakki yalniz Profesyonel ve
+// ustunde, Baslangic makale uretmez. day7 ve limit metinleri "plan seçtiğinde aylık makale hakkın
+// başlar, takvimindeki konular yazılır" diyordu; plan adi yazildi.
 const POPUP_COPY: Record<TrialPopupKey, Omit<TrialPopup, 'key'>> = {
   day7: {
     title: 'Denemenin ilk haftası doldu',
-    body: 'Ücretsiz denemenin 7 günü kaldı. Plan seçtiğinde aylık makale hakkın başlar, takvimindeki konular sırayla yazılır ve sitelerin, içeriklerin olduğu gibi kalır.',
+    body: 'Ücretsiz denemenin 7 günü kaldı. Profesyonel plana geçtiğinde aylık makale hakkın başlar ve takvimindeki konular sırayla yazılır; hangi planı seçersen seç sitelerin, içeriklerin olduğu gibi kalır.',
   },
   day11: {
     title: 'Deneme sürenin bitmesine 3 gün kaldı',
@@ -104,7 +107,7 @@ const POPUP_COPY: Record<TrialPopupKey, Omit<TrialPopup, 'key'>> = {
   },
   limit: {
     title: 'Ücretsiz 2 makale hakkını kullandın',
-    body: 'Takvimindeki diğer konular, bir plan seçtiğinde yazılır. Plan seçtiğinde aylık makale hakkın başlar.',
+    body: 'Takvimindeki diğer konular Profesyonel plana geçtiğinde yazılır. Aylık makale hakkı Profesyonel ve üstü planlarda başlar.',
   },
 };
 

@@ -16,7 +16,7 @@ import { groupIssues } from './issue-grouping.js';
 import { annotateAuditFixRoutes, withFixRoutes } from './fix-routes.js';
 import { ImageInventoryService } from './image-alt/image-inventory.service.js';
 import { recordSiteNapFromCrawl } from './site-nap.js';
-import { SITE_MEASUREMENT_VERSION } from './host-match.js';
+import { siteMeasurementVersion } from './host-match.js';
 import { providersWithoutSources } from './citation-sources.js';
 
 /**
@@ -1103,7 +1103,8 @@ export class AuditService {
             // v4 denetimi "ayni yontem" sayiliyor, v4'un anilma/HATA kurali
             // yuzunden degisen skor "kotulesti/iyilesti" ve ai_citation_low
             // "yeni/cozulen" gorunuyordu. Artik farkli surum = metodoloji_degisti.
-            details: { methodVersion: SITE_MEASUREMENT_VERSION },
+            // Kademe sonuctan okunur (runForSite modelTier): Baslangic / deneme ayri surum tasir
+            details: { methodVersion: siteMeasurementVersion(citationResults.find((r) => r.modelTier)?.modelTier) },
           } as any,
           crawlCoverage: crawlCoverage as any,
         },

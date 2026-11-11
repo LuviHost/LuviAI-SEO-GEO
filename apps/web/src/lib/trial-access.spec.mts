@@ -53,11 +53,19 @@ describe('trialPopup — 7., 11., 13. gun ve hak bitince; kapatilan bir daha aci
   it('2 makale hakki bitince once o (tutarli sayilarla)', () => {
     const quota = { limit: 2, remaining: 0, used: 2 };
     expect(trialPopup(trial(10), { quota, dismissed: none })?.key).toBe('limit');
+    // 11.11.2026 paket yapisi: kilitli konular ve aylik makale hakki "plan seçtiğinde" degil,
+    // makale uretimi olan planda (Profesyonel; Baslangic makale uretmez)
+    const limitMetni = trialPopup(trial(10), { quota, dismissed: none })!.body;
+    expect(limitMetni).toBe('Takvimindeki diğer konular Profesyonel plana geçtiğinde yazılır. Aylık makale hakkı Profesyonel ve üstü planlarda başlar.');
+    const gun7 = trialPopup(trial(7), { dismissed: none });
+    expect(gun7?.key).toBe('day7');
+    expect(gun7!.body).toContain('Profesyonel plana geçtiğinde aylık makale hakkın başlar ve takvimindeki konular sırayla yazılır');
+    for (const metin of [limitMetni, gun7!.body]) expect(metin).not.toMatch(/[Pp]lan seçtiğinde aylık makale hakkın başlar|bir plan seçtiğinde yazılır/);
     expect(trialPopup(trial(3), { quota, dismissed: new Set(['limit']) })?.key).toBe('day11');
     expect(trialPopup(trial(10), { quota: { limit: 2, remaining: 1, used: 1 }, dismissed: none })).toBeNull();
   });
   it('deneme disinda hic acilmaz', () => {
-    expect(trialPopup(readTrialAccess({ phase: 'paid' }), { quota: { limit: 15, remaining: 0, used: 15 }, dismissed: none })).toBeNull();
+    expect(trialPopup(readTrialAccess({ phase: 'paid' }), { quota: { limit: 40, remaining: 0, used: 40 }, dismissed: none })).toBeNull();
     expect(trialPopup(readTrialAccess({ phase: 'expired', daysLeft: 0 }), { dismissed: none })).toBeNull();
   });
   it('saklanan liste bozuksa bos kume', () => {

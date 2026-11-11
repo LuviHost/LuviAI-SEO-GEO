@@ -31,7 +31,7 @@ function db(user: { plan: string; videosUsedThisMonth: number; role?: string; ar
 }
 
 describe('VIDEOS_PER_MONTH — tek kaynak, fiyat karti ve kota ayni', () => {
-  it('Deneme ve Buyume 0 (ozellik yok), Profesyonel 20, ust planlar daha fazla', () => {
+  it('Deneme ve Baslangic 0 (ozellik yok), Profesyonel 20, ust planlar daha fazla', () => {
     expect(VIDEOS_PER_MONTH).toEqual({ trial: 0, starter: 0, pro: 20, agency: 60, enterprise: 200 });
     for (const p of BASE_PLANS) {
       expect(p.videosPerMonth, p.id).toBe(VIDEOS_PER_MONTH[p.id]);
@@ -56,7 +56,7 @@ describe('VIDEOS_PER_MONTH — tek kaynak, fiyat karti ve kota ayni', () => {
 });
 
 describe('QuotaService.consumeVideoAllowance', () => {
-  it('Deneme / Buyume: plan kapisi 403 (Profesyonel planina dahildir), sayac degismez', async () => {
+  it('Deneme / Baslangic: plan kapisi 403 (Profesyonel planina dahildir), sayac degismez', async () => {
     for (const plan of ['TRIAL', 'STARTER']) {
       const prisma: any = db({ plan, videosUsedThisMonth: 0 });
       const q = new QuotaService(prisma);

@@ -5,6 +5,7 @@ import { Public } from '../auth/public.decorator.js';
 import { PublicCitationService, type PublicCheckResult } from './public-citation.service.js';
 import { PublicCitationSubscriberService } from './public-citation-subscriber.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
 import { clientIp } from '../common/client-ip.js';
 import {
   AttemptWindow,
@@ -208,8 +209,9 @@ export class PublicCitationController {
    * POST /api/v1/public/citation-check/unlock — teaser kilidini acar.
    *
    * @Public DEGIL: giris yapmis kullanici gerekir. Landing'deki teaser 10
-   * sorudan yalnizca 2'sini olcer; burasi kalan sorulari da olcer (uye
-   * kademesi → Opus 5) ve tam raporu doner.
+   * sorudan yalnizca 2'sini olcer; burasi kalan sorulari da olcer ve tam raporu doner.
+   * Olcum hesabin PLAN kapsamiyla yapilir (11.11.2026): Baslangic dort asistan ve hizli
+   * modeller, Profesyonel ve ustu butun asistanlar ve gelismis modeller.
    *
    * Kotaya tabidir (plan basina aylik citationTests): aksi halde tek hesapla
    * sinirsiz domain acilabilirdi.
@@ -247,7 +249,10 @@ export class PublicCitationController {
       // Haftalik AI olcum hakki — odeme kapisindan SONRA: odememis kullanici
       // 402 (satin al) gormeli, 429 degil. Onbellekten donus olcum sayilmaz.
       const domain = body.domain;
-      const result = await this.measurement.run(user, () => this.citation.check(domain, clientIp(req), 'signup_baseline'));
+      // Plan kapsami (11.11.2026): rapor hesabin planindaki asistanlarla ve model kademesiyle
+      // olculur — Baslangic dort asistan, hizli modeller; ADMIN muaf (billing/plan-engines.ts).
+      const scope = { engines: ownerEngines(user), tier: ownerModelTier(user) };
+      const result = await this.measurement.run(user, () => this.citation.check(domain, clientIp(req), 'signup_baseline', { scope }));
       // Cache'ten donduyse yeni olcum YAPILMADI — kota dusulmez. Aksi halde
       // sayfayi yenilemek her seferinde hak yakardi.
       if (!result.fromCache) await this.quota.incrementCitationUsage(user.id);

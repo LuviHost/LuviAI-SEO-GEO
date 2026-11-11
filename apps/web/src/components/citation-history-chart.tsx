@@ -226,7 +226,7 @@ export function CitationHistoryChart({
               <Sparkles className="h-4 w-4 text-muted-foreground" /> AI Görünürlük Trendi
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
-              ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek — 6 AI asistanına sektörünle ilgili sorular sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru. Sorusunda marka adın geçen ve sağlayıcının yanıtlayamadığı sorular skora girmez.
+              Planındaki AI asistanlarına (ChatGPT, Gemini, Claude, Perplexity; Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek) sektörünle ilgili sorular sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru. Sorusunda marka adın geçen ve sağlayıcının yanıtlayamadığı sorular skora girmez.
             </p>
             {/*
               Tekrar + aralik (08.11.2026 kanit denetimi, api audit/citation-repeat.ts): AI cevaplari
@@ -396,7 +396,7 @@ export function CitationHistoryChart({
                       {avg < 50 && (
                         <div className="text-[11px] mt-2 opacity-90 leading-relaxed bg-card/50 rounded-md px-2 py-1.5 border border-current/10">
                           {/* Eski metin "genelde 2-4 hafta sonra skor +15-30 artar" diyordu — kaynaksiz sayi ve sure vaadi, kaldirildi */}
-                          <strong>Ne yapmalı:</strong> Sektör sorularını yanıtlayan içerik yayınla ve indekslenmesini sağla. Ölçümde 6 asistanın hepsi web'de arama yapar ve yeni içeriği kaynak olarak bulabilir; etkinin ne zaman ve ne kadar görüneceği garanti edilemez — değişimi sonraki ölçümlerle izle.
+                          <strong>Ne yapmalı:</strong> Sektör sorularını yanıtlayan içerik yayınla ve indekslenmesini sağla. Ölçümde asistanların hepsi web'de arama yapar ve yeni içeriği kaynak olarak bulabilir; etkinin ne zaman ve ne kadar görüneceği garanti edilemez — değişimi sonraki ölçümlerle izle.
                         </div>
                       )}
                     </div>
