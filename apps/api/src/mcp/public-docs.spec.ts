@@ -599,6 +599,15 @@ describe('Musteriye gorunen metinler = kod', () => {
     expect(offenders([...webSources, ...mobileSources, ...docSources, ...videoSources], re)).toEqual([]);
   });
 
+  it('"Bugün başla, kart sonra" sloganı hiçbir yerde yok (sahip kararı 12.11.2026)', () => {
+    // Sahip: "Bunu hiç bir yerde istemiyorum." Ana sayfa fiyat basligiydi; Ingilizcesi
+    // "Start today, pay later." idi. "Kart gerekmez" ayri bir cumle, o kaliyor.
+    const re = /kart sonra|pay later|card later/i;
+    const demoYolu = path.resolve(HERE, '../../../../landing-demo/index.html');
+    const demo: Source[] = fs.existsSync(demoYolu) ? [{ rel: 'landing-demo/index.html', text: read(demoYolu) }] : [];
+    expect(offenders([...webSources, ...mobileSources, ...docSources, ...videoSources, ...demo], re)).toEqual([]);
+  });
+
   it('"X, Y, Z ve N asistan daha" toplamı ölçülen asistan sayısını aşmıyor', () => {
     // Landing'de "ChatGPT, Gemini, Claude ve dört asistanda" = 7 yaziyordu; sayi
     // regex'i (7 asistan) bunu yakalamiyordu. Ad listesi + "N asistan" toplanir.
@@ -1262,11 +1271,27 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(offenders(kaynaklar, re)).toEqual([]);
   });
 
-  it('fiyat sayfası yıllık indirimi doğru söylüyor (10 ay fiyatına 12 ay)', () => {
+  it('fiyat sayfası yıllık indirimi doğru söylüyor (10 ay fiyatına 12 ay = %17 indirim)', () => {
     const pr = m('pricing/pricing-view.tsx');
     expect(pr).not.toContain('-20%');
-    expect(pr).toContain('2 ay bedava');
     for (const p of BASE_PLANS.filter((x) => x.monthly_usd > 0)) expect(p.annual_usd).toBe(p.monthly_usd * 10);
+    // Sahip karari 12.11.2026: rozet "2 ay bedava" degil "%17 indirim" — ana sayfadaki
+    // rozetle AYNI anahtar; yuzde koddan (10 ay odenir, 12 ay kullanilir → %16,7 ≈ %17).
+    expect(pr).toContain("{t('land.pric.discount_badge')}");
+    const yuzde = Math.round((1 - 10 / 12) * 100);
+    const [tr, en] = read(path.join(WEB_SRC, 'lib/i18n.ts')).split('\n').filter((l) => l.includes("'land.pric.discount_badge':"));
+    expect(tr).toContain(`'%${yuzde} indirim'`);
+    expect(en).toContain(`'${yuzde}% off'`);
+    const kaynaklar = [...webSources, ...docSources, ...mobileSources].filter((s) => !/\.spec\.m?tsx?$/.test(s.rel));
+    expect(offenders(kaynaklar, /2 ay bedava|2 months free/i)).toEqual([]);
+  });
+
+  it('fiyat sayfasında eski fiyat kutusu ve kur dipnotu yok (sahip kararı 12.11.2026)', () => {
+    // Kartlardaki "≈ ₺" tutari duruyor; kurun nasil hesaplandigi Kullanim Sartlari'nda yazili.
+    const pr = m('pricing/pricing-view.tsx');
+    expect(pr).not.toMatch(/Eski fiyatınızla|grandfather/i);
+    expect(pr).not.toMatch(/kuruyla hesaplanmıştır|1 USD =|Tahsilat, ödeme anındaki/);
+    expect(m('terms/page.tsx')).toContain('Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır');
   });
 
   // /billing/failure (PayTR merchant_fail_url, herkese acik donus sayfasi) karanlik temada

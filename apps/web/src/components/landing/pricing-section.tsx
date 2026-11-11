@@ -32,7 +32,7 @@ export function PricingSection({ initialPlans }: { initialPlans: Record<Locale, 
 
   return (
     <>
-      <div className="mb-10 inline-flex rounded-md border border-border p-1" role="group" aria-label={t('land.pricing.title')}>
+      <div className="mb-10 inline-flex rounded-md border border-border p-1" role="group" aria-label={t('land.pricing.billing_period')}>
         {(['monthly', 'annual'] as const).map((b) => (
           <button
             key={b}
