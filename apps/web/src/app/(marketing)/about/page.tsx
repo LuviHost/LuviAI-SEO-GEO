@@ -62,7 +62,7 @@ const TRUST: Array<[string, string]> = [
   ['PayTR güvenli ödeme', "Türkiye'nin TCMB lisanslı ödeme sağlayıcısı. Aylık iptal hakkı, taahhüt yok."],
   ['Güçlü modeller', 'Makaleler Anthropic Claude ile yazılır, görseller Google Gemini ile üretilir; AI görünürlük ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçülür.'],
   ['Kalite kapısı', 'Her makale yayına çıkmadan AI editör ajanından ve kalite kapısından geçer: klişeler temizlenir, kaynaksız sayılar ve uydurma iç bağlantılar yakalanır. Yine de yayından önce gözden geçirmeni öneririz.'],
-  ['14 gün ücretsiz deneme', 'Kart bilgisi gerekmez; denemede 2 makale üretirsin, beğenmezsen ödeme yapmazsın. Önce dene, sonra karar ver.'],
+  ['14 gün ücretsiz deneme', 'Kart bilgisi gerekmez; siteni bağlar, markanın AI cevaplarındaki yerini ölçersin, beğenmezsen ödeme yapmazsın. Önce dene, sonra karar ver.'],
 ];
 
 /** Ilkeler — metinler onceki surumle ayni */

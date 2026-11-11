@@ -6,6 +6,7 @@ import { QuotaService } from '../billing/quota.service.js';
 import { automationPublishFields, type PublishApprovalSite } from './publish-approval.js';
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 import { automaticGenerationAllowed } from '../billing/trial-policy.js';
+import { NO_AUTO_ARTICLE_PLANS, articleOfferPlan } from '../billing/plans.js';
 import { explicitContentPlan, findRankerTopicHint, rankerPlanFromHint, rankerPlanFromTopic, withContentPlan } from './content-plan.js';
 import { sayacAnahtari, son7GunAnahtarlari, tavanAcikMi, trGunAnahtari } from './site-yayin-tavani.js';
 
@@ -20,6 +21,28 @@ export const SCHEDULED_GENERATION_JOB_PREFIX = 'gen:article:';
 
 export function scheduledGenerationJobId(articleId: string): string {
   return `${SCHEDULED_GENERATION_JOB_PREFIX}${articleId}`;
+}
+
+/**
+ * Makale ureten en dusuk SATISTAKI planin adi (plans.ts) — hak mesajinda soylenen plan.
+ * 11.11.2026 (uc paket): makale uretimi yalniz Profesyonel ve ustunde; Baslangic'ta yok.
+ */
+export const ARTICLE_PLAN_NAME = articleOfferPlan().name_tr;
+
+/**
+ * "Takvime ekle" hak dolu 403 metni (scheduleTopic).
+ *
+ * 11.11.2026 (uc paket): eski tek metin "planını yükseltebilirsin" diyordu. Deneme
+ * hesabinda bu Baslangic'i da kapsar, orada makale uretimi yok; makale hakki OLMAYAN
+ * planda ise "hakkın doldu (0 makale)" yanlisti. Metin QuotaService.articleQuotaError
+ * ile ayni plani soyler; makalesi olan ucretli planda eski metin aynen kalir.
+ */
+export function scheduleQuotaFullMessage(plan: string | null | undefined, limit: number): string {
+  if (limit <= 0) return `Makale üretimi bu pakette yok. Makale üretmek için ${ARTICLE_PLAN_NAME} plana geç.`;
+  if (plan === 'TRIAL') {
+    return `Makale hakkın doldu (${limit} makale). Yeni yazıyı takvime eklemek için ${ARTICLE_PLAN_NAME} plana geçebilirsin.`;
+  }
+  return `Makale hakkın doldu (${limit} makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.`;
 }
 
 /**
@@ -341,7 +364,7 @@ export class ArticleSchedulerService {
     // dispatchScheduledArticle reddederdi; kuyrugu bosuna doldurmasin). Plan
     // yukseltilince saatlik tarama vadesi gelen yaziyi alir.
     if (!automaticGenerationAllowed(site.user?.plan)) {
-      this.log.log(`[${article.siteId}] Article ${article.id} takvimde; deneme hesabi — otomatik uretim yok, kullanici "Şimdi üret" ile baslatir`);
+      this.log.log(`[${article.siteId}] Article ${article.id} takvimde; deneme hesabi ya da makale uretimi olmayan plan — otomatik uretim yok`);
       return;
     }
     const triggerAt = article.scheduledAt.getTime() - ArticleSchedulerService.LEAD_TIME_MS;
@@ -907,10 +930,11 @@ export class ArticleSchedulerService {
       // Demo sitesinin ornek takvim yazilari gostermelik (DEMO_SITE_URL).
       // Deneme hesabinin takvimi yalniz konu basligidir; otomasyon uretmez
       // (trial-policy.ts). SQL'de elenir ki satirlari tarama penceresini doldurmasin.
+      // 11.11.2026: makale uretimi olmayan plan (Baslangic) da ayni — plans.ts NO_AUTO_ARTICLE_PLANS.
       site: {
         autopilot: true,
         url: { not: DEMO_SITE_URL },
-        user: { plan: { not: 'TRIAL' as any } },
+        user: { plan: { notIn: NO_AUTO_ARTICLE_PLANS as any[] } },
         ...(onlyUserId
           ? { userId: onlyUserId }
           : skipUsers.size > 0 ? { userId: { notIn: [...skipUsers] } } : {}),
@@ -970,9 +994,7 @@ export class ArticleSchedulerService {
     if (!allowed) {
       // Eski metin her planda "makale/ay" diyordu; deneme hesabinin hakki ay
       // basi sifirlanmaz (QuotaService.maybeResetMonthlyQuota)
-      throw new ForbiddenException(
-        `Makale hakkın doldu (${limit} makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.`,
-      );
+      throw new ForbiddenException(scheduleQuotaFullMessage(site.user?.plan, limit));
     }
     // Deneme hesabinda bekleyen ayirmasi YOK. NEDEN: ayirma, otomasyonun kalan haktan
     // fazlasini uretime almasini onler; denemede otomasyon hic makale uretmez

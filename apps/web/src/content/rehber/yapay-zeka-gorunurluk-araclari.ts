@@ -8,7 +8,12 @@ import { SRC } from './sources';
  * fiyatlari kullanilmaz; dogrudan okunamayan bilgi (or. Profound Agency Growth taban fiyati) yazilmaz.
  *
  * RanksUp fiyati plans.ts ile ayni olmak zorunda: apps/api/src/mcp/public-docs.spec.ts
- * bu dosyadaki "Büyüme $N/ay" ifadesini BASE_PLANS ile karsilastirir.
+ * bu dosyadaki "<plan adi> $N/ay" ifadelerini (Başlangıç, Profesyonel) plans.ts ile karsilastirir.
+ *
+ * 11.11.2026 paket yapisi (RanksUp satirlari; rakip bilgileri 24.10.2026 tarihli, yeniden okunmadi):
+ * giris plani "Büyüme $149" yerine "Başlangıç $99" — dort asistan (ChatGPT, Gemini, Claude,
+ * Perplexity), makale uretimi yok. Grok, DeepSeek ve makale uretimi Profesyonel $349 ve ustunde.
+ * RanksUp fiyat kaynagi (sources.ts ranksupPricing) ayni gun yeniden okundu.
  */
 export const article: RehberArticle = {
   slug: 'yapay-zeka-gorunurluk-araclari',
@@ -35,10 +40,10 @@ export const article: RehberArticle = {
         { t: 'p', text: 'Sıralama kaliteye göre değil, “kime uygun?” sorusuna göre. Fiyatlar satıcının kendi sayfasında gösterildiği gibi; para birimi, vergi ve faturalama dönemi araçtan araca değişiyor, bu yüzden tabloda ayrıca yazdık.' },
         {
           t: 'table',
-          caption: 'Yapay zekâ görünürlük araçları (satıcı sayfaları, erişim 24.10.2026)',
+          caption: 'Yapay zekâ görünürlük araçları (satıcı sayfaları, erişim 24.10.2026; RanksUp satırı 11.11.2026)',
           head: ['Araç', 'Kime uygun?', 'Başlangıç fiyatı (satıcı sayfası)', 'Ölçülen motorlar', 'Temel sınırlama'],
           rows: [
-            ['RanksUp (bizim ürünümüz)', 'Türkçe, tek panelde SEO, GEO, ASO ve içerik isteyen KOBİ’ler, uygulama sahipleri, ajanslar', 'Büyüme $149/ay, KDV dahil (TL tutarı ödeme günü kuruyla); 14 gün ücretsiz deneme, kart istemez', 'ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek', 'Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmüyor; hesap başına 7 günde 1 ölçüm'],
+            ['RanksUp (bizim ürünümüz)', 'Türkçe, tek panelde SEO, GEO, ASO ve içerik isteyen KOBİ’ler, uygulama sahipleri, ajanslar', 'Başlangıç $99/ay, KDV dahil (TL tutarı ödeme günü kuruyla), makale üretimi yok; makale üretimi Profesyonel $349/ay’dan; 14 gün ücretsiz deneme, kart istemez', 'Başlangıç’ta ChatGPT, Gemini, Claude, Perplexity; Profesyonel ve üstünde ayrıca Grok, DeepSeek', 'Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmüyor; hesap başına 7 günde 1 ölçüm'],
             ['GEON', 'Altı asistanda Türkçe ölçüm ve aksiyon önerisi isteyen markalar', 'Growth $99/ay (ilk ay sınırlı süre $39), 50 prompt/ay; Enterprise fiyat kartında $259/ay (sitedeki bir SSS’de “custom”), 200 prompt/ay; kayıtta 5 ücretsiz kredi', 'ChatGPT, Perplexity, Claude, Gemini, Grok, DeepSeek', 'Makale üretimi, yayın ve ASO sayfada yer almıyor; Google AI Bakışı takip listesinde yok'],
             ['SEOYEN', 'TL ile ödeyen, SEO paketi içinde AI görünürlük ve içerik isteyenler', 'Bireysel aylık 1.299 TL ya da yıllık 12.470,40 TL peşin (ayda 1.039 TL karşılığı); fiyatlar %20 KDV dahil; 7 günlük deneme 50 TL', 'ChatGPT, Gemini, Claude; ayrıca Google AI Overview takibi', 'Perplexity, Grok ve DeepSeek sayfada geçmiyor; deneme ücretli ve dönem seçilmezse yıllık dönemle devam ediyor'],
             ['Otterly.AI', 'Düşük bütçeyle izlemeye başlamak isteyenler', 'Lite $29/ay aylık faturada (yıllık faturada aylık $25), 15 prompt; vergi hariç', 'Tüm planlarda ChatGPT, Google AI Overviews, Perplexity, Microsoft Copilot', 'Claude, Gemini ve Google AI Mode ek ücretli'],
@@ -61,9 +66,9 @@ export const article: RehberArticle = {
           head: ['İhtiyacın', 'Bakılacak araçlar'],
           rows: [
             ['Türkçe arayüz ve destek', 'RanksUp, GEON, SEOYEN'],
-            ['Grok ve DeepSeek’te ölçüm', 'RanksUp, GEON; Peec AI Enterprise’da Grok ve DeepSeek; Profound Enterprise’da DeepSeek'],
+            ['Grok ve DeepSeek’te ölçüm', 'RanksUp (Profesyonel ve üstü), GEON; Peec AI Enterprise’da Grok ve DeepSeek; Profound Enterprise’da DeepSeek'],
             ['Google AI Overviews takibi', 'Otterly.AI, Peec AI, Profound, Ahrefs Brand Radar, SEOYEN'],
-            ['Ölçümle birlikte içerik üretimi ve yayın', 'RanksUp, SEOYEN'],
+            ['Ölçümle birlikte içerik üretimi ve yayın', 'RanksUp (Profesyonel ve üstü), SEOYEN'],
             ['Mobil uygulama (ASO) ile AI görünürlüğü birlikte', 'RanksUp'],
             ['Mevcut SEO aracına ek', 'Semrush AI Visibility Toolkit, Ahrefs Brand Radar'],
           ],
@@ -83,8 +88,8 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Güçlü yanları:** ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçüm; 14 kontrollü site SEO/GEO denetimi; ASO, Profesyonel ve üstü planlarda App Prompt Lab; yapay zekâ ile makale üretimi ve 14 yayın hedefi; Profesyonel ve üstü planlarda kaybedilen sorudan içerik üretip yeniden ölçen kapalı döngü; Türkçe arayüz ve destek, PayTR ile Türk lirası ödeme.',
-            '**Sınırlamaları:** Google AI Bakışı, AI Modu ve Copilot’u doğrudan ölçmez (AI Bakışı için Search Console verisi içe aktarılabilir). Ölçüm hesap başına 7 günde birdir. Ücretli planlar Büyüme $149/ay’dan başlar (KDV dahil); yalnız ölçüm isteyen biri için daha ucuz seçenekler var.',
+            '**Güçlü yanları:** ChatGPT, Gemini, Claude ve Perplexity’de ölçüm, Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek; 14 kontrollü site SEO/GEO denetimi; ASO, Profesyonel ve üstü planlarda App Prompt Lab; Profesyonel ve üstü planlarda yapay zekâ ile makale üretimi ve 13 yayın hedefi; Profesyonel ve üstü planlarda kaybedilen sorudan içerik üretip yeniden ölçen kapalı döngü; Türkçe arayüz ve destek, PayTR ile Türk lirası ödeme.',
+            '**Sınırlamaları:** Google AI Bakışı, AI Modu ve Copilot’u doğrudan ölçmez (AI Bakışı için Search Console verisi içe aktarılabilir). Ölçüm hesap başına 7 günde birdir. Ücretli planlar Başlangıç $99/ay’dan başlar (KDV dahil); bu planda dört asistan ölçülür ve makale üretimi yoktur, makale üretimi Profesyonel $349/ay’dadır. Yalnız ölçüm isteyen biri için daha ucuz seçenekler var.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility'],
         },

@@ -6,7 +6,8 @@ import { SRC } from './sources';
  * (plans.ts FEATURE_MIN_PLAN.appPromptLab = 'pro'), uygulama basina en fazla 50 soru,
  * uygulama adi anildi mi / magaza baglantisi verildi mi / rakip uygulamalar
  * (api aso/aso-prompt-lab.service.ts), calistirma haftalik olcum hakkini kullanir
- * (@MeasurementSession). ASO metadata optimizasyonu ve gunluk sira takibi Buyume'de.
+ * (@MeasurementSession). ASO metadata optimizasyonu ve gunluk sira takibi giris planinda
+ * (11.11.2026 paket yapisi: adi "Büyüme"den "Başlangıç"a dondu; api plans.ts).
  */
 export const article: RehberArticle = {
   slug: 'mobil-uygulama-geo',
@@ -108,7 +109,7 @@ export const article: RehberArticle = {
           t: 'p',
           text: 'RanksUp’ın **App Prompt Lab** özelliği bunu otomatikleştirir: uygulama başına en fazla 50 soru izler, sorulara verilen cevaplarda uygulamanın adının geçip geçmediğini, mağaza sayfana bağlantı verilip verilmediğini ve hangi rakip uygulamaların önerildiğini kaydeder. Profesyonel ve üstü planlarda var; çalıştırma, hesabın haftalık ölçüm hakkını kullanır.',
         },
-        { t: 'p', text: 'Mağaza tarafında ASO metadata optimizasyonu ve günlük anahtar kelime sıra takibi Büyüme planından itibaren var. Kurulum [ASO yardım sayfasında](/help/aso), planlar [fiyatlandırma sayfasında](/pricing).' },
+        { t: 'p', text: 'Mağaza tarafında ASO metadata optimizasyonu ve günlük anahtar kelime sıra takibi Başlangıç planından itibaren var. Kurulum [ASO yardım sayfasında](/help/aso), planlar [fiyatlandırma sayfasında](/pricing).' },
       ],
     },
     {
@@ -145,7 +146,7 @@ export const article: RehberArticle = {
     },
     {
       q: 'App Prompt Lab hangi planda var?',
-      a: 'Profesyonel ve üstü planlarda. Büyüme planında ASO metadata optimizasyonu ve günlük anahtar kelime sıra takibi bulunur. Güncel ayrıntılar fiyatlandırma sayfasında.',
+      a: 'Profesyonel ve üstü planlarda. Başlangıç planında ASO metadata optimizasyonu ve günlük anahtar kelime sıra takibi bulunur. Güncel ayrıntılar fiyatlandırma sayfasında.',
     },
     {
       q: 'Oyunlar için durum farklı mı?',

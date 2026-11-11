@@ -1,12 +1,21 @@
 import {
-  FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, planHasFeature, findPlan,
+  FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, planHasFeature, featureOfferPlan,
   type PlanFeature, type PlanId,
 } from './plans.js';
+import { ownerEngines } from './plan-engines.js';
+import { measuredEngines } from './measured-engines.js';
 
 export interface Entitlements {
   plan: PlanId;
   /** Ozellik -> bu planda acik mi */
   features: Record<PlanFeature, boolean>;
+  /**
+   * Bu hesabin olcumlerinde SU AN sorulan asistanlar (saglayici kimlikleri): plan kapsami
+   * (plan-engines ownerEngines; ADMIN muaf) ∩ bu kurulumda olculenler (measured-engines).
+   * Panel "N AI asistaninda" sayisini ve logo seridini BURADAN yazar — Baslangic ve
+   * denemede dort, Profesyonel ve ustunde alti (+ anahtari tanimliysa Muse).
+   */
+  engines: string[];
   /** Kapali ozellik icin kullaniciya ne soylenecegi — hepsi plans.ts'ten turer */
   required: Record<PlanFeature, { plan: PlanId; planName: string; label: string }>;
 }
@@ -37,13 +46,20 @@ export function entitlementsFor(rawPlan: string, role?: string | null): Entitlem
 
   for (const key of Object.keys(FEATURE_MIN_PLAN) as PlanFeature[]) {
     features[key] = role === 'ADMIN' || planHasFeature(plan, key);
-    const min = FEATURE_MIN_PLAN[key];
+    // Musteriye soylenen plan = ozelligi iceren en dusuk SATISTAKI plan (plans.ts
+    // featureOfferPlan). Kapinin kendisi FEATURE_MIN_PLAN'da durur: Ajans satistan kalkti
+    // (11.11.2026) ama o plandaki hesaplar hakkini korur; kilitli kart "Ajans planina
+    // dahildir" derse musteri alamayacagi bir plana yollanir.
+    const offer = featureOfferPlan(key);
     required[key] = {
-      plan: min,
-      planName: findPlan(min)?.name_tr ?? min,
+      plan: offer.id,
+      planName: offer.name_tr,
       label: PLAN_FEATURE_LABELS[key],
     };
   }
 
-  return { plan, features, required };
+  const measured = measuredEngines();
+  const engines = ownerEngines({ plan, role }).filter((e) => measured.includes(e));
+
+  return { plan, features, engines, required };
 }

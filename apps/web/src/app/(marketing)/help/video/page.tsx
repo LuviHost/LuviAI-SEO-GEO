@@ -113,7 +113,7 @@ export default function Page() {
         <li>Makale, site ve ürün videoları aynı aylık haktan düşer; her video (aynı kaynağın dikey ve yatay biçimi ayrı ayrı) istendiği anda bir kez düşer.</li>
         <li>Video üretilemezse hakkın otomatik olarak iade edilir ve nedeni Videolar sayfasında yazar.</li>
         <li>Sırada bekleyen bir videoyu silersen hakkın iade edilir; hazır bir videoyu silmek hakkı geri vermez.</li>
-        <li>Deneme ve Büyüme planlarında düğme kilitli bir önizleme açar; video üretilmez.</li>
+        <li>Deneme ve Başlangıç planlarında düğme kilitli bir önizleme açar; video üretilmez.</li>
       </ul>
 
       <Tip kind="info">

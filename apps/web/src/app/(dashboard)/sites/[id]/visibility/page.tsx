@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SectionHeader } from '@/components/ui/section-header';
 import { EngineStrip } from '@/components/engine-logo';
+import { useEntitlements } from '@/lib/entitlements';
 import { formatNum } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
@@ -17,6 +18,15 @@ import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurem
 
 export default function VisibilityPage() {
   const { site } = useSiteContext();
+  // Bu SITENIN olcumlerinde sorulan asistanlar — baslikta sayi ve logo seridi. Kaynak sitenin
+  // kendisi (GET /sites/:id measurementEngines: site SAHIBININ plani). Yonetici ya da ajans hesabi
+  // baskasinin sitesini actiginda kendi planinin asistanlari gosterilmez. Eski API alani
+  // gondermezse /me'deki haklara dusulur (kendi sitesine bakan hesap icin ayni liste).
+  const { entitlements } = useEntitlements();
+  const siteEngines = (site as { measurementEngines?: unknown }).measurementEngines;
+  const engines = Array.isArray(siteEngines) && siteEngines.length > 0
+    ? (siteEngines as string[])
+    : siteEngines === undefined && entitlements?.engines?.length ? entitlements.engines : null;
   // Haftalik AI olcum hakki — not grafikteki "Yeniden Test"in altinda gorunur
   const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [roadmapLoading, setRoadmapLoading] = useState(false);
@@ -83,8 +93,17 @@ export default function VisibilityPage() {
         title="AI Görünürlük"
         description={
           <>
-            <span className="block">6 AI asistanında marka takibi, duygu, ses payı ve rakip analizi.</span>
-            <EngineStrip className="mt-2.5" />
+            {/* 11.11.2026 paket yapisi: asistan sayisi ve logolar HESABIN planindan gelir
+                (lib/entitlements `engines` ← api billing/entitlements.ts: Baslangic ve deneme 4,
+                Profesyonel ve ustu 6 + olculuyorsa Muse). Sabit "6" ya da sabit alti logo yazilmaz.
+                Liste gelene kadar (ya da /me alinamazsa) sayi ve serit cizilmez: yanlis sayi
+                gostermektense bos birakilir; yukseklik ayrilir ki sayfa ziplamasin. */}
+            <span className="block">
+              {engines ? `${engines.length} AI asistanında` : 'AI asistanlarında'} marka takibi, duygu, ses payı ve rakip analizi.
+            </span>
+            <div className="mt-2.5 min-h-7">
+              {engines && <EngineStrip engines={engines} />}
+            </div>
           </>
         }
       />

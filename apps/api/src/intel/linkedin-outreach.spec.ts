@@ -326,6 +326,17 @@ describe('sablonlar', () => {
     expect(thy).toContain('6 AI asistanında (ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek)');
     expect(thy).not.toMatch(/\b7\s*(AI|asistan)/i);
   });
+  // 11.11.2026 (uc paket): liste eskiden fiyat kartindaki asistan maddesinden okunuyordu; madde
+  // kalkinca okuma sessizce yedek listeye dusuyordu. Kaynak artik plans.ts BASE_ENGINES.
+  it('mesajdaki asistanlar = plans.ts\'in her kurulumda olculen alti asistani (kume ve sayi); Muse yok', async () => {
+    const { BASE_ENGINES, CONDITIONAL_ENGINES, ENGINE_LABELS } = await import('../billing/plans.js');
+    const { MEASURED_ASSISTANT_COUNT, MEASURED_ASSISTANTS_TEXT } = await import('./linkedin-outreach-rules.js');
+    const adlar = MEASURED_ASSISTANTS_TEXT.split(/, | ve /);
+    expect([...adlar].sort()).toEqual(BASE_ENGINES.map((e) => ENGINE_LABELS[e]).sort());
+    expect(MEASURED_ASSISTANT_COUNT).toBe(BASE_ENGINES.length);
+    expect(MEASURED_ASSISTANT_COUNT).toBe(adlar.length);
+    for (const e of CONDITIONAL_ENGINES) expect(MEASURED_ASSISTANTS_TEXT).not.toContain(ENGINE_LABELS[e]);
+  });
   it('genitive: buyuk unlu uyumu', () => {
     expect(genitive('Trendyol')).toBe("Trendyol'un");
     expect(genitive('Hepsiburada')).toBe("Hepsiburada'nın");

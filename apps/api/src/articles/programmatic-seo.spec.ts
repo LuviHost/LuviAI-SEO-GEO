@@ -35,11 +35,20 @@ describe('generateCityPages — makale hakki', () => {
     expect(r.skippedForQuota).toBe(0);
   });
 
+  // 11.11.2026 (uc paket): eskiden Buyume (STARTER, 15 - 12 = 3) ile sinaniyordu; Baslangic'ta
+  // makale hakki yok. Makale yazabilen ucretli plan Profesyonel (40).
   it('hak yetmeyen sehir sayisini doner', async () => {
-    const t = kur({ plan: 'STARTER', articlesUsedThisMonth: 12 }); // 15 - 12 = 3 kalan
+    const t = kur({ plan: 'PRO', articlesUsedThisMonth: 37 }); // 40 - 37 = 3 kalan
     const r = await t.svc.generateCityPages('s1', { template: '{location} için {niche}', maxQuota: 10 });
     expect(r).toMatchObject({ scheduled: 3, requested: 10, skippedForQuota: 7, remainingQuota: 3 });
     expect(t.created).toHaveLength(3);
+  });
+
+  it('Baslangic: makale hakki yok — hicbir sehir sayfasi planlanmaz', async () => {
+    const t = kur({ plan: 'STARTER', articlesUsedThisMonth: 0 });
+    const r = await t.svc.generateCityPages('s1', { template: '{location} için {niche}', maxQuota: 4 });
+    expect(r).toMatchObject({ scheduled: 0, requested: 4, skippedForQuota: 4, remainingQuota: 0 });
+    expect(t.created).toHaveLength(0);
   });
 
   it('deneme hesabi ay donumunde sifirlanmaz (toplam hak)', async () => {

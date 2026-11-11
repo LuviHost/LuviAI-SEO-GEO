@@ -51,8 +51,10 @@ export function QuotaMonitor() {
 
   // Eksik ekseni ATLA, patlama: API bir ekseni biraktiginda (eski 'videos' gibi)
   // tek bir undefined tum /sites/[id] sayfasini error boundary'ye dusuruyordu.
+  // Makale ekseni yalniz makale hakki OLAN planda gosterilir (11.11.2026: Baslangic'ta makale
+  // uretimi yok, limit 0). Eskiden o hesapta "Makale 0/0" ve bos bir cubuk cikiyordu.
   const items = [
-    data.articles && {
+    data.articles && data.articles.limit > 0 && {
       key: 'articles', icon: FileText, label: 'Makale',
       used: data.articles.limit - data.articles.remaining, limit: data.articles.limit,
     },

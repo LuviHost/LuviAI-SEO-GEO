@@ -103,7 +103,8 @@ export default function ArticlesPage() {
       {counts.locked > 0 && (
         <StatusBanner
           tone="info"
-          title={`Takviminde ${formatNum(counts.locked)} makale kilitli; planını yükselttiğinde yazılır.`}
+          // 11.11.2026: makale uretimi yalniz Profesyonel ve ustunde (lib/plan-lock.ts notu)
+          title={`Takviminde ${formatNum(counts.locked)} makale kilitli; Profesyonel plana geçtiğinde yazılır.`}
           action={<PlanUpgradeButton />}
         >
           {PLAN_LOCK_COPY.body}

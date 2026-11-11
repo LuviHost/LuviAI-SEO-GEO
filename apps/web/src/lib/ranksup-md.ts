@@ -10,6 +10,11 @@
  * Plan verisi alinamazsa fiyat UYDURULMAZ: bolum /pricing'e yonlendirir.
  *
  * Next importu yok — ranksup-md.spec.mts plans.ts'ten kurdugu veriyle dogrudan calistirir.
+ *
+ * PAKET YAPISI (11.11.2026, api plans.ts): /billing/plans yalniz satistaki planlari doner
+ * (Baslangic, Profesyonel, Kurumsal; Ajans satistan kalkti). Kurumsal teklifle satilir: liste
+ * fiyati YAZILMAZ ("teklifle"). Baslangic makale uretmez (articlesPerMonth 0 → "yok"). Olculen
+ * asistanlar plana baglidir; liste her planin `engines` alanindan (o an olculenler) okunur.
  */
 import { CONTENT_AUTHOR, SITE_URL, formatPageDate, pageUpdated } from './page-updated';
 
@@ -18,7 +23,7 @@ import { CONTENT_AUTHOR, SITE_URL, formatPageDate, pageUpdated } from './page-up
  * kimler icin, nasil baslanir) degisince guncellenir. Gorunur tarih bununla /pricing'in
  * tarihinden (plan maddeleri) hangisi yeniyse odur; plan verisinin alindigi an ayrica yazilir.
  */
-export const RANKSUP_MD_UPDATED = '2026-10-30';
+export const RANKSUP_MD_UPDATED = '2026-11-11';
 
 /** /billing/plans planinin bu ozette kullanilan alanlari (LandingPlan ile uyumlu) */
 export interface SummaryPlan {
@@ -32,6 +37,11 @@ export interface SummaryPlan {
   aiProviders: number;
   support: string;
   features: string[];
+  /**
+   * Bu planin SU AN olctugu asistanlar (saglayici kimlikleri: plan kapsami ∩ kurulumda
+   * olculenler; api billing.service toDefinition). Eski API yanitinda yok.
+   */
+  engines?: string[];
   inheritsLabel?: string;
   popular?: boolean;
   contactSales?: boolean;
@@ -41,26 +51,54 @@ export interface SummaryPlan {
 const tl = (n: number) => n.toLocaleString('tr-TR');
 
 /**
- * Olculen asistanlar plan maddesinden okunur ("ChatGPT · Claude · ..."); ayri bir liste
- * tutulmaz. Madde yoksa satir yazilmaz.
+ * Saglayici kimligi → asistan adi. api plans.ts ENGINE_LABELS ile AYNI olmak zorunda
+ * (ranksup-md.spec.mts ikisini karsilastirir). Bilinmeyen kimlik oldugu gibi yazilir:
+ * yeni bir asistan listeden sessizce dusmesin.
  */
-function assistantsFrom(plans: readonly SummaryPlan[]): string[] {
-  const line = plans.flatMap((p) => p.features).find((f) => f.startsWith('ChatGPT · '));
-  return line ? line.split(' · ').map((s) => s.trim()) : [];
+export const ENGINE_NAMES: Readonly<Record<string, string>> = {
+  openai: 'ChatGPT',
+  gemini: 'Gemini',
+  anthropic: 'Claude',
+  perplexity: 'Perplexity',
+  xai: 'Grok',
+  deepseek: 'DeepSeek',
+  meta: 'Muse',
+};
+
+/**
+ * Olculen asistanlar plana baglidir (11.11.2026: deneme ve Baslangic dort, Profesyonel ve
+ * ustu alti; Muse yalniz olculuyorsa). Ayni listeyi olcen planlar tek satirda toplanir
+ * ("Ücretsiz Deneme, Başlangıç: … (4 asistan)"). Liste her planin `engines` alanindan okunur;
+ * ayri bir plan → asistan tablosu tutulmaz. Alan yoksa (eski API) satir yazilmaz.
+ */
+function assistantGroups(plans: readonly SummaryPlan[]): Array<{ planlar: string[]; adlar: string[] }> {
+  const groups: Array<{ key: string; planlar: string[]; adlar: string[] }> = [];
+  for (const p of plans) {
+    if (!Array.isArray(p.engines) || p.engines.length === 0) continue;
+    const key = p.engines.join('|');
+    const g = groups.find((x) => x.key === key);
+    if (g) g.planlar.push(p.name);
+    else groups.push({ key, planlar: [p.name], adlar: p.engines.map((e) => ENGINE_NAMES[e] ?? e) });
+  }
+  return groups.map(({ planlar, adlar }) => ({ planlar, adlar }));
 }
 
+/** Makale uretimi olmayan plan (Baslangic) "0 AI makale" degil "makale üretimi yok" yazar */
+const makaleSiniri = (p: SummaryPlan) => (p.articlesPerMonth > 0 ? `${p.articlesPerMonth} AI makale/ay` : 'makale üretimi yok');
+
 function planBlock(p: SummaryPlan): string {
+  // Teklifle satilan planin (Kurumsal) liste fiyati musteriye gosterilmez
   const fiyat = p.contactSales
-    ? `$${tl(p.monthly)}/ay, yıllık $${tl(p.annual)} (satış ekibiyle)`
+    ? 'teklifle (satış ekibiyle görüşülerek belirlenir)'
     : `$${tl(p.monthly)}/ay, yıllık $${tl(p.annual)}`;
-  const sinir = `${p.articlesPerMonth} AI makale/ay · ${p.sites} site · en fazla ${tl(p.aiRunsPerMonth)} görünürlük çalıştırması/ay · destek: ${p.support}`;
+  const sinir = `${makaleSiniri(p)} · ${p.sites} site · en fazla ${tl(p.aiRunsPerMonth)} görünürlük çalıştırması/ay · destek: ${p.support}`;
   const lines = [
     `### ${p.name}${p.popular ? ' (en çok tercih edilen)' : ''}`,
     '',
     `- **Fiyat**: ${fiyat}`,
     `- **Sınırlar**: ${sinir}`,
   ];
-  // "Buyume'deki her sey, arti:" → "- **Özellikler** (Büyüme'deki her şey, artı):"
+  // "Başlangıç'taki her şey, artı:" → "- **Özellikler** (Başlangıç'taki her şey, artı):"
   const miras = p.inheritsLabel ? ` (${p.inheritsLabel.replace(/:\s*$/, '')})` : '';
   lines.push(`- **Özellikler**${miras}:`);
   for (const f of p.features) lines.push(`  - ${f}`);
@@ -75,7 +113,9 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
   const guncel = RANKSUP_MD_UPDATED > fiyatTarihi ? RANKSUP_MD_UPDATED : fiyatTarihi;
   const trial = plans.find((p) => p.id === 'trial');
   const paid = plans.filter((p) => p.id !== 'trial');
-  const asistanlar = assistantsFrom(plans);
+  const asistanGruplari = assistantGroups(plans);
+  // Makale uretimi olan en dusuk ucretli plan (liste API sirasiyla: alt plandan uste)
+  const makalePlani = paid.find((p) => p.articlesPerMonth > 0);
 
   const out: string[] = [
     '# RanksUp — Ürün özeti',
@@ -92,7 +132,7 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
     // Sayi yazilmaz (kontrol / ajan / yayin hedefi sayisi): kesin sayilar asagidaki plan
     // maddelerinde, tek kaynak plans.ts.
     '- **Site denetimi**: teknik SEO/GEO kontrolleri ve PageSpeed iyileştirme önerileri; GEO Lab\'de A+ ile F arası GEO notu.',
-    '- **AI makale ve yayın**: çok ajanlı üretim hattı ve yayın öncesi QA kapısı; WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity gibi yayın hedeflerine otomatik yayın.',
+    '- **AI makale ve yayın**: çok ajanlı üretim hattı ve yayın öncesi QA kapısı; WordPress, FTP/SFTP, cPanel, GitHub, Ghost, Webflow, Sanity gibi yayın hedeflerine otomatik yayın. Makale üretimi her planda yoktur; hangi planlarda olduğu aşağıdaki plan tablosunda.',
     '- **ASO**: App Store ve Google Play için AI metadata önerileri ve günlük mağaza anahtar kelime sıra takibi; üst planlarda Apple Search Ads ve App Store Connect.',
     '',
     '## Kimler için',
@@ -105,11 +145,13 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
     '',
   ];
 
-  if (asistanlar.length > 0) {
+  if (asistanGruplari.length > 0) {
     out.push(
       '## Ölçülen AI asistanları',
       '',
-      `${asistanlar.join(', ')} (${asistanlar.length} asistan).`,
+      'Ölçülen asistanlar plana bağlıdır:',
+      '',
+      ...asistanGruplari.map((g) => `- ${g.planlar.join(', ')}: ${g.adlar.join(', ')} (${g.adlar.length} asistan)`),
       '',
       'Ölçümü kullanıcı başlatır: her planda hesap başına 7 günde 1 AI görünürlük ölçümü yapılır ve tüm siteler bu hakkı paylaşır. Planlar ölçüm sıklığında değil, aylık görünürlük çalıştırması tavanında ayrışır (AI testi 1, Prompt Lab\'de her soru ve her dal 1 çalıştırma).',
       '',
@@ -128,7 +170,12 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
       '',
       '| Plan | Aylık | Yıllık | AI makale / ay | Site | Görünürlük çalıştırması / ay (en fazla) |',
       '|---|---|---|---|---|---|',
-      ...paid.map((p) => `| ${p.name} | $${tl(p.monthly)} | $${tl(p.annual)} | ${p.articlesPerMonth} | ${p.sites} | ${tl(p.aiRunsPerMonth)} |`),
+      // Teklifle satilan plan (Kurumsal): fiyat yerine "teklifle"; makale uretimi olmayan plan: "yok"
+      ...paid.map((p) => {
+        const aylik = p.contactSales ? 'teklifle' : `$${tl(p.monthly)}`;
+        const yillik = p.contactSales ? 'teklifle' : `$${tl(p.annual)}`;
+        return `| ${p.name} | ${aylik} | ${yillik} | ${p.articlesPerMonth > 0 ? p.articlesPerMonth : 'yok'} | ${p.sites} | ${tl(p.aiRunsPerMonth)} |`;
+      }),
       '',
       ...paid.map((p) => `${planBlock(p)}\n`),
     );
@@ -148,7 +195,11 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
     `1. ${SITE_URL}/signin?signup=1 adresinde "Google ile devam et" ile hesap aç (web'de kayıt Google hesabıyla; kart istenmez).`,
     '2. Panelde "Site ekle" ile alan adını yaz; kurulum taraması ilk bulguları (site skoru, rakipler, ilk düzeltilecek madde) çıkarır.',
     '3. AI Görünürlük ekranında ilk ölçümü ve önerileri gör; yayın hedefini (WordPress, FTP/SFTP, cPanel…) bağlayıp makale üret.',
-    `4. Devam etmek için plan seç: ${SITE_URL}/pricing`,
+    // 11.11.2026: "Devam etmek için plan seç" 3. adimdaki makale uretimine her planla devam
+    // edilecegini dusundururdu; makale uretimi olan plan plan verisinden adiyla yazilir.
+    makalePlani
+      ? `4. Devam etmek için plan seç (makale üretimi ${makalePlani.name} ve üstü planlardadır): ${SITE_URL}/pricing`
+      : `4. Devam etmek için plan seç; makale üretiminin hangi planlarda olduğu fiyatlandırma sayfasında: ${SITE_URL}/pricing`,
     '',
     '## Bağlantılar',
     '',

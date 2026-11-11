@@ -4,7 +4,7 @@
 
 Bu dosya https://ranksup.ai/llms.txt dosyasının ayrıntılı sürümüdür. Yalnızca bugün üründe çalışan özellikleri anlatır; fiyat ve plan sınırları ürünün plan tanımıyla aynıdır.
 
-Son güncelleme: 2 Kasım 2026 · RanksUp Ekibi
+Son güncelleme: 11 Kasım 2026 · RanksUp Ekibi
 
 Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/ranksup.md
 
@@ -22,7 +22,7 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 ### AI görünürlük (GEO)
 
 - İzlediğin soruları yapay zekâ asistanlarına sorar; markan anılıyor mu, siten kaynak gösteriliyor mu, rakiplerin kimler, ölçer (Prompt Lab).
-- Asistanlar: ChatGPT, Claude, Gemini, Grok ve DeepSeek web aramasıyla; Perplexity kendi arama altyapısıyla ölçülür. Meta Llama yalnızca sağlayıcıda kullanılabilir bir model tanımlıyken ölçülür.
+- Asistanlar: ChatGPT, Claude, Gemini, Grok ve DeepSeek web aramasıyla; Perplexity kendi arama altyapısıyla ölçülür. Hangilerinin ölçüldüğü plana bağlıdır: Ücretsiz Deneme ve Başlangıç planı dört asistanı ölçer (ChatGPT, Gemini, Claude, Perplexity); Grok ve DeepSeek Profesyonel ve üstü planlarda eklenir. Meta'nın asistanı Muse yalnızca Profesyonel ve üstü planlarda ve RanksUp'ta Meta anahtarı tanımlıyken ölçülür.
 - Puanlama: cevapta site adresin kaynak gösterilirse 100, yalnızca marka adın geçerse 50, hiç geçmezse 0. Marka adının sorunun içinde geçtiği sorular manşet skora girmez (orada anılmak beklenen bir sonuçtur). Manşet son 7 gündeki ölçümlerden hesaplanır (haftada bir ölçümde bu, son testtir); en az 4 ölçüm biriktikten sonra cevaplar ölçümden ölçüme belirgin değişiyorsa "oynak" rozeti gösterilir.
 - Ölçümü kullanıcı başlatır. Hesap başına 7 günde bir AI ölçümü yapılabilir ve tüm siteler bu hakkı paylaşır; AI testi, yol haritası, Prompt Lab, panelden başlatılan site taramasındaki AI testi, Ürün Radarı, GEO ısı haritası ve diğer ölçümler aynı haftalık hakka sayılır. Sonuç vermeyen ölçüm hakkı yakmaz. Site kurulumundaki ilk tarama, otomatik akışın başlangıç ölçümü ve Ürün Radarı'nın haftalık otomatik taraması bu hakka sayılmaz.
 - Ölçümlerde plana göre aylık bir görünürlük çalıştırması tavanı vardır (bkz. Fiyatlandırma): AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1, GEO ısı haritasında ölçülen her soru 1, App Prompt Lab'de her soru 1 çalıştırma sayılır; tavan dolduysa bu ölçümler başlamaz. Paneldeki Prompt Lab "Tümünü çalıştır" tek ölçümde en fazla 25 soruyu çalıştırır.
@@ -43,8 +43,9 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 - Erişim engeli "eksik" sayılmaz ve puana girmez.
 - robots.txt için önizlemeli düzeltme; eksik site haritası oluşturulur (site denetimindeki kurallarla aynı).
 
-### AI makale ve yayın
+### AI makale ve yayın — Profesyonel ve üstü
 
+- Makale üretimi Profesyonel ve üstü planlardadır; Başlangıç planında makale üretimi yoktur, Ücretsiz Deneme'de toplam 2 makale üretilebilir.
 - 5 ajanlı üretim hattı (anahtar kelime → taslak → yazar → editör → görsel) ve yayın öncesi QA kapısı.
 - 13 yayın hedefi: WordPress (REST ve XML-RPC), FTP, SFTP, cPanel, GitHub, Webflow, Sanity, Contentful, Ghost, Strapi, WHMCS bilgi bankası ve özel PHP ucu.
 - İçerik takvimi ve zamanlanmış üretim. Yarı otomatik modda (varsayılan) her yazı yayınlanmadan önce onayını bekler; Tam otomatik modda takvimdeki yazılar editör ve QA kontrollerinden geçince varsayılan yayın hedefine kendiliğinden yayınlanır.
@@ -62,7 +63,7 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 - Metin makalenin kendi başlık, cümle ve sayılarından derlenir; yapay zekâ ile kısaltılan metin, makalede birebir geçmeyen sayıları ve makalede olmayan kelime oranı yüksek metni reddeden bir denetimden geçer, geçemezse makalenin kendi cümleleri kullanılır. Site ve ürün tanıtımında aynı denetim sitenin kendi sayfasına uygulanır; marka profili yalnız bağlamdır, sayı kaynağı değildir.
 - Süre 15–60 sn, tempo seçilebilir: Hızlı 15 sn (yatay site tanıtımında 24 sn; kısa metinler için); Normal (varsayılan) yaklaşık 15–50 sn ve Yavaş yaklaşık 25–60 sn — ikisinde de süre metnin uzunluğundan hesaplanır, her metin en az 2 saniye ve kelime başına 0,3 saniye + 1 saniye ekranda kalır; hiçbir video 60 saniyeyi geçmez. Her tempo bir video hakkı.
 - Logo ve renk sitenin herkese açık sayfasından okunur; video üretilmeden önce renk, logo ve marka adı düzeltilebilir.
-- Aylık hak: Profesyonel 20, Ajans 60, Kurumsal 200 video; her takvim ayı yenilenir, üretilemeyen videonun hakkı iade edilir. Makale, site ve ürün videoları aynı haktan düşer (her biçim ayrı bir video).
+- Aylık hak: Profesyonel 20, Kurumsal 200 video; her takvim ayı yenilenir, üretilemeyen videonun hakkı iade edilir. Makale, site ve ürün videoları aynı haktan düşer (her biçim ayrı bir video).
 
 ### ASO
 
@@ -74,7 +75,7 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 
 - Google Search Console verisiyle Google'da ilk sayfada olup ilk 3'e giremeyen sayfaları bulur (Search Console bağlantısı gerekir), LLM ile iyileştirme önerir. RanksUp'ın yayınladığı yazıda uygulanan değişiklik tek tıkla geri alınabilir.
 
-### Ajans araçları — Ajans ve üstü
+### Ajans araçları — Kurumsal planda
 
 - Ürün Radarı: haftalık rakip ses payı ve kategori sırası.
 - GEO ısı haritası: çoklu sağlayıcıda görünürlük ısı haritası.
@@ -86,24 +87,23 @@ Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/rank
 - MCP sunucusu, REST API ve API anahtarları; scope'lar (okuma / yazma) site, makale, denetim, reklam ve analitik uçlarını kapsar.
 - AI maliyet ve token muhasebesi: panelde son 7 günün toplamı, token ve en çok harcayan bağlamlar; sağlayıcı ve gün kırılımı API'de.
 
-## Fiyatlandırma (Ekim 2026)
+## Fiyatlandırma (Kasım 2026)
 
 Fiyatlar USD bazlıdır. TL tutarı sabit değildir: ödeme anında günün TCMB USD/TRY kuruyla hesaplanır.
 
 AI görünürlük ölçümü her planda hesap başına 7 günde 1'dir ve tüm siteler bu hakkı paylaşır: AI testi, yol haritası, Prompt Lab, panelden başlatılan site taramasındaki AI testi ve diğer ölçümler aynı haftalık hakka sayılır; sonuç vermeyen ölçüm hakkı yakmaz. Ölçümlerde ayrıca plana göre aylık bir görünürlük çalıştırması tavanı vardır: AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma sayılır; tek bir haftalık ölçüm (örneğin Prompt Lab'de tüm soruları çalıştırmak) birden çok çalıştırma kullanır. Çalıştırma sayacı her takvim ayının başında sıfırlanır.
 
-- **Ücretsiz Deneme**: $0 — 2 AI makale, haftada 1 AI ölçümü, 3 görünürlük çalıştırması, 1 site, 1 izlenen uygulama · destek: e-posta · 14 gün · kredi kartı istemez · makaleleri yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı plan seçilince yazılır · 14 gün dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez), veriler silinmez
-- **Büyüme**: $149/ay, yıllık $1.490 — 15 AI makale/ay, haftada 1 AI ölçümü, en fazla 20 görünürlük çalıştırması/ay, 2 site, 1 izlenen uygulama · destek: e-posta
-- **Profesyonel** (en çok tercih edilen): $349/ay, yıllık $3.490 — 40 AI makale/ay, haftada 1 AI ölçümü, en fazla 75 görünürlük çalıştırması/ay, 5 site, 3 izlenen uygulama · destek: e-posta
-- **Ajans**: $749/ay, yıllık $7.490 — 100 AI makale/ay, haftada 1 AI ölçümü, en fazla 300 görünürlük çalıştırması/ay, 15 site, 10 izlenen uygulama · destek: e-posta
-- **Kurumsal** (satış ekibiyle): $1.499/ay, yıllık $14.990 — 350 AI makale/ay, haftada 1 AI ölçümü, en fazla 1.000 görünürlük çalıştırması/ay, 50 site, 50 izlenen uygulama · destek: e-posta
+- **Ücretsiz Deneme**: $0 — 2 AI makale, haftada 1 AI ölçümü, 3 görünürlük çalıştırması, 4 AI asistanı, 1 site, 1 izlenen uygulama · destek: e-posta · 14 gün · kredi kartı istemez · makaleleri yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı Profesyonel planda yazılır · 14 gün dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez), veriler silinmez
+- **Başlangıç**: $99/ay, yıllık $990 — makale üretimi yok, haftada 1 AI ölçümü, en fazla 20 görünürlük çalıştırması/ay, 4 AI asistanı, 2 site, 1 izlenen uygulama · destek: e-posta
+- **Profesyonel** (en çok tercih edilen): $349/ay, yıllık $3.490 — 40 AI makale/ay, haftada 1 AI ölçümü, en fazla 75 görünürlük çalıştırması/ay, 6 AI asistanı, 5 site, 3 izlenen uygulama · destek: e-posta
+- **Kurumsal** (satış ekibiyle): fiyat teklifle — 350 AI makale/ay, haftada 1 AI ölçümü, en fazla 1.000 görünürlük çalıştırması/ay, 6 AI asistanı, 50 site, 50 izlenen uygulama · destek: e-posta
 
 Şartlar:
 
 - Yıllık ödemede 10 ay fiyatına 12 ay (2 ay bedava).
 - Aylık plan istediğin zaman iptal edilir; iptalden sonra ödenen dönemin sonuna kadar erişim sürer.
 - Kullanım Şartları'na göre yıllık planda ilk 30 gün tam iade, sonrasında kalan ay başına orantılı iade.
-- Kurumsal plan satış ekibiyle görüşülerek açılır.
+- Başlangıç ve Profesyonel panelden satın alınır; Kurumsal plan satış ekibiyle görüşülerek açılır ve fiyatı teklifle belirlenir.
 
 ## Ajanlar / MCP
 
@@ -126,13 +126,13 @@ AI görünürlük ölçümü her planda hesap başına 7 günde 1'dir ve tüm si
 ## Sık sorulan sorular
 
 **S: Kart bilgisi vermeden deneyebilir miyim?**
-C: Evet. Ücretsiz Deneme kredi kartı istemez ve 14 gün sürer: 2 AI makale (yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı plan seçilince yazılır), 3 görünürlük çalıştırması (haftada en fazla 1 ölçüm), 1 site. 14 gün dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez); veriler silinmez.
+C: Evet. Ücretsiz Deneme kredi kartı istemez ve 14 gün sürer: 2 AI makale (yayın hedefini bağladıktan sonra sen başlatırsın; takvimin geri kalanı Profesyonel planda yazılır), 3 görünürlük çalıştırması (haftada en fazla 1 ölçüm), 1 site. 14 gün dolunca plan seçene kadar hesap salt okunur olur (satın alma geçici olarak kapalıyken hesap kilitlenmez); veriler silinmez.
 
 **S: Ayda kaç AI görünürlük ölçümü yapabilirim?**
 C: Her planda hesap başına 7 günde 1 ölçüm, yani ayda en fazla 5; tüm siteler bu hakkı paylaşır. Planlar ölçüm sıklığında değil, aylık görünürlük çalıştırması tavanında ayrışır: AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma sayılır.
 
 **S: Hangi yapay zekâ asistanlarında ölçüm yapılıyor?**
-C: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Meta Llama yalnızca sağlayıcıda kullanılabilir bir model tanımlıyken ölçülür.
+C: Ücretsiz Deneme ve Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity; Profesyonel ve üstü planlarda bunlara Grok ve DeepSeek eklenir. Meta'nın asistanı Muse yalnızca Profesyonel ve üstü planlarda ve RanksUp'ta Meta anahtarı tanımlıyken ölçülür.
 
 **S: robots.txt'imi RanksUp değiştirir mi?**
 C: Yalnızca sen önizleyip onaylarsan. Eksik AI bot grupları mevcut kurallarına dokunulmadan dosyanın sonuna eklenir; var olan engeller kaldırılmaz, bu karar site sahibinindir. Mevcut dosyanın önceki hali yedeklenir ve dosya o günden beri değişmediyse geri alınabilir.

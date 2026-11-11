@@ -11,7 +11,7 @@
  * docs/OPENCLAW-KURULUM.md §11.3.
  */
 
-import { BASE_PLANS } from '../billing/plans.js';
+import { BASE_ENGINES, ENGINE_LABELS } from '../billing/plans.js';
 
 // ─── Frenler ────────────────────────────────────────────────────────────────
 
@@ -466,15 +466,22 @@ export function normalizeKampanya(v: unknown): Kampanya {
 export const NOTE_MAX_CHARS = 300;
 
 /**
- * Mesajlarda adi gecen OLCULEN asistanlar — tek kaynak plans.ts fiyat karti
- * maddesi ('ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek').
+ * Mesajlarda adi gecen OLCULEN asistanlar — kaynak plans.ts: her kurulumda olculen alti
+ * asistan (BASE_ENGINES; urunun en genis kapsami, Profesyonel ve ustu).
  * NEDEN: sablon "7 AI asistani" diyordu; Meta AI (Muse) yalniz META_MODEL_API_KEY
  * tanimliyken olculur (ai-citation.service.ts), uretimde olculmuyor. Sayi
  * elle yazildiginda plan degisince mesaj yine sessizce bayatlardi.
+ *
+ * 11.11.2026 (uc paket): liste eskiden fiyat kartindaki 'ChatGPT · Claude · Gemini ·
+ * Perplexity · Grok · DeepSeek' maddesinden okunuyordu; o madde kalkti (kart maddesi artik
+ * plana gore uretiliyor: plans.ts enginesBullet) ve okuma sessizce yedek listeye dusuyordu.
+ * Mesaj metni DEGISMESIN diye adlarin sirasi burada sabit; kume plans.ts ile ayni olmak
+ * zorunda — plans.ts'te olmayan ad listeden duser, linkedin-outreach.spec.ts esitligi denetler.
  */
+const MESAJ_SIRASI = ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek'] as const;
 const MEASURED_ASSISTANTS: readonly string[] = (() => {
-  const madde = BASE_PLANS.flatMap((p) => p.features_tr).find((m) => m.startsWith('ChatGPT · '));
-  return madde ? madde.split(' · ').map((a) => a.trim()) : ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek'];
+  const olculen = new Set<string>(BASE_ENGINES.map((e) => ENGINE_LABELS[e]));
+  return MESAJ_SIRASI.filter((ad) => olculen.has(ad));
 })();
 export const MEASURED_ASSISTANT_COUNT = MEASURED_ASSISTANTS.length;
 /** "ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek" */
@@ -627,7 +634,7 @@ export function renderMessage(p: ProspectLike): string {
   return (
     `${hitap(p)}, bağlantı için teşekkürler.\n\n` +
     `Müşteriler artık "${sektorSorusu(p.sektor)}" sorusunu Google'a değil ChatGPT'ye soruyor ve cevapta 3 isim geçiyor. ` +
-    // Asistan sayisi ve adlari plans.ts ile ayni (ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek):
+    // Asistan sayisi ve adlari plans.ts ile ayni (BASE_ENGINES: ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek):
     // Meta (Muse) yalniz META_MODEL_API_KEY tanimliyken olculur, uretimde olculmuyor — "7" yanlis vaatti.
     `RanksUp olarak ${MEASURED_ASSISTANT_COUNT} AI asistanında (${MEASURED_ASSISTANTS_TEXT}), marka adı geçmeyen gerçek sorularla ${genitiveOrSafe(firma)} nerede göründüğünü ölçüp ` +
     `yalnız size iletebilirim — kurum bazlı sonuç kamuya açılmaz.\n\n` +

@@ -4,6 +4,8 @@
  * Calistirma: cd apps/web && ../api/node_modules/.bin/vitest run --root . src/lib
  */
 import { describe, expect, it } from 'vitest';
+// plans.ts'in importu yok — API'nin tek kaynagi dogrudan okunur (ranksup-md.spec.mts ile ayni yol)
+import { findPlan } from '../../../api/src/billing/plans';
 import { GENERATION_LOCK_COPY, generationLock } from './article-allowance';
 import { PLAN_LOCK_COPY, UPGRADE_HREF } from './plan-lock';
 
@@ -15,7 +17,9 @@ describe('generationLock — hak bitti, dugme kilitli', () => {
       reason: 'trial_used',
       label: 'Planını yükselt',
       href: '/pricing',
-      hint: 'Ücretsiz denemedeki 2 makale hakkını kullandın. Yeni makale üretmek için planını yükselt.',
+      // 11.11.2026 paket yapisi: makale uretimi yalniz Profesyonel ve ustunde — "planını yükselt"
+      // Baslangic'i da kapsardi (sunucunun deneme 403'u de "Profesyonel plana geç" der)
+      hint: 'Ücretsiz denemedeki 2 makale hakkını kullandın. Yeni makale üretmek için Profesyonel plana geç.',
     });
     // Ayni kaynak: kilitli takvim yazisinin dugmesiyle ayni etiket ve hedef
     expect(l.label).toBe(PLAN_LOCK_COPY.cta);
@@ -33,12 +37,14 @@ describe('generationLock — hak bitti, dugme kilitli', () => {
     expect(l.hint).not.toMatch(/yenilenir|ayın başında/);
   });
 
+  // Ornek plan PRO (40 makale): 11.11.2026'dan beri Baslangic (STARTER) makale uretmez, "makale
+  // yazabilen ucretli plan" ornegi olamaz.
   it('ucretli planin aylik hakki bitti: aylik metin, ay basinda yenilenir + yukselt', () => {
-    const l = generationLock({ limit: 15, remaining: 0, used: 15 }, 'STARTER');
+    const l = generationLock({ limit: 40, remaining: 0, used: 40 }, 'PRO');
     expect(l.locked).toBe(true);
     expect(l.reason).toBe('monthly_used');
-    expect(l.hint).toBe(GENERATION_LOCK_COPY.monthly(15));
-    expect(l.hint).toContain('Bu ayki 15 makale hakkını kullandın');
+    expect(l.hint).toBe(GENERATION_LOCK_COPY.monthly(40));
+    expect(l.hint).toContain('Bu ayki 40 makale hakkını kullandın');
     expect(l.hint).toContain('gelecek ayın başında yenilenir');
     expect(l.label).toBe('Planını yükselt');
     expect(l.href).toBe('/pricing');
@@ -68,7 +74,7 @@ describe('generationLock — acik kalir', () => {
       expect(l.reason).toBeNull();
       expect(l.hint).toBeNull();
     }
-    expect(generationLock({ limit: 15, remaining: 3, used: 12 }, 'STARTER').locked).toBe(false);
+    expect(generationLock({ limit: 40, remaining: 3, used: 37 }, 'PRO').locked).toBe(false);
   });
 
   it('kota yok / okunamadi (eski API, sunucu null, ag hatasi): acik — fail open', () => {
@@ -90,14 +96,40 @@ describe('generationLock — acik kalir', () => {
     }
   });
 
-  it('limit 0 (sunucuda boyle plan yok, bilinmeyen plan): kilit yok', () => {
+  // 11.11.2026 (uc paket): Baslangic paketinin makale limiti 0 (api plans.ts articlesPerMonth 0).
+  // Sunucu kurali: deneme disi plan + limit 0 → 403 "Makale üretimi bu pakette yok. Makale üretmek
+  // için Profesyonel plana geç." (quota.service articleQuotaError). Dugme ayni kuralla ONCEDEN
+  // kilitlenir. Eskiden bu durumda kilit yoktu: Baslangic musterisi acik "Üret" dugmesine basip
+  // hata okuyordu.
+  it('limit 0, deneme disi plan (Baslangic: makale uretimi yok): dugme kilitli, sunucunun 403 cumlesiyle; yukseltme baglantisi', () => {
+    const baslangic = findPlan('starter')!;
+    expect(baslangic.articlesPerMonth).toBe(0);
+    for (const plan of ['STARTER', { id: 'starter', name: baslangic.name_tr }]) {
+      const l = generationLock({ limit: baslangic.articlesPerMonth, remaining: 0, used: 0 }, plan);
+      expect(l, JSON.stringify(plan)).toEqual({
+        locked: true, reason: 'no_article_plan', label: PLAN_LOCK_COPY.cta, href: UPGRADE_HREF,
+        hint: GENERATION_LOCK_COPY.noArticles,
+      });
+    }
+    // Sunucunun cumlesiyle birebir ayni; plan adi makale ureten en dusuk satistaki plan
+    expect(GENERATION_LOCK_COPY.noArticles).toBe(`Makale üretimi bu pakette yok. Makale üretmek için ${findPlan('pro')!.name_tr} plana geç.`);
+    // Sayac sifir olmasa da (gecis donemi) hak 0 → kilitli; sunucu da boyle reddeder
+    expect(generationLock({ limit: 0, remaining: 0, used: 5 }, 'STARTER').reason).toBe('no_article_plan');
+    // Adi taninmayan ama deneme olmayan plan: sunucu limit 0 dediyse uretim yine 403 → ayni kilit
+    expect(generationLock({ limit: 0, remaining: 0, used: 5 }, 'MYSTERY').reason).toBe('no_article_plan');
+  });
+
+  it('limit 0 ama plan deneme ya da okunamadi: bozuk veri — kilit gosterilmez, karar sunucunun', () => {
     expect(generationLock({ limit: 0, remaining: 0, used: 0 }, 'TRIAL').locked).toBe(false);
+    expect(generationLock({ limit: 0, remaining: 0, used: 0 }, { id: 'trial' }).locked).toBe(false);
     expect(generationLock({ limit: 0, remaining: 0, used: 0 }, null).locked).toBe(false);
-    expect(generationLock({ limit: 0, remaining: 0, used: 5 }, 'MYSTERY').locked).toBe(false);
+    expect(generationLock({ limit: 0, remaining: 0, used: 0 }, '').locked).toBe(false);
+    // Kalan hak > 0 gorunuyorsa (tutarsiz) kilit yok
+    expect(generationLock({ limit: 0, remaining: 3, used: 0 }, 'STARTER').locked).toBe(false);
   });
 
   it('tutarsiz sayilar (kalan 0 ama kullanilan limitin altinda): kilit yok, karar sunucunun', () => {
-    expect(generationLock({ limit: 15, remaining: 0, used: 3 }, 'STARTER').locked).toBe(false);
+    expect(generationLock({ limit: 40, remaining: 0, used: 3 }, 'PRO').locked).toBe(false);
   });
 
   it('acik durumda da etiket ve hedef tanimli (cagiran kosulsuz okuyabilir)', () => {
@@ -117,7 +149,7 @@ describe('generationLock — denemede "Uret" icin yayin hedefi (sunucu generatio
 
   it('hedef bagli ya da ucretli plan (sart yok): acik', () => {
     expect(generationLock({ limit: 2, remaining: 2, used: 0 }, 'TRIAL', { readiness: { requiresSource: true, ready: true, message: null }, publishTargetsHref: href }).locked).toBe(false);
-    expect(generationLock({ limit: 15, remaining: 15, used: 0 }, 'STARTER', { readiness: { requiresSource: false, ready: true, message: null }, publishTargetsHref: href }).locked).toBe(false);
+    expect(generationLock({ limit: 40, remaining: 40, used: 0 }, 'PRO', { readiness: { requiresSource: false, ready: true, message: null }, publishTargetsHref: href }).locked).toBe(false);
   });
 
   it('hak bittiyse once yukseltme kilidi (hedef baglamak bitmis hakki geri getirmez)', () => {

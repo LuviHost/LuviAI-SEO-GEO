@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { QuotaService } from './quota.service.js';
-import { FEATURE_MIN_PLAN, PLAN_RANK, planHasFeature, type PlanFeature, type PlanId } from './plans.js';
+import {
+  BASE_PLANS, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, PLAN_RANK, PURCHASABLE_PLAN_IDS,
+  featureOfferPlan, findPlan, planHasFeature, publicPlans, type PlanFeature, type PlanId,
+} from './plans.js';
 
 /**
  * Plan ozellik kapilarinin davranis testi.
@@ -11,6 +14,11 @@ import { FEATURE_MIN_PLAN, PLAN_RANK, planHasFeature, type PlanFeature, type Pla
  * Bu kapilar eklenene kadar kodda HICBIR plan kontrolu yoktu ve Buyume
  * musterisi hepsini kullanabiliyordu. Kartta yazan her kilidin burada bir
  * testi olmali; test dusserse kart bos vaat vermeye baslamis demektir.
+ *
+ * 11.11.2026 (uc paket): Ajans satistan kalkti (plans.ts `legacy`). Kapi yerinde durur
+ * (FEATURE_MIN_PLAN hala 'agency': o plandaki hesaplar hakkini korur) ama musteriye
+ * SOYLENEN plan, ozelligi iceren en dusuk SATISTAKI plandir (featureOfferPlan): Product
+ * Radar, GEO Heatmap, Live Crawler icin artik "Kurumsal".
  */
 
 /** Sadece user.findUniqueOrThrow ve trackedApp.count kullanan sahte Prisma. */
@@ -67,13 +75,27 @@ describe('enforcePlanFeature', () => {
     }
   });
 
-  it('hata mesaji gereken EN DUSUK plan adini soyluyor', async () => {
+  it('hata mesaji ozelligi iceren EN DUSUK SATISTAKI plan adini soyluyor (Ajans satistan kalkti: Kurumsal)', async () => {
     await expect(gate('STARTER').enforcePlanFeature('u1', 'asaEnabled'))
       .rejects.toThrow(/Profesyonel/);
     await expect(gate('PRO').enforcePlanFeature('u1', 'productRadar'))
-      .rejects.toThrow(/Ajans/);
+      .rejects.toThrow(/Kurumsal/);
     await expect(gate('AGENCY').enforcePlanFeature('u1', 'mcpAccess'))
       .rejects.toThrow(/Kurumsal/);
+    // Her kilitli (plan, ozellik) cifti icin: mesaj featureOfferPlan'in adini soyler, satistan kalkan plani ASLA
+    const kalkan = BASE_PLANS.filter((p) => p.legacy).map((p) => p.name_tr);
+    expect(kalkan).toEqual(['Ajans']);
+    for (const f of ALL_FEATURES) {
+      for (const p of ALL_PLANS) {
+        if (planHasFeature(p, f)) continue;
+        const err = await gate(p.toUpperCase()).enforcePlanFeature('u1', f).catch((e) => e);
+        expect(err, `${p}/${f}`).toBeInstanceOf(ForbiddenException);
+        expect(err.message, `${p}/${f}`).toBe(
+          `${PLAN_FEATURE_LABELS[f]} ${featureOfferPlan(f).name_tr} planına dahildir. Planını yükselterek kullanabilirsin.`,
+        );
+        for (const ad of kalkan) expect(err.message, `${p}/${f}`).not.toContain(ad);
+      }
+    }
   });
 
   it('hata mesaji ozelligin kullanici-yuzu adini iceriyor', async () => {
@@ -223,10 +245,33 @@ describe('entitlements — web icin ozellik haklari', () => {
     // Plan yeniden adlandirilirsa arayuz metni kendiliginden duzelmeli —
     // 'Baslangic' -> 'Buyume' degisikliginde landing aylarca eski adi
     // gostermisti, ayni hatayi tekrarlamayalim.
-    expect(e.required.productRadar.planName).toBe('Ajans');
+    // 11.11.2026: Ajans satistan kalkti; kilitli kart musteriyi alabilecegi plana yollar (Kurumsal).
+    expect(e.required.productRadar.planName).toBe('Kurumsal');
+    expect(e.required.productRadar.plan).toBe('enterprise');
     expect(e.required.agentReadiness.planName).toBe('Profesyonel');
     expect(e.required.mcpAccess.planName).toBe('Kurumsal');
     expect(e.required.productRadar.label).toBe('Ürün Radarı');
+    // Her ozellikte: ad ve kimlik plans.ts featureOfferPlan'dan; satistan kalkan plan hicbir kartta yok
+    for (const f of ALL_FEATURES) {
+      const teklif = featureOfferPlan(f);
+      expect(e.required[f].plan, f).toBe(teklif.id);
+      expect(e.required[f].planName, f).toBe(teklif.name_tr);
+      expect(findPlan(e.required[f].plan)!.legacy, f).toBeFalsy();
+    }
+  });
+
+  it('Ajans (satistan kalkan plan) hesabi haklarini korur: kapi FEATURE_MIN_PLAN\'da, kilit yok', async () => {
+    const { entitlementsFor } = await import('./entitlements.js');
+    const e = entitlementsFor('AGENCY');
+    for (const f of ['productRadar', 'geoHeatmap', 'liveCrawler'] as const) {
+      expect(FEATURE_MIN_PLAN[f], f).toBe('agency');
+      expect(planHasFeature('agency', f), f).toBe(true);
+      expect(e.features[f], f).toBe(true);
+      await expect(gate('AGENCY').enforcePlanFeature('u1', f), f).resolves.toBeUndefined();
+      // Ayni ozellik Profesyonel'de kapali ve musteriye Kurumsal soylenir
+      expect(planHasFeature('pro', f), f).toBe(false);
+      expect(featureOfferPlan(f).id, f).toBe('enterprise');
+    }
   });
 
   it('ADMIN her ozelligi acik gorur (sunucu kapilariyla ayni kural), plan alani gercek plan', async () => {
@@ -249,6 +294,53 @@ describe('entitlements — web icin ozellik haklari', () => {
     for (const girdi of ['', 'YOKBOYLEPLAN', undefined as any]) {
       const e = entitlementsFor(girdi);
       expect(Object.values(e.features).some(Boolean), `girdi=${girdi}`).toBe(false);
+    }
+  });
+});
+
+describe('satistaki planlar — publicPlans, PURCHASABLE_PLAN_IDS, featureOfferPlan (uc paket, 11.11.2026)', () => {
+  it('publicPlans satistan kalkan plani icermez; kalan liste deneme + uc paket, BASE_PLANS sirasiyla', () => {
+    const liste = publicPlans();
+    expect(liste.map((p) => p.id)).toEqual(['trial', 'starter', 'pro', 'enterprise']);
+    expect(liste.some((p) => p.legacy)).toBe(false);
+    expect(liste).toEqual(BASE_PLANS.filter((p) => !p.legacy));
+    // Ajans tanimi durur (mevcut hesaplar): BASE_PLANS'te var, listede yok
+    expect(findPlan('agency')).toMatchObject({ id: 'agency', legacy: true });
+    expect(BASE_PLANS.filter((p) => p.legacy).map((p) => p.id)).toEqual(['agency']);
+  });
+
+  it('PURCHASABLE_PLAN_IDS: satistan kalkan, teklifle satilan ya da ucretsiz plan yok; hepsi listede ve fiyatli', () => {
+    expect([...PURCHASABLE_PLAN_IDS]).toEqual(['starter', 'pro']);
+    const acik = new Set(publicPlans().map((p) => p.id));
+    for (const id of PURCHASABLE_PLAN_IDS) {
+      const p = findPlan(id)!;
+      expect(p, id).toBeDefined();
+      expect(p.legacy, `${id} satistan kalkmis`).toBeFalsy();
+      expect(p.contactSales, `${id} teklifle satiliyor`).toBeFalsy();
+      expect(acik.has(id), `${id} listede yok`).toBe(true);
+      expect(p.monthly_usd, id).toBeGreaterThan(0);
+      expect(p.annual_usd, id).toBeGreaterThan(0);
+    }
+    // Tersi: listedeki ucretli, teklifsiz her plan satin alinabilir
+    const beklenen = publicPlans().filter((p) => p.monthly_usd > 0 && !p.contactSales).map((p) => p.id);
+    expect([...PURCHASABLE_PLAN_IDS].sort()).toEqual(beklenen.sort());
+  });
+
+  it('featureOfferPlan: asla satistan kalkan plan; ozelligi GERCEKTEN iceren en dusuk satistaki plan', () => {
+    for (const f of ALL_FEATURES) {
+      const teklif = featureOfferPlan(f);
+      expect(teklif.legacy, f).toBeFalsy();
+      expect(publicPlans().map((p) => p.id), f).toContain(teklif.id);
+      expect(planHasFeature(teklif.id, f), `${f}: ${teklif.id} ozelligi icermiyor`).toBe(true);
+      // En dusuk: satistaki daha alt hicbir plan ozelligi icermez
+      for (const p of publicPlans()) {
+        if (PLAN_RANK[p.id] < PLAN_RANK[teklif.id]) expect(planHasFeature(p.id, f), `${f}: ${p.id} daha dusuk ve iceriyor`).toBe(false);
+      }
+    }
+    // Kapisi satistaki bir planda olan ozellikte teklif = kapi; Ajans kapili ozellikte Kurumsal
+    for (const f of ALL_FEATURES) {
+      const min = FEATURE_MIN_PLAN[f];
+      expect(featureOfferPlan(f).id, f).toBe(findPlan(min)!.legacy ? 'enterprise' : min);
     }
   });
 });

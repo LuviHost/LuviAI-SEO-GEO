@@ -10,7 +10,9 @@ import { useT, type Locale } from '@/lib/i18n';
 import { PageUpdatedLine } from '@/components/page-updated-line';
 import { PURCHASE_CONTACT_EMAIL, purchaseState } from '@/lib/checkout-availability';
 import { VitrinBand, VitrinHero, VITRIN_LINK } from '@/components/vitrin/vitrin-page';
-import { ArrowUpRight, Check, Star, AlertCircle } from 'lucide-react';
+import { PlanEngineRow } from '@/components/plan-engine-row';
+import { PlanFeatureList } from '@/components/plan-feature-list';
+import { ArrowUpRight, Star, AlertCircle } from 'lucide-react';
 
 type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
 
@@ -138,12 +140,18 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
 
   // Koyu vitrin (Kasim 2026): iki tonlu baslik, bitisik hucreli plan izgarasi (ana sayfadaki
   // fiyat bolumuyle ayni dil). Yalniz gorunum degisti; odeme akisi ve metinler ayni.
+  //
+  // UC PAKET (11.11.2026): Baslangic, Profesyonel, Kurumsal — API yalniz satistaki planlari
+  // yollar (plans.ts publicPlans). Kart sirasi: ad + tek satir tanim, fiyat (Kurumsal'da
+  // fiyat yerine "Özel": teklifle), buton, planin olctugu asistanlarin logolari, maddeler.
+  // Buton fiyatin hemen altinda: uzun madde listesinin sonuna inmeden gorunur.
+  // Uc blogun yukseklikleri sabit ki uc kartta logolar ve maddeler ayni hizada baslasin.
   return (
     <div>
       <VitrinHero
-        rail="14 gün ücretsiz, 2 makale · Kredi kartı yok"
-        a="Şeffaf fiyat,"
-        b="ölçeklenebilir plan"
+        rail={locale === 'en' ? '14 days free · No credit card' : '14 gün ücretsiz · Kredi kartı yok'}
+        a={locale === 'en' ? 'Clear pricing,' : 'Şeffaf fiyat,'}
+        b={locale === 'en' ? 'plans that scale' : 'ölçeklenebilir plan'}
         lead={t('pricing.subtitle')}
       >
         <PageUpdatedLine path="/pricing" className="mt-4 font-mono" />
@@ -242,7 +250,7 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
         )}
 
         {/* Bitisik hucreler: kartlar arasi bosluk yerine tek ince cizgi */}
-        <div className="grid border-l border-t border-border sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid border-l border-t border-border lg:grid-cols-3">
           {realPlans.map((p) => {
             // Fiyat USD kanonik; TL karsiligi backend'de gunun TCMB kuruyla hesaplandi
             const price = cycle === 'annual' ? p.annual : p.monthly;
@@ -250,6 +258,8 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
             const monthlyEq = cycle === 'annual' ? Math.round(p.annual / 12) : p.monthly;
             const monthlyEqTry = cycle === 'annual' ? Math.round(p.annualTry / 12) : p.monthlyTry;
             const highlighted = p.popular;
+            // Donem kisaltmasi sayfanin dilinde (EN kartta "/ay" yaziyordu)
+            const per = locale === 'en' ? (cycle === 'annual' ? 'yr' : 'mo') : (cycle === 'annual' ? 'yıl' : 'ay');
             return (
               <div
                 key={p.id}
@@ -260,45 +270,45 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
                 {highlighted && <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-vivid" aria-hidden />}
 
                 <div className="flex items-baseline justify-between gap-3">
-                  <h2 className="text-base font-medium">{p.name}</h2>
+                  <h2 className="text-xl font-medium tracking-[-0.02em]">{p.name}</h2>
                   {highlighted && <p className="font-mono text-vitrin-rail text-brand-vivid">{t('land.pricing.most_popular')}</p>}
                 </div>
-                <div className="mt-6 flex items-baseline gap-1">
-                  <span className="text-5xl font-[450] tracking-[-0.05em] tabular-nums">
-                    ${price.toLocaleString('en-US')}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    /{cycle === 'annual' ? 'yıl' : 'ay'}
-                  </span>
-                </div>
-                {/* TL karsiligi — gunun TCMB kuruyla hesaplaniyor, bilgi amacli */}
-                {priceTry > 0 && (
-                  <p className="mt-1 text-sm text-muted-foreground tabular-nums">
-                    ≈ ₺{priceTry.toLocaleString('tr-TR')}
-                    <span className="text-xs"> /{cycle === 'annual' ? 'yıl' : 'ay'}</span>
-                  </p>
-                )}
-                {cycle === 'annual' && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Aylık ortalama ${monthlyEq.toLocaleString('en-US')}
-                    {monthlyEqTry > 0 && ` (≈ ₺${monthlyEqTry.toLocaleString('tr-TR')})`}
-                  </p>
-                )}
+                {/* Tek satir tanim (plans.ts tagline) — plan kime, ne icin */}
+                <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground">{p.tagline}</p>
 
-                {/* Maddeler plans.ts'ten geliyor — burada ikinci bir liste TUTULMAZ.
-                    Onceki sabit liste her plana ayni 8 satiri basiyordu ve iki
-                    maddesi ('TR + EN icerik', prompt run sayilari) hicbir calisan
-                    ozellige dayanmiyordu. */}
-                {p.inheritsLabel && (
-                  <p className="mt-6 text-sm text-muted-foreground">
-                    {p.inheritsLabel}
-                  </p>
-                )}
-                <ul className={`mb-8 flex-1 space-y-2.5 text-sm leading-relaxed ${p.inheritsLabel ? 'mt-3' : 'mt-6'}`}>
-                  {(p.features ?? []).map((f: string, i: number) => (
-                    <Feat key={i}>{f}</Feat>
-                  ))}
-                </ul>
+                {/* Fiyat blogu. contactSales (Kurumsal): liste fiyati GOSTERILMEZ — teklifle. */}
+                <div className="mt-6 min-h-28">
+                  {p.contactSales ? (
+                    <>
+                      <p className="text-5xl font-[450] tracking-[-0.05em]">{t('land.pric.enterprise_label')}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {locale === 'en' ? 'Scope and price are agreed in a call.' : 'Kapsam ve fiyat görüşmeyle belirlenir.'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-5xl font-[450] tracking-[-0.05em] tabular-nums">
+                          ${price.toLocaleString('en-US')}
+                        </span>
+                        <span className="text-sm text-muted-foreground">/{per}</span>
+                      </div>
+                      {/* TL karsiligi — gunun TCMB kuruyla hesaplaniyor, bilgi amacli */}
+                      {priceTry > 0 && (
+                        <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+                          ≈ ₺{priceTry.toLocaleString('tr-TR')}
+                          <span className="text-xs"> /{per}</span>
+                        </p>
+                      )}
+                      {cycle === 'annual' && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {locale === 'en' ? 'Monthly average' : 'Aylık ortalama'} ${monthlyEq.toLocaleString('en-US')}
+                          {monthlyEqTry > 0 && ` (≈ ₺${monthlyEqTry.toLocaleString('tr-TR')})`}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
 
                 {/* contactSales planlari kart akisina GIRMEZ: "sozlesmeli kurulum"
                     vaadi varken Kurumsal'i PayTR'ye yollamak celiskiydi. API
@@ -306,7 +316,7 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
                 {p.contactSales ? (
                   <a
                     href={`mailto:destek@luvihost.com?subject=${encodeURIComponent(`${p.name} planı — kurulum görüşmesi`)}`}
-                    className="v-btn-line w-full"
+                    className="v-btn-line mt-2 w-full"
                   >
                     {t('pricing.cta_contact')}
                     <ArrowUpRight className="h-4 w-4" aria-hidden />
@@ -317,32 +327,47 @@ export function PricingView({ initial }: { initial: Record<Locale, PricingData |
                     onClick={() => subscribe(p.id)}
                     disabled={loading === p.id || !purchase.open}
                     aria-describedby={purchase.open ? undefined : 'purchase-closed'}
-                    className={`w-full disabled:cursor-not-allowed disabled:opacity-55 ${highlighted ? 'v-btn' : 'v-btn-line'}`}
+                    className={`mt-2 w-full disabled:cursor-not-allowed disabled:opacity-55 ${highlighted ? 'v-btn' : 'v-btn-line'}`}
                   >
+                    {/* Buton satin almayi baslatir; eski etiket ("2 Makale Ücretsiz Dene") hem bunu
+                        soylemiyordu hem de makale uretimi olmayan Baslangic kartinda yanlisti. */}
                     {loading === p.id ? t('common.loading') : (
                       <>
-                        {t('pricing.cta')}
+                        {t('land.pric.cta_free')}
                         <ArrowUpRight className="h-4 w-4" aria-hidden />
                       </>
                     )}
                   </button>
                 )}
+
+                {/* Bu planin olctugu asistanlar — liste API'den (plan.engines), elle yazilmaz */}
+                <PlanEngineRow
+                  engines={p.engines}
+                  label={locale === 'en' ? 'AI assistants measured' : 'Ölçülen AI asistanları'}
+                  className="mt-7 border-t border-border pt-6"
+                />
+
+                {/* Maddeler plans.ts'ten geliyor — burada ikinci bir liste TUTULMAZ.
+                    Onceki sabit liste her plana ayni 8 satiri basiyordu ve iki
+                    maddesi ('TR + EN icerik', prompt run sayilari) hicbir calisan
+                    ozellige dayanmiyordu. */}
+                {p.inheritsLabel && (
+                  <p className="mt-5 text-sm text-muted-foreground">
+                    {p.inheritsLabel}
+                  </p>
+                )}
+                <PlanFeatureList features={p.features ?? []} className={p.inheritsLabel ? 'mt-3' : 'mt-5'} />
               </div>
             );
           })}
         </div>
 
-        <p className="mt-8 text-sm text-muted-foreground">{t('pricing.security_note')}</p>
+        {/* Dipnot: "çalıştırma" biriminin tanimi ve paketler arasi asistan/makale ayrimi — ana
+            sayfadaki fiyat bolumuyle AYNI metin (public-docs.spec.ts denetler). Kart maddeleri
+            "ayda en fazla N çalıştırma" der; birimin ne oldugu burada yazili olmali. */}
+        <p className="mt-8 max-w-4xl text-sm leading-relaxed text-muted-foreground">{t('land.pric.footer_note')}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t('pricing.security_note')}</p>
       </VitrinBand>
     </div>
-  );
-}
-
-function Feat({ children }: { children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-2.5">
-      <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-brand-vivid" aria-hidden />
-      <span>{children}</span>
-    </li>
   );
 }

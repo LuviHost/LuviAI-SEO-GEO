@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
-import { ContentPivotService, PIVOT_SCAN_LIMIT, siralananYazi } from './content-pivot.service.js';
+import { ContentPivotService, PIVOT_SCAN_LIMIT, pivotBlockText, siralananYazi } from './content-pivot.service.js';
+import { BASE_PLANS, NO_AUTO_ARTICLE_PLANS, articleOfferPlan } from '../billing/plans.js';
 
 /**
  * Icerik pivotu — yeniden yazilan YAYINDAKI yazi yalniz Tam otomatikte onaysiz
@@ -322,7 +323,26 @@ describe('ContentPivotService — deneme hesabinda otomatik yeniden yazim yok', 
   it('tarama deneme hesaplarinin sitelerini sorguda eler', async () => {
     const { svc, prisma } = build([]);
     await svc.scanAllSites();
-    expect((prisma.site.findMany.mock.calls[0][0] as any).where).toMatchObject({ user: { plan: { not: 'TRIAL' } } });
+    // 11.11.2026 (uc paket): deneme + aylik makale hakki olmayan planlar (Baslangic) — plans.ts
+    const elenen = (prisma.site.findMany.mock.calls[0][0] as any).where.user.plan.notIn as string[];
+    expect(elenen).toEqual(NO_AUTO_ARTICLE_PLANS);
+    expect(elenen).toContain('TRIAL');
+    expect(elenen).toContain('STARTER');
+    // Makale uretimi olan hicbir ucretli plan elenmez
+    for (const p of BASE_PLANS.filter((x) => x.id !== 'trial' && x.articlesPerMonth > 0)) {
+      expect(elenen, p.id).not.toContain(p.id.toUpperCase());
+    }
+  });
+
+  it('kuyruktaki is calisirken plan makale uretimi olmayan plana (Baslangic) dusmusse: no_article_plan, uretim baslamaz', async () => {
+    const prisma = prismaFor({ articles: [FLAGGED_ARTICLE], plan: 'STARTER' });
+    const r = await new ContentPivotService(prisma as any, {} as any).automatedRewriteBlock('a1');
+    expect(r).toEqual({ block: 'no_article_plan', blockReason: pivotBlockText('no_article_plan') });
+    expect(r!.blockReason).toContain(`${articleOfferPlan().name_tr} ve üzeri planlarda`);
+    expect(r!.blockReason).not.toMatch(/deneme/i);
+    // Makale uretimi olan planda bu engel yok
+    const pro = prismaFor({ articles: [FLAGGED_ARTICLE], plan: 'PRO' });
+    expect(await new ContentPivotService(pro as any, {} as any).automatedRewriteBlock('a1')).toBeNull();
   });
 
   it('kuyruktaki is calisirken plan deneme hesabiysa (iptal / odeme alinamadi): trial_plan, uretim baslamaz', async () => {

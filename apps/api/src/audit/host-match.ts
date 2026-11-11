@@ -64,6 +64,26 @@ export const CITATION_MATCH_VERSION = 5;
  */
 export const SITE_MEASUREMENT_VERSION = 6;
 
+/**
+ * 'standard' MODEL KADEMESIYLE yapilan site olcumunun surumu = guncel surum + 100
+ * (11.11.2026, uc paket). Baslangic paketi ve deneme hesabi Claude'u hizli modelle
+ * (claude-haiku-5-5, temel web aramasi) ve dort asistanla olcer; Profesyonel ve ustu
+ * gelismis modelle ve butun asistanlarla (billing/plan-engines.ts).
+ *
+ * NEDEN AYRI NUMARA: ayni hesabin iki olcumu farkli kademeyle yapildiysa (deploy gununde
+ * mevcut deneme hesaplari Opus → Haiku; sonra paket degistiren her hesap) Claude'un skor
+ * farki sitenin degil MODELIN farkidir. Surum ayni kalsa trend, kosum kiyasi ve dusus
+ * alarmi (ai-mention-alarm) bunu "Claude görünürlüğü %X düştü" diye okurdu. Kiyas kodu
+ * surumleri yalniz ESITLIKLE karsilastirir; farkli numara "yontem degisti" demektir.
+ * Ofset: SITE_MEASUREMENT_VERSION bir daha artarsa iki kademe birlikte artar, cakismaz.
+ * Profesyonel ve ustu hesaplarin surumu DEGISMEZ (6): onlarin olcumu ayni.
+ */
+export const STANDARD_TIER_VERSION_OFFSET = 100;
+
+export function siteMeasurementVersion(tier: 'standard' | 'premium' | null | undefined = 'premium'): number {
+  return tier === 'standard' ? SITE_MEASUREMENT_VERSION + STANDARD_TIER_VERSION_OFFSET : SITE_MEASUREMENT_VERSION;
+}
+
 /** Iki etiketli kayit edilebilir sonekler (kurate — PSL'nin bizi ilgilendiren kismi) */
 const MULTI_PART_SUFFIXES = new Set([
   'com.tr', 'net.tr', 'org.tr', 'gov.tr', 'edu.tr', 'k12.tr', 'gen.tr', 'biz.tr', 'info.tr',

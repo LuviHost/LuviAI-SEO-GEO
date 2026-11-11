@@ -108,10 +108,20 @@ describe('hasGenerationSource — denemede "Uret" icin kaynak (tek fonksiyon)', 
     // Bugun ZIP de sayilir (denemede eklenebilen iki hedeften biri); sahip karari acik konu
     expect(hasGenerationSource([{ type: 'MARKDOWN_ZIP', isActive: true }])).toBe(true);
   });
-  it('sart yalniz denemede; otomatik uretim yalniz ucretli planda', () => {
+  it('sart yalniz denemede; otomatik uretim yalniz MAKALE URETIMI OLAN ucretli planda', async () => {
     expect(requiresGenerationSource('TRIAL')).toBe(true);
     expect(requiresGenerationSource('STARTER')).toBe(false);
     expect(automaticGenerationAllowed('TRIAL')).toBe(false);
-    for (const p of ['STARTER', 'PRO', 'AGENCY', 'ENTERPRISE']) expect(automaticGenerationAllowed(p), p).toBe(true);
+    // 11.11.2026 (uc paket): Baslangic'ta makale uretimi yok. Kural "plan TRIAL degil" iken
+    // onboarding'in ilk yazisi ('onboarding_free', hak okunmadan) Baslangic hesabinda da uretiliyordu.
+    const { BASE_PLANS, NO_AUTO_ARTICLE_PLANS } = await import('./plans.js');
+    expect(automaticGenerationAllowed('STARTER')).toBe(false);
+    for (const p of BASE_PLANS.filter((x) => x.id !== 'trial')) {
+      expect(automaticGenerationAllowed(p.id.toUpperCase()), p.id).toBe(p.articlesPerMonth > 0);
+    }
+    for (const p of ['PRO', 'AGENCY', 'ENTERPRISE']) expect(automaticGenerationAllowed(p), p).toBe(true);
+    expect(NO_AUTO_ARTICLE_PLANS).toEqual(['TRIAL', 'STARTER']);
+    // Plan okunamadiysa eski davranis (izin; asil kapi hak kontrolu) — plan DB'de zorunlu enum
+    for (const p of [undefined, null, '']) expect(automaticGenerationAllowed(p), String(p)).toBe(true);
   });
 });

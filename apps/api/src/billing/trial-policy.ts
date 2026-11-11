@@ -22,6 +22,8 @@
  *     duzeyine gecer" diyor).
  */
 
+import { NO_AUTO_ARTICLE_PLANS } from './plans.js';
+
 /** Deneme suresi (gun) */
 export const TRIAL_DAYS = 14;
 
@@ -198,7 +200,17 @@ export interface GenerationReadiness {
  * gecikmeli isi, sahiplenmemis takvim yazisi) makale URETEBILIR mi? Denemede
  * hayir: konu basligi uretilir, makaleyi kullanici baslatir. (plan DB'de zorunlu
  * bir enum; sorgular onu her yolda okur.)
+ *
+ * 11.11.2026 (uc paket): makale uretimi OLMAYAN planda (Baslangic, aylik hak 0) da hayir.
+ * Kural yalniz "plan TRIAL degil" iken onboarding'in ILK yazisi Baslangic hesabinda da
+ * uretiliyordu: o yazi 'onboarding_free' isaretiyle, hak okunmadan dogrudan uretime
+ * giriyor (article-scheduler scheduleInitialBatch) — "makale üretimi yok" denen pakette
+ * eklenen her site icin bir makale. Diger yollar (tarama, gecikmeli is) hak 0 oldugu icin
+ * zaten uretmiyordu; simdi hepsi ayni kuralla, hakka bakmadan durur.
+ *
+ * Liste plans.ts NO_AUTO_ARTICLE_PLANS (deneme + aylik makale hakki olmayan planlar). Plan
+ * okunamadiysa eski davranis korunur (izin; asil kapi hak kontrolu) — plan DB'de zorunlu enum.
  */
 export function automaticGenerationAllowed(plan: string | null | undefined): boolean {
-  return plan !== 'TRIAL';
+  return !NO_AUTO_ARTICLE_PLANS.includes(String(plan ?? ''));
 }

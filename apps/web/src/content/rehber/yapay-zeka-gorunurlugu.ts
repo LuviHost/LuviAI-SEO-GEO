@@ -15,6 +15,8 @@ import { SRC } from './sources';
  * Urun bilgileri kodla dogrulandi (11.11.2026): 6 asistan, en fazla 5 soru, 100 / 50 / 0 puan, marka adi
  * gecen soru puana girmez, hesap basina 7 gunde 1 olcum (help/ai-visibility); ucretli planda her soru her
  * asistana 3 kez, denemede 1 kez (api audit/citation-repeat.ts, prod CITATION_TEKRAR tanimsiz = 3).
+ * 11.11.2026 paket yapisi (api plans.ts planEngines): deneme ve Baslangic dort asistan (ChatGPT,
+ * Gemini, Claude, Perplexity) olcer; Grok ve DeepSeek Profesyonel ve ustunde eklenir.
  */
 export const article: RehberArticle = {
   slug: 'yapay-zeka-gorunurlugu',
@@ -226,7 +228,7 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            'Siten için seçilen en fazla 5 markasız soruyu ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’e sorar; altı asistan da web’de arama yaparak cevap verir.',
+            'Siten için seçilen en fazla 5 markasız soruyu ChatGPT, Gemini, Claude, Perplexity, Grok ve DeepSeek’e sorar; altı asistan da web’de arama yaparak cevap verir. Ücretsiz denemede ve Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity ölçülür; Grok ve DeepSeek Profesyonel ve üstü planlarda eklenir.',
             'Ücretli planlarda her soru her asistana 3 kez, birbirinden bağımsız sorulur; ücretsiz denemede bir kez.',
             'Puanlama: siten kaynak gösterildiyse 100, marka yalnız anıldıysa 50, hiç geçmiyorsa 0. Marka adı geçen sorular puana girmez.',
             'Skorun yanında güven aralığı gösterilir; iki ölçüm arasındaki fark ancak aralıklar örtüşmüyorsa “arttı” ya da “azaldı” diye yazılır.',

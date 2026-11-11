@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { NO_AUTO_ARTICLE_PLANS, articleOfferPlan } from '../billing/plans.js';
 
 /**
  * Makale uretim / yayin akisini anlatan musteri metinleri = kod.
@@ -25,9 +26,15 @@ describe('icerik yenileme (content-pivot) iddialari Search Console kosuluyla', (
   it('SSS madde 5 (TR + EN): kosulsuz "30 gun sonra performansi dusuk" vaadi yok, Search Console kosulu var', () => {
     expect(faq).not.toContain('yayından 30 gün sonra performansı düşük kalan makaleler');
     expect(faq).not.toContain('articles that still perform poorly 30 days after publishing');
-    // Ucretli plan kosulu: deneme hesabinin sitesi pivot taramasina girmez (content-pivot scanAllSites, 20.10.2026)
-    expect(faq).toContain('(5) ücretli planlarda ve Search Console bağlıysa, yayından en az 30 gün geçmiş makaleler');
-    expect(faq).toContain('(5) on paid plans, if Search Console is connected, articles published at least 30 days ago');
+    // Plan kosulu: deneme hesabinin sitesi pivot taramasina girmez (content-pivot scanAllSites, 20.10.2026).
+    // 11.11.2026 (uc paket): makale uretimi olmayan Baslangic da girmez (plans.ts NO_AUTO_ARTICLE_PLANS);
+    // "ücretli planlarda" artik yanlis — metin makale ureten en dusuk satistaki plani soyler.
+    const makalePlani = articleOfferPlan();
+    expect(NO_AUTO_ARTICLE_PLANS).toEqual(expect.arrayContaining(['TRIAL', 'STARTER']));
+    expect(NO_AUTO_ARTICLE_PLANS).not.toContain(makalePlani.id.toUpperCase());
+    expect(faq).toContain(`(5) ${makalePlani.name_tr} ve üstü planlarda ve Search Console bağlıysa, yayından en az 30 gün geçmiş makaleler`);
+    expect(faq).toContain(`(5) on ${makalePlani.name_en} and higher plans, if Search Console is connected, articles published at least 30 days ago`);
+    expect(faq).not.toMatch(/\(5\) ücretli planlarda|\(5\) on paid plans/);
     // Yari otomatikte yeniden yazilan yazi onay bekler (content-pivot autoPublishEnabled)
     expect(faq).toContain('Yarı otomatikte yeni hali onayını bekler');
   });

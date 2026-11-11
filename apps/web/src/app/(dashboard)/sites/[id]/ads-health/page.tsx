@@ -326,7 +326,7 @@ export default function AdsHealthPage() {
           { href: `/sites/${site.id}/ads`, label: 'Reklamlar', description: 'Kayıtlı kampanyalar, performans ve reklam otopilotu', icon: Megaphone },
           { href: `/sites/${site.id}/audit`, label: 'Site Skoru', description: '14 SEO + GEO kontrol noktası', icon: Award },
           { href: `/sites/${site.id}/connections`, label: 'Bağlantılar', description: 'Google Ads ve Meta hesabını bağla', icon: Settings },
-          { href: `/sites/${site.id}/visibility`, label: 'AI Görünürlük', description: '6 AI asistanında marka ve atıf takibi', icon: Sparkles },
+          { href: `/sites/${site.id}/visibility`, label: 'AI Görünürlük', description: 'AI asistanlarında marka ve atıf takibi', icon: Sparkles },
         ]}
       />
     </div>

@@ -353,12 +353,16 @@ export function RehberArticlePage({ article: a }: { article: RehberArticle }) {
   );
 }
 
-/** Deneme cagrisi — metin plans.ts deneme maddesiyle ayni (14 gun, kart istemez) */
+/**
+ * Deneme cagrisi — metin plans.ts deneme maddesiyle ayni (14 gun, kart istemez).
+ * 11.11.2026: baslik "altı yapay zekâ asistanında ölç" diyordu; dugme denemeye goturur ve deneme
+ * dort asistan olcer (plans.ts planEngines('trial')) — sayi yazilmaz.
+ */
 export function RehberCta() {
   return (
     <VitrinBand className="flex flex-wrap items-center justify-between gap-x-10 gap-y-6 py-12 lg:py-14">
       <div>
-        <p className="text-vitrin-3">Markanı altı yapay zekâ asistanında ölç</p>
+        <p className="text-vitrin-3">Markanı yapay zekâ asistanlarında ölç</p>
         <p className="mt-2 text-sm leading-[1.8] text-muted-foreground">Site denetimi, AI görünürlük ölçümü, içerik ve ASO tek panelde.</p>
       </div>
       <div className="flex flex-wrap gap-3">

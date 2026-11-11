@@ -5,6 +5,8 @@ import { decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
+import { ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
+import type { ModelTier } from '../billing/plans.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
 import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
@@ -12,7 +14,7 @@ import { brandMatcher, resolveSiteBrand, unbrandedOnly } from './brand-in-query.
 import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
 import { citationScore, isErrorProbe, measuredOnly, providerOutcome } from './citation-score.js';
-import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider } from './citation-providers.js';
+import { COST_PER_PROBE_USD, POOL_ENV_KEY, costPerProbe, isUnconfiguredProvider } from './citation-providers.js';
 import {
   withProbeRetry, ProviderConfigError, isFatalProviderError,
   probeErrorCode, probeErrorExcerpt, safeErrorText, safeReasonToken,
@@ -107,6 +109,12 @@ export interface CitationResult {
   tekrar?: number;
   /** Site olcumu: tum tekrarlar uzerinden gorunme sikliginin %95 Wilson araligi (visibility-interval.ts); sayilacak cevap yoksa null */
   gorunme?: GorunmeAraligi | null;
+  /**
+   * Site olcumu (runForSite): olcumun yapildigi model kademesi (sahibin planindan —
+   * billing/plan-engines.ts). Kaydi yazanlar (ai-citation-tracker, audit.service) yontem
+   * surumunu bundan damgalar (host-match siteMeasurementVersion); alan yoksa 'premium'.
+   */
+  modelTier?: ModelTier;
 }
 
 interface KeyResolution {
@@ -208,6 +216,20 @@ export class AiCitationService {
   };
 
   /**
+   * 'standard' kademe (Baslangic paketi ve deneme — billing/plan-engines.ts): saglayicinin
+   * hizli/ucuz modeli. Burada olmayan saglayici iki kademede de MODELS'teki modelle olculur
+   * (ChatGPT, Gemini ve Perplexity zaten hizli modelde). Model degisince probe tavani da
+   * degisir: citation-providers.ts COST_PER_PROBE_USD_STANDARD.
+   */
+  private readonly MODELS_STANDARD: Partial<Record<keyof AiCitationService['MODELS'], string>> = {
+    anthropic: process.env.ANTHROPIC_CITATION_MODEL_STANDARD ?? 'claude-haiku-5-5',
+  };
+
+  private modelFor(provider: keyof AiCitationService['MODELS'], tier: ModelTier): string {
+    return (tier === 'standard' ? this.MODELS_STANDARD[provider] : undefined) ?? this.MODELS[provider];
+  }
+
+  /**
    * buildProbe'un inceledigi cevap metninin TAMAMI — yalniz bellekte.
    *
    * NEDEN: probe.excerpt ilk 220 karakter; Product Radar onerilen urunleri bu
@@ -302,6 +324,7 @@ export class AiCitationService {
     // ile ayni kural); yoksa kota karari "BYOK var, devam" deyip havuzsuz
     // calistirmaya izin verir ya da olculemeyecek saglayiciyi bekler.
     const byokOn = this.byokAllowed(plan, role);
+    const kapsam = new Set<Provider>(ownerEngines({ plan, role }));
 
     const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
     return providers.map(provider => {
@@ -311,8 +334,12 @@ export class AiCitationService {
       // resolveKey kuraliyla ayni olmali: BYOK > RanksUp env anahtari > yok.
       // Plan listesinde olup env anahtari olmayan saglayici 'pool' sayilirsa
       // kota karari olculemeyen bir saglayiciyi olculuyor sanir.
-      const inPool = pool.includes(provider) || hasEnvKey;
-      const effective: 'pool' | 'byok' | 'none' = byok && byokOn ? 'byok' : (hasEnvKey ? 'pool' : 'none');
+      // Plan kapsami (11.11.2026): Baslangic ve denemede olculmeyen asistan ne havuzda
+      // ne de etkin kaynak sayilir — yoksa kota karari ve panel rozeti olculmeyecek bir
+      // asistani olculuyor gosterir. Kural olcum motoruyla ayni (ownerEngines).
+      const inPlan = kapsam.has(provider);
+      const inPool = inPlan && (pool.includes(provider) || hasEnvKey);
+      const effective: 'pool' | 'byok' | 'none' = !inPlan ? 'none' : (byok && byokOn ? 'byok' : (hasEnvKey ? 'pool' : 'none'));
       return {
         provider,
         label: PROVIDER_LABELS[provider],
@@ -384,11 +411,11 @@ export class AiCitationService {
    * Hem global havuz hem de kiracinin adil payi kontrol edilir.
    * Ikisinden biri asilirsa bu saglayici o gun icin kapanir.
    */
-  private async isOverBudget(provider: Provider, plannedProbes: number, userId?: string): Promise<boolean> {
+  private async isOverBudget(provider: Provider, plannedProbes: number, userId?: string, tier: ModelTier = 'premium'): Promise<boolean> {
     const cap = this.DAILY_BUDGET_USD[provider];
     if (!cap) return false;
     const today = new Date().toISOString().slice(0, 10);
-    const unit = this.COST_PER_PROBE_USD[provider] ?? 0;
+    const unit = costPerProbe(provider, tier);
     const planned = unit * plannedProbes;
 
     const globalSpent = await this.readSpent(this.costKey(provider, today));
@@ -417,10 +444,10 @@ export class AiCitationService {
    * siler. Sure gunun bitiminden en az 2 gun sonra doldugu icin bugunun
    * sayaci okunurken asla silinmez — sayac anlami degismez.
    */
-  private async addCost(provider: Provider, probeCount: number, userId?: string): Promise<number> {
+  private async addCost(provider: Provider, probeCount: number, userId?: string, tier: ModelTier = 'premium'): Promise<number> {
     if (probeCount === 0) return 0;
     const today = new Date().toISOString().slice(0, 10);
-    const cost = (this.COST_PER_PROBE_USD[provider] ?? 0) * probeCount;
+    const cost = costPerProbe(provider, tier) * probeCount;
     if (cost === 0) return 0;
 
     const keys = [this.costKey(provider, today)];
@@ -606,9 +633,13 @@ export class AiCitationService {
     const brand = this.resolveBrand(site.name, site.url);
     const competitors = await this.resolveCompetitors(siteId, site.brain, brand);
 
-    const providers: Provider[] = opts.providers?.length
+    // Plan kapsami (11.11.2026): Baslangic ve deneme dort asistanla olculur; cagiranin
+    // istedigi liste de (Prompt Lab dallari, fan-out) kapsamla kesisir.
+    const kapsam = new Set<Provider>(ownerEngines({ plan, role: site.user.role }));
+    const istenen: Provider[] = opts.providers?.length
       ? opts.providers
       : ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+    const providers: Provider[] = istenen.filter((p) => kapsam.has(p));
 
     // KOTA ZORLAMASI — havuz anahtari kullanacak bir provider varsa kotayi
     // GERCEKTEN uygula. Ilk surumde burada yalnizca incrementCitationUsage
@@ -721,7 +752,10 @@ export class AiCitationService {
     //    Calistirilabilecek hicbir saglayici kalmiyorsa hata disari firlatilir
     //    ki kullanici sessiz bos sonuc yerine net bir kota mesaji gorsun.
     const status = await this.getProviderStatus(siteId, plan, site.user.role);
-    let providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+    // Plan kapsami (11.11.2026): Baslangic ve deneme dort asistan (billing/plan-engines.ts)
+    const kapsam = new Set<Provider>(ownerEngines({ plan, role: site.user.role }));
+    let providers: Provider[] = (['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'] as Provider[])
+      .filter((p) => kapsam.has(p));
 
     if (trigger === 'user') {
       const poolProviders = new Set(
@@ -777,7 +811,9 @@ export class AiCitationService {
       try { await this.quota.incrementCitationUsage(userId); } catch { /* noop */ }
     }
 
-    return results;
+    // Kayit yazanlar yontem surumunu kademeden damgalar (host-match siteMeasurementVersion)
+    const modelTier = ownerModelTier({ plan, role: site.user.role });
+    return results.map((r) => ({ ...r, modelTier }));
   }
 
   // ────────────────────────────────────────────────────────────
@@ -805,6 +841,12 @@ export class AiCitationService {
      * Listede olmayan saglayici hic cagrilmaz ve sonuca da girmez.
      */
     only?: Provider[];
+    /**
+     * Model kademesi. Verilmezse 'premium' (anonim test, karne, App Prompt Lab: eski davranis).
+     * Tam rapor kilidi (public-citation.controller unlock) hesabin planindan gecirir: Baslangic
+     * 'standard' (billing/plan-engines.ts) — butce on denetimi ve maliyet defteri ayni kademeyle.
+     */
+    tier?: ModelTier;
   }): Promise<Array<{
     provider: Provider;
     label: string;
@@ -813,7 +855,7 @@ export class AiCitationService {
     reason?: string;
     cost: number;
   }>> {
-    const { brand, host, queries, competitors = [], budgetUserId, only } = opts;
+    const { brand, host, queries, competitors = [], budgetUserId, only, tier = 'premium' } = opts;
     const systemPrompt = this.buildSystemPrompt();
     const tum: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
     const providers: Provider[] = only?.length ? tum.filter((p) => only.includes(p)) : tum;
@@ -829,13 +871,13 @@ export class AiCitationService {
       if (!key || isUnconfiguredProvider(provider)) {
         return { provider, label, available: false, probes: [], reason: 'NO_KEY', cost: 0 };
       }
-      if (budgetUserId && await this.isOverBudget(provider, queries.length, budgetUserId)) {
+      if (budgetUserId && await this.isOverBudget(provider, queries.length, budgetUserId, tier)) {
         return { provider, label, available: false, probes: [], reason: this.poolBudgetReason(provider), cost: 0 };
       }
       try {
         let probes: CitationProbe[] = [];
         switch (provider) {
-          case 'anthropic':  probes = await this.probeAnthropic(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'anthropic':  probes = await this.probeAnthropic(key, host, brand, queries, systemPrompt, competitors, tier); break;
           case 'gemini':     probes = await this.probeGemini(key, host, brand, queries, systemPrompt, competitors); break;
           case 'openai':     probes = await this.probeOpenAI(key, host, brand, queries, systemPrompt, competitors); break;
           case 'perplexity': probes = await this.probePerplexity(key, host, brand, queries, systemPrompt, competitors); break;
@@ -844,7 +886,7 @@ export class AiCitationService {
           case 'meta':       probes = await this.probeMeta(key, host, brand, queries, systemPrompt, competitors); break;
         }
         // Cost defteri tutulur (public da olsa sistem kotasinin parcasi)
-        const cost = await this.addCost(provider, probes.length, budgetUserId).catch(() => 0);
+        const cost = await this.addCost(provider, probes.length, budgetUserId, tier).catch(() => 0);
         return { provider, label, available: true, probes, cost };
       } catch (err: any) {
         // Anonim uc: saglayici govdesi (hesap kimligi, kota ayrintisi) disari cikmaz — yalniz kod
@@ -1000,6 +1042,8 @@ export class AiCitationService {
     const siteOlcumu = olcum.tekrar !== undefined;
     const istenenTekrar = siteOlcumu ? Math.max(1, Math.floor(olcum.tekrar as number) || 1) : 1;
     const resolved = await this.resolveKey(siteId, provider, plan, ownerRole);
+    // Model kademesi site sahibinin planindan (Baslangic ve deneme: hizli modeller)
+    const tier = ownerModelTier({ plan, role: ownerRole });
 
     if (!resolved.key) {
       return {
@@ -1023,7 +1067,7 @@ export class AiCitationService {
     // gorunme araligi kendiliginden genis cikar.
     let tur = istenenTekrar;
     if (resolved.source === 'pool') {
-      while (tur > 0 && await this.isOverBudget(provider, queries.length * tur, userId)) tur--;
+      while (tur > 0 && await this.isOverBudget(provider, queries.length * tur, userId, tier)) tur--;
       if (tur === 0) {
         return {
           provider, label, available: false, score: null, probes: [],
@@ -1047,7 +1091,7 @@ export class AiCitationService {
     // cikarirdi. Paralelde sure tek tura yakin kalir (saglayici basina N
     // eszamanli akis; gecici 429'u withProbeRetry / SDK maxRetries yeniden dener).
     const turlar = await Promise.allSettled(
-      Array.from({ length: tur }, () => this.probeTur(provider, key, host, brand, queries, systemPrompt, competitors)),
+      Array.from({ length: tur }, () => this.probeTur(provider, key, host, brand, queries, systemPrompt, competitors, tier)),
     );
     const probes: CitationProbe[] = [];
     turlar.forEach((t, i) => {
@@ -1061,7 +1105,7 @@ export class AiCitationService {
 
     if (resolved.source === 'pool') {
       // Bir tur kalici hatayla dusse de basarili turlar saglayiciya gercekten soruldu
-      await this.addCost(provider, measuredOnly(probes).length, userId);
+      await this.addCost(provider, measuredOnly(probes).length, userId, tier);
     }
 
     const dusen = turlar.find((t): t is PromiseRejectedResult => t.status === 'rejected');
@@ -1115,9 +1159,11 @@ export class AiCitationService {
   private async probeTur(
     provider: Provider, key: string, host: string, brand: string,
     queries: string[], systemPrompt: string, competitors: string[],
+    /** Model kademesi — verilmezse gelismis (anonim test, karne, App Prompt Lab eski davranisi) */
+    tier: ModelTier = 'premium',
   ): Promise<CitationProbe[]> {
     switch (provider) {
-      case 'anthropic':  return this.probeAnthropic(key, host, brand, queries, systemPrompt, competitors);
+      case 'anthropic':  return this.probeAnthropic(key, host, brand, queries, systemPrompt, competitors, tier);
       case 'gemini':     return this.probeGemini(key, host, brand, queries, systemPrompt, competitors);
       case 'openai':     return this.probeOpenAI(key, host, brand, queries, systemPrompt, competitors);
       case 'perplexity': return this.probePerplexity(key, host, brand, queries, systemPrompt, competitors);
@@ -1157,8 +1203,13 @@ export class AiCitationService {
    * Sunucu tarafi refusal fallback'i bilerek KULLANILMIYOR: baska modelin
    * cevabi "Claude ne diyor" olcumunu bozar; refusal HATA satiri olur.
    */
-  private async probeAnthropic(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+  private async probeAnthropic(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = [], tier: ModelTier = 'premium'): Promise<CitationProbe[]> {
     const client = new Anthropic({ apiKey: key, maxRetries: 3, timeout: 120_000 });
+    const model = this.modelFor('anthropic', tier);
+    // Arama araci surumu modele gore: dinamik filtreli 20260209 Opus/Sonnet 4.6+ icin;
+    // Haiku'da (standard kademe) her modelin destekledigi temel 20250305 kullanilir
+    // (platform.claude.com web search tool sayfasi, 11.11.2026). Cevap bloklari ayni bicimde.
+    const aramaAraci = tier === 'standard' ? 'web_search_20250305' : 'web_search_20260209';
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
@@ -1168,13 +1219,13 @@ export class AiCitationService {
         let aramaHatasi: string | null = null;
         for (let deneme = 1; deneme <= this.ARAMA_DENEME; deneme++) {
           resp = await client.messages.create({
-            model: this.MODELS.anthropic,
+            model,
             max_tokens: 3000,
             system: `${systemPrompt} Cevaplamadan once mutlaka web aramasi yap ve guncel kaynaklara dayan.`,
             messages: [{ role: 'user', content: q }],
             // SDK 0.71 tiplerinde yok; API'de GA
             output_config: { effort: 'low' },
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 2 }],
+            tools: [{ type: aramaAraci, name: 'web_search', max_uses: 2 }],
           } as any) as Anthropic.Message;
           aramaHatasi = anthropicSearchFailure(resp.content);
           if (!aramaHatasi) break;

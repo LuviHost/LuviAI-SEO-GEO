@@ -229,7 +229,8 @@ export function TrialUpgrade() {
               <div className="grid gap-2 sm:grid-cols-2">
                 <Link href={TRIAL_UPGRADE_HREF} className="rounded-lg border p-3 text-sm hover:border-brand">
                   <span className="font-medium">Planlar ve fiyatlar</span>
-                  <span className="mt-1 block text-muted-foreground">Büyüme, Profesyonel ve Ajans planlarını karşılaştır.</span>
+                  {/* 11.11.2026 paket yapisi: satistaki planlar (api plans.ts publicPlans) */}
+                  <span className="mt-1 block text-muted-foreground">Başlangıç, Profesyonel ve Kurumsal planlarını karşılaştır.</span>
                 </Link>
                 <Link href={TRIAL_BILLING_HREF} className="rounded-lg border p-3 text-sm hover:border-brand">
                   <span className="font-medium">Abonelik</span>

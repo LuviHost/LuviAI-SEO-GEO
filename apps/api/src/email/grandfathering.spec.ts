@@ -14,10 +14,34 @@ describe('eskiFiyatBilgisi', () => {
     }
   });
 
-  it('ozellikler plana gore: Buyume planina Video/Apple Search Ads yazilmaz', () => {
+  it('ozellikler plana gore: Baslangic planina Video/Apple Search Ads yazilmaz', () => {
     expect(eskiFiyatBilgisi('STARTER')!.ozellikler.join(' ')).not.toMatch(/Video|Apple Search Ads/);
     expect(eskiFiyatBilgisi('PRO')!.ozellikler.join(' ')).toMatch(/Video/);
     expect(eskiFiyatBilgisi('PRO')!.ozellikler.join(' ')).toMatch(/Apple Search Ads/);
+  });
+
+  // 11.11.2026 (uc paket): Baslangic'ta makale uretimi yok — "daha yuksek makale kotasi" yazilamaz
+  it('makale kotasi maddesi yalniz makale hakki olan plana yazilir (Baslangic: yok)', () => {
+    for (const p of BASE_PLANS) {
+      if (p.monthly_usd <= 0) continue;
+      const metin = eskiFiyatBilgisi(p.id.toUpperCase())!.ozellikler.join(' ');
+      if (p.articlesPerMonth > 0) expect(metin, p.id).toContain('Daha yüksek aylık makale kotası');
+      else expect(metin, p.id).not.toMatch(/makale/i);
+    }
+    expect(BASE_PLANS.find((p) => p.id === 'starter')!.articlesPerMonth).toBe(0);
+    expect(eskiFiyatBilgisi('STARTER')!.ozellikler.join(' ')).not.toMatch(/makale/i);
+    expect(eskiFiyatBilgisi('STARTER')!.planAdi).toBe('Başlangıç');
+  });
+
+  // "Takılan sayfa kurtarma" eskiden her ucretli plana yaziliyordu; ozellik Profesyonel ve ustunde
+  it('takilan sayfa kurtarma yalniz ozelligi olan plana yazilir; AI gorunurluk takibi her ucretli planda', async () => {
+    const { BASE_PLANS, planHasFeature } = await import('../billing/plans.js');
+    for (const p of BASE_PLANS.filter((x) => x.monthly_usd > 0)) {
+      const metin = eskiFiyatBilgisi(p.id.toUpperCase())!.ozellikler.join(' | ');
+      expect(metin, p.id).toContain('AI görünürlük takibi');
+      expect(/Takılan sayfa/.test(metin), p.id).toBe(planHasFeature(p.id, 'stuckPages'));
+    }
+    expect(eskiFiyatBilgisi('STARTER')!.ozellikler.join(' ')).not.toContain('Takılan sayfa');
   });
 
   it('ucretli plan degilse null (e-posta gitmez)', () => {
@@ -44,8 +68,12 @@ describe('grandfathering sablonlari', () => {
   });
 
   it('gecti: USD yeni fiyat ve kur notu', () => {
-    const { html } = render('grandfathering_expired', { name: 'Ada', legacyPriceTry: 2999, newPriceUsd: 149, planName: 'Büyüme' });
-    expect(html).toContain('$149');
+    // Plan adi ve fiyat plans.ts'ten (11.11.2026: Büyüme $149 → Başlangıç $99)
+    const b = eskiFiyatBilgisi('STARTER')!;
+    expect(b).toMatchObject({ planAdi: 'Başlangıç', yeniFiyatUsd: 99 });
+    const { html } = render('grandfathering_expired', { name: 'Ada', legacyPriceTry: 2999, newPriceUsd: b.yeniFiyatUsd, planName: b.planAdi });
+    expect(html).toContain('$99');
+    expect(html).not.toContain('$149');
     expect(html).toContain('TCMB');
   });
 });

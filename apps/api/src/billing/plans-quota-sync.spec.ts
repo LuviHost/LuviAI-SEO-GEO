@@ -80,32 +80,49 @@ describe('fiyat karti maddeleri', () => {
     }
   });
 
-  it('ucretli planlar artan kota siralamasinda', () => {
+  // 11.11.2026 (uc paket): eskiden makale de her basamakta artiyordu. Baslangic'ta makale
+  // uretimi yok (0); makale merdiveni Profesyonel'den baslar. Calistirma ve site kurali ayni.
+  it('ucretli planlar artan kota siralamasinda; makale yalniz Profesyonel ve ustunde (Baslangic 0)', () => {
     const ladder = ['trial', 'starter', 'pro', 'agency', 'enterprise'] as const;
     for (let i = 1; i < ladder.length; i++) {
       const prev = BASE_PLANS.find((p) => p.id === ladder[i - 1])!;
       const cur = BASE_PLANS.find((p) => p.id === ladder[i])!;
-      expect(cur.articlesPerMonth, `${cur.id} makale <= ${prev.id}`).toBeGreaterThan(prev.articlesPerMonth);
       expect(cur.aiRunsPerMonth, `${cur.id} calistirma <= ${prev.id}`).toBeGreaterThan(prev.aiRunsPerMonth);
       expect(cur.sites, `${cur.id} site < ${prev.id}`).toBeGreaterThanOrEqual(prev.sites);
+    }
+    const makale = (id: string) => BASE_PLANS.find((p) => p.id === id)!.articlesPerMonth;
+    expect(makale('starter'), 'Baslangic makale uretmez').toBe(0);
+    expect(LIMITS.STARTER.articles, 'dayatma da 0').toBe(0);
+    const makaleli = ['trial', 'pro', 'agency', 'enterprise'] as const;
+    for (let i = 1; i < makaleli.length; i++) {
+      expect(makale(makaleli[i]), `${makaleli[i]} makale <= ${makaleli[i - 1]}`).toBeGreaterThan(makale(makaleli[i - 1]));
     }
   });
 });
 
 describe('Turkce bulunma hali eki', () => {
   // inheritsLabel dolayli test edilir: getPlans locale'e gore uretir.
+  // 11.11.2026: liste artik satistaki planlar (Ajans yok); adlar Baslangic / Profesyonel / Kurumsal.
   it('sert unsuzle biten plan adinda ek sertlesir', async () => {
-    const { BillingService } = await import('./billing.service.js');
+    const { BillingService, PLANS } = await import('./billing.service.js');
     const svc = new BillingService(null as never, { getRate: async () => ({ rate: 1 }) } as never);
     const plans = await svc.getPlans('tr');
     const byId = Object.fromEntries(plans.map((p) => [p.id, p]));
-    // Ajans sert unsuz 's' ile biter -> 'taki', 'deki' DEGIL
-    expect(byId.enterprise.inheritsLabel).toBe("Ajans'taki her şey, artı:");
-    // Buyume unluyle, Profesyonel yumusak 'l' ile biter -> 'deki'
-    expect(byId.pro.inheritsLabel).toBe("Büyüme'deki her şey, artı:");
-    expect(byId.agency.inheritsLabel).toBe("Profesyonel'deki her şey, artı:");
+    const ad = (id: string) => BASE_PLANS.find((p) => p.id === id)!.name_tr;
+    // Baslangic sert unsuz 'ç' ile biter, son unlusu kalin -> 'taki', 'deki' DEGIL
+    expect(byId.pro.inheritsLabel).toBe("Başlangıç'taki her şey, artı:");
+    expect(byId.pro.inheritsLabel).toBe(`${ad('starter')}'taki her şey, artı:`);
+    // Profesyonel yumusak 'l' ile biter, son unlusu ince -> 'deki'
+    expect(byId.enterprise.inheritsLabel).toBe("Profesyonel'deki her şey, artı:");
+    expect(byId.enterprise.inheritsLabel).toBe(`${ad('pro')}'deki her şey, artı:`);
     // Kok planda baslik olmaz
     expect(byId.starter.inheritsLabel).toBeUndefined();
+    expect(byId.trial.inheritsLabel).toBeUndefined();
+    // Satistan kalkan Ajans listede yok; o plandaki hesabin gordugu tanimda (PLANS) basligi duruyor
+    expect(byId.agency).toBeUndefined();
+    expect(PLANS.find((p) => p.id === 'agency')!.inheritsLabel).toBe("Profesyonel'deki her şey, artı:");
+    // Hicbir kart satistan kalkan plani "X'teki her sey" diye gostermez
+    for (const p of plans) expect(p.inheritsLabel ?? '', p.id).not.toContain(ad('agency'));
   });
 
   it('EN tarafinda ek mantigi devreye girmez', async () => {
@@ -113,7 +130,8 @@ describe('Turkce bulunma hali eki', () => {
     const svc = new BillingService(null as never, { getRate: async () => ({ rate: 1 }) } as never);
     const plans = await svc.getPlans('en');
     const byId = Object.fromEntries(plans.map((p) => [p.id, p]));
-    expect(byId.enterprise.inheritsLabel).toBe('Everything in Agency, plus:');
-    expect(byId.pro.inheritsLabel).toBe('Everything in Growth, plus:');
+    expect(byId.enterprise.inheritsLabel).toBe('Everything in Professional, plus:');
+    expect(byId.pro.inheritsLabel).toBe('Everything in Starter, plus:');
+    expect(byId.agency).toBeUndefined();
   });
 });

@@ -78,7 +78,12 @@ export class SitesController {
   @Get(':id')
   async get(@Req() req: Request, @Param('id') id: string) {
     const site = await this.sites.findOne(id, ensureUser(req));
-    return { ...site, crawlAccess: await this.sites.getCrawlAccess(id) };
+    return {
+      ...site,
+      crawlAccess: await this.sites.getCrawlAccess(id),
+      // Sitenin olcumlerinde sorulan asistanlar — site SAHIBININ planindan (panel basligi bunu yazar)
+      measurementEngines: await this.sites.getMeasurementEngines(id),
+    };
   }
 
   @Patch(':id')

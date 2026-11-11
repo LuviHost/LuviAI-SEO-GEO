@@ -2125,6 +2125,10 @@ export const api = {
         publishTargets: string; support: string;
         /** Kart maddeleri — tek kaynak apps/api/src/billing/plans.ts */
         features: string[];
+        /** Plan adinin altindaki tek satir tanim; eski API yanitinda yok */
+        tagline?: string;
+        /** Bu planin su an olctugu asistanlar (saglayici kimlikleri); eski API yanitinda yok */
+        engines?: string[];
         /** "Buyume'deki her sey, arti:" — kok planda undefined */
         inheritsLabel?: string;
         popular?: boolean; contactSales?: boolean;

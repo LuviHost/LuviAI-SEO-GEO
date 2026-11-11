@@ -13,7 +13,12 @@
  * Kilitli kartin govdesindeki metin YER TUTUCUDUR: tarayicida, yazi kimliginden
  * tohumlanan sabit bir kelime listesiyle uretilir, bulaniklastirilarak gosterilir.
  * Hicbir model cagrilmaz, hicbir yere kaydedilmez; metin "yazi hazir" demez,
- * "planini yukselttiginde yazilir" der.
+ * "Profesyonel plana gectiginde yazilir" der.
+ *
+ * 11.11.2026 paket yapisi (api billing/plans.ts): makale uretimi yalniz Profesyonel ve
+ * ustunde; Baslangic makale uretmez. Metinler "planini yukselttiginde" diyordu — Baslangic'a
+ * gecen deneme hesabinda kilitli konular yazilmaz, bu yuzden plan adi yazilir. Dugme etiketi
+ * ("Planını yükselt") fiyatlandirma sayfasina goturur, degismedi.
  */
 
 export interface PlanLockable {
@@ -29,11 +34,14 @@ export const UPGRADE_HREF = '/pricing';
 /** Kilitli yazinin tum metinleri tek yerde: tablo, yazi sayfasi ve ozet ayni dili konusur */
 export const PLAN_LOCK_COPY = {
   badge: 'Kilitli',
-  title: 'Bu makale planını yükselttiğinde yazılır',
-  body: 'Ücretsiz denemede yapay zekâ toplam 2 makale yazar ve bu hak doldu. Konu takviminde duruyor; makale henüz yazılmadı. Planını yükselttiğinde takvimdeki sırasıyla yazılır (otomatik akış durdurulmuşsa “Şimdi üret” ile başlatırsın).',
+  title: 'Bu makale Profesyonel plana geçtiğinde yazılır',
+  // Kilit iki durumda gelir (api articles/plan-lock.ts): deneme hesabi (toplam 2 makale) ve
+  // makale uretimi olmayan paket (Baslangic). Govde ikisi icin de dogru olmali — eski metin
+  // "Ücretsiz denemede … bu hak doldu" diye basliyordu, Baslangic hesabinda yanlisti.
+  body: 'Konu takviminde duruyor; makale henüz yazılmadı. Planının makale hakkı bu konuyu kapsamıyor: ücretsiz denemede yapay zekâ toplam 2 makale yazar, Başlangıç planında makale üretimi yoktur. Profesyonel plana geçtiğinde takvimdeki sırasıyla yazılır (otomatik akış durdurulmuşsa “Şimdi üret” ile başlatırsın).',
   placeholderNote: 'Aşağıdaki bulanık metin yalnızca yer tutucudur; makalenin içeriği değildir.',
   cta: 'Planını yükselt',
-  rowHint: 'Planını yükselttiğinde yazılır',
+  rowHint: 'Profesyonel plana geçtiğinde yazılır',
 } as const;
 
 /** Sunucu bu yaziyi plana kilitli isaretledi mi (yalniz takvimdeki yazi kilitli olabilir) */

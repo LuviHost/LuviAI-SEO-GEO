@@ -170,15 +170,16 @@ describe('makale hazir e-postalari editor skorunu dogru olcekle yaziyor', () => 
  * "Ilk makalen — ucretsiz, sure siniri yok" ve 4 asistan yaziyordu; welcome_day1 "ekledigin
  * anda tarama ve ilk makale kendiliginden baslar" diyordu. Gercek (billing/trial-policy.ts):
  * deneme 14 gun, kart yok, toplam 2 makale; denemede makale kendiliginden yazilmaz, once
- * yayin hedefi baglanir ve kullanici baslatir. Olcum 6 asistanda (plans.ts). renewal_required
+ * yayin hedefi baglanir ve kullanici baslatir. Olcum 6 asistanda (plans.ts) — 11.11.2026'dan
+ * beri deneme (ve Baslangic) dort asistan olcer, Grok ve DeepSeek Profesyonel ve ustunde; hos
+ * geldin e-postasi deneme hesabina gittigi icin denemenin dort asistanini yazar. renewal_required
  * otomatik yenileme KAPALIYKEN de gider (billing/renewal-policy.ts): o durumda "kartini
  * kaydedersen otomatik yenilenir" vaadi yanlisti.
  */
 describe('hos geldin ve yenileme e-postalari — deneme ve yenileme kurallariyla tutarli', () => {
   const ESKI = /kendiliğinden başlar|süre sınırı yok|ilk makale otomatik/i;
-  const ALTI = 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek';
-
-  it('welcome_day0: 14 gun, kart yok, 2 makale, makale kendiliginden yazilmaz, 6 asistan', () => {
+  it('welcome_day0: 14 gun, kart yok, 2 makale, makale kendiliginden yazilmaz, DENEMENIN olctugu 4 asistan', async () => {
+    const { ENGINE_LABELS, planEngines } = await import('../billing/plans.js');
     const { subject, html } = render('welcome_day0', { name: 'Test' });
     expect(`${subject} ${html}`).not.toMatch(ESKI);
     expect(html).toContain('14 günlük ücretsiz');
@@ -186,8 +187,15 @@ describe('hos geldin ve yenileme e-postalari — deneme ve yenileme kurallariyla
     expect(html).toContain('toplam 2 makale');
     expect(html).toContain('makaleyi kendiliğinden yazmaz');
     expect(html).toContain('yayın hedefi');
-    expect(html).toContain(ALTI);
-    expect(html).not.toContain('ChatGPT, Claude, Gemini ve Perplexity');
+    // Liste plans.ts'ten: deneme planinin kapsami, o sirayla
+    const deneme = planEngines('trial').map((e) => ENGINE_LABELS[e]);
+    expect(deneme).toEqual(['ChatGPT', 'Gemini', 'Claude', 'Perplexity']);
+    expect(html).toContain(`${deneme.slice(0, -1).join(', ')} ve ${deneme[deneme.length - 1]} seni kaynak gösteriyor mu`);
+    // Denemede olculmeyen asistan vaat edilmez (eskiden alti asistan yaziyordu)
+    const kapsamDisi = (Object.keys(ENGINE_LABELS) as Array<keyof typeof ENGINE_LABELS>).filter((e) => !planEngines('trial').includes(e));
+    expect(kapsamDisi.map((e) => ENGINE_LABELS[e]).sort()).toEqual(['DeepSeek', 'Grok', 'Muse']);
+    for (const e of kapsamDisi) expect(html, ENGINE_LABELS[e]).not.toContain(ENGINE_LABELS[e]);
+    expect(html).not.toMatch(/6 (AI )?asistan|altı (AI )?asistan/i);
   });
 
   it('welcome_day1: makale kendiliginden baslamaz; once yayin hedefi, sonra kullanici baslatir', () => {
@@ -206,13 +214,38 @@ describe('hos geldin ve yenileme e-postalari — deneme ve yenileme kurallariyla
   });
 
   it('renewal_required: otomatik yenileme kapaliyken kart kaydi vaadi yok, aciksa var', () => {
-    const kapali = render('renewal_required', { name: 'Test', planName: 'Büyüme' }).html;
+    const kapali = render('renewal_required', { name: 'Test', planName: 'Başlangıç' }).html;
     expect(kapali).not.toContain('otomatik yenilenir');
     expect(kapali).toContain('otomatik yenilenmiyor');
-    const acik = render('renewal_required', { name: 'Test', planName: 'Büyüme', recurringEnabled: true }).html;
+    const acik = render('renewal_required', { name: 'Test', planName: 'Başlangıç', recurringEnabled: true }).html;
     expect(acik).toContain('Yenilerken kartını kaydedersen sonraki dönemler otomatik yenilenir.');
     // Gonderen servis bayragi veriye koyuyor
     const svcSrc = read(path.resolve(HERE, '../billing/renewal.service.ts'));
     expect(svcSrc).toContain('recurringEnabled: this.paytr.recurringEnabled,');
+  });
+
+  // 11.11.2026 (uc paket): Baslangic'ta makale uretimi yok. Eski metin her plana
+  // "Aylık kotan: N makale, M site" diyordu; Baslangic musterisine "0 makale" yaziyordu.
+  it('plan_upgraded: ozet olcumle baslar; makale yalniz hakki olan planda, "0 makale" hic yazilmaz', async () => {
+    const { publicPlans } = await import('../billing/plans.js');
+    for (const pl of publicPlans().filter((x) => x.monthly_usd > 0)) {
+      const { html } = render('plan_upgraded', {
+        name: 'Test', planName: pl.name_tr,
+        articleQuota: pl.articlesPerMonth, siteQuota: pl.sites, runQuota: pl.aiRunsPerMonth,
+      });
+      const kosu = pl.aiRunsPerMonth.toLocaleString('tr-TR');
+      expect(html, pl.id).toContain(`Aylık kotan: en fazla ${kosu} AI görünürlük çalıştırması, ${pl.sites} site`);
+      expect(html, pl.id).toContain('Aylık AI çalıştırması (en fazla)');
+      expect(html, pl.id).not.toMatch(/\b0 makale/);
+      if (pl.articlesPerMonth > 0) {
+        expect(html, pl.id).toContain(`${pl.articlesPerMonth} makale`);
+        expect(html, pl.id).toContain('Aylık makale');
+      } else {
+        expect(html, pl.id).not.toContain('makale');
+      }
+    }
+    // Gonderen servis calistirma tavanini da plans.ts'ten veriye koyuyor
+    const paytr = read(path.resolve(HERE, '../billing/paytr.service.ts'));
+    expect(paytr).toContain('runQuota: purchased?.aiRunsPerMonth ?? 0,');
   });
 });

@@ -1,7 +1,8 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FxService } from './fx.service.js';
-import { BASE_PLANS, type BasePlan, type PlanId } from './plans.js';
+import { BASE_PLANS, ENGINES_BULLET, enginesBullet, planEngines, publicPlans, type BasePlan, type PlanId } from './plans.js';
+import { measuredEngines } from './measured-engines.js';
 import { periodEndFromInvoice } from './subscription-period.js';
 import { QuotaService } from './quota.service.js';
 import { articleQuotaView, resetAwareArticleLimit } from './article-quota-view.js';
@@ -27,7 +28,15 @@ export interface PlanDefinition {
   support: string;
   /** Kart maddeleri — locale'e gore secilmis */
   features: string[];
-  /** "Buyume'deki her sey, arti:" — ust planlar sadece farki listeler; kok planda undefined */
+  /** Plan adinin altindaki tek satir tanim (plans.ts tagline_*) */
+  tagline?: string;
+  /**
+   * Bu planin SU AN olctugu asistanlar (saglayici kimlikleri, kart logolari icin):
+   * plan kapsami (plans.ts planEngines) ∩ bu kurulumda olculenler (measured-engines.ts).
+   * Asistan maddesiyle (enginesBullet) AYNI listeden turer — logo sayisi metinle celismez.
+   */
+  engines: string[];
+  /** "Başlangıç'taki her şey, artı:" — ust planlar sadece farki listeler; kok planda undefined */
   inheritsLabel?: string;
   popular?: boolean;
   /** Enterprise icin: pazarlama formuyla iletisime gecilir, dogrudan satin alma yok */
@@ -53,7 +62,7 @@ function turkishLocative(name: string): string {
 }
 
 /**
- * "Buyume'deki her sey, arti:" basligini uretir. Ust plan yalnizca FARKI
+ * "Başlangıç'taki her şey, artı:" basligini uretir. Ust plan yalnizca FARKI
  * listeledigi icin kart sismeden zengin gorunur; miras alinan planin adi
  * plans.ts'ten okundugu icin plan adi degisirse baslik da kendiliginden duzelir.
  */
@@ -66,7 +75,18 @@ function inheritsLabel(p: BasePlan, locale: 'tr' | 'en'): string | undefined {
     : `Everything in ${parent.name_en}, plus:`;
 }
 
+/**
+ * Kart maddeleri. Asistan maddesi (ENGINES_BULLET) burada, O AN olculen asistan
+ * listesinden uretilir: Muse yalniz anahtari tanimliyken sayiya ve metne girer
+ * (measured-engines.ts) — plans.ts'te elle yazili asistan listesi tutulmaz.
+ */
+export function planFeatures(p: BasePlan, locale: 'tr' | 'en', measured: readonly string[] = measuredEngines()): string[] {
+  const raw = locale === 'tr' ? p.features_tr : p.features_en;
+  return raw.map((f) => (f === ENGINES_BULLET ? enginesBullet(p.id, locale, measured) : f));
+}
+
 function toDefinition(p: BasePlan, locale: 'tr' | 'en', rate: number): PlanDefinition {
+  const measured = measuredEngines();
   return {
     id: p.id,
     name: locale === 'tr' ? p.name_tr : p.name_en,
@@ -81,7 +101,9 @@ function toDefinition(p: BasePlan, locale: 'tr' | 'en', rate: number): PlanDefin
     aiProviders: p.aiProviders,
     publishTargets: p.publishTargets,
     support: locale === 'tr' ? p.support_tr : p.support_en,
-    features: locale === 'tr' ? p.features_tr : p.features_en,
+    features: planFeatures(p, locale, measured),
+    tagline: locale === 'tr' ? p.tagline_tr : p.tagline_en,
+    engines: planEngines(p.id).filter((e) => measured.includes(e)),
     inheritsLabel: inheritsLabel(p, locale),
     popular: p.popular,
     contactSales: p.contactSales,
@@ -115,7 +137,14 @@ export class BillingService {
     // farkli kurlar karisabilirdi.
     const { rate } = await this.fx.getRate();
 
-    return BASE_PLANS.map((p) => toDefinition(p, locale, rate));
+    // Satistan kalkan planlar (legacy) listede yok; o plandaki hesap getCurrentPlan'da tanimini yine bulur.
+    // TEKLIFLE satilan plan (contactSales — Kurumsal): liste fiyati herkese acik yanita YAZILMAZ.
+    // Kart "Özel" gosterse de bu yanit /pricing ve ana sayfanin kaynagina prop olarak giriyor;
+    // tutar orada okunabiliyordu (bagimsiz inceleme, 11.11.2026). Sozlesme tabani plans.ts'te durur.
+    return publicPlans().map((p) => {
+      const d = toDefinition(p, locale, rate);
+      return p.contactSales ? { ...d, monthly: 0, annual: 0, monthlyTry: 0, annualTry: 0 } : d;
+    });
   }
 
   /** Plan listesi + o an kullanilan kur (UI dipnotu icin birlikte doner) */

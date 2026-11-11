@@ -1,4 +1,5 @@
 import type { RunComparison } from './citation-run-compare.js';
+import { siteMeasurementVersion } from './host-match.js';
 
 /**
  * GEO Karsilastirma Raporu — iki AI gorunurluk kosumunun A4 yazdirilabilir raporu.
@@ -76,6 +77,8 @@ const YONTEM_DEGISIKLIGI: Record<number, string> = {
   5: 'Grok ve DeepSeek de artık cevaplarken web’de arama yapıyor (önceden yalnız modelin kendi bilgisiyle cevaplıyordu)',
   // host-match.ts SITE_MEASUREMENT_VERSION — yalniz site olcumu (kosumlar) bu numarayi tasir
   6: 'her soru her AI asistanına birden fazla kez soruluyor; skor tüm tekrarlardan hesaplanıyor ve bir güven aralığıyla veriliyor (önceden her soru bir kez soruluyordu)',
+  // host-match.ts siteMeasurementVersion('standard') — model kademesi (11.11.2026, uc paket)
+  [siteMeasurementVersion('standard')]: 'iki testten biri Başlangıç paketi ya da ücretsiz deneme kapsamıyla (dört AI asistanı, Claude’un hızlı modeli), diğeri Profesyonel ve üstü kapsamıyla (bütün asistanlar, gelişmiş modeller) yapıldı',
 };
 
 export function yontemNotu(v: { a: number; b: number } | undefined): string {

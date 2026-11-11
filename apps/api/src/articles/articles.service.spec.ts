@@ -60,7 +60,8 @@ function build(opts: { rows?: Row[]; site?: any; limit?: number } = {}) {
     used: 0,
     limit: opts.limit ?? 15,
     consumeArticleAllowance: vi.fn(async () => {
-      if (quota.used >= quota.limit) throw new ForbiddenException(`Deneme hesabındaki ${quota.limit} ücretsiz makale hakkını kullandın. Devam etmek için plan seç.`);
+      // Gercek QuotaService.articleQuotaError'in deneme metni (11.11.2026: devam yolu Profesyonel)
+      if (quota.used >= quota.limit) throw new ForbiddenException(`Deneme hesabındaki ${quota.limit} ücretsiz makale hakkını kullandın. Makale üretimine devam etmek için Profesyonel plana geç.`);
       quota.used++;
       return { remaining: quota.limit - quota.used };
     }),

@@ -41,7 +41,8 @@ describe('QuotaService.consumeArticleAllowance — deneme hesabi toplam 2', () =
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
     expect(rejected.reason).toBeInstanceOf(ForbiddenException);
-    expect(rejected.reason.message).toBe('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Devam etmek için plan seç.');
+    // 11.11.2026: makale uretimi yalniz Profesyonel ve ustunde — "plan seç" Baslangic'i da kapsardi
+    expect(rejected.reason.message).toBe('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Makale üretimine devam etmek için Profesyonel plana geç.');
     expect(prisma.row.articlesUsedThisMonth).toBe(2);
   });
 
@@ -54,10 +55,29 @@ describe('QuotaService.consumeArticleAllowance — deneme hesabi toplam 2', () =
     expect(prisma.row.articlesUsedThisMonth).toBe(2);
   });
 
+  // 11.11.2026 (uc paket): eskiden Buyume (STARTER, 15) ile sinaniyordu; Baslangic'ta makale yok
   it('ucretli plan hak dolunca aylik metin', async () => {
-    const prisma: any = db({ plan: 'STARTER', articlesUsedThisMonth: 15 });
+    const prisma: any = db({ plan: 'PRO', articlesUsedThisMonth: 40 });
     const q = new QuotaService(prisma);
-    await expect(q.consumeArticleAllowance('u1', 's1')).rejects.toThrow('Aylık 15 makale kotan doldu.');
+    const err = await q.consumeArticleAllowance('u1', 's1').catch((e) => e);
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(err.message).toBe('Aylık 40 makale kotan doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsin.');
+    expect(prisma.row.articlesUsedThisMonth).toBe(40);
+  });
+
+  it('Baslangic: makale uretimi yok — ilk istekte 403 "bu pakette yok" (aylik kota ya da "ayin sonunu bekle" metni degil); es zamanli iki istek de alamaz', async () => {
+    const prisma: any = db({ plan: 'STARTER', articlesUsedThisMonth: 0 });
+    const q = new QuotaService(prisma);
+    const results = await Promise.allSettled([q.consumeArticleAllowance('u1', 's1'), q.consumeArticleAllowance('u1', 's1')]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(0);
+    for (const r of results as PromiseRejectedResult[]) {
+      expect(r.reason).toBeInstanceOf(ForbiddenException);
+      expect(r.reason.message).toBe('Makale üretimi bu pakette yok. Makale üretmek için Profesyonel plana geç.');
+      expect(r.reason.message).not.toMatch(/ayın sonunu|kotan doldu|Aylık 0/);
+    }
+    expect(prisma.row.articlesUsedThisMonth).toBe(0);
+    await expect(q.enforceArticleQuota('u1')).rejects.toThrow('Makale üretimi bu pakette yok. Makale üretmek için Profesyonel plana geç.');
+    expect(await q.checkArticleQuota('u1')).toEqual({ allowed: false, remaining: 0, limit: 0 });
   });
 
   it('geri verme sayaci 0in altina indirmez', async () => {
@@ -71,6 +91,7 @@ describe('QuotaService.consumeArticleAllowance — deneme hesabi toplam 2', () =
   it('plan hakki tablosu: deneme 2, bilinmeyen plan 0 (sessizce sinirsiz olmaz)', () => {
     const q = new QuotaService({} as any);
     expect(q.articleLimitFor('TRIAL')).toBe(2);
+    expect(q.articleLimitFor('STARTER')).toBe(0); // 11.11.2026: Baslangic'ta makale uretimi yok
     expect(q.articleLimitFor('PRO')).toBe(40);
     expect(q.articleLimitFor('BILINMEYEN')).toBe(0);
   });

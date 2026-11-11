@@ -120,6 +120,49 @@ describe('POST citation-check/unlock — beklenmedik hata', () => {
   });
 });
 
+/**
+ * 11.11.2026 (uc paket): tam rapor hesabin PLAN kapsamiyla olculur. Eskiden her ucretli hesap
+ * butun asistanlarda ve gelismis modellerle olculuyordu — Baslangic musterisi ana sayfadaki
+ * testin kilidini acarak paketinde olmayan Grok / DeepSeek / Muse olcumunu alabiliyordu.
+ */
+describe('POST citation-check/unlock — plan kapsami', () => {
+  const DORT = ['openai', 'gemini', 'anthropic', 'perplexity'];
+  const HEPSI = [...DORT, 'xai', 'deepseek', 'meta'];
+  function kurPlan(user: Record<string, unknown>) {
+    const citation = { check: vi.fn(async (..._a: unknown[]) => ({ fromCache: false, queries: [] })) };
+    const quota = { enforceCitationQuota: vi.fn(async () => {}), incrementCitationUsage: vi.fn(async () => {}) };
+    const measurement = { run: vi.fn(async (_user: unknown, fn: () => Promise<unknown>) => fn()) };
+    const ctrl = new PublicCitationController(citation as never, {} as never, quota as never, measurement as never);
+    const req = { user: { id: 'u1', subscriptionStatus: 'ACTIVE', ...user }, headers: {}, socket: { remoteAddress: '1.2.3.4' } };
+    return { ctrl, req, citation };
+  }
+  const kapsam = (t: ReturnType<typeof kurPlan>) => (t.citation.check.mock.calls[0] as unknown[])[3] as { scope: { engines: string[]; tier: string } };
+
+  it('Baslangic: dort asistan, hizli modeller', async () => {
+    const t = kurPlan({ plan: 'STARTER', role: 'USER' });
+    await t.ctrl.unlock(t.req as never, { domain: 'ornek.com' });
+    expect(t.citation.check).toHaveBeenCalledWith('ornek.com', expect.any(String), 'signup_baseline', expect.anything());
+    expect(kapsam(t).scope).toEqual({ engines: DORT, tier: 'standard' });
+  });
+
+  it('Profesyonel, Ajans, Kurumsal: butun asistanlar, gelismis modeller', async () => {
+    for (const plan of ['PRO', 'AGENCY', 'ENTERPRISE']) {
+      const t = kurPlan({ plan, role: 'USER' });
+      await t.ctrl.unlock(t.req as never, { domain: 'ornek.com' });
+      expect(kapsam(t).scope, plan).toEqual({ engines: HEPSI, tier: 'premium' });
+    }
+  });
+
+  it('ADMIN muaf; plani okunamayan ucretli hesap en dar kapsam (kapi acik unutulmaz)', async () => {
+    const admin = kurPlan({ plan: 'TRIAL', role: 'ADMIN', subscriptionStatus: 'TRIAL' });
+    await admin.ctrl.unlock(admin.req as never, { domain: 'ornek.com' });
+    expect(kapsam(admin).scope).toEqual({ engines: HEPSI, tier: 'premium' });
+    const plansiz = kurPlan({});
+    await plansiz.ctrl.unlock(plansiz.req as never, { domain: 'ornek.com' });
+    expect(kapsam(plansiz).scope).toEqual({ engines: DORT, tier: 'standard' });
+  });
+});
+
 // ─── Abonelik ucu: Turnstile, IP siniri, mobil istisna (K2) ─────────────────
 
 describe('POST citation-check/subscribe — kotuye kullanim katmanlari', () => {

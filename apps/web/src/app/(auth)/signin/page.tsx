@@ -48,7 +48,7 @@ function signInErrorText(code: string | undefined): string | null {
 // 11.11.2026). follow kalir: sayfadaki baglantilar taranabilir.
 export const metadata = {
   title: 'Giriş yap veya hesap oluştur — RanksUp panele eriş',
-  description: 'RanksUp hesabınla giriş yap veya yeni hesap aç. 14 gün ücretsiz deneme, 2 makale, kredi kartı gerekmez. PayTR güvenli ödeme, aylık iptal hakkı.',
+  description: 'RanksUp hesabınla giriş yap veya yeni hesap aç. 14 gün ücretsiz deneme, kredi kartı gerekmez. PayTR güvenli ödeme, aylık iptal hakkı.',
   alternates: { canonical: 'https://ranksup.ai/signin' },
   robots: { index: false, follow: true },
 };
@@ -102,7 +102,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
           <h1 className="text-vitrin-3">Giriş yap veya kayıt ol</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            14 gün ücretsiz deneme · 2 makale — kart bilgisi gerekmez
+            14 gün ücretsiz deneme — kart bilgisi gerekmez
           </p>
 
           {errorText && (

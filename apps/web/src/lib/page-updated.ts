@@ -48,35 +48,38 @@ export interface PublicPage {
  */
 export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/',                      updated: '2026-11-11', changeFrequency: 'weekly',  priority: 1.0 },
-  { path: '/pricing',               updated: '2026-10-30', changeFrequency: 'weekly',  priority: 0.9 },
-  { path: '/faq',                   updated: '2026-11-08', changeFrequency: 'monthly', priority: 0.8 },
-  { path: '/use-cases',             updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/compare',               updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/about',                 updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.7 },
+  // 11.11.2026 paket yapisi (uc paket; api billing/plans.ts): metni degisen sayfalarin tarihi
+  // ayni gun guncellendi — /pricing, /faq, /use-cases, /compare, uc rehber (botlar, mobil,
+  // araclar) ve bes yardim sayfasi (getting-started, auto-pilot, billing, video, glossary).
+  { path: '/pricing',               updated: '2026-11-11', changeFrequency: 'weekly',  priority: 0.9 },
+  { path: '/faq',                   updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/use-cases',             updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/compare',               updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/about',                 updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   // Rehber (GEO icerik merkezi) — icerik content/rehber/*.ts; kaynaklar yeniden kontrol
   // edilince ya da metin degisince ilgili satirin tarihi ayni committe guncellenir.
   { path: '/rehber',                                  updated: '2026-11-11', changeFrequency: 'weekly',  priority: 0.8 },
   { path: '/rehber/yapay-zeka-gorunurlugu',           updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/rehber/chatgpt-markam-gorunuyor-mu',      updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/geo-nedir',                        updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/rehber/yapay-zeka-botlari-robots-txt',    updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/yapay-zeka-botlari-robots-txt',    updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/llms-txt-nedir',                   updated: '2026-11-08', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/ai-bakisi-gorunurluk',             updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/rehber/mobil-uygulama-geo',               updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/mobil-uygulama-geo',               updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   // Ucretsiz arac — form + metin app/(marketing)/google-isletme-karnesi ve components/landing/gbp-karne.tsx
   { path: '/google-isletme-karnesi', updated: '2026-10-27', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/help',                  updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.5 },
   // Help center alt sayfalari — SEO + AI alintisi icin kritik (her biri modul rehberi)
-  { path: '/help/getting-started',  updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/help/getting-started',  updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/ai-visibility',    updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/aso',              updated: '2026-10-18', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/asa-asc',          updated: '2026-10-18', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/help/auto-pilot',       updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/help/auto-pilot',       updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/help/api-keys',         updated: '2026-10-18', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/help/billing',          updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/help/video',            updated: '2026-10-23', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/help/glossary',         updated: '2026-10-22', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/help/billing',          updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/help/video',            updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/help/glossary',         updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },
   // 11.11.2026: uc sayfanin gorunur tarihi PR #69'da (Meta/Muse aktarimi) 11 Kasim oldu ama bu
   // satirlar guncellenmemisti; page-updated.spec main'de kirmiziydi, sitemap eski tarihi veriyordu.
   { path: '/privacy',               updated: '2026-11-11', changeFrequency: 'yearly',  priority: 0.3 },

@@ -126,9 +126,11 @@ export function billingArticleUsage(current: { plan?: unknown; articleQuota?: un
       value: `${quota.remaining} / ${quota.limit} kaldı`,
       pct,
       ariaLabel: 'Ücretsiz içerik hakkı kullanımı',
+      // 11.11.2026 paket yapisi: aylik makale kotasi yalniz Profesyonel ve ustunde (Baslangic
+      // makale uretmez); "bir plan seçtiğinde" Baslangic'i da kapsardi.
       note: quota.remaining === 0
-        ? { tone: 'warning', text: 'Ücretsiz içerik hakkının tamamını kullandın; deneme hakkı aylık yenilenmez. Takvimindeki diğer konular, bir plan seçtiğinde yazılır.' }
-        : { tone: 'muted', text: 'Deneme hakkı aylık yenilenmez; plan seçtiğinde aylık kotan başlar.' },
+        ? { tone: 'warning', text: 'Ücretsiz içerik hakkının tamamını kullandın; deneme hakkı aylık yenilenmez. Takvimindeki diğer konular Profesyonel plana geçtiğinde yazılır.' }
+        : { tone: 'muted', text: 'Deneme hakkı aylık yenilenmez; aylık makale kotası Profesyonel ve üstü planlarda başlar.' },
     };
   }
   if (!quota) {
@@ -141,6 +143,17 @@ export function billingArticleUsage(current: { plan?: unknown; articleQuota?: un
     };
   }
   const pct = quota.limit > 0 ? Math.min(100, Math.round((quota.used / quota.limit) * 100)) : 0;
+  // 11.11.2026 paket yapisi: Baslangic paketinin makale limiti 0 (api plans.ts articlesPerMonth 0).
+  // "0 / 0" tek basina bir sey soylemiyor; neden sifir oldugu ve makalenin hangi planda oldugu yazilir.
+  if (quota.limit === 0) {
+    return {
+      label: 'Bu ay üretilen içerik',
+      value: `${quota.used} / ${quota.limit}`,
+      pct,
+      ariaLabel: 'Aylık içerik kotası kullanımı',
+      note: { tone: 'muted', text: 'Bu pakette makale üretimi yok; makale üretimi Profesyonel ve üstü planlardadır.' },
+    };
+  }
   return {
     label: 'Bu ay üretilen içerik',
     value: `${quota.used} / ${quota.limit}`,

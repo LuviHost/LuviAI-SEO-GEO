@@ -18,6 +18,8 @@
  *    uygulanmiyor ve hicbir planda satilmiyor.
  *  - TRIAL "1 makale" → plans.ts (2 makale, 3 calistirma, 1 site; yayin hedefi
  *    Markdown ZIP + WordPress REST — QuotaService.LIMITS.TRIAL).
+ *    11.11.2026 paket yapisi: makale uretimi yalniz Profesyonel ve ustunde; kilitli
+ *    takvim "ücretli plan seçince" degil Profesyonel'de yazilir (Baslangic makale uretmez).
  *  - Quota eski plan adlari/sayilari ("Baslangic 10 ... Kurumsal 100") → sayi
  *    yazilmaz, fiyat sayfasina yonlendirilir; sifirlama kurali quota.service.ts.
  *  - Editor Score "60 uzerinden, 48+" → pipeline.service.ts EDITOR_MAX_SCORE 90;
@@ -283,7 +285,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   // Haftalik sinir: denemede de hesap basina 7 gunde 1 olcum (billing/measurement-allowance);
   // "3 calistirma" tek basina "3 olcum" diye okunuyordu. Fiyat karti ve SSS ile ayni ifade.
   TRIAL: {
-    short: 'Ücretsiz deneme planı — 14 gün, 2 makale, 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site. Yapay zekâ konu başlıklarını hazırlar; makaleleri yayın hedefini bağladıktan sonra sen başlatırsın, Markdown ZIP olarak indirir ya da WordPress\'e gönderirsin. Takvimin geri kalanı kilitli görünür ve ücretli plan seçince yazılır; diğer yayın hedefleri de o zaman açılır. 14 gün dolunca plan seçene kadar hesap salt okunur olur, veriler saklanır.',
+    short: 'Ücretsiz deneme planı — 14 gün, 2 makale, 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site. Yapay zekâ konu başlıklarını hazırlar; makaleleri yayın hedefini bağladıktan sonra sen başlatırsın, Markdown ZIP olarak indirir ya da WordPress\'e gönderirsin. Takvimin geri kalanı kilitli görünür ve Profesyonel plana geçince yazılır; diğer yayın hedefleri ücretli plan seçince açılır. 14 gün dolunca plan seçene kadar hesap salt okunur olur, veriler saklanır.',
     level: 1,
   },
   Quota: {

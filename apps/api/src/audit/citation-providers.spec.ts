@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider } from './citation-providers.js';
+import { COST_PER_PROBE_USD, COST_PER_PROBE_USD_STANDARD, POOL_ENV_KEY, costPerProbe, isUnconfiguredProvider } from './citation-providers.js';
 
 /**
  * Saglayici kurallari tek yerde: runPublicProbes (olcum oncesi), App Prompt Lab
@@ -50,5 +50,58 @@ describe('tablolar', () => {
     // 25K girdi x $1.25/1M + 3000 cikti x $4.25/1M + 4 arama x $0.0025
     const alt = 25_000 * 1.25e-6 + 3000 * 4.25e-6 + 4 * 0.0025;
     expect(COST_PER_PROBE_USD.meta).toBeGreaterThanOrEqual(alt);
+  });
+});
+
+/**
+ * Model kademesi (11.11.2026, uc paket): Baslangic ve deneme Claude'u hizli modelle
+ * (claude-haiku-5-5) olcer; butce guard'i ve maliyet defteri kademenin tavanini
+ * kullanir (ai-citation.service isOverBudget / addCost → costPerProbe). Modeli
+ * DEGISMEYEN saglayici iki kademede de ayni tavani alir.
+ */
+describe('costPerProbe — kademeye gore probe tavani', () => {
+  const SAGLAYICILAR = Object.keys(POOL_ENV_KEY) as Array<keyof typeof COST_PER_PROBE_USD>;
+
+  it('standard kademede Claude 0.13; gelismis tavanin (0.2) ustunde degil', () => {
+    expect(costPerProbe('anthropic', 'standard')).toBe(0.13);
+    expect(costPerProbe('anthropic', 'premium')).toBe(0.2);
+    expect(costPerProbe('anthropic', 'premium')).toBe(COST_PER_PROBE_USD.anthropic);
+    expect(costPerProbe('anthropic', 'standard')).toBeLessThanOrEqual(costPerProbe('anthropic', 'premium'));
+    expect(costPerProbe('anthropic', 'standard')).toBeGreaterThan(0);
+  });
+
+  // Haiku 5.5'in iki fiyat karti var: istem 100K token ya da azsa $0.10 / $0.50, daha uzunsa
+  // $0.50 / $2.50 per 1M. Tavan ortalama degil UST SINIR: pahali kartla 200K girdiye kadar tutmali.
+  // (Ilk surum 0.05 idi; istem 100K'yi gecince gercek fatura tavani asiyordu — bagimsiz inceleme.)
+  it('Claude standard tavani UST SINIR: beklenen kullanimi, ucuz kartin tamamini ve pahali karti 200K girdiye kadar kapsar', () => {
+    const tavan = costPerProbe('anthropic', 'standard');
+    const ARAMA = 2 * 0.01;
+    const beklenen = 45_000 * 0.10e-6 + 3000 * 0.50e-6 + ARAMA;
+    const ucuzKartSonu = 100_000 * 0.10e-6 + 3000 * 0.50e-6 + ARAMA;
+    const pahaliKart = (girdi: number) => girdi * 0.50e-6 + 3000 * 2.50e-6 + ARAMA;
+    expect(tavan).toBeGreaterThanOrEqual(beklenen);
+    expect(tavan).toBeGreaterThanOrEqual(ucuzKartSonu);
+    expect(tavan).toBeGreaterThanOrEqual(pahaliKart(100_001));
+    expect(tavan).toBeGreaterThanOrEqual(pahaliKart(200_000));
+  });
+
+  it('diger her saglayici iki kademede de gelismis tavanini alir', () => {
+    for (const p of SAGLAYICILAR) {
+      if (p === 'anthropic') continue;
+      expect(costPerProbe(p, 'standard'), p).toBe(COST_PER_PROBE_USD[p]);
+      expect(costPerProbe(p, 'premium'), p).toBe(COST_PER_PROBE_USD[p]);
+      expect(costPerProbe(p, 'standard'), p).toBeGreaterThan(0);
+    }
+    // Standard tablosunda yalniz modeli degisen saglayici var
+    expect(Object.keys(COST_PER_PROBE_USD_STANDARD)).toEqual(['anthropic']);
+  });
+
+  it('kademe verilmezse gelismis (anonim test, karne, App Prompt Lab); hicbir kademe gelismis tavani asmaz; bilinmeyen saglayici 0', () => {
+    for (const p of SAGLAYICILAR) {
+      expect(costPerProbe(p), p).toBe(COST_PER_PROBE_USD[p]);
+      expect(costPerProbe(p, 'standard'), p).toBeLessThanOrEqual(costPerProbe(p, 'premium'));
+    }
+    expect(costPerProbe('mistral' as never, 'standard')).toBe(0);
+    expect(costPerProbe('mistral' as never)).toBe(0);
   });
 });

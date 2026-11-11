@@ -12,8 +12,9 @@ import { UNLOCK_DOMAIN_KEY } from '@/lib/unlock-return';
 type UnlockResult = Awaited<ReturnType<typeof api.publicCitationUnlock>>;
 
 /*
-  Motor sayisi plans.ts ile ayni: 6 asistan olculur (Meta (Muse) yalniz META_MODEL_API_KEY tanimliyken —
-  ai-citation.service.ts). Sonuc ekrani saglayicilari API cevabindan listeler.
+  Tam rapor hesabin PLAN kapsamiyla olculur (11.11.2026; api public-citation.controller unlock):
+  Baslangic 4 asistan (ChatGPT, Gemini, Claude, Perplexity), Profesyonel ve ustu 6 (+ anahtari
+  tanimliysa Muse). Sabit "6 AI motorunda" yazilmaz. Sonuc ekrani saglayicilari API cevabindan listeler.
   "Haftalik otomatik retest" vaadi kaldirildi: otomatik gunluk/haftalik olcum kapali
   (AI_CITATION_DAILY_CRON=false, AUDIT_CRON varsayilan kapali); olcumu kullanici baslatir,
   hak haftada bir (measurement-allowance.ts). Dusus uyarisi gunluk taramayla gider
@@ -21,7 +22,7 @@ type UnlockResult = Awaited<ReturnType<typeof api.publicCitationUnlock>>;
 */
 const COPY = {
   tr: {
-    running: 'Kalan sorular 6 AI motorunda ölçülüyor…',
+    running: 'Kalan sorular planındaki AI motorlarında ölçülüyor…',
     runningSub: 'Bu işlem ~40 saniye sürer. Sayfayı kapatmayın.',
     title: 'Tam rapor hazır',
     subtitle: '{n} sorunun tamamı ölçüldü',
@@ -39,15 +40,15 @@ const COPY = {
     truncated: '… (kısaltıldı)',
     lockedHint: 'Ölçülmedi.',
     payTitle: 'Tam raporu açmak için bir plan seç',
-    payBody: '{domain} için 10 sorunun tamamı 6 AI motorunda ölçülecek: hangi motorlarda geçtiğin, AI cevaplarının tam metni ve rakip payın. Ücretsiz test yalnızca ilk birkaç soruyu ölçüyor.',
+    payBody: '{domain} için 10 sorunun tamamı planındaki AI motorlarında ölçülecek: hangi motorlarda geçtiğin, AI cevaplarının tam metni ve rakip payın. Ücretsiz test yalnızca ilk birkaç soruyu ölçüyor.',
     payCta: 'Planları gör',
     payBack: 'Ücretsiz teste dön',
-    payBullet1: '10 sorunun tamamı, 6 AI motorunda (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek)',
+    payBullet1: '10 sorunun tamamı: Başlangıç planında 4 AI motorunda (ChatGPT, Gemini, Claude, Perplexity), Profesyonel ve üstünde 6 (ayrıca Grok, DeepSeek)',
     payBullet2: 'AI cevaplarının tam metni + rakip payı',
     payBullet3: 'Haftada bir yeniden ölçüm hakkı ve %30+ düşüşte e-posta uyarısı',
   },
   en: {
-    running: 'Measuring the remaining prompts across 6 AI engines…',
+    running: 'Measuring the remaining prompts across the AI engines in your plan…',
     runningSub: 'This takes ~40 seconds. Please keep this page open.',
     title: 'Full report ready',
     subtitle: 'All {n} prompts measured',
@@ -65,10 +66,10 @@ const COPY = {
     truncated: '… (truncated)',
     lockedHint: 'Not measured.',
     payTitle: 'Choose a plan to unlock the full report',
-    payBody: 'All 10 prompts for {domain} will be measured across 6 AI engines: which engines mention you, the full answer text, and your competitor share. The free test only measures the first few.',
+    payBody: 'All 10 prompts for {domain} will be measured across the AI engines in your plan: which engines mention you, the full answer text, and your competitor share. The free test only measures the first few.',
     payCta: 'See plans',
     payBack: 'Back to free test',
-    payBullet1: 'All 10 prompts across 6 AI engines (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek)',
+    payBullet1: 'All 10 prompts: across 4 AI engines on Starter (ChatGPT, Gemini, Claude, Perplexity), 6 on Professional and up (plus Grok, DeepSeek)',
     payBullet2: 'Full AI answer text + competitor share',
     payBullet3: 'One re-measurement per week and an email alert on a 30%+ drop',
   },

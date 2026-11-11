@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NO_AUTO_ARTICLE_PLANS, articleOfferPlan, planHasArticles } from '../billing/plans.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { autoPublishEnabled } from './publish-approval.js';
 import { activeLiveWriteBlock, lastLiveWriteAt, liveEntries, republishModeForType, targetLabel } from './republish-policy.js';
@@ -122,7 +123,7 @@ export const PIVOT_SCAN_LIMIT = 50;
 /** scanAllSites sonucunda tasinan engelli yazi ayrintisi tavani (is sonucu kucuk kalsin) */
 const BLOCKED_DETAIL_CAP = 100;
 
-export type PivotBlock = PivotPlanBlock | 'recent_rejected_rewrite' | 'recent_live_write_blocked' | 'not_published' | 'trial_plan';
+export type PivotBlock = PivotPlanBlock | 'recent_rejected_rewrite' | 'recent_live_write_blocked' | 'not_published' | 'trial_plan' | 'no_article_plan';
 
 /** Otomatik yazim engelinin bekleme suresinde mi (yoksa null); kaydin ani ve atlanan hedeflerin adlari */
 function recentLiveWriteBlock(agentOutputs: unknown, publishedTo: unknown, cutoff: Date): { at: Date; labels: string[] } | null {
@@ -172,6 +173,8 @@ export function pivotBlockText(block: PivotBlock, labels: string[] = [], at?: Da
       return 'Yazı artık yayında değil; otomatik yeniden yazım başlatılmadı.';
     case 'trial_plan':
       return 'Ücretsiz deneme hesabında otomatik yeniden yazım yapılmaz (denemede yapay zekâ toplam 2 makale üretir); planını yükselttiğinde başlar.';
+    case 'no_article_plan':
+      return `Bu pakette makale üretimi yok; otomatik yeniden yazım ${articleOfferPlan().name_tr} ve üzeri planlarda çalışır.`;
   }
 }
 
@@ -199,7 +202,9 @@ export class ContentPivotService {
         // hakkindan dusmez; deneme hesabi yapay zekayla toplam 2 makale uretir
         // (QuotaService LIMITS.TRIAL), fazlasina LLM harcanmaz. Eskiden 30 gunluk
         // deneme yazilari her hafta yeniden yazilabiliyordu.
-        user: { plan: { not: 'TRIAL' as any } },
+        // 11.11.2026 (uc paket): makale uretimi olmayan plan (Baslangic) da taranmaz —
+        // plans.ts NO_AUTO_ARTICLE_PLANS (deneme + aylik makale hakki olmayan planlar).
+        user: { plan: { notIn: NO_AUTO_ARTICLE_PLANS as any[] } },
       },
       select: { id: true, userId: true, autopilot: true, publishApprovalMode: true },
     });
@@ -436,6 +441,10 @@ export class ContentPivotService {
     // alinamadi): tarama artik almaz, kuyruktaki is de LLM harcamaz
     if (String((a as { site?: { user?: { plan?: unknown } | null } | null }).site?.user?.plan ?? '') === 'TRIAL') {
       return { block: 'trial_plan', blockReason: pivotBlockText('trial_plan') };
+    }
+    // Makale uretimi olmayan plana (Baslangic) dusmus hesap: kuyruktaki is de LLM harcamaz
+    if (!planHasArticles(String((a as { site?: { user?: { plan?: unknown } | null } | null }).site?.user?.plan ?? ''))) {
+      return { block: 'no_article_plan', blockReason: pivotBlockText('no_article_plan') };
     }
     const targets = await this.prisma.publishTarget.findMany({ where: { siteId: a.siteId }, select: { id: true, type: true, isActive: true } });
     const plan = pivotRewritePlan({ publishedTo: a.publishedTo, targets, slug: a.slug });

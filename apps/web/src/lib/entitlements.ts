@@ -32,6 +32,13 @@ export type FeatureRequirement = {
 export type Entitlements = {
   plan: string;
   features: Record<PlanFeature, boolean>;
+  /**
+   * Bu hesabin olcumlerinde su an sorulan asistanlar (saglayici kimlikleri) — sunucudan
+   * (api billing/entitlements.ts): Baslangic ve denemede dort, Profesyonel ve ustunde alti
+   * (+ olculuyorsa Muse). Panel "N AI asistaninda" sayisini ve logo seridini bundan yazar;
+   * eski API yanitinda alan yok.
+   */
+  engines?: string[];
   required: Record<PlanFeature, FeatureRequirement>;
 };
 

@@ -21,6 +21,10 @@ import { PENDING_MERCHANT_OID_KEY } from '@/lib/payment-status';
  * makale sayilari tutmuyordu (10/50/250 yerine 15/40/100) ve artik urunde
  * OLMAYAN "sosyal medya postu" ozelligi satiliyordu. Ustelik burasi bir
  * YUKSELTME modali: kullanici yanlis fiyat gorup odemeye gidiyordu.
+ *
+ * 11.11.2026 paket yapisi: /billing/plans yalniz satistaki planlari doner (Baslangic,
+ * Profesyonel, Kurumsal; Ajans satistan kalkti). Kurumsal contactSales oldugu icin modalda
+ * iki plan gorunur; Baslangic makale uretmez (asagidaki bildirim metni bunu gozetir).
  */
 type Plan = {
   id: string;
@@ -113,7 +117,9 @@ export function UpgradePlanModal({
           // Plan degisti → odeme tamamlandi
           clearInterval(interval);
           setPolling(false);
-          toast.success(`Plan yükseltildi! Aylık ${q.articles.limit} makale hakkın oldu.`);
+          // 11.11.2026: Baslangic paketinde makale uretimi yok (limit 0, api plans.ts) —
+          // "Aylık 0 makale hakkın oldu" denmez
+          toast.success(q.articles.limit > 0 ? `Plan yükseltildi! Aylık ${q.articles.limit} makale hakkın oldu.` : 'Plan yükseltildi!');
           setIframeUrl(null);
           // Ozellik haklari onbellekte tutuluyor; yukseltmeden sonra
           // temizlenmezse kullanici sert yenileme (F5) yapana kadar odedigi

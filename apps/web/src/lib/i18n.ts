@@ -42,11 +42,11 @@ const dictionary = {
 
     // Pricing
     'pricing.title': 'Plan Seçenekleri',
-    'pricing.subtitle': '14 gün ücretsiz, 2 makale, kart gerekmez, dilediğin zaman iptal.',
+    'pricing.subtitle': '14 gün ücretsiz dene: markan AI cevaplarında nerede duruyor, ölç. Kart gerekmez, dilediğin zaman iptal.',
     'pricing.monthly': 'Aylık',
     'pricing.annual': 'Yıllık',
     'pricing.save': 'kazan',
-    'pricing.cta': '2 Makale Ücretsiz Dene',
+    'pricing.cta': 'Planı seç',
     'pricing.cta_contact': 'Bizimle iletişime geç',
     'pricing.popular': 'EN ÇOK TERCİH EDİLEN',
     // Kart maddeleri burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts
@@ -57,7 +57,7 @@ const dictionary = {
     'pricing.annual_save_badge': '-%17',
     'pricing.contact_sales': 'Bizimle iletişime geç',
     'pricing.free_start': 'Ücretsiz başla',
-    'pricing.note_free_trial': '14 gün ücretsiz · 2 makale · Kredi kartı yok',
+    'pricing.note_free_trial': '14 gün ücretsiz · Kredi kartı yok',
 
     // ─── Landing — Nav ──────────────────────────────────────────
     'land.nav.solution': 'Çözüm',
@@ -75,7 +75,7 @@ const dictionary = {
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Şeffaf fiyat',
     'land.pricing.title': 'Bugün başla, kart sonra.',
-    'land.pricing.subtitle': '14 gün ücretsiz, 2 makale · İstediğin zaman iptal · Gizli ücret yok',
+    'land.pricing.subtitle': '14 gün ücretsiz · İstediğin zaman iptal · Gizli ücret yok',
     'land.pricing.most_popular': 'Önerilen',
     'land.pricing.per_month': '/ay',
     'land.pricing.per_year': '/yıl',
@@ -85,8 +85,11 @@ const dictionary = {
     'land.pricing.start_free': 'Ücretsiz başla',
     // land.pricing.support_* silindi (30.10.2026): kullanilmiyordu ve kodda karsiligi
     // olmayan yanit suresi / Slack / SLA / hesap yoneticisi vaadi tasiyordu.
-    // Olcum sikligi her planda ayni: hesap basina 7 gunde 1 (billing/measurement-allowance.ts)
-    'land.pricing.footer_note': 'Ücretli her planda: 13 yayın hedefi · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında · Türkçe ve İngilizce makale',
+    // Olcum sikligi her planda ayni: hesap basina 7 gunde 1 (billing/measurement-allowance.ts).
+    // 11.11.2026 paket yapisi (api plans.ts): asistan sayisi plana bagli (Baslangic 4, Profesyonel
+    // ve ustu 6); makale uretimi ve yayin hedefleri Profesyonel ve ustunde. Eski not "her planda
+    // 6 AI asistaninda" ve "ucretli her planda 13 yayin hedefi" diyordu.
+    'land.pricing.footer_note': 'Her planda haftada 1 AI görünürlük ölçümü; hangi asistanların ölçüldüğü kartlarda · makale üretimi Profesyonel ve üstünde: 13 yayın hedefi, Türkçe ve İngilizce makale',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Sıkça sorulanlar',
@@ -99,7 +102,9 @@ const dictionary = {
     // Sahip karari 21.10.2026: deneme 14 gun (kayitta trialEndsAt); bitince hesap salt okunur
     // (api billing/trial-policy.ts, trial-expiry.guard.ts) — yalniz satin alma acikken. Hesap
     // kapanmaz, veri silinmez. Denemede makaleyi kullanici baslatir (yayin hedefi sarti), toplam 2.
-    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez; deneme 14 gün sürer ve 2 makale hakkın var (makaleleri sitene yayın hedefi bağladıktan sonra sen başlatırsın; takvimin geri kalanı panelde kilitli görünür ve planını yükselttiğinde yazılır). Devam etmek istersen plan seçip ödemeyi o zaman yaparsın. Plan seçmezsen hesabın kapanmaz ve verilerin silinmez; 14 gün dolunca hesabın salt okunur olur, verilerini görür ve indirirsin.',
+    // 11.11.2026: makale uretimi yalniz Profesyonel ve ustunde — kilitli konular "plan yukseltince"
+    // degil Profesyonel'de yazilir (Baslangic makale uretmez).
+    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez; deneme 14 gün sürer ve 2 makale hakkın var (makaleleri sitene yayın hedefi bağladıktan sonra sen başlatırsın; takvimin geri kalanı panelde kilitli görünür ve Profesyonel plana geçtiğinde yazılır). Devam etmek istersen plan seçip ödemeyi o zaman yaparsın. Plan seçmezsen hesabın kapanmaz ve verilerin silinmez; 14 gün dolunca hesabın salt okunur olur, verilerini görür ve indirirsin.',
     'land.faq.q3': 'AI sektörümü gerçekten anlayabilir mi?',
     // "%95+ dogruluk" olculmus bir oran degildi; sektor site ayarlarindan degisir
     'land.faq.a3': 'Onboarding sırasında siteni tarayıp sektörünü tahmin eder; marka sesini ve rakiplerini çıkarır. Tahmin yanlışsa site ayarlarından düzeltebilirsin; sonraki içerikler buna göre üretilir.',
@@ -130,7 +135,7 @@ const dictionary = {
     'land.how.s2.title': 'AI analiz',
     'land.how.s2.body': 'Site denetimi yapılır, ilk AI görünürlük ölçümü alınır ve konu takvimi hazırlanır.',
     'land.how.s3.title': 'Yayında',
-    'land.how.s3.body': 'Ücretli planlarda ilk makale hemen üretilir, takvimdeki konular makale hakkın yettikçe sırayla hazırlanır. Ücretsiz denemede makaleleri (toplam 2) yayın hedefini bağladıktan sonra sen başlatırsın. Sonraki AI görünürlük ölçümlerini haftada bir sen başlatırsın.',
+    'land.how.s3.body': 'Profesyonel ve üstü planlarda ilk makale hemen üretilir, takvimdeki konular makale hakkın yettikçe sırayla hazırlanır. Ücretsiz denemede makaleleri (toplam 2) yayın hedefini bağladıktan sonra sen başlatırsın. Sonraki AI görünürlük ölçümlerini haftada bir sen başlatırsın.',
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Sonuçlar',
@@ -160,7 +165,7 @@ const dictionary = {
     'land.cmp.row7': 'AI makale üretimi',
     'land.cmp.row8': 'Auto-Pilot otomasyon',
     'land.cmp.row_price': 'En düşük ücretli plan (aylık)',
-    'land.cmp.note': '* Rakip bilgileri üreticilerin fiyat ve ürün sayfalarından 18 Ekim 2026’da derlendi; değişmiş olabilir. Fiyat satırı her aracın en düşük ücretli planıdır: Surfer Discovery (yıllık faturalı; sayfada aylık faturalı fiyat yok), Jasper Pro (aylık, kullanıcı başına), Ahrefs Starter, Frase Starter (aylık) ve RanksUp Büyüme (aylık). ✓ işaretli bazı özellikler (RanksUp dahil) yalnız üst planlarda bulunur ya da ücretli eklentidir. — : doğrulanmadı.',
+    'land.cmp.note': '* Rakip bilgileri üreticilerin fiyat ve ürün sayfalarından 18 Ekim 2026’da derlendi; değişmiş olabilir. Fiyat satırı her aracın en düşük ücretli planıdır: Surfer Discovery (yıllık faturalı; sayfada aylık faturalı fiyat yok), Jasper Pro (aylık, kullanıcı başına), Ahrefs Starter, Frase Starter (aylık) ve RanksUp Başlangıç (aylık). ✓ işaretli bazı özellikler (RanksUp dahil) yalnız üst planlarda bulunur ya da ücretli eklentidir; RanksUp’ta AI makale üretimi, Apple Search Ads yönetimi ve Agent Readiness (AXO) taraması Profesyonel ve üstü planlardadır. — : doğrulanmadı.',
     'land.cmp.unknown': 'Doğrulanmadı',
 
     // land.uc.* silindi: kullanilmiyordu ve olculmemis "once/sonra" sonuclari
@@ -174,7 +179,7 @@ const dictionary = {
     // ─── Landing — Pricing extras ───────────────────────────────
     'land.pric.eyebrow': 'Şeffaf Fiyat',
     'land.pric.title': 'Bugün başla, kart sonra.',
-    'land.pric.subtitle': '14 gün ücretsiz, 2 makale · İstediğin zaman iptal · Gizli ücret yok',
+    'land.pric.subtitle': '14 gün ücretsiz · İstediğin zaman iptal · Gizli ücret yok',
     'land.pric.monthly': 'Aylık',
     'land.pric.annual': 'Yıllık',
     'land.pric.discount_badge': '%17 indirim',
@@ -187,14 +192,17 @@ const dictionary = {
     'land.pric.cta_contact': 'Bizimle iletişime geç',
     // Ayni sayfada "5 dakikada kurulum" (land.cta.subtitle, land2.how.title) varken burada
     // "kurulum 10 dakika" yaziyordu; olculmus bir sure degil, celiski kaldirildi.
-    // Kartlardaki "ayda en fazla N calistirma" bir tavan; olcum sikligi her planda haftada 1
-    'land.pric.footer_note': 'Ücretli her planda: 13 yayın hedefi (denemede WordPress) · her planda haftada 1 AI görünürlük ölçümü, 6 AI asistanında · Türkçe ve İngilizce makale',
+    // Kartlardaki "ayda en fazla N calistirma" bir tavan; olcum sikligi her planda haftada 1.
+    // 11.11.2026 paket yapisi: asistan sayisi plana bagli (Baslangic 4, Profesyonel ve ustu 6),
+    // makale ve yayin hedefleri Profesyonel ve ustunde. Calistirma birimi artik kart maddesinde
+    // yazmiyor; kartlarin altindaki bu not tanimlar (public-docs.spec.ts denetler).
+    'land.pric.footer_note': 'Her planda haftada 1 AI görünürlük ölçümü; hangi asistanların ölçüldüğü kartlarda · çalıştırma birimi: AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma · makale üretimi Profesyonel ve üstünde: 13 yayın hedefi (denemede WordPress), Türkçe ve İngilizce makale',
     // Plan adlari burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Özel',
 
     // ─── Landing — Final CTA ────────────────────────────────────
     'land.cta.title': 'AI çağının pazarlamasına başla',
-    'land.cta.subtitle': '14 gün ücretsiz deneme, 2 makale, kart gerekmez. 5 dakikada kurulum.',
+    'land.cta.subtitle': '14 gün ücretsiz deneme, kart gerekmez. 5 dakikada kurulum.',
     'land.cta.button': 'Ücretsiz başla',
     'land.cta.secondary': 'Önce videoyu izle',
 
@@ -376,11 +384,11 @@ const dictionary = {
 
     // Pricing
     'pricing.title': 'Plans & Pricing',
-    'pricing.subtitle': '14 days free, 2 articles, no card required, cancel anytime.',
+    'pricing.subtitle': 'Try it free for 14 days: measure where your brand stands in AI answers. No card required, cancel anytime.',
     'pricing.monthly': 'Monthly',
     'pricing.annual': 'Annual',
     'pricing.save': 'save',
-    'pricing.cta': 'Try 2 Articles Free',
+    'pricing.cta': 'Choose plan',
     'pricing.cta_contact': 'Contact us',
     'pricing.popular': 'MOST POPULAR',
     // Card bullets are NOT kept here — single source is apps/api/src/billing/plans.ts
@@ -390,7 +398,7 @@ const dictionary = {
     'pricing.annual_save_badge': '-17%',
     'pricing.contact_sales': 'Contact sales',
     'pricing.free_start': 'Start free',
-    'pricing.note_free_trial': '14 days free · 2 articles · No credit card',
+    'pricing.note_free_trial': '14 days free · No credit card',
 
     // ─── Landing — Nav ──────────────────────────────────────────
     'land.nav.solution': 'Solution',
@@ -404,7 +412,7 @@ const dictionary = {
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Transparent pricing',
     'land.pricing.title': 'Start today, pay later.',
-    'land.pricing.subtitle': '14 days free, 2 articles · Cancel anytime · No hidden fees',
+    'land.pricing.subtitle': '14 days free · Cancel anytime · No hidden fees',
     'land.pricing.most_popular': 'Recommended',
     'land.pricing.per_month': '/mo',
     'land.pricing.per_year': '/yr',
@@ -412,7 +420,7 @@ const dictionary = {
     'land.pricing.monthly_billing': 'Billed monthly',
     'land.pricing.contact_us': 'Contact us',
     'land.pricing.start_free': 'Start free',
-    'land.pricing.footer_note': 'On every paid plan: 13 publishing targets · on every plan: 1 AI visibility measurement per week across 6 AI assistants · articles in Turkish and English',
+    'land.pricing.footer_note': 'On every plan: 1 AI visibility measurement per week; the cards show which assistants each plan measures · article generation on Professional and up: 13 publishing targets, articles in Turkish and English',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Frequently asked',
@@ -421,7 +429,7 @@ const dictionary = {
     'land.faq.q1': 'Which websites does it work on?',
     'land.faq.a1': 'Any website: paste the address to run the audit and the AI visibility measurement. To publish, you connect one of 13 publishing targets such as WordPress, Webflow, Ghost, FTP/SFTP, cPanel or GitHub. For a mobile app you add its App Store or Google Play listing.',
     'land.faq.q2': 'Do I need to enter a credit card?',
-    'land.faq.a2': 'No. No card is needed for the free trial; it lasts 14 days and includes 2 articles (you start them yourself after connecting a publish target to your site; the rest of the calendar appears locked in the dashboard and is written when you upgrade). If you want to continue, you choose a plan and pay at that point. If you don’t, your account is not closed and your data is not deleted; after 14 days it becomes read-only, so you can still view and download your data.',
+    'land.faq.a2': 'No. No card is needed for the free trial; it lasts 14 days and includes 2 articles (you start them yourself after connecting a publish target to your site; the rest of the calendar appears locked in the dashboard and is written when you move to the Professional plan). If you want to continue, you choose a plan and pay at that point. If you don’t, your account is not closed and your data is not deleted; after 14 days it becomes read-only, so you can still view and download your data.',
     'land.faq.q3': 'Can AI really understand my industry?',
     'land.faq.a3': 'During onboarding it scans your site, predicts your industry and maps your brand voice and competitors. If the guess is wrong you can fix it in site settings, and subsequent content follows it.',
     'land.faq.q4': 'What do I need to connect Apple Search Ads?',
@@ -442,7 +450,7 @@ const dictionary = {
     'land.how.s2.title': 'AI analysis',
     'land.how.s2.body': 'A site audit runs, a first AI visibility measurement is taken and a topic calendar is prepared.',
     'land.how.s3.title': 'Live',
-    'land.how.s3.body': 'On paid plans your first article is generated right away and scheduled topics follow in order as your article allowance permits. On the free trial you start your articles (2 in total) yourself after connecting a publish target. You start later AI visibility measurements once a week.',
+    'land.how.s3.body': 'On the Professional plan and up your first article is generated right away and scheduled topics follow in order as your article allowance permits. On the free trial you start your articles (2 in total) yourself after connecting a publish target. You start later AI visibility measurements once a week.',
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Results',
@@ -468,7 +476,7 @@ const dictionary = {
     'land.cmp.row7': 'AI article generation',
     'land.cmp.row8': 'Auto-Pilot automation',
     'land.cmp.row_price': 'Lowest paid plan (per month)',
-    'land.cmp.note': '* Competitor details were compiled from the vendors’ pricing and product pages on October 18, 2026 and may have changed. The price row is each tool’s lowest paid plan: Surfer Discovery (billed yearly; no monthly price shown), Jasper Pro (monthly, per seat), Ahrefs Starter, Frase Starter (monthly) and RanksUp Growth (monthly). Some ✓ features (RanksUp’s included) are only on higher plans or are paid add-ons. — : not verified.',
+    'land.cmp.note': '* Competitor details were compiled from the vendors’ pricing and product pages on October 18, 2026 and may have changed. The price row is each tool’s lowest paid plan: Surfer Discovery (billed yearly; no monthly price shown), Jasper Pro (monthly, per seat), Ahrefs Starter, Frase Starter (monthly) and RanksUp Starter (monthly). Some ✓ features (RanksUp’s included) are only on higher plans or are paid add-ons; in RanksUp, AI article generation, Apple Search Ads management and Agent Readiness (AXO) scan are on the Professional plan and up. — : not verified.',
     'land.cmp.unknown': 'Not verified',
 
     // ─── Landing — Testimonials ─────────────────────────────────
@@ -479,7 +487,7 @@ const dictionary = {
     // ─── Landing — Pricing extras ───────────────────────────────
     'land.pric.eyebrow': 'Transparent Pricing',
     'land.pric.title': 'Start today, pay later.',
-    'land.pric.subtitle': '14 days free, 2 articles · Cancel anytime · No hidden fees',
+    'land.pric.subtitle': '14 days free · Cancel anytime · No hidden fees',
     'land.pric.monthly': 'Monthly',
     'land.pric.annual': 'Annual',
     'land.pric.discount_badge': '17% off',
@@ -490,13 +498,13 @@ const dictionary = {
     // Bullet text comes from plans.ts — do not keep a second copy here.
     'land.pric.cta_free': 'Choose plan',
     'land.pric.cta_contact': 'Contact us',
-    'land.pric.footer_note': 'On every paid plan: 13 publishing targets (trial: WordPress) · on every plan: 1 AI visibility measurement per week across 6 AI assistants · articles in Turkish and English',
+    'land.pric.footer_note': 'On every plan: 1 AI visibility measurement per week; the cards show which assistants each plan measures · run unit: an AI test is 1 run, each Prompt Lab question or branch is 1 · article generation on Professional and up: 13 publishing targets (trial: WordPress), articles in Turkish and English',
     // Plan names are NOT kept here — single source is apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Custom',
 
     // ─── Landing — Final CTA ────────────────────────────────────
     'land.cta.title': 'Start your AI-era marketing',
-    'land.cta.subtitle': '14-day free trial with 2 articles, no card required. Setup in 5 minutes.',
+    'land.cta.subtitle': '14-day free trial, no card required. Setup in 5 minutes.',
     'land.cta.button': 'Start free',
     'land.cta.secondary': 'Watch the video first',
 

@@ -6,6 +6,8 @@ export const metadata = yardimMeta('ai-visibility', 'AI görünürlük ölçüm�
 
 // Metin urunun gercek davranisini anlatir (Ekim 2026, kodla dogrulandi):
 //  - Olculen asistanlar plans.ts ile ayni 6 ad; Llama uretimde olculmuyor.
+//    11.11.2026 paket yapisi (plans.ts planEngines): deneme ve Baslangic dort asistan
+//    (ChatGPT, Gemini, Claude, Perplexity) olcer; Grok ve DeepSeek Profesyonel ve ustunde.
 //  - Gunluk otomatik olcum KAPALI (worker AI_CITATION_DAILY_CRON); olcumu
 //    kullanici baslatir ve hesap basina 7 gunde 1 olcum yapilir
 //    (billing/measurement-allowance.ts). "Yeniden Test" ve "AI önerisi al"
@@ -31,7 +33,7 @@ export default function Page() {
       intro="Kullanıcılar artık soruları yapay zekâ asistanlarına da soruyor. RanksUp, sitene uygun sorularda markanın anılıp anılmadığını ve sitenin kaynak gösterilip gösterilmediğini ölçer; duygu, ses payı ve öneri sunar."
       steps={[
         { name: 'AI Görünürlük sayfasına git', text: 'Site menüsü → AI Görünürlük. Üstte AI görünürlük geçmişi grafiği yer alır.' },
-        { name: 'Ölçümü başlat', text: '"Yeniden Test" butonu: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek\'e en fazla 5 soru sorulur. Hesap başına haftada bir AI ölçümü yapılabilir.' },
+        { name: 'Ölçümü başlat', text: '"Yeniden Test" butonu: planındaki AI asistanlarına (Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity; Profesyonel ve üstünde ayrıca Grok ve DeepSeek) en fazla 5 soru sorulur. Hesap başına haftada bir AI ölçümü yapılabilir.' },
         { name: 'Sonuçları incele', text: 'Her asistan için ayrı kart: skor, duygu (olumlu / nötr / olumsuz), ses payı (rakipler) ve markanın cevapta kaçıncı paragrafta geçtiği.' },
         { name: 'GEO yol haritası al', text: 'GEO yol haritası bölümündeki "AI önerisi al" alıntı testini çalıştırır ve 5 uygulanabilir öneri üretir. Bu da haftalık ölçüm hakkını kullanır.' },
         { name: 'Haftalık karşılaştır', text: 'Otomatik günlük ölçüm yoktur. "Yeniden Test" ile aldığın her ölçüm kaydedilir ve grafiğe eklenir; iki ölçümü yan yana karşılaştırabilirsin.' },
@@ -45,7 +47,8 @@ export default function Page() {
       <h2>Nasıl çalışır?</h2>
       <p>
         RanksUp marka beynindeki sorulardan en fazla 5 tanesini (örn. <em>&ldquo;en iyi KOBİ muhasebe yazılımı nedir?&rdquo;</em>)
-        <strong> 6 AI asistanına</strong> sorar: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek.
+        <strong> AI asistanlarına</strong> sorar: ücretsiz denemede ve Başlangıç planında 4 asistana (ChatGPT, Gemini, Claude, Perplexity),
+        Profesyonel ve üstü planlarda 6 asistana (ayrıca Grok ve DeepSeek).
         Cevapta marka adının geçip geçmediği, site adresinin kaynak gösterilip gösterilmediği ve rakiplerin anılıp anılmadığı ölçülür.
       </p>
       <p>
@@ -98,7 +101,7 @@ export default function Page() {
         Site menüsü → <strong>AI Görünürlük</strong>. Üstte AI görünürlük geçmişi grafiği yer alır.
       </Step>
       <Step n={2} title="Ölçümü başlat">
-        <strong>Yeniden Test</strong> butonuna bas. 6 asistana en fazla 5 soru sorulur; sonuçta her asistan için ayrı kart ve soru bazında ayrıntılar görünür.
+        <strong>Yeniden Test</strong> butonuna bas. Planındaki asistanlara (4 ya da 6) en fazla 5 soru sorulur; sonuçta her asistan için ayrı kart ve soru bazında ayrıntılar görünür.
       </Step>
       <Step n={3} title="Ya da yol haritasıyla birlikte ölç">
         <strong>GEO yol haritası</strong> bölümündeki <strong>&ldquo;AI önerisi al&rdquo;</strong> alıntı testini çalıştırır ve 5 öneri üretir.

@@ -36,13 +36,26 @@ function db(user: Record<string, unknown>) {
 }
 
 describe('getMyDashboard — ay basi sifirlamasi uygulanmis kota', () => {
-  it('ucretli plan, gecen ayin sayaci: 15 degil 0; kota { limit, remaining, used }', async () => {
-    const prisma = db({ plan: 'STARTER', articlesUsedThisMonth: 15, articlesQuotaResetAt: gecenAy() });
+  // 11.11.2026 (uc paket): eskiden Buyume (STARTER, 15 makale) ile sinaniyordu; Baslangic'ta artik
+  // makale uretimi yok. Makale yazabilen ucretli plan Profesyonel (40).
+  it('ucretli plan, gecen ayin sayaci: 40 degil 0; kota { limit, remaining, used }', async () => {
+    const prisma = db({ plan: 'PRO', articlesUsedThisMonth: 40, articlesQuotaResetAt: gecenAy() });
     const svc = new AdminService(prisma as never, new QuotaService(prisma as never));
     const d = await svc.getMyDashboard('u1');
     expect(d.articlesUsedThisMonth).toBe(0); // eski mobil surumler de bu alani okur
-    expect(d.articleQuota).toEqual({ limit: 15, remaining: 15, used: 0 });
+    expect(d.articleQuota).toEqual({ limit: 40, remaining: 40, used: 0 });
     expect(prisma.row.articlesUsedThisMonth).toBe(0); // sifirlama kota kontroluyle ayni yazim
+  });
+
+  it('Baslangic: makale uretimi yok — limit 0, kalan 0 (panel "0/0" gorur, uydurma hak yok); denemeden kalan sayac yeni ayda sifirlanir', async () => {
+    const prisma = db({ plan: 'STARTER', articlesUsedThisMonth: 0, articlesQuotaResetAt: new Date() });
+    const d = await new AdminService(prisma as never, new QuotaService(prisma as never)).getMyDashboard('u1');
+    expect(d.articleQuota).toEqual({ limit: 0, remaining: 0, used: 0 });
+    expect(d.articlesUsedThisMonth).toBe(0);
+    // Denemede 2 makale uretip Baslangic'a gecen hesap: sayac ne olursa olsun kalan hak eksiye de artiya da gitmez
+    const gecis = db({ plan: 'STARTER', articlesUsedThisMonth: 2, articlesQuotaResetAt: new Date() });
+    const g = await new AdminService(gecis as never, new QuotaService(gecis as never)).getMyDashboard('u1');
+    expect(g.articleQuota).toEqual({ limit: 0, remaining: 0, used: 2 });
   });
 
   it('deneme hesabi: limit 2 (eski panel "/1" yaziyordu), ay basinda sifirlanmaz', async () => {

@@ -4,6 +4,8 @@
  * Calistirma: cd apps/web && ../api/node_modules/.bin/vitest run --root . src/lib
  */
 import { describe, expect, it } from 'vitest';
+// plans.ts'in importu yok — API'nin tek kaynagi dogrudan okunur (ranksup-md.spec.mts ile ayni yol)
+import { findPlan } from '../../../api/src/billing/plans';
 import { billingArticleUsage, dashboardQuotaCards, isTrialPlan, readArticleQuota, yuzdeBelirtmeEki } from './article-quota';
 
 describe('dashboardQuotaCards — plan TRIAL', () => {
@@ -70,7 +72,10 @@ describe('billingArticleUsage — abonelik sayfasi (K2): ayrim PLANA gore, sayil
     expect(u).toMatchObject({ label: 'Ücretsiz içerik hakkı', value: '1 / 2 kaldı', pct: 50, ariaLabel: 'Ücretsiz içerik hakkı kullanımı' });
     expect(u.label).not.toMatch(aylikMetin);
     expect(u.ariaLabel).not.toMatch(aylikMetin);
-    expect(u.note).toEqual({ tone: 'muted', text: 'Deneme hakkı aylık yenilenmez; plan seçtiğinde aylık kotan başlar.' });
+    // 11.11.2026 paket yapisi: aylik makale kotasi yalniz Profesyonel ve ustunde (Baslangic makale
+    // uretmez) — "plan seçtiğinde aylık kotan başlar" Baslangic'i da kapsardi
+    expect(u.note).toEqual({ tone: 'muted', text: 'Deneme hakkı aylık yenilenmez; aylık makale kotası Profesyonel ve üstü planlarda başlar.' });
+    expect(u.note?.text).not.toMatch(/plan seçtiğinde/);
   });
 
   it('dusen abonelik (plan trial, durum EXPIRED, sayac limiti asmis): kalan 0, uyari; "2 / 2" gibi uydurma kullanim yok', () => {
@@ -79,6 +84,9 @@ describe('billingArticleUsage — abonelik sayfasi (K2): ayrim PLANA gore, sayil
     expect(u.note?.tone).toBe('warning');
     expect(u.note?.text).toContain('aylık yenilenmez');
     expect(u.note?.text).not.toMatch(/Aylık kotanın/);
+    // Kilitli konular "bir plan seçtiğinde" degil, makale uretimi olan planda yazilir
+    expect(u.note?.text).toContain('Takvimindeki diğer konular Profesyonel plana geçtiğinde yazılır.');
+    expect(u.note?.text).not.toMatch(/plan seçtiğinde/);
   });
 
   it('ucretli plan: aylik etiket; %80 ustu uyari dogru Turkce ekle', () => {
@@ -86,6 +94,16 @@ describe('billingArticleUsage — abonelik sayfasi (K2): ayrim PLANA gore, sayil
     expect(u).toMatchObject({ label: 'Bu ay üretilen içerik', value: '36 / 40', pct: 90, ariaLabel: 'Aylık içerik kotası kullanımı' });
     expect(u.note).toEqual({ tone: 'warning', text: 'Aylık kotanın %90\'ını kullandın. Daha fazlası için planını yükseltebilirsin.' });
     expect(billingArticleUsage({ plan: proPlan, articleQuota: { limit: 40, remaining: 30, used: 10 } }).note).toBeNull();
+  });
+
+  // 11.11.2026 paket yapisi: Baslangic makale uretmez (api plans.ts articlesPerMonth 0)
+  it('Baslangic paketi (makale limiti 0): "0 / 0" yaninda neden sifir oldugu ve makalenin hangi planda oldugu yazili', () => {
+    const baslangic = findPlan('starter')!;
+    expect(baslangic.articlesPerMonth).toBe(0);
+    expect(findPlan('pro')!.articlesPerMonth).toBeGreaterThan(0);
+    const u = billingArticleUsage({ plan: { id: 'starter', name: baslangic.name_tr, monthly: baslangic.monthly_usd }, articleQuota: { limit: 0, remaining: 0, used: 0 } });
+    expect(u).toMatchObject({ label: 'Bu ay üretilen içerik', value: '0 / 0', pct: 0 });
+    expect(u.note).toEqual({ tone: 'muted', text: 'Bu pakette makale üretimi yok; makale üretimi Profesyonel ve üstü planlardadır.' });
   });
 
   it('kota okunamadiysa sayi uydurulmaz: deger "—", cubuk yok', () => {

@@ -111,9 +111,12 @@ export const SRC = {
     id: 'google-play-listing', title: 'Create and set up your app (store listing)', publisher: 'Google Play Console Yardım',
     url: 'https://support.google.com/googleplay/android-developer/answer/9859152?hl=en', accessed: ERISIM,
   },
+  // 11.11.2026 paket yapisi (api plans.ts, /pricing ayni kaynaktan basilir): Baslangic $99/ay
+  // (4 asistan, makale uretimi yok), Profesyonel $349/ay, Kurumsal teklifle. Bu kaynagi kullanan
+  // tek makale yapay-zeka-gorunurluk-araclari; tarihi ayni gun guncellendi.
   ranksupPricing: {
     id: 'ranksup-pricing', title: 'RanksUp fiyatlandırma', publisher: 'RanksUp',
-    url: 'https://ranksup.ai/pricing', accessed: ERISIM,
+    url: 'https://ranksup.ai/pricing', accessed: ERISIM_KASIM,
   },
   // Kullanim Sartlari 3. madde: "Aylık veya yıllık ödeme. KDV dahil."
   ranksupTerms: {

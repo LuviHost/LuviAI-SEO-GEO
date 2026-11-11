@@ -5,7 +5,8 @@ import { providerTrend, versionedHeadline, type VersionedPoint } from './citatio
 import { assessStability } from './visibility-variance.js';
 import { compareCitationRuns, headlineOfProviders, type RunProvider, type RunSummary } from './citation-run-compare.js';
 import { AiCitationService } from './ai-citation.service.js';
-import { SITE_MEASUREMENT_VERSION } from './host-match.js';
+import { siteMeasurementVersion } from './host-match.js';
+import { ownerEngines } from '../billing/plan-engines.js';
 import {
   gorunmeAraligi, gorunmeSayaci, olcumBelirsizligi, soruSayisi, tekrarSayisi, wilsonAraligi,
   type GorunmeAraligi, type GorunmeSayaci, type GunKosumu, type OlcumBelirsizligi, type TrendRef,
@@ -81,6 +82,11 @@ export class AiCitationTrackerService {
     const now = new Date();
     const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
+    // Yontem surumu olcumun yapildigi model kademesinden (host-match siteMeasurementVersion):
+    // Baslangic / deneme (hizli model, dort asistan) ayri numara tasir — paket degistiren
+    // hesabin iki olcumu "yontem degisti" diye ayrilir, model farki gorunurluk farki okunmaz.
+    const surum = siteMeasurementVersion(results.find((r) => r.modelTier)?.modelTier);
+
     let saved = 0;
     for (const r of results) {
       try {
@@ -102,7 +108,7 @@ export class AiCitationTrackerService {
             probes: probes as any,
             citedCount: cited,
             mentionedCount: mentioned,
-            matchVersion: SITE_MEASUREMENT_VERSION,
+            matchVersion: surum,
           },
           create: {
             siteId,
@@ -113,7 +119,7 @@ export class AiCitationTrackerService {
             probes: probes as any,
             citedCount: cited,
             mentionedCount: mentioned,
-            matchVersion: SITE_MEASUREMENT_VERSION,
+            matchVersion: surum,
           },
         });
         saved++;
@@ -166,7 +172,7 @@ export class AiCitationTrackerService {
           mentionedCount: counts.mentioned,
           poolSize: counts.poolSize,
           providers: providersJson as any,
-          matchVersion: SITE_MEASUREMENT_VERSION,
+          matchVersion: surum,
         },
         select: { id: true },
       });
@@ -273,7 +279,7 @@ export class AiCitationTrackerService {
     const since = new Date(Date.now() - days * 86400000);
     since.setHours(0, 0, 0, 0);
 
-    const snapshots = await this.prisma.aiCitationSnapshot.findMany({
+    const tumSnapshotlar = await this.prisma.aiCitationSnapshot.findMany({
       where: { siteId, date: { gte: since } },
       orderBy: { date: 'asc' },
       select: {
@@ -281,6 +287,12 @@ export class AiCitationTrackerService {
         available: true, createdAt: true, matchVersion: true, id: true,
       },
     });
+    // PLAN KAPSAMI (11.11.2026): gecmis, hesabin BUGUN olctugu asistanlarla okunur. Paketi
+    // daralan hesabin (Profesyonel → Baslangic / deneme; deploy gununde mevcut deneme
+    // hesaplari) eski Grok / DeepSeek / Muse satirlari pencereden cikana kadar grafikte,
+    // trendde ve "son sonuc" listesinde duruyor, olcmedigimiz asistani olculuyor gosteriyordu.
+    const kapsam = await this.sahipKapsami(siteId);
+    const snapshots = kapsam ? tumSnapshotlar.filter((s) => kapsam.has(s.provider)) : tumSnapshotlar;
 
     // Group by provider
     const byProvider: Record<string, VersionedPoint[]> = {};
@@ -374,6 +386,23 @@ export class AiCitationTrackerService {
       latestRunAt,
       olcum,
     };
+  }
+
+  /**
+   * Site sahibinin planindaki asistanlar (billing/plan-engines ownerEngines; ADMIN muaf).
+   * Site ya da sahip okunamazsa null: suzme yapilmaz (gecmis dusmez).
+   */
+  private async sahipKapsami(siteId: string): Promise<Set<string> | null> {
+    try {
+      const site = await (this.prisma as any).site?.findUnique?.({
+        where: { id: siteId },
+        select: { user: { select: { plan: true, role: true } } },
+      });
+      if (!site?.user) return null;
+      return new Set<string>(ownerEngines(site.user));
+    } catch {
+      return null;
+    }
   }
 
   /**

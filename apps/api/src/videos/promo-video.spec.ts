@@ -531,7 +531,7 @@ describe('VideosService.request — site ve urun', () => {
     expect(w.videos).toHaveLength(3);
   });
 
-  it('Deneme / Buyume: site ve urun de kilitli (hak dusmez)', async () => {
+  it('Deneme / Baslangic: site ve urun de kilitli (hak dusmez)', async () => {
     for (const plan of ['TRIAL', 'STARTER']) {
       const w = world({ plan });
       await expect(w.svc.request(SITE, me, { type: 'site' })).rejects.toBeInstanceOf(ForbiddenException);

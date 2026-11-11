@@ -60,8 +60,9 @@ export function RecentActivity({ articles, audit, siteId }: { articles: any[]; a
       events.push({
         type: 'article_generated',
         title: a.title || a.topic,
-        // Kilitli takvim yazisi (deneme hakki doldu) "takvime alindi" diye yazilacakmis gibi gorunmesin
-        meta: a.status === 'GENERATING' ? 'üretiliyor' : isPlanLocked(a) ? 'kilitli · plan yükseltilince yazılır' : a.status === 'SCHEDULED' ? 'takvime alındı' : 'oluşturuldu',
+        // Kilitli takvim yazisi (deneme hakki doldu) "takvime alindi" diye yazilacakmis gibi gorunmesin.
+        // 11.11.2026: makale uretimi yalniz Profesyonel ve ustunde (lib/plan-lock.ts notu)
+        meta: a.status === 'GENERATING' ? 'üretiliyor' : isPlanLocked(a) ? 'kilitli · Profesyonel planda yazılır' :a.status === 'SCHEDULED' ? 'takvime alındı' : 'oluşturuldu',
         timestamp: new Date(a.createdAt).getTime(),
         href: `${siteHref(siteId, 'articles')}/${a.id}`,
       });
