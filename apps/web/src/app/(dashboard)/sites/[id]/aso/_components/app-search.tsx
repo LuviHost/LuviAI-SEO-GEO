@@ -101,8 +101,8 @@ export function SearchResults({
               aria-pressed={picked}
               className={cn(
                 'flex w-full items-center gap-3 rounded-md border p-2.5 text-left transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-                picked ? 'border-brand bg-brand/5' : 'border-border hover:border-foreground/30 hover:bg-muted/40',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                picked ? 'border-foreground bg-muted/60' : 'border-border hover:border-foreground/30 hover:bg-muted/40',
               )}
             >
               <AppIcon src={r.icon} />
@@ -118,7 +118,7 @@ export function SearchResults({
                 </div>
               </div>
               {picked && (
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand text-white" aria-hidden>
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-foreground text-background" aria-hidden>
                   <Check className="h-3.5 w-3.5" />
                 </span>
               )}

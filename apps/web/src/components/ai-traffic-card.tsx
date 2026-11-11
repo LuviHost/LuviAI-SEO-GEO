@@ -42,7 +42,7 @@ function AssistantBars({ items, unit, caption }: { items: Array<{ key: string; l
             <span className="truncate">{i.label}</span>
           </span>
           <span className="h-2 rounded-full bg-muted" aria-hidden>
-            <span className="block h-2 rounded-full bg-brand" style={{ width: `${barPct(i.value, max)}%` }} />
+            <span className="block h-2 rounded-full bg-foreground" style={{ width: `${barPct(i.value, max)}%` }} />
           </span>
           <span className="tabular-nums text-muted-foreground">
             {formatNum(i.value)} <span className="sr-only">{unit}</span>
@@ -85,7 +85,7 @@ function pageColumns(labels: Record<string, string>, multiHost: boolean): Column
       header: 'Asistanlar',
       hideBelow: 'lg',
       cell: (r) => (
-        <span className="text-label text-muted-foreground">
+        <span className="text-label font-normal text-muted-foreground">
           {Object.entries(r.byAssistant).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${labels[k] ?? k} ${formatNum(n)}`).join(' · ')}
         </span>
       ),
@@ -105,7 +105,7 @@ function GaSection({ ga, labels }: { ga: AiTrafficGa; labels: Record<string, str
   return (
     <div className="space-y-4">
       {ga.thresholded && (
-        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-label text-muted-foreground" role="note">
+        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-label font-normal text-muted-foreground" role="note">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden /> <span>{THRESHOLD_NOTE}</span>
         </p>
       )}
@@ -123,19 +123,19 @@ function GaSection({ ga, labels }: { ga: AiTrafficGa; labels: Record<string, str
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-2">
-          <h4 className="text-label font-medium text-muted-foreground">Asistana göre oturum</h4>
+          <h4 className="v-rail">Asistana göre oturum</h4>
           <AssistantBars caption="Asistana göre GA4 oturumları" unit="oturum" items={ga.byAssistant.map((a) => ({ key: a.key, label: a.label, value: a.sessions }))} />
         </div>
         {hasSeries(ga.daily) && (
           <div className="space-y-2">
-            <h4 className="text-label font-medium text-muted-foreground">Günlük AI oturumu</h4>
+            <h4 className="v-rail">Günlük AI oturumu</h4>
             <DailyChart daily={ga.daily} name="AI oturumu" color={CHART[1]} />
           </div>
         )}
       </div>
       {ga.landingPages.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-label font-medium text-muted-foreground">AI ziyaretçisinin açtığı sayfalar (ilk 20)</h4>
+          <h4 className="v-rail">AI ziyaretçisinin açtığı sayfalar (ilk 20)</h4>
           <div className="rounded-lg border">
             <DataTable
               columns={pageColumns(labels, ga.multiHost)}
@@ -145,7 +145,7 @@ function GaSection({ ga, labels }: { ga: AiTrafficGa; labels: Record<string, str
               caption="AI asistanlarından gelen oturumların açılış sayfaları"
             />
           </div>
-          {ga.pagesTruncated && <p className="text-label text-muted-foreground">Çok sayıda sayfa var; liste GA4 satır sınırı içindeki en çok ziyaret alanlardan.</p>}
+          {ga.pagesTruncated && <p className="text-label font-normal text-muted-foreground">Çok sayıda sayfa var; liste GA4 satır sınırı içindeki en çok ziyaret alanlardan.</p>}
         </div>
       )}
     </div>
@@ -157,7 +157,7 @@ function TrackerSection({ tracker, siteId }: { tracker: AiTrafficTracker; siteId
     return (
       <p className="text-sm text-muted-foreground">
         Bu dönemde izleme kodu AI kaynaklı ziyaret kaydetmedi. Kod kurulu değilse{' '}
-        <Link href={siteHref(siteId, 'connections') as any} className="font-medium text-foreground underline underline-offset-2">Bağlantılar</Link>
+        <Link href={siteHref(siteId, 'connections') as any} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Bağlantılar</Link>
         {' '}sayfasından kurabilirsin.
       </p>
     );
@@ -167,21 +167,21 @@ function TrackerSection({ tracker, siteId }: { tracker: AiTrafficTracker; siteId
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-2">
           <p className="text-sm">
-            <span className="font-brand text-metric tabular-nums">{formatNum(tracker.totalHits)}</span>{' '}
+            <span className="text-metric tabular-nums">{formatNum(tracker.totalHits)}</span>{' '}
             <span className="text-muted-foreground">AI kaynaklı ziyaret</span>
           </p>
           <AssistantBars caption="Asistana göre izleme kodu ziyaretleri" unit="ziyaret" items={tracker.byAssistant.map((a) => ({ key: a.key, label: a.label, value: a.hits }))} />
         </div>
         {hasSeries(tracker.daily) && (
           <div className="space-y-2">
-            <h4 className="text-label font-medium text-muted-foreground">Günlük ziyaret</h4>
+            <h4 className="v-rail">Günlük ziyaret</h4>
             <DailyChart daily={tracker.daily} name="Ziyaret" color={CHART[3]} />
           </div>
         )}
       </div>
       {tracker.topPages.length > 0 && (
         <div className="space-y-1.5">
-          <h4 className="text-label font-medium text-muted-foreground">En çok ziyaret alan adresler (yaklaşık)</h4>
+          <h4 className="v-rail">En çok ziyaret alan adresler (yaklaşık)</h4>
           <ul className="divide-y rounded-lg border">
             {tracker.topPages.map((p) => (
               <li key={p.url} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
@@ -225,13 +225,13 @@ function BotRatioSection({ bots, siteId }: { bots: AiBotRatio; siteId: string })
         <MetricCard icon={MousePointerClick} label={visitLabel} value={bots.referrals} accent="muted" />
       </div>
       {notes.length > 0 && (
-        <ul className="space-y-1 text-label text-muted-foreground">
+        <ul className="space-y-1 text-label font-normal text-muted-foreground">
           {notes.map((t) => <li key={t}>{t}</li>)}
         </ul>
       )}
-      <p className="text-label text-muted-foreground">
+      <p className="text-label font-normal text-muted-foreground">
         Bot başına ayrıntı:{' '}
-        <Link href={siteHref(siteId, 'visibility') as any} className="font-medium text-foreground underline underline-offset-2">Görünürlük</Link>
+        <Link href={siteHref(siteId, 'visibility') as any} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Görünürlük</Link>
         {' '}sayfasındaki AI Crawler Trafiği.
       </p>
     </div>
@@ -286,11 +286,11 @@ export function AiTrafficCard({ siteId }: { siteId: string }) {
           {data && (
             <>
               <section aria-labelledby="ai-trafik-ga4" className="space-y-3">
-                <h4 id="ai-trafik-ga4" className="text-sm font-semibold">Google Analytics 4</h4>
+                <h4 id="ai-trafik-ga4" className="text-panel-3">Google Analytics 4</h4>
                 {data.ga ? (
                   <GaSection ga={data.ga} labels={labels} />
                 ) : reason && (
-                  <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-dashed bg-muted/20 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-dashed p-4">
                     <div className="min-w-0 max-w-xl">
                       <p className="text-sm font-medium">{reason.title}</p>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{reason.body}</p>
@@ -305,21 +305,21 @@ export function AiTrafficCard({ siteId }: { siteId: string }) {
               </section>
 
               <section aria-labelledby="ai-trafik-izleme" className="space-y-3 border-t pt-5">
-                <h4 id="ai-trafik-izleme" className="text-sm font-semibold">RanksUp izleme kodu</h4>
+                <h4 id="ai-trafik-izleme" className="text-panel-3">RanksUp izleme kodu</h4>
                 <TrackerSection tracker={data.tracker} siteId={siteId} />
               </section>
 
               {data.bots && (
                 <section aria-labelledby="ai-trafik-bot" className="space-y-3 border-t pt-5">
-                  <h4 id="ai-trafik-bot" className="text-sm font-semibold">AI botları okuyor, kaçı ziyaretçiye dönüşüyor?</h4>
+                  <h4 id="ai-trafik-bot" className="text-panel-3">AI botları okuyor, kaçı ziyaretçiye dönüşüyor?</h4>
                   <BotRatioSection bots={data.bots} siteId={siteId} />
                 </section>
               )}
 
-              <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-3 text-label text-muted-foreground">
+              <div className="flex items-start gap-2 rounded-lg border p-3 text-label font-normal text-muted-foreground">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                 <div className="space-y-1">
-                  <p className="font-medium text-foreground/80">Nasıl ölçülür?</p>
+                  <p className="font-medium text-foreground">Nasıl ölçülür?</p>
                   {MEASUREMENT_NOTE.map((t) => <p key={t}>{t}</p>)}
                 </div>
               </div>

@@ -18,8 +18,8 @@ export function LocaleSwitch({ quiet = false }: {
       {LOCALES.map((l) => {
         const on = locale === l;
         const tone = quiet
-          ? on ? 'bg-white/10 text-foreground' : 'text-muted-foreground transition-colors duration-200 hover:text-foreground'
-          : on ? 'bg-brand text-white' : 'opacity-60 hover:opacity-100';
+          ? on ? 'bg-foreground/10 text-foreground' : 'text-muted-foreground transition-colors duration-200 hover:text-foreground'
+          : on ? 'bg-foreground text-background' : 'opacity-60 hover:opacity-100';
         return (
           <button key={l} onClick={() => setLocale(l)} aria-pressed={on} className={`rounded px-2 py-1 ${tone}`}>
             {l.toUpperCase()}

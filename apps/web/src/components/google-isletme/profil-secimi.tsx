@@ -97,7 +97,7 @@ export function ProfilSecimi({ siteId, durum, bilinenAd, onDegisti }: {
   return (
     <div className="space-y-3">
       {durum.placeId && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
           <div className="flex min-w-0 items-center gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-success" aria-hidden />
             <div className="min-w-0">
@@ -135,7 +135,7 @@ export function ProfilSecimi({ siteId, durum, bilinenAd, onDegisti }: {
                 maxLength={120}
               />
             </label>
-            <Button type="submit" disabled={araniyor}>
+            <Button type="submit" variant={durum.placeId ? 'outline' : 'default'} disabled={araniyor}>
               {araniyor ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               Google Haritalar’da ara
             </Button>
@@ -147,13 +147,13 @@ export function ProfilSecimi({ siteId, durum, bilinenAd, onDegisti }: {
             </p>
           ) : (
             <div className="space-y-1">
-              <ul className="divide-y rounded-lg border">
+              <ul className="divide-y rounded-md border">
                 {adaylar.map((a) => (
                   <li key={a.placeId}>
                     <AdayKarti
                       aday={a}
                       aksiyon={
-                        <Button size="sm" onClick={() => sec(a)} disabled={kaydedilen !== null}>
+                        <Button size="sm" variant="outline" onClick={() => sec(a)} disabled={kaydedilen !== null}>
                           {kaydedilen === a.placeId && <Loader2 className="h-3 w-3 animate-spin" />}
                           Bu benim işletmem
                         </Button>

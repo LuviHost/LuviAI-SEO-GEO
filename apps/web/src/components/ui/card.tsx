@@ -2,8 +2,9 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Kart — token refactor (02.09.2026): slate yerine bg-card/border-border,
- * 14px yaricap (rounded-lg = var(--radius)), shadow-apple-sm.
+ * Kart — token'li yuzey: bg-card + ince cizgi, 8px yaricap (rounded-lg =
+ * var(--radius)), GOLGE YOK (12.11.2026 vitrin dili: derinlik golgeyle degil
+ * zemin tonu ve cizgiyle verilir).
  *
  * `density`: default p-6, dense p-4 (16px — analitik grid sozlesmesi).
  * NEDEN data-attribute + group (Context DEGIL): Card server bilesenlerinden de
@@ -20,7 +21,7 @@ const Card = React.forwardRef<
     ref={ref}
     data-density={density}
     className={cn(
-      'group/card rounded-lg border border-border bg-card text-card-foreground shadow-apple-sm',
+      'group/card rounded-lg border border-border bg-card text-card-foreground',
       className,
     )}
     {...props}
@@ -40,7 +41,7 @@ CardHeader.displayName = 'CardHeader';
 
 const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h3 ref={ref} className={cn('font-brand text-xl font-semibold leading-none tracking-tight', className)} {...props} />
+    <h3 ref={ref} className={cn('text-panel-2 leading-tight', className)} {...props} />
   ),
 );
 CardTitle.displayName = 'CardTitle';

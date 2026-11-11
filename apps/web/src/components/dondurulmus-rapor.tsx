@@ -59,8 +59,8 @@ function Delta({ deger, tersYon = false, sonek = '' }: { deger: number | null; t
   const Ok = deger > 0 ? ArrowUp : ArrowDown;
   return (
     <span
-      className={`text-xs font-semibold inline-flex items-center gap-0.5 ${
-        iyi ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+      className={`inline-flex items-center gap-0.5 text-xs font-medium tabular-nums ${
+        iyi ? 'text-success' : 'text-danger'
       }`}
     >
       <Ok className="h-3 w-3" />
@@ -73,20 +73,22 @@ function Delta({ deger, tersYon = false, sonek = '' }: { deger: number | null; t
 
 function VeriYok({ neden }: { neden: string }) {
   return (
-    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+    <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
       <p className="font-medium text-foreground/70 mb-1">Ölçüm yok</p>
       <p className="text-xs leading-relaxed">{neden}</p>
     </div>
   );
 }
 
-function Baslik({ ikon: Ikon, children, renk }: { ikon: any; children: React.ReactNode; renk: string }) {
+// Bolum basligi: notr ikon karosu (ui/section-header ile ayni dil). Eskiden her bolum kendi
+// sus rengini tasiyordu (mavi / mor / yesil / turuncu).
+function Baslik({ ikon: Ikon, children }: { ikon: any; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 mb-3">
-      <div className={`h-7 w-7 rounded-lg grid place-items-center ${renk}`}>
-        <Ikon className="h-4 w-4" />
+    <div className="mb-4 flex items-center gap-3">
+      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border text-muted-foreground">
+        <Ikon className="h-4 w-4" aria-hidden />
       </div>
-      <h4 className="text-sm font-semibold">{children}</h4>
+      <h4 className="text-panel-3">{children}</h4>
     </div>
   );
 }
@@ -94,9 +96,9 @@ function Baslik({ ikon: Ikon, children, renk }: { ikon: any; children: React.Rea
 function Kutu({ etiket, deger, alt }: { etiket: string; deger: React.ReactNode; alt?: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] uppercase text-muted-foreground">{etiket}</p>
-      <p className="text-xl font-bold">{deger}</p>
-      {alt && <div className="mt-0.5">{alt}</div>}
+      <p className="v-rail">{etiket}</p>
+      <p className="mt-1 text-metric tabular-nums">{deger}</p>
+      {alt && <div className="mt-1">{alt}</div>}
     </div>
   );
 }
@@ -136,17 +138,17 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
     <div className="space-y-4 print:space-y-3" id="rapor-govdesi">
       {/* Yazdirma basligi — ekranda gizli, kagitta ilk satir */}
       <div className="hidden print:block border-b pb-2 mb-2">
-        <h1 className="text-xl font-bold">{meta.siteAdi ?? 'Site'} — GEO/SEO/ASO Raporu</h1>
+        <h1 className="text-xl font-[450] tracking-[-0.04em]">{meta.siteAdi ?? 'Site'} — GEO/SEO/ASO Raporu</h1>
         <p className="text-xs text-muted-foreground">
           {meta.siteUrl} · {tarihAralik} · RanksUp
         </p>
       </div>
 
       <div className="flex items-center justify-between print:hidden">
-        <p className="text-xs text-muted-foreground">{tarihAralik}</p>
+        <p className="v-rail">{tarihAralik}</p>
         <button
           onClick={() => setDetay((v) => !v)}
-          className="text-xs underline text-muted-foreground hover:text-foreground"
+          className="text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
         >
           {detay ? 'Özet görünüm' : 'Detaylı görünüm'}
         </button>
@@ -155,7 +157,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
       {/* ═══ SEO ═══════════════════════════════════════════════ */}
       <Card>
         <CardContent className="p-4">
-          <Baslik ikon={Search} renk="bg-blue-500/10 text-blue-600 dark:text-blue-400">
+          <Baslik ikon={Search}>
             Arama görünürlüğü (SEO)
           </Baslik>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -167,7 +169,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                   /* Onceki donemde hic olcum yoksa fark gosterilmez: "+14.766"
                      sifirdan buyume gibi okunurdu, halbuki site o donemde
                      henuz olculmuyordu. */
-                  <span className="text-[11px] text-muted-foreground">önceki dönemde ölçüm yok</span>
+                  <span className="text-xs text-muted-foreground">önceki dönemde ölçüm yok</span>
                 ) : (
                   <Delta deger={seo.search?.clicksDelta ?? null} />
                 )
@@ -178,7 +180,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               deger={sayi(seo.search?.totalImpressions)}
               alt={
                 seo.search?.oncekiDonemVeriVar === false ? (
-                  <span className="text-[11px] text-muted-foreground">önceki dönemde ölçüm yok</span>
+                  <span className="text-xs text-muted-foreground">önceki dönemde ölçüm yok</span>
                 ) : (
                   <Delta deger={seo.search?.impressionsDelta ?? null} />
                 )
@@ -191,9 +193,9 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
             {erisim ? (
               <Kutu
                 etiket="Site skoru"
-                deger={<span className="text-sm font-semibold text-warning">Ölçülemedi</span>}
+                deger={<span className="text-sm font-medium text-warning">Ölçülemedi</span>}
                 alt={
-                  <span className="text-label text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {sonBasarili?.ranAt
                       ? `Son başarılı tarama (${new Date(sonBasarili.ranAt).toLocaleDateString('tr-TR')}): ${sonBasarili.overallScore}/100`
                       : 'Puanlanmış tarama yok'}
@@ -206,7 +208,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
           </div>
 
           {erisim && (
-            <p className="text-label text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               {crawlAccessTitle(erisim)}: {erisim.reason} {erisim.hint}{' '}
               {erisim.state === 'blocked'
                 ? 'Tarayıcı siteyi okuyamadığı için site skoru hesaplanmadı'
@@ -221,7 +223,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 etiket="Çözülen sorun"
                 deger={
                   seo.audit?.karsilastirma ? (
-                    <span className="text-emerald-600 dark:text-emerald-400">{seo.audit.cozulenSayisi}</span>
+                    <span className="text-success">{seo.audit.cozulenSayisi}</span>
                   ) : (
                     '—'
                   )
@@ -231,7 +233,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 etiket="Yeni çıkan"
                 deger={
                   seo.audit?.karsilastirma ? (
-                    <span className="text-amber-600 dark:text-amber-400">{seo.audit.yeniCikanSayisi}</span>
+                    <span className="text-warning">{seo.audit.yeniCikanSayisi}</span>
                   ) : (
                     '—'
                   )
@@ -243,28 +245,28 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 <Kutu
                   etiket="Ölçülemedi"
                   deger={<span className="text-muted-foreground">{olculemeyenSayisi}</span>}
-                  alt={<span className="text-label text-muted-foreground">çözülmüş sayılmadı</span>}
+                  alt={<span className="text-xs text-muted-foreground">çözülmüş sayılmadı</span>}
                 />
               )}
             </div>
           )}
 
           {!seo.audit?.karsilastirma && (
-            <p className="text-[11px] text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               Sorun karşılaştırması için dönem içinde en az 2 tarama gerekli.
             </p>
           )}
 
           {detay && seo.search?.topQueries?.length > 0 && (
             <div className="mt-4 pt-3 border-t overflow-x-auto print:overflow-visible">
-              <p className="text-xs font-semibold mb-2">En çok tıklanan sorgular (dönem geneli)</p>
+              <p className="mb-2 text-sm font-medium">En çok tıklanan sorgular (dönem geneli)</p>
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="py-1 font-medium">Sorgu</th>
-                    <th className="py-1 font-medium text-right">Tıklama</th>
-                    <th className="py-1 font-medium text-right">Gösterim</th>
-                    <th className="py-1 font-medium text-right">Pozisyon</th>
+                  <tr className="text-left font-mono text-vitrin-rail text-muted-foreground">
+                    <th className="py-1.5 font-normal">Sorgu</th>
+                    <th className="py-1.5 font-normal text-right">Tıklama</th>
+                    <th className="py-1.5 font-normal text-right">Gösterim</th>
+                    <th className="py-1.5 font-normal text-right">Pozisyon</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -286,7 +288,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
       {/* ═══ GEO ═══════════════════════════════════════════════ */}
       <Card>
         <CardContent className="p-4">
-          <Baslik ikon={Sparkles} renk="bg-violet-500/10 text-violet-600 dark:text-violet-400">
+          <Baslik ikon={Sparkles}>
             AI görünürlüğü (GEO)
           </Baslik>
           {geo.olculemedi ? (
@@ -298,7 +300,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                   etiket="AI görünürlük skoru"
                   deger={geo.sonSkor ?? '—'}
                   alt={geo.karsilastirma === 'scope_changed' || geo.karsilastirma === 'method_changed'
-                    ? <span className="text-label text-muted-foreground">{geo.karsilastirma === 'scope_changed' ? 'ölçülen sorular değişti — kıyas yok' : 'ölçüm yöntemi güncellendi — kıyas yok'}</span>
+                    ? <span className="text-xs text-muted-foreground">{geo.karsilastirma === 'scope_changed' ? 'ölçülen sorular değişti — kıyas yok' : 'ölçüm yöntemi güncellendi — kıyas yok'}</span>
                     : <Delta deger={geo.delta} />}
                 />
                 <Kutu etiket="Kaynak gösterildi" deger={sayi(geo.alintilanan)} />
@@ -307,7 +309,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                   etiket="Teknik GEO skoru"
                   deger={
                     geo.teknikGeoSkoru == null && teknikEngel
-                      ? <span className="text-sm font-semibold text-warning">Ölçülemedi</span>
+                      ? <span className="text-sm font-medium text-warning">Ölçülemedi</span>
                       : geo.teknikGeoSkoru ?? '—'
                   }
                   alt={
@@ -315,33 +317,33 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                       ? undefined
                       : geo.teknikKarsilastirma === 'method_changed'
                         // GEO ölçüm yöntemi dönem içinde güncellendi (site-report.service.ts)
-                        ? <span className="text-label text-muted-foreground">ölçüm yöntemi güncellendi — kıyas yok</span>
+                        ? <span className="text-xs text-muted-foreground">ölçüm yöntemi güncellendi — kıyas yok</span>
                         : <Delta deger={geo.teknikGeoDelta} />
                   }
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground mt-2">
+              <p className="text-xs text-muted-foreground mt-2">
                 Dönem boyunca {geo.olcumGunu} farklı günde ölçüldü.
               </p>
               {/* Teknik GEO skorunun dayanagi: engel nedeni (ve cozumu) ya da kismi orneklem notu */}
               {teknikEngel && (
-                <p className="text-label text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   {geo.teknikGeoSkoru == null ? 'Teknik GEO skoru ölçülemedi: ' : 'Son taramada teknik GEO skoru ölçülemedi: '}
                   {teknikEngel.reason} {teknikEngel.hint}
                 </p>
               )}
-              {teknikNot && <p className="text-label text-muted-foreground mt-1">Teknik GEO skoru: {teknikNot}</p>}
+              {teknikNot && <p className="text-xs text-muted-foreground mt-1">Teknik GEO skoru: {teknikNot}</p>}
 
               {detay && geo.saglayicilar?.length > 0 && (
                 <div className="mt-4 pt-3 border-t overflow-x-auto print:overflow-visible">
-                  <p className="text-xs font-semibold mb-2">Sağlayıcı kırılımı</p>
+                  <p className="mb-2 text-sm font-medium">Sağlayıcı kırılımı</p>
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="py-1 font-medium">Sağlayıcı</th>
-                        <th className="py-1 font-medium text-right">Dönem başı</th>
-                        <th className="py-1 font-medium text-right">Dönem sonu</th>
-                        <th className="py-1 font-medium text-right">Değişim</th>
+                      <tr className="text-left font-mono text-vitrin-rail text-muted-foreground">
+                        <th className="py-1.5 font-normal">Sağlayıcı</th>
+                        <th className="py-1.5 font-normal text-right">Dönem başı</th>
+                        <th className="py-1.5 font-normal text-right">Dönem sonu</th>
+                        <th className="py-1.5 font-normal text-right">Değişim</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -392,7 +394,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
       {/* ═══ ASO ═══════════════════════════════════════════════ */}
       <Card>
         <CardContent className="p-4">
-          <Baslik ikon={Smartphone} renk="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <Baslik ikon={Smartphone}>
             Uygulama mağazası (ASO)
           </Baslik>
           {aso.olculemedi ? (
@@ -414,14 +416,14 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                     <Kutu etiket="İlk 10'da" deger={`${u.ilkOnda}/${u.kelimeSayisi}`} />
                     <Kutu
                       etiket="Yükselen kelime"
-                      deger={<span className="text-emerald-600 dark:text-emerald-400">{u.yukselen}</span>}
+                      deger={<span className="text-success">{u.yukselen}</span>}
                     />
                     <Kutu
                       etiket="Düşen kelime"
-                      deger={<span className="text-red-600 dark:text-red-400">{u.dusen}</span>}
+                      deger={<span className="text-danger">{u.dusen}</span>}
                     />
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-2">
+                  <p className="text-xs text-muted-foreground mt-2">
                     {u.kelimeSayisi} kelime izleniyor, {u.olcumGunu} günde ölçüldü.
                     {/* Ortalamanin KAC kelimeden geldigi yazilmazsa "ortalama sira 3"
                         ifadesi "uygulama 3. sirada" gibi okunur — halbuki izlenen
@@ -444,7 +446,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                     yanlış olurdu — 26. sıra ile 500. sırayı ayırt edemiyoruz.
                   */}
                   {u.olculenDerinlik != null && (
-                    <p className="text-[11px] text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Mağaza araması ilk <strong>{u.olculenDerinlik}</strong> sonucu gösteriyor; bu
                       derinliğin dışında kalan kelimeler ortalamaya katılmaz — sıra uydurulmaz.
                       {u.olculenDerinlik < 50 && ' Play Store arama derinliği sınırlı olduğu için Android ölçümü iOS\'a göre daha sığdır.'}
@@ -460,7 +462,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
       {/* ═══ ASA ═══════════════════════════════════════════════ */}
       <Card>
         <CardContent className="p-4">
-          <Baslik ikon={Megaphone} renk="bg-brand-500/10 text-brand-600 dark:text-brand-400">
+          <Baslik ikon={Megaphone}>
             Apple Search Ads (ASA)
           </Baslik>
           {asa.olculemedi ? (
@@ -476,7 +478,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               {/* Apple'da silinen kampanyanin donem harcamasi toplamlara GIRER, kampanya sayisina
                   girmez (site-report.service.ts asaBolumu) — yazilmazsa harcama/sayi uyusmaz gorunur */}
               {silinenKampanya > 0 && (
-                <p className="text-label text-muted-foreground mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   {silinenKampanya} silinmiş kampanyanın bu dönemdeki harcaması ve sonuçları toplamlara dahil; kampanya sayısına dahil değil.
                 </p>
               )}
@@ -487,7 +489,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 </div>
               )}
               {asa.oncekiDonem && (
-                <p className="text-[11px] text-muted-foreground mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Önceki dönem: {sayi(asa.oncekiDonem.yukleme)} yükleme, $
                   {asa.oncekiDonem.harcamaUsd.toFixed(2)} harcama
                   {asa.oncekiDonem.cpi !== null && <>, ${asa.oncekiDonem.cpi.toFixed(2)} CPI</>}.
@@ -501,7 +503,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
       {/* ═══ YAPILAN IS ════════════════════════════════════════ */}
       <Card>
         <CardContent className="p-4">
-          <Baslik ikon={Wrench} renk="bg-slate-500/10 text-slate-600 dark:text-slate-400">
+          <Baslik ikon={Wrench}>
             Bu dönemde yapılan iş
           </Baslik>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -510,7 +512,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               deger={sayi(is.yayinlananMakale)}
               alt={
                 is.toplamKelime ? (
-                  <span className="text-[11px] text-muted-foreground">{sayi(is.toplamKelime)} kelime</span>
+                  <span className="text-xs text-muted-foreground">{sayi(is.toplamKelime)} kelime</span>
                 ) : null
               }
             />
@@ -531,7 +533,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                   etiket="AI maliyeti"
                   deger={is.aiMaliyetiUsd === null || is.aiMaliyetiUsd === undefined ? '—' : `$${is.aiMaliyetiUsd.toFixed(2)}`}
                   alt={
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {is.aiMaliyetiUsd === null || is.aiMaliyetiUsd === undefined
                         ? 'Bu döneme ait, bu siteye atfedilmiş token kaydı yok'
                         : `${is.maliyetKayitSayisi ?? 0} kayıttan hesaplandı`}
@@ -541,7 +543,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               </div>
               {is.maliyetKirilimi?.length > 0 && (
                 <div className="mt-3 overflow-x-auto print:overflow-visible">
-                  <p className="text-xs font-semibold mb-2">Maliyet kırılımı</p>
+                  <p className="mb-2 text-sm font-medium">Maliyet kırılımı</p>
                   <table className="w-full text-xs">
                     <tbody>
                       {is.maliyetKirilimi.map((m: any) => (
@@ -568,13 +570,13 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Kutu
                   etiket="Uygulanan düzeltme"
-                  deger={<span className="text-emerald-600 dark:text-emerald-400">{sayi(is.uygulananDuzeltme.toplam)}</span>}
+                  deger={<span className="text-success">{sayi(is.uygulananDuzeltme.toplam)}</span>}
                 />
                 <Kutu etiket="Etkilenen sayfa" deger={sayi(is.uygulananDuzeltme.etkilenenSayfa)} />
                 {is.uygulananDuzeltme.basarisiz > 0 && (
                   <Kutu
                     etiket="Başarısız deneme"
-                    deger={<span className="text-amber-600 dark:text-amber-400">{sayi(is.uygulananDuzeltme.basarisiz)}</span>}
+                    deger={<span className="text-warning">{sayi(is.uygulananDuzeltme.basarisiz)}</span>}
                   />
                 )}
               </div>
@@ -595,14 +597,14 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
             </div>
           )}
 
-          <p className="text-[11px] text-muted-foreground mt-3 pt-2 border-t">
+          <p className="text-xs text-muted-foreground mt-3 pt-2 border-t">
             Yalnızca kalıcı kaydı olan işler sayılır.
             {!is.uygulananDuzeltme && ' Bu dönemde uygulanmış düzeltme kaydı yok.'}
           </p>
         </CardContent>
       </Card>
 
-      <p className="text-[10px] text-muted-foreground text-center print:mt-4">
+      <p className="text-center text-xs text-muted-foreground print:mt-4">
         Bu rapor {meta.uretildi ? new Date(meta.uretildi).toLocaleString('tr-TR') : ''} tarihinde üretildi ve o andaki
         verilerle dondurulmuştur. RanksUp
       </p>

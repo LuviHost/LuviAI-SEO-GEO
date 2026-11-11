@@ -105,7 +105,7 @@ export function DeleteAccountSection() {
       <Card className="border-danger/30 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-xl">
-            <h2 id="hesabi-sil-baslik" className="font-brand text-h6 font-semibold tracking-tight">Hesabı sil</h2>
+            <h2 id="hesabi-sil-baslik" className="text-panel-2">Hesabı sil</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Hesabını ve bağlı tüm verilerini silebilirsin. Erişimin hemen kapanır, aboneliğin durur; verilerin 30 gün sonra kalıcı olarak silinir.
             </p>
@@ -133,7 +133,7 @@ export function DeleteAccountSection() {
               </DialogHeader>
               <DialogBody className="space-y-3 text-sm">
                 <p>
-                  Verilerin <strong>{formatTrDate(result.purgeAfter)}</strong> tarihinden sonra kalıcı olarak silinecek. Fatura ve ödeme kayıtların kişisel bağlantısı kaldırılarak saklanır.
+                  Verilerin <strong className="font-medium">{formatTrDate(result.purgeAfter)}</strong> tarihinden sonra kalıcı olarak silinecek. Fatura ve ödeme kayıtların kişisel bağlantısı kaldırılarak saklanır.
                 </p>
                 {appleNeedsManualRemoval(status, result.apple) && <p className="text-muted-foreground">{APPLE_STEPS}</p>}
               </DialogBody>
@@ -186,7 +186,7 @@ export function DeleteAccountSection() {
                   <>
                     {account && (
                       <p className="text-sm">
-                        Silinecek hesap: <strong>{account}</strong>
+                        Silinecek hesap: <strong className="font-medium">{account}</strong>
                       </p>
                     )}
                     <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
@@ -204,7 +204,7 @@ export function DeleteAccountSection() {
                           ozellikti (panelde sosyal modul yok). */}
                       <li>API anahtarların iptal edilir; otomatik yayın, reklam ve Apple Search Ads otopilotu ile uygulama sıra takibi durur; yayın hedefi ve bağlı hesap bilgilerin silinir.</li>
                       <li>
-                        Sitelerin, içeriklerin, raporların ve diğer tüm hesap verilerin <strong className="text-foreground">{status.purgeAfterDays} gün sonra</strong> kalıcı olarak silinir.
+                        Sitelerin, içeriklerin, raporların ve diğer tüm hesap verilerin <strong className="font-medium text-foreground">{status.purgeAfterDays} gün sonra</strong> kalıcı olarak silinir.
                       </li>
                       <li>Fatura ve ödeme kayıtların, vergi ve ticaret mevzuatı gereği saklanması zorunlu olduğundan kişisel bağlantısı kaldırılarak saklanır.</li>
                       {appleNeedsManualRemoval(status, null) && <li>{APPLE_STEPS}</li>}

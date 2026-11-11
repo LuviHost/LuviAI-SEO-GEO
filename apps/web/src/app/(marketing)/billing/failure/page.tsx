@@ -70,10 +70,10 @@ export default function FailurePage() {
   // bg-white idi, baslik ise govdeden text-foreground aliyordu: karanlik temada "Odeme Basarisiz"
   // beyaz zeminde acik renk kaliyor, okunmuyordu; acik renkli gradyan da temaya uymuyordu.
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-muted/40 to-brand/5 p-4">
-      <div className="max-w-md w-full text-center bg-card border p-10 sm:p-12 rounded-2xl shadow">
+    <main className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
+      <div className="max-w-md w-full text-center bg-card border p-10 sm:p-12 rounded-lg">
         <div className="text-6xl mb-4">❌</div>
-        <h1 className="text-3xl font-bold mb-2">Ödeme Başarısız</h1>
+        <h1 className="text-3xl font-[450] tracking-[-0.04em] mb-2">Ödeme Başarısız</h1>
         {!decided ? null : purchase.open ? (
           <>
             <p className="text-muted-foreground mb-6">
@@ -87,7 +87,7 @@ export default function FailurePage() {
             )}
             <Link
               href="/pricing"
-              className="inline-block px-6 py-3 bg-brand text-white rounded-lg font-semibold"
+              className="inline-block px-6 py-3 bg-brand text-black rounded-lg font-semibold"
             >
               Tekrar Dene
             </Link>

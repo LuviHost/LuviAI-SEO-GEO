@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FilterChip } from '@/components/ui/filter-chip';
+import { Input } from '@/components/ui/input';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -255,17 +256,17 @@ function PromptsTab({ siteId }: { siteId: string }) {
     <div className="space-y-3">
       {/* Ekleme satırı */}
       <div className="flex flex-col sm:flex-row gap-2">
-        <input
+        <Input
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !adding) void add(); }}
           placeholder="Örn: KOBİ'ler için en uygun ticari kredi hangisi?"
-          className="flex-1 rounded-md border bg-background px-3 py-1.5 text-xs"
+          className="h-9 flex-1"
         />
         <select
           value={newIntent}
           onChange={(e) => setNewIntent(e.target.value)}
-          className="rounded-md border bg-background px-2 py-1.5 text-xs"
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {Object.entries(INTENT_LABEL).map(([v, label]) => (
             <option key={v} value={v}>{label}</option>
@@ -421,7 +422,7 @@ function PromptRow({
         </div>
 
         <div className="shrink-0 text-right">
-          <p className={`text-sm font-semibold tabular-nums ${scoreColor(prompt.lastScore)}`}>
+          <p className={`text-sm font-medium tabular-nums ${scoreColor(prompt.lastScore)}`}>
             {prompt.lastScore === null ? '—' : `%${prompt.lastScore}`}
           </p>
           <p className="text-label text-muted-foreground">
@@ -432,13 +433,13 @@ function PromptRow({
         <Button size="sm" variant="ghost" onClick={() => run(false)} disabled={running || measurementBlocked} title="Ana soruyu çalıştır">
           {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
         </Button>
-        <Button size="sm" variant="ghost" onClick={onDelete} title="Sil">
-          <Trash2 className="h-3 w-3 text-danger" />
+        <Button size="sm" variant="ghost" onClick={onDelete} title="Sil" className="text-muted-foreground hover:text-danger">
+          <Trash2 className="h-3 w-3" />
         </Button>
       </div>
 
       {isOpen && (
-        <div className="border-t px-3 py-2.5 space-y-3 bg-muted/30">
+        <div className="border-t px-3 py-2.5 space-y-3 bg-muted/40">
           {/* Önce asıl sonuç: her asistan ne dedi, hangi siteleri kaynak gösterdi */}
           <PromptLatestRunView siteId={siteId} promptId={prompt.id} refreshKey={prompt.lastRunAt} />
 
@@ -462,7 +463,7 @@ function PromptRow({
           {/* İleri düzey: alt sorgu dalları (fan-out) — tahmin, ölçmek ek AI çağrısı */}
           <div className="space-y-2 border-t pt-2.5">
           <div>
-            <p className="text-xs font-semibold inline-flex items-center gap-1">
+            <p className="text-xs font-medium inline-flex items-center gap-1">
               <GitBranch className="h-3 w-3" /> Alt sorgu dalları
               <span className="font-normal text-muted-foreground">(isteğe bağlı)</span>
             </p>
@@ -518,12 +519,12 @@ function PromptRow({
             <div className="rounded-md border bg-background p-2 space-y-1.5">
               <div className="flex gap-4 text-label">
                 <span>
-                  Ana soru: <strong className={scoreColor(lastRun.main.score)}>%{lastRun.main.score}</strong>
+                  Ana soru: <strong className={`font-medium ${scoreColor(lastRun.main.score)}`}>%{lastRun.main.score}</strong>
                   <span className="text-muted-foreground"> ({lastRun.main.cited}/{lastRun.main.total})</span>
                 </span>
                 {lastRun.fanout && (
                   <span>
-                    Dallar: <strong className={scoreColor(lastRun.fanout.score)}>%{lastRun.fanout.score}</strong>
+                    Dallar: <strong className={`font-medium ${scoreColor(lastRun.fanout.score)}`}>%{lastRun.fanout.score}</strong>
                     <span className="text-muted-foreground"> ({lastRun.fanout.cited}/{lastRun.fanout.total})</span>
                   </span>
                 )}
@@ -600,32 +601,32 @@ function CoverageTab({ siteId }: { siteId: string }) {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-md border p-3">
-              <p className="text-label text-muted-foreground">Ana sorular</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border bg-card p-4">
+              <p className="v-rail">Ana sorular</p>
               {data.main.score === null ? (
-                <p className="text-xl font-semibold text-muted-foreground">—</p>
+                <p className="mt-3 text-metric-lg text-muted-foreground">—</p>
               ) : (
-                <p className={`text-xl font-semibold tabular-nums ${scoreColor(data.main.score)}`}>
+                <p className={`mt-3 text-metric-lg tabular-nums ${scoreColor(data.main.score)}`}>
                   %{data.main.score}
                 </p>
               )}
-              <p className="text-label text-muted-foreground">
+              <p className="pt-2 text-label font-normal text-muted-foreground/80">
                 {data.main.score === null
                   ? 'Ölçülecek markasız soru yok'
                   : `${data.main.cited}/${data.main.total} ölçümde alıntılandı`}
               </p>
             </div>
-            <div className="rounded-md border p-3">
-              <p className="text-label text-muted-foreground">Fan-out dalları</p>
+            <div className="rounded-lg border bg-card p-4">
+              <p className="v-rail">Fan-out dalları</p>
               {data.fanout.score === null ? (
-                <p className="text-xl font-semibold text-muted-foreground">—</p>
+                <p className="mt-3 text-metric-lg text-muted-foreground">—</p>
               ) : (
-                <p className={`text-xl font-semibold tabular-nums ${scoreColor(data.fanout.score)}`}>
+                <p className={`mt-3 text-metric-lg tabular-nums ${scoreColor(data.fanout.score)}`}>
                   %{data.fanout.score}
                 </p>
               )}
-              <p className="text-label text-muted-foreground">
+              <p className="pt-2 text-label font-normal text-muted-foreground/80">
                 {data.fanout.score === null
                   ? 'Ölçülecek markasız dal yok'
                   : `${data.fanout.cited}/${data.fanout.total} ölçümde alıntılandı`}
@@ -635,7 +636,7 @@ function CoverageTab({ siteId }: { siteId: string }) {
 
           {/* Asıl bulgu — fark */}
           {data.fanout.total > 0 && data.gap !== null && (
-            <div className={`rounded-md border p-3 ${data.gap < -15 ? 'border-danger/40 bg-danger/50' : ''}`}>
+            <div className={`rounded-md border p-3 ${data.gap < -15 ? 'border-danger/30 bg-danger/5' : ''}`}>
               <p className="text-xs font-medium">
                 {data.gap < -15
                   ? `Dallarda ${Math.abs(data.gap)} puan geridesin`
@@ -653,7 +654,7 @@ function CoverageTab({ siteId }: { siteId: string }) {
 
           {data.byKind.length > 0 && (
             <div className="rounded-md border overflow-hidden">
-              <div className="px-3 py-1.5 bg-muted/50 text-label font-medium">
+              <div className="border-b px-3 py-2 font-mono text-vitrin-rail text-muted-foreground">
                 Dal tipine göre görünürlük (zayıftan güçlüye)
               </div>
               <div className="divide-y">

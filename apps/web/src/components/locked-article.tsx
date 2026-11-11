@@ -21,7 +21,7 @@ export function PlanLockBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-label font-semibold text-muted-foreground',
+        'inline-flex items-center gap-1.5 rounded bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground',
         className,
       )}
     >
@@ -31,10 +31,22 @@ export function PlanLockBadge({ className }: { className?: string }) {
   );
 }
 
-/** Yukseltme baglantisi (fiyatlandirma) */
-export function PlanUpgradeButton({ size = 'sm', className }: { size?: 'sm' | 'default'; className?: string }) {
+/**
+ * Yukseltme baglantisi (fiyatlandirma). Varsayilan birincil (turuncu): uyari seridinde ve
+ * kilit kartinda gorunumun tek eylemi. Tablo satirinda tekrar eden dugme `variant="outline"`
+ * alir — turuncu satir satir cogalmasin.
+ */
+export function PlanUpgradeButton({
+  size = 'sm',
+  variant,
+  className,
+}: {
+  size?: 'sm' | 'default';
+  variant?: 'default' | 'outline' | 'secondary';
+  className?: string;
+}) {
   return (
-    <Button asChild size={size} className={className}>
+    <Button asChild size={size} variant={variant} className={className}>
       <Link href={UPGRADE_HREF}>
         <Lock className="h-3.5 w-3.5 mr-1.5" aria-hidden />
         {PLAN_LOCK_COPY.cta}
@@ -57,7 +69,7 @@ export function LockedGenerateButton({
 }: {
   lock: Pick<GenerationLock, 'label' | 'href' | 'hint'>;
   size?: 'sm' | 'default';
-  variant?: 'default' | 'outline';
+  variant?: 'default' | 'outline' | 'secondary';
   className?: string;
 }) {
   return (
@@ -97,11 +109,11 @@ export function LockedArticleBody({ seed }: { seed: string }) {
           ))}
         </div>
         <div className="absolute inset-0 grid place-items-center bg-background/60 p-4">
-          <div className="w-full max-w-md space-y-3 rounded-lg border bg-card p-5 text-center shadow-sm">
-            <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-brand">
+          <div className="w-full max-w-md space-y-3 rounded-lg border bg-card p-5 text-center">
+            <span className="mx-auto grid h-10 w-10 place-items-center rounded-md border text-muted-foreground">
               <Lock className="h-5 w-5" aria-hidden />
             </span>
-            <h3 className="font-semibold">{PLAN_LOCK_COPY.title}</h3>
+            <h3 className="text-panel-3">{PLAN_LOCK_COPY.title}</h3>
             <p className="text-sm text-muted-foreground">{PLAN_LOCK_COPY.body}</p>
             <p className="text-label text-muted-foreground">{PLAN_LOCK_COPY.placeholderNote}</p>
             <PlanUpgradeButton size="default" />

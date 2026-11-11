@@ -27,13 +27,13 @@ export default function AsoCreativesPage() {
     <div className="space-y-6">
       <SectionHeader as="h3" icon={ImageIcon} title="Görseller" description="Ekran görüntüleri, tanıtım videosu ve öne çıkan görsel." />
 
-      <Card className="border-brand/20 bg-brand/5">
+      <Card>
         <CardContent className="flex flex-wrap items-center gap-4 p-4">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand/15 text-brand" aria-hidden>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border text-muted-foreground" aria-hidden>
             <Wand2 className="h-5 w-5" />
           </span>
           <div className="min-w-[200px] flex-1">
-            <p className="font-semibold">Screenshot Studio</p>
+            <p className="text-panel-3">Screenshot Studio</p>
             <p className="text-sm text-muted-foreground">
               AI başlık ve arka planla mağaza boyutlarında ekran görüntüsü tasarla; tek tıkla tüm iPhone, iPad ve Android boyutlarını indir.
             </p>
@@ -45,7 +45,7 @@ export default function AsoCreativesPage() {
       </Card>
 
       <section aria-labelledby="cr-current" className="space-y-3">
-        <h4 id="cr-current" className="font-semibold">Mağazadaki ekran görüntüleri</h4>
+        <h4 id="cr-current" className="text-panel-3">Mağazadaki ekran görüntüleri</h4>
         {audit.loading && !audit.data ? (
           <Skeleton className="h-48" />
         ) : audit.error && !audit.data ? (
@@ -60,13 +60,13 @@ export default function AsoCreativesPage() {
 
       {findings.length > 0 && (
         <section aria-labelledby="cr-findings" className="space-y-3">
-          <h4 id="cr-findings" className="font-semibold">Görsel denetimi</h4>
+          <h4 id="cr-findings" className="text-panel-3">Görsel denetimi</h4>
           <FindingsAccordion findings={findings} />
         </section>
       )}
 
       <section aria-labelledby="cr-asc" className="space-y-3">
-        <h4 id="cr-asc" className="font-semibold">App Store Connect&apos;e yükle</h4>
+        <h4 id="cr-asc" className="text-panel-3">App Store Connect&apos;e yükle</h4>
         <AscGate purpose="Ekran görüntülerini doğrudan App Store Connect'e yüklemek">
           {(ascApp) => (
             <Card>
@@ -88,7 +88,7 @@ function Gallery({ title, urls: raw }: { title: string; urls: string[] }) {
   const urls = Array.from(new Set(raw.filter(Boolean)));
   return (
     <div>
-      <p className="mb-2 text-label text-muted-foreground">{title} · {urls.length} görsel</p>
+      <p className="v-rail mb-2">{title} · {urls.length} görsel</p>
       {urls.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Mağaza verisinde ekran görüntüsü yok.</p>
       ) : (
@@ -96,7 +96,7 @@ function Gallery({ title, urls: raw }: { title: string; urls: string[] }) {
         <ul className="flex gap-2 overflow-x-auto pb-2">
           {urls.map((u, i) => (
             <li key={u} className="shrink-0">
-              <a href={u} target="_blank" rel="noopener noreferrer" className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              <a href={u} target="_blank" rel="noopener noreferrer" className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <img
                   src={u}
                   alt={`${title} ekran görüntüsü ${i + 1}`}

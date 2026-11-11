@@ -130,14 +130,14 @@ export function FieldCompare({
 
   return (
     <div className="rounded-lg border">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <span className="text-sm font-medium">{label}</span>
         {hint && <span className="text-label text-muted-foreground">{hint}</span>}
       </div>
       <div className="grid md:grid-cols-2 md:divide-x">
         <div className="min-w-0 p-3">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-label text-muted-foreground">Mevcut</span>
+            <span className="v-rail">Mevcut</span>
             {!currentNote && <Counter value={cur} limit={limit} />}
           </div>
           {currentNote && !cur ? (
@@ -152,7 +152,7 @@ export function FieldCompare({
         </div>
         <div className="min-w-0 border-t p-3 md:border-t-0">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-label text-muted-foreground">Önerilen</span>
+            <span className="v-rail">Önerilen</span>
             <div className="flex items-center gap-2">
               {hasSuggestion && <Counter value={sug} limit={limit} />}
               {hasSuggestion && (
@@ -177,7 +177,7 @@ export function FieldCompare({
       </div>
       {long && (
         <div className="border-t px-3 py-1.5">
-          <button type="button" onClick={() => setExpanded(!expanded)} className="text-label text-brand hover:underline">
+          <button type="button" onClick={() => setExpanded(!expanded)} className="text-label text-muted-foreground transition-colors hover:text-foreground">
             {expanded ? 'Daralt' : 'Tamamını göster'}
           </button>
         </div>

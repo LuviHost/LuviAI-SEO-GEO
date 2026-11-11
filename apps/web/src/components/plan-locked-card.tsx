@@ -29,13 +29,13 @@ export function PlanLockedCard({
     <div className="flex justify-center py-10">
       <Card className="max-w-md w-full">
         <CardContent className="p-8 text-center space-y-4">
-          <div className="h-12 w-12 mx-auto rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 grid place-items-center">
+          <div className="h-11 w-11 mx-auto rounded-md border border-border text-muted-foreground grid place-items-center">
             <Lock className="h-5 w-5" />
           </div>
 
           <div className="space-y-1.5">
-            <h2 className="text-lg font-semibold">{label}</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <h2 className="text-panel-2">{label}</h2>
+            <p className="text-sm text-muted-foreground">
               {planName
                 ? `${label}, ${planName} planına dahildir.`
                 : 'Bu özellik mevcut planında bulunmuyor.'}
@@ -43,7 +43,7 @@ export function PlanLockedCard({
           </div>
 
           {description && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
+            <p className="text-sm text-muted-foreground">{description}</p>
           )}
 
           <Button asChild className="w-full">

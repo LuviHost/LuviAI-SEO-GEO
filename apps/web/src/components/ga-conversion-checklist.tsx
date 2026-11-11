@@ -130,9 +130,9 @@ export function GaConversionChecklist({ siteId }: { siteId: string }) {
               Sınıflandırma olay adına bakar (ör. phone, tel, call, arama; generate_lead, form_submit, randevu, booking).
               Farklı adla gönderdiğin bir olay varsa burada görünmeyebilir. Standart GA4 mülklerinde en fazla 30 olay önemli
               etkinlik olarak işaretlenebilir.{' '}
-              <a className="underline hover:text-foreground" href="https://support.google.com/analytics/answer/13128484?hl=tr" target="_blank" rel="noopener noreferrer">Google: önemli etkinlik olarak işaretleme</a>
+              <a className="underline decoration-border underline-offset-4 hover:text-foreground" href="https://support.google.com/analytics/answer/13128484?hl=tr" target="_blank" rel="noopener noreferrer">Google: önemli etkinlik olarak işaretleme</a>
               {' · '}
-              <a className="underline hover:text-foreground" href="https://support.google.com/analytics/answer/9216061?hl=tr" target="_blank" rel="noopener noreferrer">Google: geliştirilmiş ölçüm</a>
+              <a className="underline decoration-border underline-offset-4 hover:text-foreground" href="https://support.google.com/analytics/answer/9216061?hl=tr" target="_blank" rel="noopener noreferrer">Google: geliştirilmiş ölçüm</a>
             </p>
           </>
         ) : null}

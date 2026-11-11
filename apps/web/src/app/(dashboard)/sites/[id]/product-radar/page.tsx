@@ -99,8 +99,10 @@ export default function ProductRadarPage() {
       ) : !data?.date ? (
         <Card>
           <CardContent className="p-10 text-center space-y-3">
-            <Radar className="h-10 w-10 mx-auto text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">
+            <span className="mx-auto grid h-11 w-11 place-items-center rounded-md border text-foreground/70" aria-hidden>
+              <Radar className="h-5 w-5" />
+            </span>
+            <p className="mx-auto max-w-xl text-sm text-muted-foreground">
               Henüz tarama yok. "Şimdi Tara" ile AI sağlayıcılarına kategori sorgularını sor — haftalık otomatik tekrar eder.
             </p>
           </CardContent>
@@ -108,13 +110,13 @@ export default function ProductRadarPage() {
       ) : (
         <>
           {/* Marka durumu */}
-          <Card className={cn(brand ? 'border-emerald-500/40' : 'border-amber-500/40')}>
+          <Card className={cn(brand ? 'border-success/25 bg-success/5' : 'border-warning/30 bg-warning/5')}>
             <CardContent className="p-4 flex items-center gap-3">
               {brand ? (
                 <>
-                  <Trophy className="h-6 w-6 text-emerald-500 shrink-0" />
+                  <Trophy className="h-5 w-5 text-success shrink-0" />
                   <div>
-                    <div className="text-sm font-semibold">
+                    <div className="text-sm font-medium">
                       {site.name} öneri listelerinde — {brand.appearances} kez, ort. sıra {brand.avgRank ?? '—'}
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -124,9 +126,9 @@ export default function ProductRadarPage() {
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0" />
+                  <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
                   <div>
-                    <div className="text-sm font-semibold">{site.name} öneri listelerinde YOK</div>
+                    <div className="text-sm font-medium">{site.name} öneri listelerinde YOK</div>
                     <div className="text-xs text-muted-foreground">
                       AI asistanlar kategorinde aşağıdaki ürünleri öneriyor — İçerik Fırsatları ve GEO Lab ile kapatılacak açık bu. Son tarama: {data.date}
                     </div>
@@ -139,25 +141,22 @@ export default function ProductRadarPage() {
           {/* Liderlik tablosu */}
           <Card>
             <CardContent className="p-4">
-              <div className="text-sm font-semibold mb-3">Kategori Öneri Sıralaması</div>
-              <div className="space-y-1">
+              <div className="text-panel-3 mb-3">Kategori Öneri Sıralaması</div>
+              <div className="divide-y rounded-md border">
                 {(data.leaderboard ?? []).map((row: any, i: number) => (
                   <div
                     key={row.name}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2',
-                      row.isBrand ? 'bg-brand/10 border border-brand/30' : i % 2 === 0 ? 'bg-muted/30' : '',
-                    )}
+                    className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5', row.isBrand && 'bg-muted/60')}
                   >
                     <span className="text-xs font-mono text-muted-foreground w-6">{i + 1}</span>
-                    <span className={cn('text-sm flex-1 min-w-0 truncate', row.isBrand && 'font-bold')}>
-                      {row.name} {row.isBrand && <Badge className="ml-1.5 text-[9px]">SEN</Badge>}
+                    <span className={cn('min-w-[9rem] flex-1 truncate text-sm', row.isBrand && 'font-medium')}>
+                      {row.name} {row.isBrand && <Badge className="ml-1.5 px-1.5 text-label">Sen</Badge>}
                     </span>
-                    <span className="text-[11px] text-muted-foreground shrink-0">
+                    <span className="text-label font-normal text-muted-foreground sm:shrink-0">
                       {row.appearances} öneri · {row.providers.map((p: string) => PROVIDER_LABEL[p] ?? p).join(', ')}
                     </span>
                     {row.avgRank && (
-                      <Badge variant="outline" className="text-[10px] shrink-0">ort. {row.avgRank}. sıra</Badge>
+                      <Badge variant="outline" className="shrink-0 text-label font-normal">ort. {row.avgRank}. sıra</Badge>
                     )}
                   </div>
                 ))}
@@ -171,15 +170,15 @@ export default function ProductRadarPage() {
               <Card key={i}>
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="gap-1 text-[10px]"><EngineLogo provider={s.provider} size={12} />{PROVIDER_LABEL[s.provider] ?? s.provider}</Badge>
+                    <Badge variant="outline" className="gap-1.5 text-label"><EngineLogo provider={s.provider} size={12} />{PROVIDER_LABEL[s.provider] ?? s.provider}</Badge>
                     {s.brandListed
-                      ? <Badge className="text-[10px] bg-emerald-500/15 text-emerald-600 border-emerald-500/30" variant="outline">Listede{s.brandRank ? ` · ${s.brandRank}.` : ''}</Badge>
-                      : <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-600 border-red-500/30">Listede yok</Badge>}
+                      ? <Badge variant="success" className="text-label">Listede{s.brandRank ? ` · ${s.brandRank}.` : ''}</Badge>
+                      : <Badge variant="secondary" className="text-label">Listede yok</Badge>}
                   </div>
                   <div className="text-xs font-mono text-muted-foreground">"{s.query}"</div>
-                  <ol className="text-xs space-y-0.5">
+                  <ol className="text-xs space-y-0.5 text-muted-foreground">
                     {(Array.isArray(s.products) ? s.products : []).slice(0, 8).map((p: any, j: number) => (
-                      <li key={j} className={cn('flex gap-2', p.isBrand && 'font-bold text-brand')}>
+                      <li key={j} className={cn('flex gap-2', p.isBrand && 'font-medium text-foreground')}>
                         <span className="text-muted-foreground w-4">{p.rank ?? j + 1}.</span> {p.name}
                       </li>
                     ))}

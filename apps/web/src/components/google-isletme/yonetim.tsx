@@ -128,7 +128,7 @@ export function Yonetim({ siteId, durum, onYenile }: {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
         <p className="flex min-w-0 items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-success" aria-hidden />
           <span className="truncate"><span className="text-muted-foreground">Yönetilen konum:</span> {durum.oauth.konumAdi || durum.oauth.konum}</span>
@@ -201,7 +201,7 @@ function KonumSecici({ siteId, onSecildi }: { siteId: string; onSecildi: () => P
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">Yönetilecek konumu seçin</p>
-      <ul className="divide-y rounded-lg border">
+      <ul className="divide-y rounded-md border">
         {konumlar.map((k) => (
           <li key={`${k.hesap}/${k.konum}`} className="flex flex-wrap items-center justify-between gap-2 p-3">
             <div className="min-w-0">
@@ -305,7 +305,7 @@ function GonderilerSekmesi({ siteId }: { siteId: string }) {
         ) : liste.length === 0 ? (
           <p className="text-sm text-muted-foreground">Henüz gönderi yok.</p>
         ) : (
-          <ul className="divide-y rounded-lg border">
+          <ul className="divide-y rounded-md border">
             {liste.map((g, i) => (
               <li key={`${g.tarih ?? ''}-${i}`} className="space-y-1 p-3">
                 <div className="flex flex-wrap items-center gap-2">

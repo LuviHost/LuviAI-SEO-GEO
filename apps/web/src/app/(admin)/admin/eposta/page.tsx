@@ -373,7 +373,7 @@ export default function EpostaKampanyaPage() {
                 key={d || 'tum'}
                 type="button"
                 onClick={() => { setDurum(d); setSayfa(1); }}
-                className={cn('rounded-md border px-2.5 py-1 text-xs transition-colors', durum === d ? 'border-brand-500 bg-brand-500 text-white' : 'hover:bg-muted')}
+                className={cn('rounded-md border px-2.5 py-1 text-xs transition-colors', durum === d ? 'border-foreground bg-foreground text-background' : 'hover:bg-muted')}
               >
                 {d ? `${DURUM[d].label} (${o.sayilar[d] ?? 0})` : 'Tümü'}
               </button>

@@ -90,8 +90,8 @@ export default function BillingPage() {
     return (
       <div className="space-y-6">
         {header}
-        <Skeleton className="h-56 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
+        <Skeleton className="h-56 rounded-lg" />
+        <Skeleton className="h-48 rounded-lg" />
       </div>
     );
   }
@@ -148,12 +148,12 @@ export default function BillingPage() {
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="flex items-start gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border bg-muted/50 text-foreground/70" aria-hidden>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border text-muted-foreground" aria-hidden>
               <Crown className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-label text-muted-foreground">Mevcut planın</p>
-              <h2 className="font-brand text-h4 font-semibold tracking-tight">{plan?.name ?? 'Ücretsiz'}</h2>
+              <p className="v-rail">Mevcut planın</p>
+              <h2 className="mt-1 text-metric-lg">{plan?.name ?? 'Ücretsiz'}</h2>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <StatusBadge status={current.status} />
                 {isTrial && current.trialEndsAt && (
@@ -172,12 +172,12 @@ export default function BillingPage() {
           </div>
 
           {(legacyTry > 0 || usd > 0) && (
-            <div className="text-right">
-              <p className="font-brand text-h4 font-semibold tabular-nums">
+            <div className="sm:text-right">
+              <p className="text-metric-lg tabular-nums">
                 {legacyTry > 0 ? `₺${legacyTry.toLocaleString('tr-TR')}` : `$${usd.toLocaleString('en-US')}`}
-                <span className="ml-1 text-sm font-normal text-muted-foreground">/ ay</span>
+                <span className="ml-1 text-sm font-normal tracking-normal text-muted-foreground">/ ay</span>
               </p>
-              <p className="mt-1 text-label text-muted-foreground">
+              <p className="mt-1 text-label font-normal text-muted-foreground">
                 {legacyTry > 0 ? 'Eski fiyatın korunuyor' : 'TL tutarı ödeme anındaki kurla hesaplanır'}
               </p>
             </div>
@@ -185,7 +185,7 @@ export default function BillingPage() {
         </div>
 
         {isPastDue && failCount > 0 && (
-          <p className="mt-5 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm">
+          <p className="mt-5 rounded-md border border-danger/30 bg-danger/5 px-4 py-3 text-sm">
             Yenileme ödemesi kayıtlı kartından alınamadı ({failCount}/3 deneme). Yarın tekrar deneyeceğiz;
             3 denemede de alınamazsa hesabın deneme düzeyine geçer. Kartını değiştirmek için{' '}
             <Link href="/pricing" className="font-medium underline underline-offset-2">aboneliği yeniden başlat</Link>.
@@ -193,8 +193,8 @@ export default function BillingPage() {
         )}
 
         {needsManualRenewal && !(isPastDue && failCount > 0) && (
-          <p className="mt-5 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
-            Ödenen dönemin {periodEndFuture ? <><strong>{periodEndAnyText}</strong> tarihinde bitiyor</> : 'sona erdi'} ve kayıtlı kartın yok.
+          <p className="mt-5 rounded-md border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+            Ödenen dönemin {periodEndFuture ? <><strong className="font-medium">{periodEndAnyText}</strong> tarihinde bitiyor</> : 'sona erdi'} ve kayıtlı kartın yok.
             Yenilemezsen hesabın 7 gün içinde deneme düzeyine geçer.{' '}
             <Link href="/pricing" className="font-medium underline underline-offset-2">Aboneliği yenile</Link>
             {/* Otomatik yenileme vaadi yalniz ozellik acikken (API /current recurringEnabled,
@@ -207,23 +207,23 @@ export default function BillingPage() {
         )}
 
         {isCanceled && (
-          <p className="mt-5 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+          <p className="mt-5 rounded-md border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
             {periodEndText
-              ? <>Aboneliğin iptal edildi. <strong>{periodEndText}</strong> tarihine kadar tüm özelliklerin açık; sonra hesabın deneme düzeyine geçer.</>
+              ? <>Aboneliğin iptal edildi. <strong className="font-medium">{periodEndText}</strong> tarihine kadar tüm özelliklerin açık; sonra hesabın deneme düzeyine geçer.</>
               : <>Aboneliğin iptal edildi; hesabın bu gece deneme düzeyine geçecek.</>}
             {' '}Fikrini değiştirirsen planı yeniden satın alabilirsin.
           </p>
         )}
 
         {/* Kullanim — plana gore etiket (lib/article-quota.ts billingArticleUsage) */}
-        <div className="mt-6 space-y-2">
+        <div className="mt-6 space-y-2 border-t border-border pt-5">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{usage.label}</span>
             <span className="tabular-nums font-medium">{usage.value}</span>
           </div>
           {usage.pct !== null && (
             <div
-              className="h-2 overflow-hidden rounded-full bg-muted"
+              className="h-1.5 overflow-hidden rounded-full bg-muted"
               role="progressbar"
               aria-valuenow={usage.pct}
               aria-valuemin={0}
@@ -233,7 +233,7 @@ export default function BillingPage() {
               <div
                 className={cn(
                   'h-full rounded-full motion-safe:transition-[width] motion-safe:duration-700',
-                  usage.pct > 90 ? 'bg-danger' : usage.pct > 70 ? 'bg-warning' : 'bg-brand',
+                  usage.pct > 90 ? 'bg-danger' : usage.pct > 70 ? 'bg-warning' : 'bg-foreground',
                 )}
                 style={{ width: `${usage.pct}%` }}
               />
@@ -261,7 +261,7 @@ export default function BillingPage() {
         {/* Satin alma kapali (PayTR test modu): plan karsilastirma acik kalir, fiyat
             sayfasindaki satin alma butonlari ayni metinle kilitli. Asil kapi API'de. */}
         {!purchase.open && (
-          <p role="status" className="mt-4 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+          <p role="status" className="mt-4 rounded-md border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
             {purchase.message}{' '}
             <a href={`mailto:${PURCHASE_CONTACT_EMAIL}`} className="font-medium underline underline-offset-2">
               {PURCHASE_CONTACT_EMAIL}
@@ -278,18 +278,18 @@ export default function BillingPage() {
         ) : (
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 text-left text-label text-muted-foreground">
-                  <tr>
-                    <th className="px-5 py-2.5 font-medium">Tarih</th>
-                    <th className="px-5 py-2.5 font-medium">Açıklama</th>
-                    <th className="px-5 py-2.5 text-right font-medium">Tutar</th>
-                    <th className="px-5 py-2.5 font-medium">Durum</th>
+              <table className="w-full min-w-[34rem] text-sm">
+                <thead>
+                  <tr className="border-b text-left font-mono text-vitrin-rail text-muted-foreground">
+                    <th className="px-5 py-2.5 font-normal">Tarih</th>
+                    <th className="px-5 py-2.5 font-normal">Açıklama</th>
+                    <th className="px-5 py-2.5 text-right font-normal">Tutar</th>
+                    <th className="px-5 py-2.5 font-normal">Durum</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y">
                   {invoices.map((inv) => (
-                    <tr key={inv.id} className="border-t">
+                    <tr key={inv.id}>
                       <td className="px-5 py-3 tabular-nums text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString('tr-TR')}</td>
                       <td className="px-5 py-3">{inv.description}</td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums">₺{Number(inv.amount).toLocaleString('tr-TR')}</td>
@@ -367,14 +367,14 @@ function CancelDialog({
         <DialogHeader>
           <DialogTitle>Abonelik iptal edilsin mi?</DialogTitle>
           <DialogDescription>
-            {plan ? <><strong>{plan}</strong> aboneliğini iptal etmek üzeresin.</> : 'Aboneliğini iptal etmek üzeresin.'}
+            {plan ? <><strong className="font-medium">{plan}</strong> aboneliğini iptal etmek üzeresin.</> : 'Aboneliğini iptal etmek üzeresin.'}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             <li>
               {periodEndText
-                ? <>Ödediğin dönemin sonuna, <strong className="text-foreground">{periodEndText}</strong> tarihine kadar tüm özelliklerin açık kalır.</>
+                ? <>Ödediğin dönemin sonuna, <strong className="font-medium text-foreground">{periodEndText}</strong> tarihine kadar tüm özelliklerin açık kalır.</>
                 : 'Ödenmiş dönemin sona ermiş görünüyor; iptal edersen hesabın bu gece deneme düzeyine geçer.'}
             </li>
             <li>Otomatik yenileme kapanır; kartından başka ödeme alınmaz.</li>

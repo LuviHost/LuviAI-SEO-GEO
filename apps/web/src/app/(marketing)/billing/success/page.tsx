@@ -234,11 +234,11 @@ export default function SuccessPage() {
   const showSupport = outcome?.kind === 'failed' || outcome?.kind === 'unconfirmed';
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-muted/40 to-brand/5 p-4">
-      <div className="max-w-md w-full text-center bg-card border p-10 sm:p-12 rounded-2xl shadow">
+    <main className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
+      <div className="max-w-md w-full text-center bg-card border p-10 sm:p-12 rounded-lg">
         <Icon className={`mx-auto mb-4 h-14 w-14 ${iconTone} ${spinning ? 'animate-spin' : ''}`} aria-hidden="true" />
         <div role="status" aria-live="polite">
-          <h1 className="text-3xl font-bold mb-2">{msg.title}</h1>
+          <h1 className="text-3xl font-[450] tracking-[-0.04em] mb-2">{msg.title}</h1>
           <p className="text-muted-foreground mb-6">{msg.body}</p>
         </div>
 
@@ -264,7 +264,7 @@ export default function SuccessPage() {
             <button
               type="button"
               onClick={goBackToWizard}
-              className="inline-block w-full px-6 py-3 bg-brand text-white rounded-lg font-semibold hover:opacity-90"
+              className="inline-block w-full px-6 py-3 bg-brand text-black rounded-lg font-semibold hover:opacity-90"
             >
               Şimdi Sihirbaza Dön →
             </button>
@@ -273,7 +273,7 @@ export default function SuccessPage() {
             </Link>
           </>
         ) : active ? (
-          <Link href="/dashboard" className="inline-block px-6 py-3 bg-brand text-white rounded-lg font-semibold">
+          <Link href="/dashboard" className="inline-block px-6 py-3 bg-brand text-black rounded-lg font-semibold">
             Panele git
           </Link>
         ) : outcome === null || outcome.kind === 'verifying' ? (
@@ -283,14 +283,14 @@ export default function SuccessPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {outcome.kind === 'failed' ? (
-              <Link href="/pricing" className="inline-block px-6 py-3 bg-brand text-white rounded-lg font-semibold">
+              <Link href="/pricing" className="inline-block px-6 py-3 bg-brand text-black rounded-lg font-semibold">
                 Planlara dön
               </Link>
             ) : (
               <button
                 type="button"
                 onClick={checkAgain}
-                className="inline-block w-full px-6 py-3 bg-brand text-white rounded-lg font-semibold hover:opacity-90"
+                className="inline-block w-full px-6 py-3 bg-brand text-black rounded-lg font-semibold hover:opacity-90"
               >
                 Tekrar kontrol et
               </button>

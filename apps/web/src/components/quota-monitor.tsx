@@ -113,9 +113,9 @@ export function QuotaMonitor() {
           const pct = it.limit > 0 ? Math.min(100, Math.round((it.used / it.limit) * 100)) : 0;
           const tone = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : 'brand';
           return (
-            <Card key={it.key} className="p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-label">
+            <Card key={it.key} className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="v-rail flex items-center gap-1.5">
                   <it.icon
                     className={cn('h-3.5 w-3.5', tone === 'danger' ? 'text-danger' : tone === 'warning' ? 'text-warning' : 'text-muted-foreground')}
                     aria-hidden
@@ -123,7 +123,7 @@ export function QuotaMonitor() {
                   {it.label}
                 </span>
                 <span className="text-label">
-                  <span className="font-semibold tabular-nums">{formatNum(it.used)}</span>
+                  <span className="font-medium tabular-nums">{formatNum(it.used)}</span>
                   <span className="text-muted-foreground">/{formatNum(it.limit)}</span>
                 </span>
               </div>
@@ -136,7 +136,7 @@ export function QuotaMonitor() {
                 aria-valuenow={pct}
               >
                 <div
-                  className={cn('h-full rounded-full transition-all', tone === 'danger' ? 'bg-danger' : tone === 'warning' ? 'bg-warning' : 'bg-brand')}
+                  className={cn('h-full rounded-full transition-all', tone === 'danger' ? 'bg-danger' : tone === 'warning' ? 'bg-warning' : 'bg-foreground')}
                   style={{ width: `${pct}%` }}
                 />
               </div>

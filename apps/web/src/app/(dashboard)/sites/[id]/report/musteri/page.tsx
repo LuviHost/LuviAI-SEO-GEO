@@ -48,7 +48,7 @@ export default function MusteriRaporuPage() {
   return (
     <div className="space-y-5">
       <div className="space-y-4 print:hidden">
-        <Link href={siteHref(site.id, 'report')} className="inline-flex items-center gap-1 text-label text-muted-foreground hover:text-brand">
+        <Link href={siteHref(site.id, 'report')} className="v-rail inline-flex items-center gap-1.5 transition-colors duration-200 hover:text-foreground">
           <ArrowLeft className="h-3 w-3" aria-hidden /> Raporlar
         </Link>
         <SectionHeader
@@ -82,7 +82,7 @@ export default function MusteriRaporuPage() {
         <ErrorState error={hata} onRetry={yukle} />
       ) : rapor ? (
         <>
-          <div className="mx-auto max-w-4xl rounded-lg border border-border bg-muted/30 p-2 sm:p-4 print:hidden">
+          <div className="mx-auto max-w-4xl rounded-lg border border-border bg-muted p-2 sm:p-4 print:hidden">
             <RaporBelgesi rapor={rapor} className="rounded-md border border-border p-5 sm:p-10" />
           </div>
           <RaporBaskiKopyasi rapor={rapor} />

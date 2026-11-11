@@ -4,7 +4,7 @@ import type { Metadata, Viewport } from 'next';
 import { ThemeProvider } from '@/components/theme-provider';
 import { CookieConsent } from '@/components/cookie-consent';
 import { AppSessionProvider } from '@/components/session-provider';
-import { Toaster } from 'sonner';
+import { ThemedToaster } from '@/components/themed-toaster';
 import { RefTracker } from '@/components/ref-tracker';
 import { SignupEvent } from '@/components/signup-event';
 import { fontVariables } from '@/lib/fonts';
@@ -144,7 +144,7 @@ export const viewport: Viewport = {
   maximumScale: 5,
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#020617' },
+    { media: '(prefers-color-scheme: dark)', color: '#090909' },
   ],
 };
 
@@ -265,11 +265,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             alinamaz; ns.html iframe'i ise container'in noscript etiketlerini onaysiz atardi. */}
         <RefTracker />
         <AppSessionProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
             {children}
             <CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} gaId={GA_MEASUREMENT_ID} />
             <SignupEvent gaId={GA_MEASUREMENT_ID} />
-            <Toaster position="top-right" richColors closeButton />
+            <ThemedToaster />
           </ThemeProvider>
         </AppSessionProvider>
       </body>

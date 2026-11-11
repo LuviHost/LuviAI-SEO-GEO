@@ -185,7 +185,7 @@ export default function AppAiVisibilityPage() {
                   </Badge>
                 )}
                 <div className="flex gap-1.5">
-                  <Button size="sm" onClick={() => run(p.id)} disabled={busy !== null || measurementBlocked}>
+                  <Button size="sm" variant="outline" onClick={() => run(p.id)} disabled={busy !== null || measurementBlocked}>
                     {busy === p.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}
                     Ölç
                   </Button>
@@ -203,9 +203,9 @@ export default function AppAiVisibilityPage() {
       {runResult && (
         <Card>
           <CardContent className="p-4 space-y-3">
-            <div className="text-sm font-semibold">
+            <div className="text-panel-3">
               Ölçüm sonucu — "{runResult.text}"
-              <span className="text-muted-foreground font-normal ml-2 text-xs">
+              <span className="text-muted-foreground font-normal tracking-normal ml-2 text-xs">
                 {runResult.summary.mentioned}/{runResult.summary.total} anıldı · {runResult.summary.storeLinked}/{runResult.summary.total} store linki
                 {/* Hata veren asistan toplama girmez; kaç tane olduğu açıkça söylenir (eski API'de alan yok) */}
                 {runResult.summary.unmeasured > 0 && <> · {runResult.summary.unmeasured} asistan ölçülemedi</>}
@@ -213,9 +213,9 @@ export default function AppAiVisibilityPage() {
             </div>
             <div className="grid md:grid-cols-2 gap-2">
               {runResult.providers.map((pr: any) => (
-                <div key={pr.provider} className={cn('rounded-lg border p-3', !pr.available && 'opacity-60')}>
+                <div key={pr.provider} className={cn('rounded-md border p-3', !pr.available && 'opacity-60')}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold">{pr.label}</span>
+                    <span className="text-xs font-medium">{pr.label}</span>
                     {pr.available ? (
                       <div className="flex gap-1.5">
                         <Badge variant={pr.appMentioned ? 'success' : 'danger'} className="px-1.5 text-label">
@@ -245,14 +245,14 @@ export default function AppAiVisibilityPage() {
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <div className="text-sm font-semibold flex items-center gap-2">
+              <div className="text-panel-3 flex items-center gap-2">
                 <PackageOpen className="h-4 w-4 text-muted-foreground" /> Review → İçerik Paketi
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Olumsuz yorum temalarından What's New metni + web FAQ + blog konusu üret. Blog konuları İçerik Fırsatları'na düşer.
               </p>
             </div>
-            <Button size="sm" onClick={buildPack} disabled={packLoading}>
+            <Button size="sm" variant="outline" onClick={buildPack} disabled={packLoading}>
               {packLoading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5 mr-1.5" />}
               Paket Üret
             </Button>
@@ -264,9 +264,9 @@ export default function AppAiVisibilityPage() {
                 {pack.basedOn.negativeCount} yorum · temalar: {pack.basedOn.themes.map((t: any) => `${t.theme}(${t.count})`).join(', ') || '—'}
               </div>
 
-              <div className="rounded-lg bg-muted/40 p-3 space-y-1.5">
+              <div className="rounded-md bg-muted/40 p-3 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">What's New (store)</span>
+                  <span className="font-mono text-vitrin-rail text-muted-foreground">What's New (store)</span>
                   <Button size="sm" variant="ghost" onClick={() => copyText(pack.whatsNew, "What's New")}>
                     <Copy className="h-3 w-3" />
                   </Button>
@@ -278,16 +278,16 @@ export default function AppAiVisibilityPage() {
               <GuardIssues issues={pack.whatsNewIssues} />
 
               {pack.faqs.length > 0 && (
-                <div className="rounded-lg bg-muted/40 p-3 space-y-2">
+                <div className="rounded-md bg-muted/40 p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-muted-foreground">Web FAQ (FAQPage schema için)</span>
+                    <span className="font-mono text-vitrin-rail text-muted-foreground">Web FAQ (FAQPage schema için)</span>
                     <Button size="sm" variant="ghost" onClick={() => copyText(pack.faqs.map((f: any) => `S: ${f.q}\nC: ${f.a}`).join('\n\n'), 'FAQ')}>
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
                   {pack.faqs.map((f: any, i: number) => (
                     <div key={i} className="text-xs">
-                      <div className="font-semibold">{f.q}</div>
+                      <div className="font-medium">{f.q}</div>
                       <div className="text-muted-foreground">{f.a}</div>
                     </div>
                   ))}
@@ -295,14 +295,14 @@ export default function AppAiVisibilityPage() {
               )}
 
               {pack.blogTopics.length > 0 && (
-                <div className="rounded-lg bg-muted/40 p-3 space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Blog Konuları → İçerik Fırsatları</span>
+                <div className="rounded-md bg-muted/40 p-3 space-y-1.5">
+                  <span className="font-mono text-vitrin-rail text-muted-foreground">Blog Konuları → İçerik Fırsatları</span>
                   {pack.blogTopics.map((t: any, i: number) => (
                     <div key={i} className="text-xs flex items-center gap-2">
-                      <Sparkles className="h-3 w-3 text-brand shrink-0" />
+                      <Sparkles className="h-3 w-3 text-muted-foreground shrink-0" />
                       <span className="flex-1">{t.title}</span>
                       {t.opportunityId && (
-                        <Link href={`/sites/${siteId}/opportunities` as any} className="text-brand underline text-label shrink-0">
+                        <Link href={`/sites/${siteId}/opportunities` as any} className="text-foreground underline underline-offset-2 text-label shrink-0">
                           Fırsatlarda →
                         </Link>
                       )}

@@ -26,7 +26,7 @@ export function UserMenu() {
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-sidebar-hover transition-colors w-full text-left"
+        className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors duration-200 hover:bg-sidebar-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {session.user.image ? (
           <img
@@ -36,7 +36,7 @@ export function UserMenu() {
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="h-7 w-7 rounded-full bg-brand text-white flex items-center justify-center text-xs font-semibold">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-sidebar-hover text-xs font-medium text-sidebar-foreground">
             {initials}
           </div>
         )}
@@ -44,7 +44,7 @@ export function UserMenu() {
           <div className="text-sm font-medium truncate text-sidebar-foreground">
             {session.user.name ?? session.user.email}
           </div>
-          <div className="text-[10px] text-sidebar-muted truncate">
+          <div className="truncate font-mono text-vitrin-rail text-sidebar-muted">
             {session.user.plan === 'TRIAL' ? 'Trial' : session.user.plan}
             {session.user.role === 'ADMIN' && ' · Admin'}
           </div>
@@ -53,7 +53,7 @@ export function UserMenu() {
 
       <div
         className={cn(
-          'absolute bottom-full mb-2 left-0 right-0 bg-sidebar border border-sidebar-border rounded-md shadow-apple-md overflow-hidden transition-all',
+          'absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-md border border-sidebar-border bg-popover transition-opacity duration-200',
           open ? 'opacity-100' : 'opacity-0 pointer-events-none',
         )}
       >
@@ -75,7 +75,7 @@ export function UserMenu() {
         )}
         <button
           onClick={() => signOut({ callbackUrl: '/' })}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-sidebar-hover w-full text-left border-t border-sidebar-border"
+          className="flex w-full items-center gap-2 border-t border-sidebar-border px-3 py-2 text-left text-sm text-danger hover:bg-sidebar-hover"
         >
           <LogOut className="h-4 w-4" /> Çıkış yap
         </button>

@@ -167,7 +167,7 @@ export default function ChatPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowHistory((v) => !v)}>
             <History className="h-4 w-4 mr-1.5" /> Geçmiş
-            {conversations.length > 0 && <Badge variant="outline" className="ml-1.5 text-[10px]">{conversations.length}</Badge>}
+            {conversations.length > 0 && <Badge variant="outline" className="ml-1.5 px-1.5 font-mono font-normal tabular-nums">{conversations.length}</Badge>}
           </Button>
           <Button variant="outline" size="sm" onClick={newConversation}>
             <Plus className="h-4 w-4 mr-1.5" /> Yeni
@@ -185,7 +185,7 @@ export default function ChatPage() {
               <div key={c.id} className="flex items-center gap-2 rounded-md hover:bg-muted/60 px-2 py-1.5">
                 <button type="button" onClick={() => openConversation(c.id)} className="flex-1 text-left min-w-0">
                   <div className="text-sm truncate">{c.title ?? 'Adsız konuşma'}</div>
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="font-mono text-vitrin-rail text-muted-foreground">
                     {c._count?.messages ?? 0} mesaj · {new Date(c.updatedAt).toLocaleString('tr-TR')}
                   </div>
                 </button>
@@ -205,9 +205,9 @@ export default function ChatPage() {
             {messages.map((m) => (
               <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
                 <div className={cn(
-                  'max-w-[85%] rounded-xl px-4 py-2.5 text-sm',
+                  'max-w-[85%] rounded-lg px-4 py-2.5 text-sm',
                   m.role === 'user'
-                    ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white'
+                    ? 'bg-foreground text-background'
                     : 'bg-muted/60',
                   m.notice && 'border border-warning/50',
                 )}>
@@ -218,7 +218,7 @@ export default function ChatPage() {
                           <button
                             type="button"
                             onClick={() => setOpenTools(openTools === m.id ? null : m.id)}
-                            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                            className="flex items-center gap-1.5 text-label font-normal text-muted-foreground transition-colors hover:text-foreground"
                           >
                             <Database className="h-3 w-3" />
                             {m.toolCalls.length} veri sorgusu
@@ -227,8 +227,8 @@ export default function ChatPage() {
                           {openTools === m.id && (
                             <div className="mt-1.5 space-y-1">
                               {m.toolCalls.map((t, i) => (
-                                <div key={i} className="rounded bg-background/60 border px-2 py-1 text-[10px] font-mono">
-                                  <span className="font-bold">{t.name}</span>
+                                <div key={i} className="rounded border bg-background px-2 py-1 font-mono text-vitrin-rail">
+                                  <span className="text-foreground">{t.name}</span>
                                   <span className="text-muted-foreground"> {JSON.stringify(t.input).slice(0, 120)}</span>
                                 </div>
                               ))}
@@ -237,7 +237,7 @@ export default function ChatPage() {
                         </div>
                       )}
                       <div
-                        className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                        className="prose prose-sm prose-neutral dark:prose-invert max-w-none prose-headings:font-medium prose-headings:tracking-tight prose-strong:font-medium prose-th:font-medium prose-a:font-normal prose-a:text-foreground prose-code:font-normal prose-code:before:content-none prose-code:after:content-none prose-thead:border-border prose-tr:border-border prose-hr:border-border [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
                         // Asistan cikti akisina tool sonuclari uzerinden DIS metin
                         // (Reddit snippet, magaza yorumu) girer — marked raw HTML'i
                         // aynen gecirir, o yuzden sink'te DOMPurify sart (stored XSS).
@@ -253,7 +253,7 @@ export default function ChatPage() {
             ))}
             {sending && (
               <div className="flex justify-start">
-                <div className="rounded-xl bg-muted/60 px-4 py-2.5 text-sm flex items-center gap-2 text-muted-foreground">
+                <div className="rounded-lg bg-muted/60 px-4 py-2.5 text-sm flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Veriler inceleniyor…
                 </div>
               </div>
@@ -287,7 +287,7 @@ export default function ChatPage() {
       {/* Skill kataloğu */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-brand text-sm font-semibold">Hazır görevler</h3>
+          <h3 className="text-panel-3">Hazır görevler</h3>
         </div>
         <div className="grid md:grid-cols-2 gap-2.5">
           {skills.map((s) => (
@@ -302,14 +302,14 @@ export default function ChatPage() {
                 }
                 send({ skill: s.key, message: input });
               }}
-              className="text-left rounded-lg border bg-card hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand transition-colors p-4 space-y-1 disabled:opacity-50"
+              className="text-left rounded-lg border bg-card hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors p-4 space-y-1 disabled:opacity-50"
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">{s.name}</span>
+                <span className="text-sm font-medium">{s.name}</span>
                 <Badge variant="secondary">{TAG_LABEL[s.tag] ?? s.tag}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">{s.description}</p>
-              <div className="flex items-center gap-1 text-label text-muted-foreground/80">
+              <div className="flex items-center gap-1 text-label font-normal text-muted-foreground/80">
                 <Wrench className="h-3 w-3" aria-hidden /> Kullandığı veri: {s.accesses.map((a: string) => ACCESS_LABEL[a] ?? a).join(', ')}
               </div>
             </button>

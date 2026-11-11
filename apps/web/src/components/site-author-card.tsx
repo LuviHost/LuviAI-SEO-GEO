@@ -79,11 +79,13 @@ export function SiteAuthorCard({ siteId }: { siteId: string }) {
     <Card id="site-author" className="scroll-mt-24">
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <PenLine className="h-5 w-5 text-brand" />
-            <div>
-              <h2 className="font-semibold">Makale yazarı</h2>
-              <p className="text-xs text-muted-foreground mt-1">
+          <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground" aria-hidden>
+              <PenLine className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-panel-3">Makale yazarı</h2>
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
                 Makaleleri gerçekten yazan ya da onaylayan kişi. Girersen yeni makalelerin yapısal verisinde yazar olarak bu kişi
                 görünür ve makale sonundaki imza satırı bu adı taşır. Boş bırakırsan kurum adın kullanılır; RanksUp yazar uydurmaz.
               </p>
@@ -105,22 +107,22 @@ export function SiteAuthorCard({ siteId }: { siteId: string }) {
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label htmlFor="author-name" className="block text-xs font-medium mb-1">Ad soyad *</label>
+                <label htmlFor="author-name" className="mb-1.5 block text-label text-muted-foreground">Ad soyad *</label>
                 <Input id="author-name" value={form.name} onChange={set('name')} maxLength={120} placeholder="Ayşe Yılmaz" disabled={saving} />
               </div>
               <div>
-                <label htmlFor="author-title" className="block text-xs font-medium mb-1">Unvan</label>
+                <label htmlFor="author-title" className="mb-1.5 block text-label text-muted-foreground">Unvan</label>
                 <Input id="author-title" value={form.jobTitle} onChange={set('jobTitle')} maxLength={120} placeholder="Mali müşavir" disabled={saving} />
               </div>
             </div>
             <div>
-              <label htmlFor="author-url" className="block text-xs font-medium mb-1">Yazar sayfası</label>
+              <label htmlFor="author-url" className="mb-1.5 block text-label text-muted-foreground">Yazar sayfası</label>
               <Input id="author-url" type="url" value={form.url} onChange={set('url')} maxLength={300} placeholder="https://siten.com/yazar/ayse-yilmaz" disabled={saving} />
             </div>
             <div>
-              <label htmlFor="author-sameas" className="block text-xs font-medium mb-1">Profil adresleri</label>
+              <label htmlFor="author-sameas" className="mb-1.5 block text-label text-muted-foreground">Profil adresleri</label>
               <Textarea id="author-sameas" value={form.sameAs} onChange={set('sameAs')} rows={3} placeholder={'https://www.linkedin.com/in/ayse-yilmaz\nhttps://x.com/ayse'} disabled={saving} />
-              <p className="text-label text-muted-foreground mt-1">Satır başına bir adres (LinkedIn, X, kurum profili). En fazla 10.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Satır başına bir adres (LinkedIn, X, kurum profili). En fazla 10.</p>
             </div>
             <div className="flex items-center justify-end gap-2">
               {saved && (

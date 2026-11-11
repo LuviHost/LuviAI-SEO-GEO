@@ -91,7 +91,7 @@ function Sparkline({ data }: { data: { date: string; position: number }[] }) {
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
-        className="text-brand"
+        className="text-muted-foreground"
       />
     </svg>
   );
@@ -123,13 +123,13 @@ function PositionDelta({ delta }: { delta: number | null }) {
 
 function PositionBadge({ position, tier }: { position: number; tier: KeywordRanking['tier'] }) {
   const colorMap = {
-    top3: 'bg-success/15 text-success',
-    top10: 'bg-info/15 text-info',
-    near: 'bg-warning/15 text-warning',
+    top3: 'bg-success/10 text-success',
+    top10: 'bg-info/10 text-info',
+    near: 'bg-warning/10 text-warning',
     low: 'bg-muted text-muted-foreground',
   };
   return (
-    <span className={`inline-flex items-center justify-center min-w-[32px] h-7 px-2 rounded-md text-sm font-bold tabular-nums ${colorMap[tier]}`}>
+    <span className={`inline-flex items-center justify-center min-w-[32px] h-7 px-2 rounded text-sm font-medium tabular-nums ${colorMap[tier]}`}>
       {position > 0 ? formatPos(position) : '—'}
     </span>
   );
@@ -221,7 +221,7 @@ export default function RankTrackingPage() {
       key: 'query',
       header: 'Anahtar kelime',
       sortValue: (k) => k.query,
-      className: 'max-w-[280px]',
+      className: 'max-w-[240px]',
       cell: (kw) => (
         <>
           <div className="font-medium truncate" title={kw.query}>{kw.query}</div>
@@ -276,14 +276,14 @@ export default function RankTrackingPage() {
       key: 'page',
       header: 'Sayfa',
       hideBelow: 'lg',
-      className: 'max-w-[200px]',
+      className: 'max-w-[150px]',
       cell: (kw) =>
         kw.page ? (
           <a
             href={kw.page}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-muted-foreground hover:text-brand truncate inline-flex items-center gap-1 max-w-full"
+            className="font-mono text-vitrin-rail text-muted-foreground hover:text-foreground truncate inline-flex items-center gap-1 max-w-full"
             title={kw.page}
           >
             <span className="truncate">{pathOf(kw.page)}</span>
@@ -339,14 +339,14 @@ export default function RankTrackingPage() {
 
       {/* Dönem — FilterChip (28px / aria-pressed) */}
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Dönem">
-        <span className="text-label text-muted-foreground">Dönem:</span>
+        <span className="v-rail">Dönem:</span>
         {([7, 30, 90] as const).map((d) => (
           <FilterChip key={d} selected={days === d} onClick={() => setDays(d)}>
             Son {d} gün
           </FilterChip>
         ))}
         {data?.period?.startDate && data.period.endDate && (
-          <span className="text-xs text-muted-foreground">
+          <span className="v-rail">
             {formatGscRange(data.period.startDate, data.period.endDate)}
             {data.period.previousStartDate && data.period.previousEndDate
               ? ` · karşılaştırma: ${formatGscRange(data.period.previousStartDate, data.period.previousEndDate)}`
@@ -395,21 +395,21 @@ export default function RankTrackingPage() {
         <Card>
           <CardContent className="p-5 flex items-center justify-between flex-wrap gap-3">
             <div>
-              <div className="text-label text-muted-foreground mb-1">Ortalama sıra</div>
+              <div className="v-rail mb-2">Ortalama sıra</div>
               <div className="text-metric-lg tabular-nums">{formatPos(data.summary.avgPosition)}</div>
             </div>
-            <div className="flex flex-wrap gap-6 text-sm">
+            <div className="flex flex-wrap gap-x-8 gap-y-4 text-sm">
               <div>
-                <div className="text-label text-muted-foreground">Toplam tıklama</div>
-                <div className="font-semibold tabular-nums">{formatNum(data.summary.totalClicks)}</div>
+                <div className="v-rail mb-1">Toplam tıklama</div>
+                <div className="text-metric tabular-nums">{formatNum(data.summary.totalClicks)}</div>
               </div>
               <div>
-                <div className="text-label text-muted-foreground">Toplam gösterim</div>
-                <div className="font-semibold tabular-nums">{formatNum(data.summary.totalImpressions)}</div>
+                <div className="v-rail mb-1">Toplam gösterim</div>
+                <div className="text-metric tabular-nums">{formatNum(data.summary.totalImpressions)}</div>
               </div>
               <div>
-                <div className="text-label text-muted-foreground">Ortalama tıklama oranı</div>
-                <div className="font-semibold tabular-nums">
+                <div className="v-rail mb-1">Ortalama tıklama oranı</div>
+                <div className="text-metric tabular-nums">
                   {formatPct(data.summary.totalImpressions > 0 ? data.summary.totalClicks / data.summary.totalImpressions : 0, 2)}
                 </div>
               </div>
@@ -439,7 +439,7 @@ export default function RankTrackingPage() {
                   className="pl-8 h-9 w-56 text-sm"
                 />
               </div>
-              <span className="text-label text-muted-foreground tabular-nums">
+              <span className="v-rail tabular-nums">
                 {formatNum(filtered.length)} / {formatNum(data.keywords.length)} sorgu
                 {data.keywordsTruncated && typeof data.totalKeywords === 'number'
                   ? ` (toplam ${formatNum(data.totalKeywords)} sorgunun en çok gösterim alanları)`
@@ -470,7 +470,7 @@ export default function RankTrackingPage() {
             />
           )}
           {filtered.length > 200 && (
-            <div className="px-4 py-3 text-xs text-muted-foreground border-t bg-muted/20">
+            <div className="px-4 py-3 text-xs text-muted-foreground border-t">
               İlk 200 sonuç gösteriliyor. CSV indirip tamamına bakabilirsin.
             </div>
           )}
@@ -478,11 +478,11 @@ export default function RankTrackingPage() {
       )}
 
       {/* INFO PANEL */}
-      <Card className="bg-muted/20 border-dashed">
+      <Card className="border-dashed bg-transparent">
         <CardContent className="p-4 text-xs text-muted-foreground flex items-start gap-3">
           <Info className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
           <div>
-            <strong className="text-foreground">Veri kaynağı:</strong> Google Search Console.
+            <strong className="font-medium text-foreground">Veri kaynağı:</strong> Google Search Console.
             GSC yalnız kendi sitenin sıralama verisini gösterir — rakip sıralamaları burada görünmez.
             Sıralar GSC&apos;nin verdiği <em>ortalama sıra</em>dır (kullanıcı, konum ve cihaz farkları yumuşatılır).
             Değişim, hemen önceki eşit uzunluktaki dönemle aynı sorgu için hesaplanır; iki dönemde de en az 10 gösterim
@@ -496,15 +496,15 @@ export default function RankTrackingPage() {
 }
 
 function KpiCard({ label, value, icon, accent }: { label: string; value: string; icon: React.ReactNode; accent?: string }) {
-  // Tipografi sozlesmesi: text-metric-lg deger + text-label etiket (dense kart, 16px pad)
+  // ui/metric MetricCard ile ayni gorunum: mono etiket, notr rakam; durum rengi yalniz kucuk ikonda
   return (
     <Card density="dense">
       <CardContent className="pt-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-label text-muted-foreground">{label}</span>
-          <span className={accent ?? 'text-muted-foreground'} aria-hidden>{icon}</span>
+        <div className="flex items-start justify-between gap-3">
+          <span className="v-rail">{label}</span>
+          <span className={`shrink-0 ${accent ?? 'text-muted-foreground'}`} aria-hidden>{icon}</span>
         </div>
-        <div className={`text-metric-lg tabular-nums ${accent ?? ''}`}>{value}</div>
+        <div className="mt-3 text-metric-lg tabular-nums">{value}</div>
       </CardContent>
     </Card>
   );

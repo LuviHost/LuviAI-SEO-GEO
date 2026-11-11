@@ -79,10 +79,12 @@ export function SiteOverviewDashboard({
 
 type Tone = 'danger' | 'warning' | 'brand' | 'info';
 
+// Vitrin dili: renk yalniz DURUM tasir (tehlike / uyari / bilgi). Siradan adim ('brand')
+// notr cerceveli ikon kutusudur; turuncu yalniz satirdaki birincil dugmede kalir.
 const TONE_CHIP: Record<Tone, string> = {
   danger: 'bg-danger/10 text-danger',
   warning: 'bg-warning/10 text-warning',
-  brand: 'bg-brand/10 text-brand',
+  brand: 'border border-border text-muted-foreground',
   info: 'bg-info/10 text-info',
 };
 
@@ -163,7 +165,7 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
           <CheckCircle2 className="h-5 w-5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold">Her şey yolunda</h2>
+          <h2 className="text-panel-3">Her şey yolunda</h2>
           <p className="text-sm text-muted-foreground">Şu an bekleyen bir adım yok. Otomatik akış çalışmaya devam ediyor.</p>
         </div>
       </Card>
@@ -177,9 +179,9 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
-        <h2 className="inline-flex items-center gap-2 text-sm font-semibold">
+        <h2 className="v-rail inline-flex items-center gap-2">
           Sıradaki adım
-          {steps.length > 1 && <Badge variant="brand">{steps.length} iş</Badge>}
+          {steps.length > 1 && <Badge variant="secondary" className="font-sans">{steps.length} iş</Badge>}
         </h2>
       </div>
 
@@ -189,7 +191,7 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
           <PrimaryIcon className="h-5 w-5" aria-hidden />
         </span>
         <div className="min-w-[14rem] flex-1">
-          <p className="text-base font-semibold leading-snug">{primary.title}</p>
+          <p className="text-panel-3">{primary.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">{primary.desc}</p>
         </div>
         <StepAction step={primary} busy={busy === primary.id} onRun={runStep} primary />
@@ -590,7 +592,7 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
 function KpiTile({ href, loading, title, children }: { href: string; loading?: boolean; title?: string; children: React.ReactNode }) {
   if (loading) return <Skeleton className="h-full min-h-[150px] w-full" aria-label="Yükleniyor" />;
   return (
-    <Link href={href as any} title={title} className="block h-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+    <Link href={href as any} title={title} className="block h-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       {children}
     </Link>
   );
@@ -765,6 +767,10 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
 // (c) SEKMELER
 // ──────────────────────────────────────────────────────────────────────
 
+/** Kart ici ikincil baglanti: notr, altinda ince cizgi (turuncu birincil dugmeye kalir) */
+const TEXT_LINK =
+  'inline-flex items-center gap-1 text-label text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/40';
+
 const TAB_KEY = 'ranksup_overview_tab';
 const TABS = [
   { id: 'trends', label: 'Trendler' },
@@ -835,7 +841,7 @@ function PipelineStatus({ siteId, articles }: { siteId: string; articles: any[] 
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
           <span className="inline-flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-warning motion-reduce:animate-none" aria-hidden />
-            <strong className="tabular-nums">{generating}</strong> yazı şu anda üretiliyor
+            <strong className="font-medium tabular-nums">{generating}</strong> yazı şu anda üretiliyor
           </span>
           <span className="text-label text-muted-foreground">yaklaşık 3-4 dakika</span>
         </div>
@@ -844,9 +850,9 @@ function PipelineStatus({ siteId, articles }: { siteId: string; articles: any[] 
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
           <span className="inline-flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
-            <strong className="tabular-nums">{ready}</strong> yazı yayına hazır
+            <strong className="font-medium tabular-nums">{ready}</strong> yazı yayına hazır
           </span>
-          <Link href={siteHref(siteId, 'articles')} className="text-label font-medium text-brand hover:underline">
+          <Link href={siteHref(siteId, 'articles')} className={TEXT_LINK}>
             İncele
           </Link>
         </div>
@@ -864,10 +870,10 @@ function UpcomingArticles({ siteId, articles }: { siteId: string; articles: any[
   return (
     <Card className="p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="inline-flex items-center gap-2 text-sm font-semibold">
-          <CalendarClock className="h-4 w-4 text-brand" aria-hidden /> Sırada yayınlanacaklar
+        <h3 className="inline-flex items-center gap-2 text-panel-3">
+          <CalendarClock className="h-4 w-4 text-muted-foreground" aria-hidden /> Sırada yayınlanacaklar
         </h3>
-        <Link href={siteHref(siteId, 'articles')} className="text-label font-medium text-brand hover:underline">
+        <Link href={siteHref(siteId, 'articles')} className={TEXT_LINK}>
           Takvimi aç
         </Link>
       </div>
@@ -888,12 +894,12 @@ function UpcomingArticles({ siteId, articles }: { siteId: string; articles: any[
           }
           return (
             <li key={a.id} className="flex items-center gap-3 rounded-md border p-2.5">
-              <span className="min-w-[68px] rounded-md bg-brand/10 px-2 py-1.5 text-center text-brand-700 dark:text-brand-300">
-                <span className="block text-label">{d.toLocaleDateString('tr-TR', { weekday: 'short' })}</span>
-                <span className="block text-sm font-semibold leading-tight tabular-nums">
+              <span className="min-w-[68px] rounded-md bg-muted px-2 py-1.5 text-center font-mono text-muted-foreground">
+                <span className="block text-vitrin-rail">{d.toLocaleDateString('tr-TR', { weekday: 'short' })}</span>
+                <span className="block text-sm font-medium leading-tight tabular-nums text-foreground">
                   {d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}
                 </span>
-                <span className="block text-label tabular-nums">
+                <span className="block text-vitrin-rail tabular-nums">
                   {d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </span>
@@ -934,26 +940,30 @@ function AuditSummary({ site, audit }: { site: any; audit: any }) {
       <Card className="flex items-center gap-3 p-4">
         <CheckCircle2 className="h-6 w-6 shrink-0 text-success" aria-hidden />
         <div>
-          <p className="text-sm font-semibold">Site skoru {overallScore ?? '—'}/100 — sorun yok</p>
+          <p className="text-panel-3">Site skoru {overallScore ?? '—'}/100 — sorun yok</p>
           <p className="text-label text-muted-foreground">{totalChecks} SEO + GEO kontrolünün tamamı temiz. İçerik üretimine odaklan.</p>
         </div>
       </Card>
     );
   }
 
+  // Buyuk rakam notr; durum tonu yalniz rakamin yanindaki kucuk noktada
   const scoreTone =
-    overallScore === null ? 'text-muted-foreground'
-      : overallScore >= 80 ? 'text-success'
-        : overallScore >= 60 ? 'text-warning'
-          : 'text-danger';
+    overallScore === null ? 'bg-muted-foreground/50'
+      : overallScore >= 80 ? 'bg-success'
+        : overallScore >= 60 ? 'bg-warning'
+          : 'bg-danger';
 
   return (
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className={cn('text-metric-lg tabular-nums', scoreTone)}>{overallScore ?? '—'}</span>
+          <span className="inline-flex items-center gap-2 text-metric-lg tabular-nums">
+            <span className={cn('h-2 w-2 shrink-0 rounded-full', scoreTone)} aria-hidden />
+            {overallScore ?? '—'}
+          </span>
           <div>
-            <h3 className="text-sm font-semibold">Site skoru özeti</h3>
+            <h3 className="text-panel-3">Site skoru özeti</h3>
             <p className="text-label text-muted-foreground">{totalChecks} SEO + GEO kontrolü</p>
           </div>
         </div>
@@ -976,14 +986,14 @@ function AuditSummary({ site, audit }: { site: any; audit: any }) {
           return (
             <li key={`${iss.checkId ?? iss.type}-${i}`} className="flex items-start gap-2.5 py-2">
               <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isCritical ? 'text-danger' : isWarning ? 'text-warning' : 'text-muted-foreground')} aria-hidden />
-              <p className="min-w-0 flex-1 text-sm font-medium leading-snug">{iss.description || iss.type}</p>
-              {route && <Badge variant="brand" className="shrink-0">{route}</Badge>}
+              <p className="min-w-0 flex-1 text-sm leading-snug">{iss.description || iss.type}</p>
+              {route && <Badge variant="outline" className="shrink-0">{route}</Badge>}
             </li>
           );
         })}
       </ul>
 
-      <Link href={siteHref(site.id, 'audit')} className="mt-3 inline-flex items-center gap-1 text-label font-medium text-brand hover:underline">
+      <Link href={siteHref(site.id, 'audit')} className={cn('mt-3', TEXT_LINK)}>
         {issues.length > topIssues.length ? `${issues.length} sorunun tamamını gör` : 'Site skoruna git'} <ArrowRight className="h-3 w-3" aria-hidden />
       </Link>
     </Card>
@@ -1046,17 +1056,17 @@ export function AutopilotControl({
     manual: {
       label: 'Yarı otomatik',
       icon: Eye,
-      box: 'border-info/30 bg-info/5',
-      chip: 'bg-info/15 text-info',
-      text: 'text-info',
+      box: 'border-border bg-card',
+      chip: 'bg-muted text-foreground',
+      text: 'text-foreground',
       desc: 'AI yazıları üretip takvime alır. Her yazı yayınlanmadan önce onayını bekler — e-posta ve panelden haber alırsın.',
     },
     auto: {
       label: 'Tam otomatik',
       icon: Rocket,
-      box: 'border-brand/30 bg-brand/5',
-      chip: 'bg-brand/15 text-brand',
-      text: 'text-brand',
+      box: 'border-border bg-card',
+      chip: 'bg-muted text-foreground',
+      text: 'text-foreground',
       // Sosyal paylasim modulu yok (API'de modul/route yok) — vaat edilmez
       desc: 'AI tüm akışı yönetir: üretim, görsel, şema ve yayın. Sen yalnızca haftalık raporu okursun.',
     },
@@ -1067,11 +1077,11 @@ export function AutopilotControl({
     <div className={cn('rounded-lg border p-4 transition-colors', config.box)}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-[260px] flex-1 items-start gap-3">
-          <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-full', config.chip)}>
+          <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-md', config.chip)}>
             <StateIcon className="h-5 w-5" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="flex flex-wrap items-center gap-2 text-base font-semibold">
+            <p className="flex flex-wrap items-center gap-2 text-panel-3">
               <span className={config.text}>{config.label}</span>
               {autopilot && (
                 <Badge variant="success" className="gap-1">
@@ -1081,16 +1091,16 @@ export function AutopilotControl({
             </p>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">{config.desc}</p>
 
-            <div className="mt-3 flex max-w-fit items-center gap-1.5 rounded-full border bg-card/60 p-1" role="group" aria-label="Onay modu">
+            <div className="mt-3 flex max-w-fit items-center gap-1 rounded-md border p-1" role="group" aria-label="Onay modu">
               <button
                 type="button"
                 onClick={() => setMode('manual_approve')}
                 disabled={!autopilot || modeBusy}
                 aria-pressed={autopilot && !isAuto}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-label font-semibold transition-all',
+                  'inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-label transition-colors',
                   !autopilot && 'cursor-not-allowed opacity-40',
-                  autopilot && !isAuto && 'bg-info text-white shadow-sm',
+                  autopilot && !isAuto && 'bg-foreground text-background',
                   autopilot && isAuto && 'text-muted-foreground hover:text-foreground',
                 )}
               >
@@ -1102,9 +1112,9 @@ export function AutopilotControl({
                 disabled={!autopilot || modeBusy}
                 aria-pressed={autopilot && isAuto}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-label font-semibold transition-all',
+                  'inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-label transition-colors',
                   !autopilot && 'cursor-not-allowed opacity-40',
-                  autopilot && isAuto && 'bg-brand text-white shadow-sm',
+                  autopilot && isAuto && 'bg-foreground text-background',
                   autopilot && !isAuto && 'text-muted-foreground hover:text-foreground',
                 )}
               >
@@ -1122,11 +1132,11 @@ export function AutopilotControl({
           aria-pressed={autopilot}
           title={autopilot ? 'Akışı durdur' : 'Akışı aç'}
           className={cn(
-            'grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 transition-all duration-300',
+            'grid h-11 w-11 shrink-0 place-items-center rounded-md border transition-colors duration-200',
             autopilotBusy && 'cursor-wait opacity-60',
             autopilot
-              ? 'border-success/50 bg-success/10 text-success hover:border-success/70 hover:bg-success/20'
-              : 'border-brand/40 bg-brand/10 text-brand hover:border-brand/60 hover:bg-brand/20',
+              ? 'border-success/40 bg-success/10 text-success hover:border-success/70'
+              : 'border-foreground/20 text-foreground hover:border-foreground/70',
           )}
         >
           <Power className="h-5 w-5" aria-hidden />

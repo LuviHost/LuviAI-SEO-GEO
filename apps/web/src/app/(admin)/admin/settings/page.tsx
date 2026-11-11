@@ -137,7 +137,7 @@ export default function AdminSettingsPage() {
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
+          <h1 className="text-3xl font-[450] tracking-[-0.04em] flex items-center gap-2">
             <Settings2 className="h-7 w-7" /> Sistem Ayarları
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -159,7 +159,7 @@ export default function AdminSettingsPage() {
           <CardContent className="p-0">
             <div className="max-h-96 overflow-auto">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-xs uppercase">
+                <thead className="bg-muted/50 text-xs">
                   <tr>
                     <th className="text-left px-4 py-2">Zaman</th>
                     <th className="text-left px-4 py-2">Anahtar</th>
@@ -199,7 +199,7 @@ export default function AdminSettingsPage() {
         return (
           <section key={cat}>
             <div className="mb-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
+              <h2 className="text-lg font-medium tracking-[-0.02em] flex items-center gap-2">
                 <Icon className="h-5 w-5 text-brand" /> {meta?.label ?? cat}
               </h2>
               {meta?.help && <p className="text-xs text-muted-foreground mt-0.5">{meta.help}</p>}
@@ -277,7 +277,7 @@ function SettingRow({
           const on = isTruthy(s.value);
           return (
             <>
-              <span className={`text-[10px] font-mono uppercase tracking-widest font-semibold transition-colors ${on ? 'text-brand' : 'text-muted-foreground/60'}`}>
+              <span className={`text-[10px] font-mono font-semibold transition-colors ${on ? 'text-brand' : 'text-muted-foreground/60'}`}>
                 {saving ? '…' : on ? 'açık' : 'kapalı'}
               </span>
               <button
@@ -287,12 +287,12 @@ function SettingRow({
                 aria-label={s.key}
                 onClick={onToggle}
                 disabled={saving}
-                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-brand/40 focus:ring-offset-2 ${
+                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
                   saving ? 'opacity-60 cursor-wait' : 'cursor-pointer'
-                } ${on ? 'bg-brand shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_4px_12px_rgb(124_58_237/0.35)]' : 'bg-muted-foreground/25 hover:bg-muted-foreground/35'}`}
+                } ${on ? 'bg-brand' : 'bg-muted-foreground/25 hover:bg-muted-foreground/35'}`}
               >
                 <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ease-out ${
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 ease-out ${
                     on ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />

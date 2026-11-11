@@ -35,7 +35,9 @@ export function StatusBanner({
       className={cn('flex flex-wrap items-start gap-3 rounded-lg border p-4', t.box, className)}
     >
       <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', t.iconCls)} aria-hidden />
-      <div className="min-w-0 flex-1">
+      {/* basis-56: eylem dugmesi varken telefonda metin sutunu ~130px'e sikisip baslik 6 satira kiriliyordu;
+          artik metin en az 224px ister, sigmazsa dugme alt satira iner */}
+      <div className="min-w-0 flex-1 basis-56">
         <p className="font-medium">{title}</p>
         {children && <div className="mt-1 text-sm text-muted-foreground">{children}</div>}
       </div>

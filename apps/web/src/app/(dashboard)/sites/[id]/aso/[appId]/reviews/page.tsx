@@ -82,14 +82,17 @@ export default function AsoReviewsPage() {
         <div className="space-y-4">
           {total > 0 && (
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-lg border p-3">
-                <dt className="text-label text-muted-foreground">Analiz edilen</dt>
-                <dd className="text-metric-lg tabular-nums">{formatNum(total)}</dd>
+              <div className="rounded-lg border bg-card p-4">
+                <dt className="v-rail">Analiz edilen</dt>
+                <dd className="mt-3 text-metric-lg tabular-nums">{formatNum(total)}</dd>
               </div>
               {(['POSITIVE', 'NEGATIVE', 'NEUTRAL'] as const).map((s) => (
-                <div key={s} className="rounded-lg border p-3">
-                  <dt className="text-label text-muted-foreground">{SENTIMENT_LABEL[s]}</dt>
-                  <dd className={cn('text-metric-lg tabular-nums', s === 'POSITIVE' && 'text-success', s === 'NEGATIVE' && 'text-danger')}>
+                <div key={s} className="rounded-lg border bg-card p-4">
+                  <dt className="v-rail flex items-center gap-1.5">
+                    <span className={cn('h-1.5 w-1.5 rounded-full', s === 'POSITIVE' ? 'bg-success' : s === 'NEGATIVE' ? 'bg-danger' : 'bg-muted-foreground/50')} aria-hidden />
+                    {SENTIMENT_LABEL[s]}
+                  </dt>
+                  <dd className="mt-3 text-metric-lg tabular-nums">
                     {formatNum(bySentiment[s] ?? 0)}
                   </dd>
                 </div>
@@ -113,7 +116,7 @@ export default function AsoReviewsPage() {
                       {Array.isArray(r.topics) && r.topics.map((t: string) => (
                         <Badge key={t} variant="secondary" className="px-2 text-label font-normal">{t}</Badge>
                       ))}
-                      <span className="ml-auto text-label text-muted-foreground">{r.author ?? 'Anonim'}</span>
+                      <span className="ml-auto font-mono text-vitrin-rail text-muted-foreground">{r.author ?? 'Anonim'}</span>
                     </div>
                     {r.title && <p className="text-sm font-medium">{r.title}</p>}
                     <p className="text-sm text-muted-foreground">{r.text}</p>
@@ -131,7 +134,7 @@ export default function AsoReviewsPage() {
       </AsyncState>
 
       <section aria-labelledby="rv-asc" className="space-y-3">
-        <h4 id="rv-asc" className="font-semibold">App Store Connect&apos;te yanıtla</h4>
+        <h4 id="rv-asc" className="text-panel-3">App Store Connect&apos;te yanıtla</h4>
         <AscGate purpose="App Store yorumlarına yanıt vermek">
           {(ascApp) => (
             <Card>

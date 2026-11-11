@@ -65,7 +65,7 @@ export default function AsoAppLayout({ children }: { children: React.ReactNode }
   if (error && !app) {
     return (
       <div className="space-y-4">
-        <Link href={asoBase} className="inline-flex items-center gap-1 text-label text-muted-foreground hover:text-brand">
+        <Link href={asoBase} className="v-rail inline-flex items-center gap-1.5 transition-colors duration-200 hover:text-foreground">
           <ArrowLeft className="h-3 w-3" aria-hidden /> Tüm uygulamalar
         </Link>
         <ErrorState error={error} onRetry={loadApp} />
@@ -77,7 +77,7 @@ export default function AsoAppLayout({ children }: { children: React.ReactNode }
     return (
       <div className="space-y-5" aria-busy="true" aria-label="Yükleniyor">
         <div className="flex items-center gap-3">
-          <Skeleton className="h-14 w-14 rounded-xl" />
+          <Skeleton className="h-14 w-14 rounded-lg" />
           <div className="space-y-2">
             <Skeleton className="h-5 w-48" />
             <Skeleton className="h-4 w-32" />
@@ -115,14 +115,14 @@ export default function AsoAppLayout({ children }: { children: React.ReactNode }
       ) : (
         <div className="space-y-5">
           <div className="space-y-3">
-            <Link href={asoBase} className="inline-flex items-center gap-1 text-label text-muted-foreground hover:text-brand">
+            <Link href={asoBase} className="v-rail inline-flex items-center gap-1.5 transition-colors duration-200 hover:text-foreground">
               <ArrowLeft className="h-3 w-3" aria-hidden /> Tüm uygulamalar
             </Link>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <AppIcon src={app.iconUrl} size="lg" />
                 <div className="min-w-0">
-                  <h2 className="truncate text-h6 font-semibold tracking-tight">{app.name}</h2>
+                  <h2 className="truncate text-panel-2">{app.name}</h2>
                   <p className="truncate text-label text-muted-foreground">
                     {[app.developer, app.category].filter(Boolean).join(' · ') || '—'}
                   </p>

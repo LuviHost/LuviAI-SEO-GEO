@@ -27,7 +27,7 @@ export default function AdminSitesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Tüm Siteler</h1>
+        <h1 className="text-3xl font-[450] tracking-[-0.04em]">Tüm Siteler</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {sites.length} site kayıtlı
         </p>

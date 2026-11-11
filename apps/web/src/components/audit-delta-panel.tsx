@@ -115,11 +115,11 @@ export function AuditComparisonBody({
   if (cmp.yeterliVeriYok) {
     return (
       <div className="flex items-start gap-3">
-        <div className="h-9 w-9 rounded-lg bg-muted grid place-items-center shrink-0">
+        <div className="h-9 w-9 rounded-md border border-border grid place-items-center shrink-0">
           <History className="h-4 w-4 text-muted-foreground" />
         </div>
         <div>
-          <p className="text-sm font-semibold">Karşılaştırma için en az iki tarama gerekli</p>
+          <p className="text-panel-3">Karşılaştırma için en az iki tarama gerekli</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {cmp.to
               ? `Şu an tek tarama var (${tarih(cmp.to.ranAt)} · ${cmp.to.overallScore}/100). Düzeltmelerini yaptıktan sonra yeniden tara, farkı burada göstereceğiz.`
@@ -150,7 +150,7 @@ export function AuditComparisonBody({
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-lg font-bold ${
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-metric tabular-nums ${
               yon === 'up'
                 ? 'bg-success/10 text-success'
                 : yon === 'down'
@@ -165,11 +165,11 @@ export function AuditComparisonBody({
             {scoreDelta > 0 ? '+' : ''}{scoreDelta} puan
           </div>
           <div>
-            <p className="text-sm font-semibold">
+            <p className="text-sm font-medium tabular-nums">
               {from?.overallScore} <span className="text-muted-foreground font-normal">→</span> {to?.overallScore}
               <span className="text-xs text-muted-foreground font-normal">/100</span>
             </p>
-            <p className="text-label text-muted-foreground">
+            <p className="v-rail mt-0.5">
               {tarih(from?.ranAt)} — {tarih(to?.ranAt)}
             </p>
           </div>
@@ -267,8 +267,8 @@ export function AuditComparisonBody({
 
       {/* Degisen kontroller */}
       {degisenCheckler.length > 0 && (
-        <details className="group rounded-lg border">
-          <summary className="flex items-center justify-between gap-2 p-3 cursor-pointer list-none">
+        <details className="group rounded-md border">
+          <summary className="flex items-center justify-between gap-2 p-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <span className="text-sm font-medium">
               Değişen kontroller
               <span className="ml-2 text-xs text-muted-foreground">{degisenCheckler.length}</span>
@@ -278,7 +278,7 @@ export function AuditComparisonBody({
           <div className="border-t divide-y">
             {degisenCheckler.map((c) => (
               <div key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                <span className="text-xs font-mono truncate">{c.id}</span>
+                <span className="font-mono text-vitrin-rail truncate">{c.id}</span>
                 <span className="text-xs text-muted-foreground shrink-0">
                   {c.oncekiScore} → {c.sonrakiScore}
                   {/* aiCitations satiri kapsam farkinda ortak asistanlarin ortalamasi (audit.service.ts) */}
@@ -287,7 +287,7 @@ export function AuditComparisonBody({
                     <span className="ml-2">yöntem değişti, kıyaslanmadı</span>
                   ) : (
                     <span
-                      className={`ml-2 font-semibold ${
+                      className={`ml-2 font-medium ${
                         c.delta > 0 ? 'text-success' : 'text-danger'
                       }`}
                     >
@@ -322,7 +322,7 @@ function IssueGroup({
 
   if (sayi === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border px-3 py-2 opacity-60">
+      <div className="flex items-center gap-2 rounded-md border px-3 py-2 opacity-60">
         <span className={renk}>{icon}</span>
         <span className="text-sm">{baslik}</span>
         <span className="ml-auto text-xs text-muted-foreground">0</span>
@@ -331,8 +331,8 @@ function IssueGroup({
   }
 
   return (
-    <details className="group rounded-lg border">
-      <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none">
+    <details className="group rounded-md border">
+      <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <span className={renk}>{icon}</span>
         <span className="text-sm font-medium">{baslik}</span>
         <Badge variant={tonu} className="ml-1">{sayi}</Badge>
@@ -356,7 +356,7 @@ function IssueGroup({
               <div className="min-w-0">
                 <p className="text-xs leading-relaxed">{i.description ?? i.type}</p>
                 {i.page && (
-                  <p className="text-label text-muted-foreground truncate mt-0.5">{i.page}</p>
+                  <p className="font-mono text-vitrin-rail text-muted-foreground truncate mt-0.5">{i.page}</p>
                 )}
               </div>
             </div>
@@ -382,22 +382,22 @@ function ScoreTrend({ history }: { history: Array<{ id: string; ranAt: string; o
 
   return (
     <div>
-      <p className="text-label text-muted-foreground font-medium mb-2">
+      <p className="v-rail mb-2">
         Son {seri.length} tarama
       </p>
-      <div className="flex items-end gap-1 h-16">
+      <div className="flex items-end gap-1.5 h-16">
         {seri.map((h, i) => {
           const yukseklik = Math.max(4, (h.overallScore / max) * 100);
           const sonuncu = i === seri.length - 1;
           return (
             <div
               key={h.id}
-              className="flex-1 min-w-[6px] rounded-t transition-colors bg-slate-200 dark:bg-slate-700 relative group"
+              className="flex-1 min-w-[6px] max-w-8 rounded-t transition-colors bg-muted relative group"
               style={{ height: `${yukseklik}%` }}
               title={`${tarih(h.ranAt)} · ${h.overallScore}/100`}
             >
               <div
-                className={`absolute inset-0 rounded-t ${sonuncu ? 'bg-brand' : 'bg-brand/40'}`}
+                className={`absolute inset-0 rounded-t ${sonuncu ? 'bg-foreground' : 'bg-foreground/25'}`}
               />
             </div>
           );

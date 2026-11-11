@@ -87,7 +87,7 @@ export function RaporPaylasim({ siteId }: { siteId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 max-w-xl">
           <h2 className="inline-flex items-center gap-2 text-sm font-semibold">
-            <Link2 className="h-4 w-4 text-brand" aria-hidden /> Bağlantı paylaş
+            <Link2 className="h-4 w-4 text-muted-foreground" aria-hidden /> Bağlantı paylaş
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Raporun şu anki hâli dondurulur; müşterin giriş yapmadan görür. Sonraki taramalar paylaşılan bağlantıyı değiştirmez.
@@ -104,7 +104,7 @@ export function RaporPaylasim({ siteId }: { siteId: string }) {
           >
             {PAYLASIM_GUNLERI.map((g) => <option key={g} value={g}>{g} gün geçerli</option>)}
           </select>
-          <Button size="sm" onClick={olustur} disabled={olusturuluyor}>
+          <Button size="sm" variant="outline" onClick={olustur} disabled={olusturuluyor}>
             {olusturuluyor ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Link2 className="h-4 w-4" aria-hidden />}
             Bağlantı oluştur
           </Button>

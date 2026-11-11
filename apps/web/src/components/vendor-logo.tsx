@@ -108,6 +108,15 @@ export const VENDOR_LABEL: Record<VendorName, string> = {
   'bluesky':     'Bluesky',
 };
 
+/**
+ * Tek renkli KOYU isaretler (siyah X, koyu yesil OpenAI dugumu, Ghost, Prisma). Koyu temada
+ * zeminle karisip gorunmuyorlardi (12.11.2026: panel vitrinle ayni siyah zemine gecti).
+ * Beyaz bir karonun (`bg-white`) icinde DEGILSE koyu temada beyaza cevrilir; beyaz karoda
+ * oldugu gibi kalir (ana sayfa seridi, plan kartlari).
+ */
+const DARK_GLYPH: ReadonlySet<VendorName> = new Set<VendorName>(['grok', 'openai', 'ghost', 'prisma', 'vercel-dark']);
+const ON_DARK = 'dark:[&:not(.bg-white_*)]:brightness-0 dark:[&:not(.bg-white_*)]:invert';
+
 interface VendorLogoProps {
   name: VendorName;
   size?: number;       // px (kare)
@@ -123,7 +132,7 @@ export function VendorLogo({ name, size = 20, className, alt }: VendorLogoProps)
       alt={alt ?? VENDOR_LABEL[name]}
       width={size}
       height={size}
-      className={cn('inline-block object-contain shrink-0', className)}
+      className={cn('inline-block object-contain shrink-0', DARK_GLYPH.has(name) && ON_DARK, className)}
       loading="lazy"
       decoding="async"
     />

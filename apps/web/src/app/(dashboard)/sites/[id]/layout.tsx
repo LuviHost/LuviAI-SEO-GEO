@@ -120,7 +120,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               href={site.url}
               target="_blank"
               rel="noopener"
-              className="hover:text-brand inline-flex items-center gap-1"
+              className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
             >
               {site.url} <ExternalLink className="h-3 w-3" />
             </a>

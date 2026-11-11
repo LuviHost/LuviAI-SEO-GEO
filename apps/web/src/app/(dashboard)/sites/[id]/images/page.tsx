@@ -162,6 +162,7 @@ export default function SiteImagesPage() {
   return (
     <div className="space-y-5">
       <SectionHeader
+        className="[&>div:last-child]:max-w-full"
         icon={ImageIcon}
         title="Görsel alt metinleri"
         description={
@@ -171,16 +172,16 @@ export default function SiteImagesPage() {
         }
         actions={
           <>
-          <Button variant="outline" onClick={suggestAll} disabled={!!bulk || counts.missing + counts.suspicious === 0}>
+          <Button variant="outline" size="sm" onClick={suggestAll} disabled={!!bulk || counts.missing + counts.suspicious === 0}>
             {bulk?.kind === 'suggest' ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
             {bulk?.kind === 'suggest' ? `${bulk.queued} öneri üretiliyor…` : 'Eksiklere öneri üret (50)'}
           </Button>
           {capability === 'snippet' ? (
-            <Button onClick={loadSnippets} disabled={counts.approved === 0}>
+            <Button size="sm" onClick={loadSnippets} disabled={counts.approved === 0}>
               <Copy className="h-4 w-4 mr-1.5" /> Onaylananları kopyala ({counts.approved})
             </Button>
           ) : (
-            <Button onClick={() => setConfirmApply(true)} disabled={!!bulk || counts.approved === 0}>
+            <Button size="sm" onClick={() => setConfirmApply(true)} disabled={!!bulk || counts.approved === 0}>
               {bulk?.kind === 'apply' ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
               {bulk?.kind === 'apply' ? `${bulk.queued} alt metni yazılıyor…` : `Onaylananları siteye uygula (${counts.approved})`}
             </Button>
@@ -192,7 +193,7 @@ export default function SiteImagesPage() {
       {confirmApply && (
         <Card><CardContent className="p-4 flex flex-wrap items-center gap-3">
           <p className="text-sm flex-1 min-w-0">
-            <strong>{counts.approved}</strong> onaylı alt metni {capability === 'wordpress' ? 'WordPress medya kütüphanesine ve gönderilerdeki görsel etiketlerine' : 'sayfa HTML dosyalarına'} yazılacak.
+            <strong className="font-medium">{counts.approved}</strong> onaylı alt metni {capability === 'wordpress' ? 'WordPress medya kütüphanesine ve gönderilerdeki görsel etiketlerine' : 'sayfa HTML dosyalarına'} yazılacak.
             Yalnızca ilgili görselin alt değeri değişir; önceki değerler saklanır ve her görsel tek tek geri alınabilir.
           </p>
           <Button size="sm" onClick={applyApproved}>Evet, uygula</Button>
@@ -206,11 +207,11 @@ export default function SiteImagesPage() {
             <p className="text-sm font-medium">Kopyala-yapıştır: onaylı alt metinleri ({snippets.length})</p>
             <Button size="sm" variant="ghost" onClick={() => setSnippets(null)}>Kapat</Button>
           </div>
-          <p className="text-label text-muted-foreground">Bu yayın hedefi alt metni yazamıyor. Her görselin alt metnini sitende ilgili görsele elle gir.</p>
+          <p className="text-xs text-muted-foreground">Bu yayın hedefi alt metni yazamıyor. Her görselin alt metnini sitende ilgili görsele elle gir.</p>
           {snippets.map((sn) => (
             <div key={sn.id} className="flex flex-wrap items-center gap-2 text-sm border-t pt-2">
               <span className="text-muted-foreground truncate max-w-full">{pathOf(sn.firstPageUrl)}</span>
-              <code className="text-label bg-muted rounded px-1.5 py-0.5 break-all">{sn.approvedAlt || '(boş — süs görseli)'}</code>
+              <code className="font-mono text-vitrin-rail bg-muted rounded px-1.5 py-0.5 break-all">{sn.approvedAlt || '(boş — süs görseli)'}</code>
               <Button size="sm" variant="ghost" className="ml-auto" onClick={() => navigator.clipboard?.writeText(sn.approvedAlt ?? '').then(() => toast.success('Kopyalandı'), () => toast.error('Kopyalanamadı'))}>
                 <Copy className="h-3.5 w-3.5 mr-1" /> Kopyala
               </Button>
@@ -220,14 +221,14 @@ export default function SiteImagesPage() {
       )}
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Alt metni yok" value={counts.missing} icon={ImageOff} accent="rose" size="sm" />
-        <MetricCard label="Şüpheli alt (dosya adı vb.)" value={counts.suspicious} icon={AlertTriangle} accent="amber" size="sm" />
-        <MetricCard label="Onay bekleyen öneri" value={counts.pending} icon={Sparkles} accent="violet" size="sm" />
-        <MetricCard label="Sitede uygulandı" value={counts.applied} icon={CheckCircle2} accent="emerald" size="sm" />
+        <MetricCard label="Alt metni yok" value={counts.missing} icon={ImageOff} />
+        <MetricCard label="Şüpheli alt (dosya adı vb.)" value={counts.suspicious} icon={AlertTriangle} />
+        <MetricCard label="Onay bekleyen öneri" value={counts.pending} icon={Sparkles} />
+        <MetricCard label="Sitede uygulandı" value={counts.applied} icon={CheckCircle2} />
       </div>
 
       {summary && (
-        <p className="text-label text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {capability === 'wordpress' && 'Yayın hedefi WordPress: onaylanan alt metinleri medya kütüphanesine ve gönderideki görsel etiketine yazılabilir. '}
           {capability === 'static' && 'Yayın hedefi dosya tabanlı (FTP/SFTP/cPanel): onaylanan alt metinleri sayfa HTML\'ine cerrahi olarak yazılabilir. '}
           {capability === 'snippet' && 'Bu yayın hedefi alt metni yazmayı desteklemiyor: onayladıklarını kopyala-yapıştır ile uygularsın. '}
@@ -268,10 +269,10 @@ export default function SiteImagesPage() {
                       <Badge variant={st.variant}>{st.text}</Badge>
                       {img.altState === 'present' && <Badge variant="outline">mevcut: {img.currentAlt}</Badge>}
                       {img.linked && <Badge variant="outline">bağlantılı görsel</Badge>}
-                      <a href={img.firstPageUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-brand inline-flex items-center gap-1 truncate">
+                      <a href={img.firstPageUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-vitrin-rail text-muted-foreground hover:text-foreground inline-flex items-center gap-1 truncate">
                         {pathOf(img.firstPageUrl)} <ExternalLink className="h-3 w-3" />
                       </a>
-                      {img.pageCount > 1 && <span className="text-muted-foreground">· {img.pageCount} sayfada</span>}
+                      {img.pageCount > 1 && <span className="font-normal text-muted-foreground">· {img.pageCount} sayfada</span>}
                     </div>
                     <Textarea
                       value={draft}
@@ -282,14 +283,14 @@ export default function SiteImagesPage() {
                       onChange={(e) => setDrafts((d) => ({ ...d, [img.id]: e.target.value }))}
                     />
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-label text-muted-foreground tabular-nums">{draft.length}/{ALT_MAX}</span>
-                      {img.suggestionNote && <span className="text-label text-muted-foreground">· {img.suggestionNote}</span>}
+                      <span className="v-rail tabular-nums">{draft.length}/{ALT_MAX}</span>
+                      {img.suggestionNote && <span className="text-label font-normal text-muted-foreground">· {img.suggestionNote}</span>}
                       <div className="ml-auto flex flex-wrap gap-2">
                         <Button size="sm" variant="outline" disabled={isBusy} onClick={() => suggestOne(img.id)}>
                           {isBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
                           {img.suggestedAlt ? 'Yeniden öner' : 'Öner'}
                         </Button>
-                        <Button size="sm" disabled={isBusy || !draft.trim()} onClick={() => decide(img.id, 'approve', draft)}>Onayla</Button>
+                        <Button size="sm" variant="secondary" disabled={isBusy || !draft.trim()} onClick={() => decide(img.id, 'approve', draft)}>Onayla</Button>
                         <Button size="sm" variant="outline" disabled={isBusy} onClick={() => decide(img.id, 'decorative')}>Süs görseli</Button>
                         {written ? (
                           confirmRevert === img.id ? (

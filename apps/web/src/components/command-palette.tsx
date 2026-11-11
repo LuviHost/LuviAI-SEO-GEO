@@ -169,19 +169,8 @@ export function CommandPalette() {
 
   return (
     <>
-      {/* Masaustu ipucu dugmesi — telefonda ust cubuktaki arama dugmesi kullanilir */}
-      {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-30 hidden items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1.5 text-label text-muted-foreground shadow-sm backdrop-blur-sm transition-all hover:border-brand/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand md:flex"
-          aria-label="Komut paletini aç (⌘K)"
-        >
-          <Search className="h-3 w-3" aria-hidden />
-          <span>Ara</span>
-          <kbd className="ml-1 inline-flex items-center gap-0.5 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-label">⌘K</kbd>
-        </button>
-      )}
+      {/* Masaustunde arama dugmesi kenar cubugunda ((dashboard)/layout.tsx); telefonda ust cubukta.
+          Eskiden sag altta SABIT duruyordu ve satir eylemlerinin, "Yenile" gibi dugmelerin ustune biniyordu. */}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
@@ -225,7 +214,7 @@ export function CommandPalette() {
             ) : (
               grouped.map((g, gi) => (
                 <div key={g.group} role="group" aria-label={g.label} className={cn(gi > 0 && 'mt-1 border-t pt-1')}>
-                  <div className="px-4 pb-1 pt-2 text-label text-muted-foreground">{g.label}</div>
+                  <div className="px-4 pb-1 pt-2 font-mono text-vitrin-rail text-muted-foreground">{g.label}</div>
                   {g.items.map((cmd) => {
                     const idx = filtered.indexOf(cmd);
                     const isActive = idx === activeIdx;
@@ -263,7 +252,7 @@ export function CommandPalette() {
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-2 text-label text-muted-foreground">
+          <div className="flex items-center justify-between border-t px-4 py-2 font-mono text-vitrin-rail text-muted-foreground">
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1"><kbd className="rounded border px-1 font-mono">↑↓</kbd> gez</span>
               <span className="inline-flex items-center gap-1"><kbd className="rounded border px-1 font-mono">↵</kbd> aç</span>

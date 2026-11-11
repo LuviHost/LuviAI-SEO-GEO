@@ -77,9 +77,9 @@ export function AutoFixHistory({ siteId, refreshKey }: { siteId: string; refresh
       <CardContent className="p-5 space-y-3">
         <div className="flex items-center gap-2">
           <History className="h-4 w-4 text-muted-foreground" />
-          <span className="font-semibold text-sm">Son dosya düzeltmeleri</span>
+          <span className="text-panel-3">Son dosya düzeltmeleri</span>
         </div>
-        <div className="divide-y rounded-lg border">
+        <div className="divide-y rounded-md border">
           {items.map((item) => {
             const st = STATUS[item.status] ?? { text: item.status, variant: 'secondary' as const };
             return (

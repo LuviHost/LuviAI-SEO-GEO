@@ -23,8 +23,8 @@ export function BeforeAfterCard({ data }: { data: any }) {
   // Yöntem değişti ve yeni yöntemle henüz ikinci ölçüm yok → nötr durum (kırmızı/yeşil yok)
   if (g.state === 'method-changed') {
     return (
-      <div className="mb-4 rounded-xl border border-border bg-muted/30 p-4">
-        <div className="flex items-center gap-2 font-semibold text-sm">
+      <div className="mb-4 rounded-lg border border-border bg-muted/30 p-4 [&_strong]:font-medium [&_strong]:text-foreground">
+        <div className="flex items-center gap-2 text-panel-3">
           <Info className="h-4 w-4 text-muted-foreground" aria-hidden /> RanksUp Etkisi · Ölçüm yöntemi güncellendi — kıyas yok
         </div>
         <p className="text-sm text-muted-foreground mt-1.5">
@@ -39,9 +39,9 @@ export function BeforeAfterCard({ data }: { data: any }) {
   // Kıyas için ikinci ölçüm yok → başlangıç noktası
   if (g.state === 'baseline') {
     return (
-      <div className="mb-4 rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-500/[0.07] to-purple-500/[0.04] p-4">
-        <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300 font-semibold text-sm">
-          <Rocket className="h-4 w-4" /> RanksUp Etkisi — Başlangıç ölçümü alındı
+      <div className="mb-4 rounded-lg border border-border bg-card p-4 [&_strong]:font-medium [&_strong]:text-foreground">
+        <div className="flex items-center gap-2 text-panel-3">
+          <Rocket className="h-4 w-4 text-muted-foreground" aria-hidden /> RanksUp Etkisi — Başlangıç ölçümü alındı
         </div>
         <p className="text-sm text-muted-foreground mt-1.5">
           Şu an <strong>{g.enginesNow}/{g.totalEngines}</strong> AI asistanının cevabında görünüyorsun (markan anılıyor ya da sitene atıf var)
@@ -58,22 +58,22 @@ export function BeforeAfterCard({ data }: { data: any }) {
   // aralıkları örtüşüyorsa ya da hesaplanamıyorsa "anlamlı değişim yok" — nötr
   const direction = g.yon;
   const kararIpucu = kararAciklamasi(olcumOf(data)?.etki);
-  const toneText = direction === 'up' ? 'text-emerald-700 dark:text-emerald-300'
-    : direction === 'down' ? 'text-red-700 dark:text-red-300'
+  const toneText = direction === 'up' ? 'text-success'
+    : direction === 'down' ? 'text-danger'
     : 'text-muted-foreground';
-  const toneBorder = direction === 'up' ? 'border-emerald-500/30' : direction === 'down' ? 'border-red-500/30' : 'border-border';
+  const toneBorder = direction === 'up' ? 'border-success/25' : direction === 'down' ? 'border-danger/30' : 'border-border';
   const toneBg = direction === 'up'
-    ? 'from-emerald-500/[0.08] to-brand-500/[0.04]'
-    : direction === 'down' ? 'from-red-500/[0.08] to-brand-500/[0.04]'
-    : 'from-muted/40 to-muted/10';
+    ? 'bg-success/5'
+    : direction === 'down' ? 'bg-danger/5'
+    : 'bg-muted/40';
   const newEngines = g.newEngines.map((p) => LABELS[p] ?? p);
 
   return (
-    <div className={`mb-4 rounded-xl border ${toneBorder} bg-gradient-to-br ${toneBg} p-4`}>
+    <div className={`mb-4 rounded-lg border ${toneBorder} ${toneBg} p-4 [&_strong]:font-medium`}>
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <Sparkles className="h-4 w-4 text-muted-foreground" />
-        <span className="font-semibold text-sm">RanksUp Etkisi</span>
-        <span className="text-xs text-muted-foreground">· {g.spanDays} günlük aralık</span>
+        <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden />
+        <span className="text-panel-3">RanksUp Etkisi</span>
+        <span className="v-rail">· {g.spanDays} günlük aralık</span>
       </div>
 
       <div className="flex items-end gap-6 flex-wrap">
@@ -84,9 +84,9 @@ export function BeforeAfterCard({ data }: { data: any }) {
             : <Minus className={`h-7 w-7 ${toneText}`} />}
           <div>
             {direction === 'flat' ? (
-              <div className={`text-2xl font-extrabold leading-none ${toneText}`}>Anlamlı değişim yok</div>
+              <div className={`text-panel-2 ${toneText}`}>Anlamlı değişim yok</div>
             ) : (
-              <div className={`text-4xl font-extrabold leading-none ${toneText}`}>
+              <div className={`text-metric-lg tabular-nums ${toneText}`}>
                 {g.growthPct === null ? `+${lastAvg}` : `${g.growthPct > 0 ? '+' : ''}${g.growthPct}%`}
               </div>
             )}
@@ -99,7 +99,7 @@ export function BeforeAfterCard({ data }: { data: any }) {
         </div>
 
         {/* Mini metrikler — renk yalnız anlamlı değişimde */}
-        <div className="grid grid-cols-3 gap-x-6 gap-y-1 text-sm">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
           <Metric label="Görünür olduğun asistan" before={`${g.enginesStart}`} after={`${g.enginesNow}`} suffix={`/${g.totalEngines}`} tone={direction === 'flat' ? 'flat' : g.enginesNow >= g.enginesStart ? 'up' : 'down'} />
           <Metric label="Ort. skor" before={`${firstAvg}`} after={`${lastAvg}`} tone={direction} />
           <Metric label="Anılma + atıf" before={`${g.mentionsStart}`} after={`${g.mentionsNow}`} tone={direction === 'flat' ? 'flat' : g.mentionsNow >= g.mentionsStart ? 'up' : 'down'} />
@@ -125,11 +125,11 @@ export function BeforeAfterCard({ data }: { data: any }) {
 }
 
 function Metric({ label, before, after, suffix = '', tone }: { label: string; before: string; after: string; suffix?: string; tone: 'up' | 'down' | 'flat' }) {
-  const cls = tone === 'up' ? 'text-emerald-600 dark:text-emerald-400' : tone === 'down' ? 'text-red-600 dark:text-red-400' : 'text-foreground';
+  const cls = tone === 'up' ? 'text-success' : tone === 'down' ? 'text-danger' : 'text-foreground';
   return (
     <div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="font-semibold tabular-nums">
+      <div className="v-rail">{label}</div>
+      <div className="mt-0.5 font-medium tabular-nums">
         <span className="text-muted-foreground">{before}{suffix}</span>
         <span className="mx-1.5 text-muted-foreground">→</span>
         <span className={cls}>{after}{suffix}</span>

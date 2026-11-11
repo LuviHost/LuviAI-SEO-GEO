@@ -16,7 +16,7 @@ export default function AdminJobsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Hatalı İşler</h1>
+        <h1 className="text-3xl font-[450] tracking-[-0.04em]">Hatalı İşler</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Son 50 başarısız job (worker queue)
         </p>

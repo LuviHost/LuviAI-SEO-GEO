@@ -282,7 +282,7 @@ export default function AdminLinkedinPage() {
       {/* ── Başlık + düğmeler ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
+          <h1 className="text-2xl font-[450] tracking-[-0.04em] flex items-center gap-2">
             <Users className="h-6 w-6 text-primary" />
             LinkedIn Outreach
           </h1>
@@ -347,7 +347,7 @@ export default function AdminLinkedinPage() {
         <Card className={cn('border', acceptPct !== null && acceptPct < ACCEPT_RATE_FLOOR_PCT && 'border-rose-500/40 bg-rose-500/5')}>
           <CardContent className="p-4">
             <div className="text-xs font-medium text-muted-foreground">Kabul oranı (olgun 72s–14g)</div>
-            <div className="text-3xl font-semibold mt-2 tabular-nums">
+            <div className="text-3xl font-[450] tracking-[-0.04em] mt-2 tabular-nums">
               {acceptPct === null ? '—' : `%${acceptPct.toFixed(0)}`}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
@@ -357,10 +357,10 @@ export default function AdminLinkedinPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className={cn('border md:col-span-1', !enabled ? 'border-zinc-500/40 bg-zinc-500/5' : paused ? 'border-rose-500/40 bg-rose-500/5' : 'border-emerald-500/40 bg-emerald-500/5')}>
+        <Card className={cn('border md:col-span-1', !enabled ? 'border-border bg-muted' : paused ? 'border-rose-500/40 bg-rose-500/5' : 'border-emerald-500/40 bg-emerald-500/5')}>
           <CardContent className="p-4">
             <div className="text-xs font-medium text-muted-foreground">Durum</div>
-            <div className={cn('text-xl font-semibold mt-2 flex items-center gap-1.5', !enabled ? 'text-zinc-500' : paused ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
+            <div className={cn('text-xl font-[450] tracking-[-0.04em] mt-2 flex items-center gap-1.5', !enabled ? 'text-muted-foreground' : paused ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
               {!enabled ? <Pause className="h-4 w-4" /> : paused ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               {!enabled ? 'Gönderim kapalı' : paused ? 'Duraklatıldı' : 'Çalışıyor'}
             </div>
@@ -456,7 +456,7 @@ export default function AdminLinkedinPage() {
               <button
                 type="button"
                 onClick={() => setFirmaFiltre('hepsi')}
-                className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', firmaFiltre === 'hepsi' ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
+                className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', firmaFiltre === 'hepsi' ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
               >
                 Hepsi <span className="opacity-70">({toplamKayit})</span>
               </button>
@@ -465,7 +465,7 @@ export default function AdminLinkedinPage() {
                   key={f.firma}
                   type="button"
                   onClick={() => setFirmaFiltre(firmaFiltre === f.firma ? 'hepsi' : f.firma)}
-                  className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', firmaFiltre === f.firma ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
+                  className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', firmaFiltre === f.firma ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
                   title={`${f.toplam} kayıt, ${f.kuyrukta} kuyrukta`}
                 >
                   {f.firma} <span className="opacity-70">({f.kuyrukta})</span>
@@ -505,7 +505,7 @@ export default function AdminLinkedinPage() {
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+              <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Kişi</th>
                   <th className="px-4 py-3 font-medium">Firma / Ünvan</th>
@@ -544,7 +544,7 @@ export default function AdminLinkedinPage() {
                         <div className="font-medium flex items-center gap-2">
                           {p.firma}
                           {p.kampanya && p.kampanya !== 'MUSTERI' && (
-                            <span className="px-1.5 py-0.5 rounded bg-muted text-[10px] uppercase tracking-wide">{KAMPANYA_LABEL[p.kampanya] ?? p.kampanya}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{KAMPANYA_LABEL[p.kampanya] ?? p.kampanya}</span>
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground">{p.unvan || '—'}</div>
@@ -639,7 +639,7 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
     <Card className={cn('border', dolu && 'border-rose-500/40 bg-rose-500/5', yakin && 'border-amber-500/40 bg-amber-500/5')}>
       <CardContent className="p-4">
         <div className="text-xs font-medium text-muted-foreground">{label}</div>
-        <div className="text-3xl font-semibold mt-2 tabular-nums">
+        <div className="text-3xl font-[450] tracking-[-0.04em] mt-2 tabular-nums">
           {value}
           {limit !== undefined && <span className="text-base font-normal text-muted-foreground">/{limit}</span>}
         </div>
@@ -802,7 +802,7 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
                   key={m.key}
                   type="button"
                   onClick={() => setTaslakMod(m.key)}
-                  className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', secili ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
+                  className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', secili ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
                   title={m.aciklama}
                 >
                   {m.label}
@@ -854,7 +854,7 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
                       const yeni = secili ? aktifGunler.filter((d) => d !== i) : [...aktifGunler, i].sort();
                       setGunler(yeni.length ? yeni : aktifGunler);
                     }}
-                    className={cn('px-2 py-1 rounded border text-xs transition-colors', secili ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
+                    className={cn('px-2 py-1 rounded border text-xs transition-colors', secili ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
                   >
                     {ad}
                   </button>
@@ -954,7 +954,7 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
                 key={s.kampanya}
                 type="button"
                 onClick={() => setSecili(s.kampanya)}
-                className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', secili === s.kampanya ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
+                className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', secili === s.kampanya ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
               >
                 {s.ad}
               </button>
@@ -980,7 +980,7 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
               <div className="p-3">
                 <div className="flex gap-2">
                   <div className="h-7 w-7 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-xs font-semibold shrink-0">RU</div>
-                  <div className="rounded-2xl rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
+                  <div className="rounded-lg rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
                     {vurgula(aktif.not, aktif.ornek)}
                   </div>
                 </div>
@@ -998,7 +998,7 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
               <div className="p-3">
                 <div className="flex gap-2">
                   <div className="h-7 w-7 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-xs font-semibold shrink-0">RU</div>
-                  <div className="rounded-2xl rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
+                  <div className="rounded-lg rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
                     {vurgula(aktif.mesaj, aktif.ornek)}
                   </div>
                 </div>
@@ -1080,7 +1080,7 @@ function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disa
               type="button"
               onClick={() => setKampanya(k.key)}
               title={k.aciklama}
-              className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', kampanya === k.key ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
+              className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', kampanya === k.key ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
             >
               {k.label}
             </button>
@@ -1095,7 +1095,7 @@ function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disa
               key={n}
               type="button"
               onClick={() => setSayfa(n)}
-              className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', sayfa === n ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
+              className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', sayfa === n ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
             >
               {n} sayfa
             </button>

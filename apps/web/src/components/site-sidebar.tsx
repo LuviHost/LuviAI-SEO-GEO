@@ -36,10 +36,12 @@ type SiteOption = { id: string; name: string; url: string };
 
 const COLLAPSE_KEY = 'luviai_sidebar_collapsed';
 
+// Vitrin dili (12.11.2026): secili satir turuncu dolgu DEGIL — notr zemin + parlak metin,
+// turuncu yalniz ikonda (vitrin seritlerindeki kucuk turuncu kare gibi tek vurgu).
 const linkBase =
-  'flex items-center gap-2.5 rounded-md px-3 py-1.5 text-filter transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60';
-const linkActive = 'bg-brand/10 text-brand-700 dark:bg-brand/15 dark:text-brand-300 font-semibold';
-const linkIdle = 'text-sidebar-foreground/75 hover:bg-sidebar-hover hover:text-sidebar-foreground';
+  'flex items-center gap-2.5 rounded-md px-3 py-1.5 text-filter transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const linkActive = 'bg-sidebar-hover text-sidebar-foreground [&>svg]:text-brand';
+const linkIdle = 'text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground';
 
 export function SiteSidebar({ onClose }: { onClose?: () => void }) {
   const path = usePathname();
@@ -53,8 +55,8 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
       <>
         <div className="p-5">
           <Link href="/dashboard" className="inline-flex items-center" aria-label="RanksUp — Sitelerim">
-            <span className="dark:hidden"><BrandWordmark size={24} /></span>
-            <span className="hidden dark:inline"><BrandWordmark size={24} reversed /></span>
+            <span className="dark:hidden"><BrandWordmark size={22} accent="hsl(var(--brand-vivid))" /></span>
+            <span className="hidden dark:inline"><BrandWordmark size={22} reversed accent="hsl(var(--brand-vivid))" /></span>
           </Link>
         </div>
         <nav aria-label="Hesap" className="space-y-0.5 px-3">
@@ -114,13 +116,13 @@ function SiteNav({ siteId, path, onClose }: { siteId: string; path: string; onCl
     <>
       <div className="space-y-3 p-4">
         <Link href="/dashboard" className="inline-flex items-center" aria-label="RanksUp — Sitelerim">
-          <span className="dark:hidden"><BrandWordmark size={19} /></span>
-          <span className="hidden dark:inline"><BrandWordmark size={19} reversed /></span>
+          <span className="dark:hidden"><BrandWordmark size={19} accent="hsl(var(--brand-vivid))" /></span>
+          <span className="hidden dark:inline"><BrandWordmark size={19} reversed accent="hsl(var(--brand-vivid))" /></span>
         </Link>
         <SiteSwitcher siteId={siteId} path={path} onClose={onClose} />
       </div>
 
-      <nav aria-label="Site menüsü" className="space-y-4 px-3 pb-6">
+      <nav aria-label="Site menüsü" className="space-y-5 px-3 pb-6">
         {groups.map((group) => {
           const hasActive = group.items.some((item) => isNavActive(path, item.href, item.exact));
           // Aktif sayfa bu gruptaysa grup daraltilmis olsa bile acik kalir
@@ -134,7 +136,7 @@ function SiteNav({ siteId, path, onClose }: { siteId: string; path: string; onCl
                   onClick={() => toggleGroup(group.id)}
                   aria-expanded={expanded}
                   aria-controls={listId}
-                  className="mb-1 flex w-full items-center justify-between rounded-md px-3 py-1 text-label text-sidebar-muted transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+                  className="mb-1 flex w-full items-center justify-between rounded-md px-3 py-1 font-mono text-vitrin-rail text-sidebar-muted transition-colors duration-200 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span>{group.label}</span>
                   <ChevronDown
@@ -210,16 +212,16 @@ function SiteSwitcher({ siteId, path, onClose }: { siteId: string; path: string;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="flex w-full items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-hover/60 px-3 py-2.5 text-left transition-colors hover:bg-sidebar-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 data-[state=open]:ring-2 data-[state=open]:ring-brand/40"
+        className="flex w-full items-center gap-2 rounded-md border border-sidebar-border px-3 py-2.5 text-left transition-colors duration-200 hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:border-foreground/50"
         aria-label={currentSite ? `Site değiştir — şu an ${currentSite.name}` : 'Site değiştir'}
       >
         <SiteFavicon url={currentSite?.url} name={currentSite?.name} size="sm" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-sidebar-foreground">
+          <span className="block truncate text-sm font-medium text-sidebar-foreground">
             {currentSite?.name ?? 'Yükleniyor…'}
           </span>
           {currentSite?.url && (
-            <span className="block truncate text-label font-normal text-sidebar-muted">{host(currentSite.url)}</span>
+            <span className="block truncate font-mono text-vitrin-rail text-sidebar-muted">{host(currentSite.url)}</span>
           )}
         </span>
         <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-sidebar-muted" aria-hidden />

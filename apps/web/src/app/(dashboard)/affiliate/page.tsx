@@ -185,7 +185,7 @@ function EnrollCard({ onEnroll }: { onEnroll: () => void }) {
     <Card className="overflow-hidden">
       <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_1.1fr] lg:items-center">
         <div>
-          <p className="font-brand text-h4 font-semibold tracking-tight [text-wrap:balance]">
+          <p className="text-panel-1 [text-wrap:balance]">
             Önerdiğin her işletmeden %30 komisyon
           </p>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
@@ -199,7 +199,7 @@ function EnrollCard({ onEnroll }: { onEnroll: () => void }) {
         <ol className="space-y-4">
           {STEPS.map((s, i) => (
             <li key={s.title} className="flex gap-4">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border font-brand text-sm font-semibold tabular-nums">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border font-mono text-vitrin-rail text-muted-foreground tabular-nums">
                 {i + 1}
               </span>
               <div>
@@ -268,7 +268,7 @@ function ShareLink({ url, refCode }: { url: string; refCode: string }) {
     <Card className="p-5">
       <SectionHeader as="h3" title="Davet linkin" description={`Kodun: ${refCode} · 60 gün geçerli`} />
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <code className="flex-1 break-all rounded-lg border border-border bg-muted/40 px-3 py-2.5 font-mono text-sm">
+        <code className="flex-1 break-all rounded-md border border-border bg-muted/40 px-3 py-2.5 font-mono text-sm">
           {url}
         </code>
         <Button onClick={copy} className="shrink-0">
@@ -287,21 +287,21 @@ function ReferralTable({ rows }: { rows: Referral[] }) {
         <SectionHeader as="h3" title="Tüm davetler" description={`${rows.length} kayıt`} />
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-left text-label text-muted-foreground">
-            <tr>
-              <th className="px-5 py-2.5 font-medium">Kişi</th>
-              <th className="px-5 py-2.5 font-medium">Seviye</th>
-              <th className="px-5 py-2.5 font-medium">Tıklama</th>
-              <th className="px-5 py-2.5 font-medium">Kayıt</th>
-              <th className="px-5 py-2.5 font-medium">İlk ödeme</th>
-              <th className="px-5 py-2.5 text-right font-medium">Komisyon</th>
-              <th className="px-5 py-2.5 font-medium">Durum</th>
+        <table className="w-full min-w-[44rem] text-sm">
+          <thead>
+            <tr className="border-b text-left font-mono text-vitrin-rail text-muted-foreground">
+              <th className="px-5 py-2.5 font-normal">Kişi</th>
+              <th className="px-5 py-2.5 font-normal">Seviye</th>
+              <th className="px-5 py-2.5 font-normal">Tıklama</th>
+              <th className="px-5 py-2.5 font-normal">Kayıt</th>
+              <th className="px-5 py-2.5 font-normal">İlk ödeme</th>
+              <th className="px-5 py-2.5 text-right font-normal">Komisyon</th>
+              <th className="px-5 py-2.5 font-normal">Durum</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y">
             {rows.map((r, i) => (
-              <tr key={r.id} className="border-t">
+              <tr key={r.id}>
                 <td className="px-5 py-2.5 font-medium">{refLabel(r, i + 1)}</td>
                 <td className="px-5 py-2.5 text-muted-foreground">{(r.tier ?? 1) === 1 ? 'Doğrudan' : '2. seviye'}</td>
                 <td className="px-5 py-2.5 tabular-nums text-muted-foreground">{tarih(r.clickedAt)}</td>
@@ -323,7 +323,7 @@ function ReferralTable({ rows }: { rows: Referral[] }) {
 }
 
 // ──────────────────────────────────────────────────────────────────
-//  Ag grafigi — token renkleri; odeme yapan baglar turuncu
+//  Ag grafigi — token renkleri; odeme yapan baglar durum yesili (success), merkez notr
 // ──────────────────────────────────────────────────────────────────
 
 function NetworkGraph({ tier1, tier2 }: { tier1: Referral[]; tier2: Referral[] }) {
@@ -352,8 +352,8 @@ function NetworkGraph({ tier1, tier2 }: { tier1: Referral[]; tier2: Referral[] }
         {tier1Pos.map((p, i) => (
           <motion.line
             key={`l1-${i}`} x1={CX} y1={CY} x2={p.x} y2={p.y}
-            className={p.ref.status === 'paid' ? 'stroke-brand' : 'stroke-border'}
-            strokeWidth={p.ref.status === 'paid' ? 2.5 : 1.5}
+            className={p.ref.status === 'paid' ? 'stroke-success' : 'stroke-border'}
+            strokeWidth={p.ref.status === 'paid' ? 2 : 1.5}
             initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
             transition={{ duration: 0.5, ease: EASE_APPLE, delay: 0.2 + i * 0.06 }}
           />
@@ -371,15 +371,15 @@ function NetworkGraph({ tier1, tier2 }: { tier1: Referral[]; tier2: Referral[] }
         })}
 
         {/* Sen */}
-        <circle cx={CX} cy={CY} r={30} className="fill-brand" />
-        <text x={CX} y={CY + 5} textAnchor="middle" className="fill-white font-brand text-[14px] font-semibold">Sen</text>
+        <circle cx={CX} cy={CY} r={30} className="fill-foreground" />
+        <text x={CX} y={CY + 5} textAnchor="middle" className="fill-background text-sm font-medium">Sen</text>
 
         {tier1Pos.map((p, i) => {
           const paid = p.ref.status === 'paid';
           return (
             <g key={`n1-${i}`}>
-              <circle cx={p.x} cy={p.y} r={15} className={cn('stroke-[2.5]', paid ? 'fill-brand/15 stroke-brand' : 'fill-card stroke-foreground/40')} />
-              <text x={p.x} y={p.y < CY ? p.y - 24 : p.y + 32} textAnchor="middle" className="fill-foreground text-[12px] font-medium">
+              <circle cx={p.x} cy={p.y} r={15} className={cn('stroke-2', paid ? 'fill-card stroke-success' : 'fill-card stroke-foreground/40')} />
+              <text x={p.x} y={p.y < CY ? p.y - 24 : p.y + 32} textAnchor="middle" className="fill-foreground text-xs font-medium">
                 {refLabel(p.ref, i + 1)}
               </text>
             </g>
@@ -388,15 +388,15 @@ function NetworkGraph({ tier1, tier2 }: { tier1: Referral[]; tier2: Referral[] }
         {tier2Pos.map((p, i) => (
           <g key={`n2-${i}`}>
             <circle cx={p.x} cy={p.y} r={8} className="fill-muted stroke-foreground/25 stroke-[1.5]" />
-            <text x={p.x} y={p.y < CY ? p.y - 15 : p.y + 22} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+            <text x={p.x} y={p.y < CY ? p.y - 15 : p.y + 22} textAnchor="middle" className="fill-muted-foreground text-xs">
               {refLabel(p.ref, i + 1)}
             </text>
           </g>
         ))}
       </svg>
 
-      <ul className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-2 text-label text-muted-foreground">
-        <li className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-brand" aria-hidden />Ödeme yapan doğrudan davet</li>
+      <ul className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-2 font-mono text-vitrin-rail text-muted-foreground">
+        <li className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-success" aria-hidden />Ödeme yapan doğrudan davet</li>
         <li className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full border-2 border-foreground/40" aria-hidden />Doğrudan davet</li>
         <li className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-muted ring-1 ring-foreground/25" aria-hidden />2. seviye (komisyon yok)</li>
       </ul>

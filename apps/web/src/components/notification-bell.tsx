@@ -77,21 +77,21 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative p-2 rounded hover:bg-sidebar-hover text-sidebar-foreground/85"
+        className="relative grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors duration-200 hover:bg-sidebar-hover hover:text-foreground"
         aria-label="Bildirimler"
       >
         <Bell className="h-4 w-4" />
         {unread > 0 && (
-          <span className="absolute top-0.5 right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold grid place-items-center">
+          <span className="absolute top-0.5 right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-brand text-black text-[10px] font-medium grid place-items-center">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[360px] max-h-[480px] overflow-hidden bg-background text-foreground rounded-lg shadow-xl border z-50 flex flex-col">
+        <div className="absolute right-0 top-full mt-2 w-[360px] max-h-[480px] overflow-hidden bg-popover text-popover-foreground rounded-lg border z-50 flex flex-col">
           <div className="p-3 border-b flex items-center justify-between">
-            <div className="text-sm font-bold">Bildirimler</div>
+            <div className="text-sm font-medium">Bildirimler</div>
             <button onClick={readAll} disabled={loading || unread === 0} className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 flex items-center gap-1">
               <CheckCheck className="h-3 w-3" />
               Tümünü okundu işaretle
@@ -101,7 +101,7 @@ export function NotificationBell() {
             {items.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">Bildirim yok.</div>
             ) : items.map(n => (
-              <div key={n.id} className={`px-3 py-2 border-b text-sm group ${n.readAt ? 'opacity-60' : 'bg-brand/5'}`}>
+              <div key={n.id} className={`px-3 py-2 border-b text-sm group ${n.readAt ? 'opacity-60' : 'bg-foreground/[0.04]'}`}>
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
                     {n.link ? (
@@ -122,7 +122,7 @@ export function NotificationBell() {
                         <Check className="h-3 w-3" />
                       </button>
                     )}
-                    <button onClick={() => remove(n.id)} className="hover:text-rose-600" title="Sil">
+                    <button onClick={() => remove(n.id)} className="hover:text-danger" title="Sil">
                       <X className="h-3 w-3" />
                     </button>
                   </div>

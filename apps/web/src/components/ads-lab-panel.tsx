@@ -3,7 +3,7 @@
 import { siteHref } from '@/lib/site-routes';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Megaphone, Play, Pause, Target, Zap, Link2, Check, X, Loader2, TrendingUp, Trophy, Ban } from 'lucide-react';
+import { Megaphone, Play, Pause, Target, Zap, Link2, Check, X, Loader2, TrendingUp, Trophy, Ban, Camera } from 'lucide-react';
 import { api } from '@/lib/api';
 import { abPausedAdsText, abTestDetail, abWinnerRateLabel, historyReasonLabel } from '@/lib/ads-history';
 import { finishOAuthConnect } from '@/lib/oauth-connect';
@@ -37,7 +37,7 @@ export function AdsLabPanel({ site }: { site: any }) {
   const noAccounts = conn !== null && !conn.google && !conn.meta;
 
   return (
-    <div className="rounded-lg border bg-card p-5 space-y-4">
+    <div className="space-y-4 rounded-lg border bg-card p-4 sm:p-6">
       <SectionHeader
         as="h3"
         icon={Megaphone}
@@ -45,12 +45,12 @@ export function AdsLabPanel({ site }: { site: any }) {
         description="RanksUp'ta kayıtlı Google Ads ve Meta kampanyalarının durumu, performansı ve otopilot geçmişi."
       />
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         RanksUp'tan yeni kampanya oluşturulamıyor. Google Ads ya da Meta'da kendin kurduğun kampanyalar bu listeye
         gelmez; onları kendi panellerinden yönetirsin. Reklam hesabını{' '}
         <a
           href={siteHref(site.id, 'adsHealth')}
-          className="font-medium text-foreground underline decoration-brand underline-offset-4 hover:text-brand"
+          className="font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
         >
           Kampanya Skoru
         </a>{' '}
@@ -58,8 +58,8 @@ export function AdsLabPanel({ site }: { site: any }) {
       </p>
 
       {noAccounts && (
-        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-start gap-3">
-          <Link2 className="h-4 w-4 text-warning shrink-0 mt-0.5" aria-hidden />
+        <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 p-4">
+          <Link2 className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
           <div className="flex-1 text-sm">
             <p className="font-medium">Önce reklam hesabı bağla</p>
             <p className="text-muted-foreground mt-0.5">
@@ -67,7 +67,7 @@ export function AdsLabPanel({ site }: { site: any }) {
             </p>
             <a
               href={siteHref(site.id, 'connections')}
-              className="mt-2 inline-flex items-center gap-1 font-medium text-foreground underline decoration-brand underline-offset-4 hover:text-brand"
+              className="mt-2 inline-flex items-center gap-1 font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
             >
               Bağlantılar sayfasını aç
             </a>
@@ -75,7 +75,7 @@ export function AdsLabPanel({ site }: { site: any }) {
         </div>
       )}
 
-      <div className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="tablist">
+      <div className="inline-flex flex-wrap items-center gap-1 rounded-md border border-border p-1 text-muted-foreground" role="tablist">
         {([
           ['active', 'Yayındakiler', <Play key="a" className="h-3.5 w-3.5" />],
           ['performance', 'Performans', <Target key="p" className="h-3.5 w-3.5" />],
@@ -86,7 +86,7 @@ export function AdsLabPanel({ site }: { site: any }) {
             role="tab"
             aria-selected={tab === id}
             onClick={() => setTab(id)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded px-3 py-1.5 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === id ? 'bg-foreground text-background' : 'hover:text-foreground'}`}
           >
             {icon} {label}
           </button>
@@ -186,7 +186,7 @@ function AutopilotToggle({ site, disabled, rules }: { site: any; disabled: boole
   };
 
   return (
-    <div className="space-y-2 rounded-md border bg-brand-500/5 p-3 text-xs">
+    <div className="space-y-2 rounded-md border p-4 text-xs">
       <label className="flex items-start gap-2 cursor-pointer">
         <input
           type="checkbox"
@@ -196,7 +196,7 @@ function AutopilotToggle({ site, disabled, rules }: { site: any; disabled: boole
           onChange={(e) => save(e.target.checked)}
         />
         <span>
-          <strong>Ads Otopilot</strong> — açıkken her 6 saatte bir, onay sormadan reklam hesabında aşağıdaki
+          <strong className="font-medium text-foreground">Ads Otopilot</strong> — açıkken her 6 saatte bir, onay sormadan reklam hesabında aşağıdaki
           değişiklikleri yapar. Bu değişiklikler harcamanı doğrudan etkiler.
         </span>
       </label>
@@ -324,15 +324,15 @@ function AutopilotHistoryTab({ siteId }: { siteId: string }) {
                 <div className="flex items-start gap-2">
                   <Icon className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" aria-hidden />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold truncate">{a.campaignName}</p>
-                    <p className="text-label text-muted-foreground mt-0.5">
+                    <p className="truncate text-sm font-medium">{a.campaignName}</p>
+                    <p className="v-rail mt-0.5">
                       {meta?.label ?? action} · {new Date(a.time).toLocaleString('tr-TR')}
                     </p>
                     {a.reason && (
-                      <p className="text-label mt-1 italic">{reasonLabel ? `${reasonLabel}: ` : ''}"{a.reason}"</p>
+                      <p className="mt-1 text-xs">{reasonLabel ? `${reasonLabel}: ` : ''}"{a.reason}"</p>
                     )}
                     {a.budgetBefore !== undefined && a.budgetAfter !== undefined && (
-                      <p className="text-label mt-1 font-mono">
+                      <p className="mt-1 font-mono text-xs">
                         Günlük bütçe {trNum(Number(a.budgetBefore))} → {trNum(Number(a.budgetAfter))}
                         {a.currency ? ` ${a.currency}` : ' (hesap para birimi)'}
                         {a.clamped ? ' · üst sınıra göre küçültüldü' : ''}
@@ -340,25 +340,25 @@ function AutopilotHistoryTab({ siteId }: { siteId: string }) {
                       </p>
                     )}
                     {a.completed === false && (
-                      <p className="text-label mt-1 text-danger">
+                      <p className="mt-1 text-xs text-danger">
                         {a.uncertain
                           ? 'Karşı kampanyanın artışı platformda doğrulanamadı; toplam bütçe artmasın diye bu azaltma geri alınmadı. Reklam hesabındaki bütçeleri kontrol et.'
                           : 'Karşı kampanyanın artışı platformda onaylanmadı ve bu azaltma geri alınamadı; toplam bütçe düştü.'}
                       </p>
                     )}
                     {(a.winnerCtr !== undefined || abDetail) && (
-                      <p className="text-label mt-1">
+                      <p className="mt-1 text-xs">
                         {a.winnerCtr !== undefined ? `${abWinnerRateLabel(a, a.platform)} %${(a.winnerCtr * 100).toFixed(2)}` : ''}
                         {a.winnerCtr !== undefined && abDetail ? ' · ' : ''}
                         {abDetail ?? ''}
                       </p>
                     )}
-                    {abPausedAds && <p className="text-label mt-1 font-mono">{abPausedAds}</p>}
+                    {abPausedAds && <p className="mt-1 font-mono text-xs">{abPausedAds}</p>}
                     {Array.isArray(a.keywords) && (
-                      <p className="text-label mt-1">{a.keywords.length} negatif: {a.keywords.slice(0, 5).join(', ')}{a.keywords.length > 5 ? '…' : ''}</p>
+                      <p className="mt-1 text-xs">{a.keywords.length} negatif: {a.keywords.slice(0, 5).join(', ')}{a.keywords.length > 5 ? '…' : ''}</p>
                     )}
                     {a.ctr !== undefined && a.roas !== undefined && (
-                      <p className="text-label mt-1 font-mono">Tıklama oranı %{(a.ctr * 100).toFixed(2)} · ROAS {Number(a.roas).toFixed(2)}x</p>
+                      <p className="mt-1 font-mono text-xs">Tıklama oranı %{(a.ctr * 100).toFixed(2)} · ROAS {Number(a.roas).toFixed(2)}x</p>
                     )}
                   </div>
                 </div>
@@ -426,52 +426,52 @@ function ActiveTab({ siteId }: { siteId: string }) {
   return (
     <div className="space-y-2">
       {/* Butce RanksUp'a girilen sayi; platform onu reklam hesabinin para biriminde uygular */}
-      <p className="text-label text-muted-foreground">Tutarlar reklam hesabının para birimindedir.</p>
+      <p className="text-xs text-muted-foreground">Tutarlar reklam hesabının para birimindedir.</p>
       {campaigns.map((c) => (
-        <div key={c.id} className="rounded-md border p-3">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div>
-              <p className="font-semibold text-sm">{c.name}</p>
-              <p className="text-label text-muted-foreground">
+        <div key={c.id} className="rounded-md border p-4">
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-panel-3">{c.name}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {PLATFORM_LABEL[c.platform] ?? c.platform} · {OBJECTIVE_LABEL[c.objective] ?? c.objective} · bütçe {c.budgetAmount} ({c.budgetType === 'lifetime' ? 'toplam' : 'günlük'})
               </p>
             </div>
-            <Badge variant={c.status === 'ACTIVE' ? 'default' : c.status === 'PAUSED' ? 'outline' : 'secondary'}>
+            <Badge className="shrink-0" variant={c.status === 'ACTIVE' ? 'success' : c.status === 'PAUSED' ? 'outline' : 'secondary'}>
               {STATUS_LABEL[c.status] ?? c.status}
             </Badge>
           </div>
-          <div className="grid grid-cols-4 gap-2 text-xs mb-2">
+          <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
             <div>
-              <p className="text-muted-foreground">
+              <p className="v-rail">
                 <InfoTooltip term="Impression">Gösterim</InfoTooltip>
               </p>
-              <p className="font-mono font-bold">{c.impressions}</p>
+              <p className="mt-0.5 text-metric tabular-nums">{c.impressions}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Tıklama</p>
-              <p className="font-mono font-bold">{c.clicks}</p>
+              <p className="v-rail">Tıklama</p>
+              <p className="mt-0.5 text-metric tabular-nums">{c.clicks}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">
+              <p className="v-rail">
                 <InfoTooltip term="CTR">CTR</InfoTooltip>
               </p>
-              <p className="font-mono font-bold">{(c.ctr * 100).toFixed(1)}%</p>
+              <p className="mt-0.5 text-metric tabular-nums">{(c.ctr * 100).toFixed(1)}%</p>
             </div>
             <div>
-              <p className="text-muted-foreground">
+              <p className="v-rail">
                 <InfoTooltip term="ROAS">ROAS</InfoTooltip>
               </p>
-              <p className={`font-mono font-bold ${c.roas >= 2 ? 'text-green-500' : c.roas > 0 ? 'text-yellow-500' : ''}`}>{c.roas.toFixed(1)}x</p>
+              <p className={`mt-0.5 text-metric tabular-nums ${c.roas >= 2 ? 'text-success' : c.roas > 0 ? 'text-warning' : ''}`}>{c.roas.toFixed(1)}x</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* externalId'siz taslak platformda hic olusturulmadi: launch her zaman reddeder (ads.controller) */}
             {c.status === 'DRAFT' && c.externalId && <Button size="sm" onClick={() => launch(c.id)}><Play className="h-3 w-3 mr-1" /> Yayına al</Button>}
             {c.status === 'DRAFT' && !c.externalId && (
-              <span className="text-label text-muted-foreground">Bu taslak reklam platformunda oluşturulmadı; RanksUp'tan yayına alınamaz.</span>
+              <span className="text-xs text-muted-foreground">Bu taslak reklam platformunda oluşturulmadı; RanksUp'tan yayına alınamaz.</span>
             )}
             {c.status === 'ACTIVE' && <Button size="sm" variant="outline" onClick={() => pause(c.id)}><Pause className="h-3 w-3 mr-1" /> Duraklat</Button>}
-            {c.externalId && <span className="text-label text-muted-foreground">ID: {c.externalId}</span>}
+            {c.externalId && <span className="v-rail">ID: {c.externalId}</span>}
           </div>
         </div>
       ))}
@@ -495,21 +495,22 @@ function PerformanceTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-md border p-3 text-center">
-          <p className="text-2xl font-bold">{totalSpend.toFixed(0)}</p>
-          <p className="text-label text-muted-foreground">Toplam harcama (hesap para birimi)</p>
+      {/* ui/metric MetricCard ile ayni gorunum: mono etiket ustte, ince rakam altta */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="flex flex-col rounded-lg border p-4">
+          <p className="v-rail">Toplam harcama (hesap para birimi)</p>
+          <p className="mt-3 text-metric-lg tabular-nums">{totalSpend.toFixed(0)}</p>
         </div>
-        <div className="rounded-md border p-3 text-center">
-          <p className="text-2xl font-bold">{totalConv}</p>
-          <p className="text-label text-muted-foreground">Dönüşüm</p>
+        <div className="flex flex-col rounded-lg border p-4">
+          <p className="v-rail">Dönüşüm</p>
+          <p className="mt-3 text-metric-lg tabular-nums">{totalConv}</p>
         </div>
-        <div className="rounded-md border p-3 text-center">
-          <p className={`text-2xl font-bold ${avgRoas >= 2 ? 'text-green-500' : avgRoas > 0 ? 'text-yellow-500' : ''}`}>{avgRoas.toFixed(1)}x</p>
-          <p className="text-label text-muted-foreground">Ort. ROAS</p>
+        <div className="flex flex-col rounded-lg border p-4">
+          <p className="v-rail">Ort. ROAS</p>
+          <p className={`mt-3 text-metric-lg tabular-nums ${avgRoas >= 2 ? 'text-success' : avgRoas > 0 ? 'text-warning' : ''}`}>{avgRoas.toFixed(1)}x</p>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground italic">
+      <p className="text-xs text-muted-foreground">
         Etkin ve reklam platformunda kimliği olan kampanyaların verileri her 6 saatte bir Google Ads API ve Meta
         Marketing API'den alınır.
       </p>
@@ -637,17 +638,17 @@ export function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; 
   };
 
   return (
-    <div className={`rounded-md border p-3 ${connected ? 'border-green-500/40 bg-green-500/5' : 'bg-muted/10'}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={`h-7 w-7 rounded-full grid place-items-center ${connected ? 'bg-green-500/20' : 'bg-muted'}`}>
-            {connected ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />}
+    <div className={`rounded-md border p-4 ${connected ? 'border-success/30 bg-success/5' : ''}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${connected ? 'bg-success/10' : 'bg-muted'}`}>
+            {connected ? <Check className="h-4 w-4 text-success" /> : <X className="h-4 w-4 text-muted-foreground" />}
           </span>
-          <div>
-            <p className="text-sm font-semibold flex items-center gap-2">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-medium">
               <GoogleIcon /> Google Ads
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {connected
                 ? <>Bağlı{site.googleAdsCustomerId && <> · <span className="font-mono">{site.googleAdsCustomerId}</span></>} · {site.googleAdsConnectedAt && new Date(site.googleAdsConnectedAt).toLocaleDateString('tr-TR')}</>
                 : 'Tek tık bağlan — Google izin ekranı'}
@@ -660,7 +661,7 @@ export function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; 
             <Button size="sm" variant="outline" onClick={disconnect}>Kaldır</Button>
           </div>
         ) : (
-          <Button size="sm" onClick={connect} disabled={oauth.busy} className="gap-1.5">
+          <Button size="sm" variant="outline" onClick={connect} disabled={oauth.busy} className="gap-1.5">
             {oauth.busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <GoogleIcon />}
             {oauth.busy ? 'Açılıyor…' : 'Google ile Bağla'}
           </Button>
@@ -678,13 +679,13 @@ export function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; 
                 key={c.id}
                 onClick={() => pick(c.id)}
                 disabled={savingPick}
-                className={`w-full flex items-start justify-between gap-2 px-3 py-2 rounded border text-xs hover:border-brand/40 hover:bg-brand/5 transition-colors ${site.googleAdsCustomerId === c.id ? 'border-green-500/40 bg-green-500/5' : ''}`}
+                className={`flex w-full items-start justify-between gap-2 rounded border px-3 py-2 text-xs transition-colors hover:border-foreground/30 hover:bg-muted ${site.googleAdsCustomerId === c.id ? 'border-foreground bg-muted' : ''}`}
               >
                 <div className="flex flex-col items-start gap-0.5 min-w-0">
                   <span className="font-medium truncate">{c.descriptiveName || (c.isManager ? 'Manager hesabı' : 'İsimsiz hesap')}</span>
-                  <span className="text-muted-foreground font-mono text-[10px]">{c.id.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}{c.currencyCode ? ` · ${c.currencyCode}` : ''}{c.isManager ? ' · Manager' : ''}</span>
+                  <span className="v-rail">{c.id.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}{c.currencyCode ? ` · ${c.currencyCode}` : ''}{c.isManager ? ' · Manager' : ''}</span>
                 </div>
-                {site.googleAdsCustomerId === c.id && <Check className="h-3 w-3 text-green-600 mt-0.5 shrink-0" />}
+                {site.googleAdsCustomerId === c.id && <Check className="mt-0.5 h-3 w-3 shrink-0 text-foreground" />}
               </button>
             ))
           )}
@@ -740,17 +741,17 @@ export function MetaAdsOAuthCard({ site, connected, onChanged }: { site: any; co
   };
 
   return (
-    <div className={`rounded-md border p-3 ${connected ? 'border-green-500/40 bg-green-500/5' : 'bg-muted/10'}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={`h-7 w-7 rounded-full grid place-items-center ${connected ? 'bg-green-500/20' : 'bg-muted'}`}>
-            {connected ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />}
+    <div className={`rounded-md border p-4 ${connected ? 'border-success/30 bg-success/5' : ''}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md ${connected ? 'bg-success/10' : 'bg-muted'}`}>
+            {connected ? <Check className="h-4 w-4 text-success" /> : <X className="h-4 w-4 text-muted-foreground" />}
           </span>
-          <div>
-            <p className="text-sm font-semibold flex items-center gap-2">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-medium">
               <MetaIcon /> Meta Ads (Facebook + Instagram)
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {connected
                 ? <>Bağlı{site.metaAdsAccountId && <> · <span className="font-mono">{site.metaAdsAccountId}</span></>}{site.metaPageId && <> · Page {site.metaPageId}</>}</>
                 : 'Tek tık bağlan — Facebook izin ekranı'}
@@ -763,7 +764,7 @@ export function MetaAdsOAuthCard({ site, connected, onChanged }: { site: any; co
             <Button size="sm" variant="outline" onClick={disconnect}>Kaldır</Button>
           </div>
         ) : (
-          <Button size="sm" onClick={connect} disabled={oauth.busy} className="gap-1.5">
+          <Button size="sm" variant="outline" onClick={connect} disabled={oauth.busy} className="gap-1.5">
             {oauth.busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <MetaIcon />}
             {oauth.busy ? 'Açılıyor…' : 'Facebook ile Bağla'}
           </Button>
@@ -807,19 +808,19 @@ function MetaPicker({ opts, current, onCancel, onSave }: {
   return (
     <div className="mt-3 pt-3 border-t space-y-3">
       <div>
-        <p className="text-xs font-medium mb-1.5">Reklam Hesabı (Ad Account)</p>
+        <p className="mb-1.5 text-label text-muted-foreground">Reklam Hesabı (Ad Account)</p>
         {opts.adAccounts.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground p-2 border rounded">Aktif reklam hesabı bulunamadı.</p>
+          <p className="rounded border p-2 text-xs text-muted-foreground">Aktif reklam hesabı bulunamadı.</p>
         ) : (
           <div className="space-y-1">
             {opts.adAccounts.map((a) => (
               <button
                 key={a.id}
                 onClick={() => setAdAccountId(a.id)}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded border text-xs hover:border-brand/40 transition-colors ${adAccountId === a.id ? 'border-brand bg-brand/5' : ''}`}
+                className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-xs transition-colors hover:border-foreground/30 ${adAccountId === a.id ? 'border-foreground bg-muted' : ''}`}
               >
-                <span className="truncate"><strong>{a.name}</strong> · <span className="font-mono text-muted-foreground">{a.id}</span></span>
-                {adAccountId === a.id && <Check className="h-3 w-3 text-brand shrink-0" />}
+                <span className="truncate"><strong className="font-medium">{a.name}</strong> · <span className="font-mono text-muted-foreground">{a.id}</span></span>
+                {adAccountId === a.id && <Check className="h-3 w-3 shrink-0 text-foreground" />}
               </button>
             ))}
           </div>
@@ -827,22 +828,22 @@ function MetaPicker({ opts, current, onCancel, onSave }: {
       </div>
 
       <div>
-        <p className="text-xs font-medium mb-1.5">Facebook Page (zorunlu — kampanya + boost için)</p>
+        <p className="mb-1.5 text-label text-muted-foreground">Facebook Page (zorunlu — kampanya + boost için)</p>
         {opts.pages.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground p-2 border rounded">Sayfa bulunamadı. Facebook'ta sayfa kur, sonra tekrar bağla.</p>
+          <p className="rounded border p-2 text-xs text-muted-foreground">Sayfa bulunamadı. Facebook'ta sayfa kur, sonra tekrar bağla.</p>
         ) : (
           <div className="space-y-1">
             {opts.pages.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setPageId(p.id)}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded border text-xs hover:border-brand/40 transition-colors ${pageId === p.id ? 'border-brand bg-brand/5' : ''}`}
+                className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-xs transition-colors hover:border-foreground/30 ${pageId === p.id ? 'border-foreground bg-muted' : ''}`}
               >
                 <span className="truncate">
-                  <strong>{p.name}</strong>
-                  {p.instagramId && <span className="ml-1.5 text-[10px] inline-flex items-center gap-0.5 text-pink-500">📷 IG bağlı</span>}
+                  <strong className="font-medium">{p.name}</strong>
+                  {p.instagramId && <span className="ml-1.5 inline-flex items-center gap-1 text-muted-foreground"><Camera className="h-3 w-3" aria-hidden /> IG bağlı</span>}
                 </span>
-                {pageId === p.id && <Check className="h-3 w-3 text-brand shrink-0" />}
+                {pageId === p.id && <Check className="h-3 w-3 shrink-0 text-foreground" />}
               </button>
             ))}
           </div>

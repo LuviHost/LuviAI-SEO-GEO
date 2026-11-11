@@ -138,9 +138,9 @@ export default function VideosPage() {
         (videos ?? []).length === 0 ? <LockedVideoPreview seed={site.id} /> : null
       ) : (
         <Card>
-          <CardContent className="space-y-4 p-4">
+          <CardContent className="space-y-5 p-4 sm:p-6">
             <div className="space-y-2">
-              <span className="text-sm font-medium">Yeni video</span>
+              <span className="block text-panel-3">Yeni video</span>
               <div role="group" aria-label="Video türü" className="flex flex-wrap gap-2">
                 {TYPES.map((t) => (
                   <FilterChip key={t} selected={type === t} onClick={() => { setType(t); setFormat('vertical'); }}>
@@ -157,7 +157,7 @@ export default function VideosPage() {
                   id="video-article"
                   value={pick}
                   onChange={(e) => setPick(e.target.value)}
-                  className="flex h-10 w-full rounded-lg border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground transition-colors focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="">{published.length ? 'Makale seç…' : 'Yayında makale yok'}</option>
                   {published.map((a: any) => (
@@ -188,7 +188,7 @@ export default function VideosPage() {
                       aria-describedby="video-page-url-hint"
                       className={cn(urlProblem && 'border-danger')}
                     />
-                    <p id="video-page-url-hint" className={cn('text-label', urlProblem ? 'text-danger' : 'text-muted-foreground')}>
+                    <p id="video-page-url-hint" className={cn('text-xs', urlProblem ? 'text-danger' : 'text-muted-foreground')}>
                       {urlProblem ?? `Yalnız ${siteHost} alan adındaki sayfalar. Ad, özellikler ve görsel sayfadan okunur; fiyat yalnız sayfada açıkça yazıyorsa gösterilir.`}
                     </p>
                   </div>
@@ -199,11 +199,11 @@ export default function VideosPage() {
                     {VIDEO_FORMAT_OPTIONS[type].map((o) => (
                       <FilterChip key={o.format} selected={format === o.format} onClick={() => setFormat(o.format)}>
                         {o.label}
-                        <span className="text-muted-foreground">· {o.hint}</span>
+                        <span className="opacity-60">· {o.hint}</span>
                       </FilterChip>
                     ))}
                   </div>
-                  <p className="text-label text-muted-foreground">Her video (her biçim ayrı) bir video hakkı kullanır. Tempoyu (hızlı, normal, yavaş) ve marka rengini bir sonraki adımda seçersin.</p>
+                  <p className="text-xs text-muted-foreground">Her video (her biçim ayrı) bir video hakkı kullanır. Tempoyu (hızlı, normal, yavaş) ve marka rengini bir sonraki adımda seçersin.</p>
                 </div>
               </>
             )}
@@ -211,7 +211,7 @@ export default function VideosPage() {
             <StylePicker value={style} onChange={setStyle} unavailable={quota?.unavailableStyles ?? []} />
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-label text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {busySource ? 'Bu kaynak için bu biçimde bir video zaten hazırlanıyor.' : quotaLine(quota) ?? ' '}
               </p>
               <Button onClick={() => setDialogOpen(true)} disabled={!target || busySource || feature !== true}>
@@ -258,7 +258,7 @@ export default function VideosPage() {
             <li key={v.id}>
               <Card className="h-full">
                 <CardContent className="space-y-3 p-4">
-                  <div className={cn('flex w-full items-center justify-center overflow-hidden rounded-lg border bg-muted', v.format === 'horizontal' ? 'aspect-video' : 'aspect-[9/16] max-h-[26rem]')}>
+                  <div className={cn('flex w-full items-center justify-center overflow-hidden rounded-md border bg-muted', v.format === 'horizontal' ? 'aspect-video' : 'aspect-[9/16] max-h-[26rem]')}>
                     {v.status === 'ready' && v.videoUrl ? (
                       <video
                         src={v.videoUrl}
@@ -278,16 +278,17 @@ export default function VideosPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="line-clamp-2 text-sm font-medium">{v.title}</p>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                      <Badge variant="brand">{VIDEO_TYPE_LABEL[videoTypeOf(v)]}</Badge>
+                  {/* Baslik kendi satirinda: dort rozet yaninda durunca baslik birkac harfe kirpiliyordu */}
+                  <div className="space-y-2">
+                    <p className="line-clamp-2 text-panel-3">{v.title}</p>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge variant="secondary">{VIDEO_TYPE_LABEL[videoTypeOf(v)]}</Badge>
                       <Badge variant="outline" title="Video stili">{VIDEO_STYLE_LABEL[videoStyleOf(v)]}</Badge>
                       <Badge variant="outline" title="Tempo">{VIDEO_TEMPO_LABEL[videoTempoOf(v)]}</Badge>
                       <Badge variant={BADGE[VIDEO_STATUS_TONE[v.status]]}>{VIDEO_STATUS_LABEL[v.status]}</Badge>
                     </div>
                   </div>
-                  <p className="text-label text-muted-foreground">
+                  <p className="v-rail">
                     {new Date(v.createdAt).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })}
                     {v.durationSec ? ` · ${v.durationSec} sn` : ''}
                     {formatVideoSize(v.fileSize) ? ` · ${formatVideoSize(v.fileSize)}` : ''}
@@ -296,7 +297,7 @@ export default function VideosPage() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {v.status === 'ready' && v.videoUrl && (
-                      <Button asChild size="sm">
+                      <Button asChild size="sm" variant="secondary">
                         <a href={v.videoUrl} download={videoFileName(v.title, v.id)}>
                           <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden /> İndir
                         </a>

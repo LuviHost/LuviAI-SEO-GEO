@@ -63,22 +63,22 @@ export function AiCostStrip({ siteId }: { siteId: string }) {
 
   return (
     <Card className="flex flex-wrap items-center gap-3 p-4">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border bg-muted/50 text-foreground/70">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground">
         <Sparkles className="h-4 w-4" aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-label text-muted-foreground">AI maliyeti · son 7 gün</span>
+          <span className="v-rail">AI maliyeti · son 7 gün</span>
           <span className="text-metric tabular-nums">${data.totalUsd.toFixed(2)}</span>
-          <span className="text-label text-muted-foreground">{formatNum(data.requestCount)} çağrı</span>
+          <span className="v-rail">{formatNum(data.requestCount)} çağrı</span>
           {tokens && tokens.total > 0 && (
-            <span className="text-label text-muted-foreground tabular-nums">{compactTokens(tokens.total)} token</span>
+            <span className="v-rail tabular-nums">{compactTokens(tokens.total)} token</span>
           )}
         </div>
         {top3.length > 0 && (
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-label text-muted-foreground">
+          <div className="v-rail mt-1 flex flex-wrap items-center gap-3">
             {top3.map(([ctx, cost]) => (
-              <span key={ctx} className="inline-flex items-center gap-1 font-mono">
+              <span key={ctx} className="inline-flex items-center gap-1">
                 <span className="text-foreground/70">{ctx}</span>
                 <span>${cost.toFixed(2)}</span>
               </span>
@@ -88,7 +88,7 @@ export function AiCostStrip({ siteId }: { siteId: string }) {
       </div>
       {tokens && tokens.total > 0 && (
         <span
-          className="hidden shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-label text-muted-foreground tabular-nums sm:inline-flex"
+          className="v-rail hidden shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 tabular-nums sm:inline-flex"
           title={`Giriş ${formatNum(tokens.input)} · Çıkış ${formatNum(tokens.output)} · Önbellek okuma ${formatNum(tokens.cacheRead)} · Önbellek yazma ${formatNum(tokens.cacheWrite)}`}
         >
           <ArrowDownUp className="h-3 w-3 shrink-0" aria-hidden />

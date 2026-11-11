@@ -76,8 +76,8 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
     <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <div>
-            <h3 className="text-sm font-semibold flex items-center gap-2"><Layers className="h-4 w-4 text-muted-foreground" /> Şablona göre sorunlar</h3>
-            <p className="text-xs text-muted-foreground">Aynı URL desenindeki sayfalar tek satırda — çoğu zaman yüzlerce sayfa hatası tek bir tema/bileşen düzeltmesidir.</p>
+            <h3 className="text-panel-3 flex items-center gap-2"><Layers className="h-4 w-4 text-muted-foreground" /> Şablona göre sorunlar</h3>
+            <p className="text-xs text-muted-foreground mt-1">Aynı URL desenindeki sayfalar tek satırda — çoğu zaman yüzlerce sayfa hatası tek bir tema/bileşen düzeltmesidir.</p>
           </div>
           {siteWide.length > 0 && (
             <span className="text-xs text-muted-foreground">{siteWide.length} site-geneli sorun (sitemap/robots/HTTPS gibi) aşağıdaki listede</span>
@@ -89,30 +89,33 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
             const isOpen = open === g.template;
             const plan = fixPlan(g);
             return (
-              <div key={g.template} className="rounded-lg border">
-                <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : g.template)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
-                  <code className="text-sm font-semibold">{g.template}</code>
-                  <span className="text-xs text-muted-foreground">{g.pageCount} sayfa</span>
-                  <div className="flex items-center gap-1 ml-auto">
-                    {g.criticalCount > 0 && <Badge variant="danger" className="text-label">{g.criticalCount} kritik</Badge>}
-                    {g.warningCount > 0 && <Badge variant="warning" className="text-label">{g.warningCount} uyarı</Badge>}
-                    {g.infoCount > 0 && <Badge variant="secondary" className="text-label">{g.infoCount} bilgi</Badge>}
-                  </div>
-                  <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
+              <div key={g.template} className="rounded-md border">
+                <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : g.template)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-md transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {/* Dar ekranda rozetler alt satira sarar; ok hep sagda kalir */}
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <code className="font-mono text-sm font-medium">{g.template}</code>
+                    <span className="v-rail">{g.pageCount} sayfa</span>
+                    <span className="flex items-center gap-1 sm:ml-auto">
+                      {g.criticalCount > 0 && <Badge variant="danger" className="text-label">{g.criticalCount} kritik</Badge>}
+                      {g.warningCount > 0 && <Badge variant="warning" className="text-label">{g.warningCount} uyarı</Badge>}
+                      {g.infoCount > 0 && <Badge variant="secondary" className="text-label">{g.infoCount} bilgi</Badge>}
+                    </span>
+                  </span>
+                  <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
                 </button>
                 {isOpen && (
                   <div className="px-3 pb-3 border-t pt-2 space-y-2 text-sm">
                     <div className="space-y-1">
                       {g.issues.map((i: any) => (
-                        <div key={`${i.checkId}-${i.type}`} className="flex items-center gap-2 text-xs">
+                        <div key={`${i.checkId}-${i.type}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                           <Badge variant={SEV_VARIANT[i.severity] ?? 'secondary'} className="text-label">{label(SEVERITY_LABEL, i.severity)}</Badge>
                           <span className="font-medium">{i.description ?? label({}, i.type)}</span>
                           <span className="text-muted-foreground">· {i.count} sayfa</span>
                           {i.fixRoute === 'auto_fix' && !isUnverifiedCheck(audit, i.checkId) && (
-                            <span className="text-success text-label">{isRobotsFixKey(i.checkId) ? 'önizlemeyle düzeltilir' : 'otomatik düzeltilebilir'}</span>
+                            <span className="text-success text-label font-normal">{isRobotsFixKey(i.checkId) ? 'önizlemeyle düzeltilir' : 'otomatik düzeltilebilir'}</span>
                           )}
-                          {i.fixRoute === 'snippet' && <span className="text-brand text-label">snippet ile düzeltilir</span>}
-                          {i.fixRoute === 'images' && <span className="text-brand text-label">görseller sayfasında düzeltilir</span>}
+                          {i.fixRoute === 'snippet' && <span className="text-muted-foreground text-label font-normal">snippet ile düzeltilir</span>}
+                          {i.fixRoute === 'images' && <span className="text-muted-foreground text-label font-normal">görseller sayfasında düzeltilir</span>}
                         </div>
                       ))}
                     </div>

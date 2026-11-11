@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, FileText } from 'lucide-react';
+import {
+  TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, FileText, CheckCircle2, XCircle, Link2,
+  ChevronRight, Smile, Meh, Frown, Swords,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,18 +36,18 @@ type Ton = 'emerald' | 'amber' | 'slate' | 'red';
  * puan sanar (skor bu satirlari saymaz).
  */
 function probeDurumu(p: any): { label: string; kisa: string; tone: Ton; score: string } {
-  if (isProbeErrorText(p?.excerpt)) return { label: 'ÖLÇÜLEMEDİ · SKOR DIŞI', kisa: 'ÖLÇÜLEMEDİ', tone: 'slate', score: '—' };
-  if (p?.brandInQuery) return { label: 'MARKALI SORU · SKOR DIŞI', kisa: 'MARKALI', tone: 'slate', score: '—' };
-  if (p?.cited) return { label: 'URL ALINTIDI', kisa: 'URL', tone: 'emerald', score: '+100' };
-  if (p?.brandMentioned) return { label: 'MARKA GEÇTI', kisa: 'MARKA', tone: 'amber', score: '+50' };
-  return { label: 'BAHSETMEDI', kisa: 'YOK', tone: 'red', score: '0' };
+  if (isProbeErrorText(p?.excerpt)) return { label: 'Ölçülemedi · skor dışı', kisa: 'Ölçülemedi', tone: 'slate', score: '—' };
+  if (p?.brandInQuery) return { label: 'Markalı soru · skor dışı', kisa: 'Markalı', tone: 'slate', score: '—' };
+  if (p?.cited) return { label: 'URL alıntılandı', kisa: 'URL', tone: 'emerald', score: '+100' };
+  if (p?.brandMentioned) return { label: 'Marka geçti', kisa: 'Marka', tone: 'amber', score: '+50' };
+  return { label: 'Bahsetmedi', kisa: 'Yok', tone: 'red', score: '0' };
 }
 
 const TON_SINIF: Record<Ton, { badge: string; bar: string; text: string }> = {
-  emerald: { badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/30', bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
-  amber: { badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30', bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
-  slate: { badge: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 ring-1 ring-slate-500/30', bar: 'bg-slate-400', text: 'text-muted-foreground' },
-  red: { badge: 'bg-red-500/15 text-red-700 dark:text-red-300 ring-1 ring-red-500/30', bar: 'bg-red-500', text: 'text-red-600 dark:text-red-400' },
+  emerald: { badge: 'bg-success/10 text-success', bar: 'bg-success', text: 'text-success' },
+  amber: { badge: 'bg-warning/10 text-warning', bar: 'bg-warning', text: 'text-warning' },
+  slate: { badge: 'bg-muted text-muted-foreground', bar: 'bg-muted-foreground/45', text: 'text-muted-foreground' },
+  red: { badge: 'bg-danger/10 text-danger', bar: 'bg-danger', text: 'text-danger' },
 };
 
 /** Grup bar rengi icin: olculen en iyi sonuc (skor disi en altta) */
@@ -107,7 +110,7 @@ export function CitationHistoryChart({
     const parts = clean.split(regex);
     return parts.map((p, i) =>
       matchTest.test(p) ? (
-        <mark key={i} className="bg-amber-300/40 dark:bg-amber-400/30 text-foreground rounded px-1 font-semibold not-italic">
+        <mark key={i} className="rounded bg-[hsl(var(--highlighter))] px-1 font-medium not-italic text-foreground">
           {p}
         </mark>
       ) : (
@@ -188,9 +191,9 @@ export function CitationHistoryChart({
 
   const colorForScore = (s: number | null) => {
     if (s === null) return 'text-muted-foreground';
-    if (s >= 60) return 'text-emerald-500';
-    if (s >= 30) return 'text-amber-500';
-    return 'text-red-500';
+    if (s >= 60) return 'text-success';
+    if (s >= 30) return 'text-warning';
+    return 'text-danger';
   };
 
   if (loading || !data) {
@@ -220,12 +223,12 @@ export function CitationHistoryChart({
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <div>
-            <p className="text-sm font-semibold inline-flex items-center gap-2">
+        <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
+          <div className="min-w-0 [&_strong]:font-medium [&_strong]:text-foreground">
+            <p className="text-panel-3 inline-flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-muted-foreground" /> AI Görünürlük Trendi
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
+            <p className="text-xs text-muted-foreground mt-1.5 max-w-2xl">
               Planındaki AI asistanlarına (ChatGPT, Gemini, Claude, Perplexity; Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek) sektörünle ilgili sorular sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru. Sorusunda marka adın geçen ve sağlayıcının yanıtlayamadığı sorular skora girmez.
             </p>
             {/*
@@ -234,7 +237,7 @@ export function CitationHistoryChart({
               Sistrix: ChatGPT'de alintilanan alan adlarinin %74'u haftadan haftaya degisiyor) — tek
               tur kesin sonuc degil. Her soru her asistana birden fazla kez sorulur.
             */}
-            <p className="text-label text-muted-foreground mt-0.5 max-w-2xl">
+            <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
               {olcum?.son && olcum.son.tekrar > 1
                 ? <>AI cevapları turdan tura değiştiği için her soru her asistana {olcum.son.tekrar} kez, birbirinden bağımsız sorulur; skor tüm tekrarlardan hesaplanır. </>
                 : <>Son ölçümde her soru her asistana bir kez soruldu; AI cevapları turdan tura değiştiği için tek tur kesin sonuç değildir. </>}
@@ -248,7 +251,7 @@ export function CitationHistoryChart({
               - NBC News, 16.01.2026: https://www.nbcboston.com/news/tech/ads-are-coming-to-chatgpt/3879284/
               - PPC Land, 16.01.2026: https://ppc.land/openai-finally-pulls-trigger-on-chatgpt-ads-after-monthslong-delay/
             */}
-            <p className="text-label text-muted-foreground mt-0.5 max-w-2xl">
+            <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
               Ölçüm sağlayıcıların API&apos;si üzerinden yapılır; tüketici uygulamalarındaki reklamlar ölçüme girmez. OpenAI&apos;a göre ChatGPT&apos;de gösterilen reklamlar cevabın altında, ayrı ve etiketli durur ve cevapları etkilemez — yani reklam vermek cevapta kaynak gösterilmeyi sağlamaz.
             </p>
             {/*
@@ -257,7 +260,7 @@ export function CitationHistoryChart({
               karari 02.11.2026). Musteri "Prompt Lab bos, neye gore olcuyor?" diye soruyordu.
             */}
             {testQueries.length > 0 && (
-              <details className="mt-1 max-w-2xl text-label text-muted-foreground">
+              <details className="mt-1.5 max-w-2xl text-xs text-muted-foreground">
                 <summary className="cursor-pointer select-none hover:text-foreground">
                   Bu test hangi soruları soruyor? ({testQueries.length} soru, her ölçümde aynı)
                 </summary>
@@ -271,7 +274,7 @@ export function CitationHistoryChart({
               </details>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex gap-1">
               {[7, 30, 90, 365].map((d) => (
                 <FilterChip key={d} selected={days === d} onClick={() => setDays(d)}>
@@ -311,10 +314,10 @@ export function CitationHistoryChart({
                 : 'ilk ölçüm';
               const stability = data.stability ?? null;
               const STABILITY: Record<string, { text: string; cls: string; hint: string }> = {
-                'istikrarli':    { text: 'istikrarlı', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30', hint: 'Günlük dalgalanma örnekleme gürültüsü sınırında — hareketler büyük olasılıkla gerçek değil.' },
-                'dalgali':       { text: 'dalgalı',    cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',       hint: 'Günlük dalgalanma gürültünün üstünde — tek günlük değişimlere göre karar verme.' },
-                'oynak':         { text: 'oynak',      cls: 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30',               hint: 'AI cevapları günden güne belirgin değişiyor — 7 günlük ortalamaya bak, tek güne değil.' },
-                'yetersiz-veri': { text: 'veri az',    cls: 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-300 border-zinc-500/30',           hint: 'Oynaklık için en az 4 ölçüm günü gerekir.' },
+                'istikrarli': { text: 'istikrarlı', cls: 'bg-success/10 text-success border-success/30', hint: 'Günlük dalgalanma örnekleme gürültüsü sınırında — hareketler büyük olasılıkla gerçek değil.' },
+                'dalgali': { text: 'dalgalı', cls: 'bg-warning/10 text-warning border-warning/30', hint: 'Günlük dalgalanma gürültünün üstünde — tek günlük değişimlere göre karar verme.' },
+                'oynak': { text: 'oynak', cls: 'bg-danger/10 text-danger border-danger/30', hint: 'AI cevapları günden güne belirgin değişiyor — 7 günlük ortalamaya bak, tek güne değil.' },
+                'yetersiz-veri': { text: 'veri az', cls: 'bg-muted text-muted-foreground border-border', hint: 'Oynaklık için en az 4 ölçüm günü gerekir.' },
               };
               const st = stability ? STABILITY[stability.label] : null;
               // Skorun belirsizligi: manset penceresindeki olcumlerin birlesik gorunme araligi
@@ -329,72 +332,73 @@ export function CitationHistoryChart({
 
               const grade =
                 avg >= 75 ? { label: 'Mükemmel', tone: 'emerald', desc: 'AI motorları sitenizi çok iyi tanıyor.' } :
-                avg >= 50 ? { label: 'İyi', tone: 'orange',  desc: 'Marka adınız tanınıyor, hedef: URL citation almak.' } :
-                avg >= 25 ? { label: 'Orta',  tone: 'amber',   desc: 'Bazı AI\'lar markanı kısmen tanıyor. Daha fazla içerik üretmek gerek.' } :
-                            { label: 'Düşük', tone: 'red',     desc: 'AI motorları markanı henüz tanımıyor. İçerik üretmen ve indekslenmen kritik.' };
+                avg >= 50 ? { label: 'İyi', tone: 'orange', desc: 'Marka adınız tanınıyor, hedef: URL citation almak.' } :
+                avg >= 25 ? { label: 'Orta', tone: 'amber', desc: 'Bazı AI\'lar markanı kısmen tanıyor. Daha fazla içerik üretmek gerek.' } :
+                            { label: 'Düşük', tone: 'red', desc: 'AI motorları markanı henüz tanımıyor. İçerik üretmen ve indekslenmen kritik.' };
 
-              const toneClasses: Record<string, string> = {
-                emerald: 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/[0.06] to-emerald-500/[0.02] text-emerald-700 dark:text-emerald-300',
-                orange:  'border-brand-500/30 bg-gradient-to-br from-brand-500/[0.06] to-brand-500/[0.02] text-brand-700 dark:text-brand-300',
-                amber:   'border-amber-500/30 bg-gradient-to-br from-amber-500/[0.06] to-amber-500/[0.02] text-amber-700 dark:text-amber-300',
-                red:     'border-red-500/30 bg-gradient-to-br from-red-500/[0.06] to-red-500/[0.02] text-red-700 dark:text-red-300',
+              // Ton yalniz kucuk durum noktasinda; kutu ve metin notr
+              const toneDot: Record<string, string> = {
+                emerald: 'bg-success',
+                orange: 'bg-success',
+                amber: 'bg-warning',
+                red: 'bg-danger',
               };
 
               return (
-                <div className={`rounded-xl border p-3.5 mb-3 ${toneClasses[grade.tone]}`}>
-                  <div className="flex items-start gap-3 flex-wrap">
-                    <div className="text-center min-w-[78px] shrink-0">
-                      <div className="text-3xl font-bold leading-none">
+                <div className="rounded-lg border border-border p-4 mb-3 [&_strong]:font-medium [&_strong]:text-foreground">
+                  <div className="flex items-start gap-4 flex-wrap">
+                    <div className="min-w-[84px] shrink-0">
+                      <div className="text-metric-lg tabular-nums">
                         {avg}
-                        {pm && <span className="text-base font-semibold opacity-70 ml-1 whitespace-nowrap" title={pmIpucu}>{pm}</span>}
+                        {pm && <span className="text-sm font-normal tracking-normal text-muted-foreground ml-1 whitespace-nowrap" title={pmIpucu}>{pm}</span>}
                       </div>
-                      <div className="text-label font-medium mt-1 opacity-70">/ 100</div>
+                      <div className="v-rail mt-1">/ 100</div>
                     </div>
                     <div className="flex-1 min-w-[220px]">
-                      <p className="text-sm font-bold flex items-center gap-2 flex-wrap">
-                        <span>{grade.label} — AI görünürlük <span className="font-normal opacity-70">({windowLabel})</span></span>
+                      <p className="text-panel-3 flex items-center gap-2 flex-wrap">
+                        <span><span className={`mr-2 inline-block h-2 w-2 rounded-full align-middle ${toneDot[grade.tone]}`} aria-hidden />{grade.label} — AI görünürlük <span className="font-normal text-muted-foreground">({windowLabel})</span></span>
                         {olcum?.onSonuc && (
                           <span
-                            className="text-label font-semibold border rounded-full px-2 py-0.5 bg-zinc-500/10 text-zinc-700 dark:text-zinc-200 border-zinc-500/30"
+                            className="text-label tracking-normal border rounded px-1.5 py-0.5 bg-muted text-muted-foreground border-border"
                             title="Bu ölçüm yöntemiyle henüz tek ölçüm var. AI cevapları turdan tura değiştiği için bir sonraki ölçümle birlikte okunmalı."
                           >
                             ön sonuç
                           </span>
                         )}
                         {st && (
-                          <span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${st.cls}`} title={`${st.hint}${stability?.ratio !== null && stability?.ratio !== undefined ? ` (gözlenen/beklenen sapma ${stability.ratio}×, ${stability.dayCount} gün)` : ''}`}>
+                          <span className={`text-label tracking-normal border rounded px-1.5 py-0.5 ${st.cls}`} title={`${st.hint}${stability?.ratio !== null && stability?.ratio !== undefined ? ` (gözlenen/beklenen sapma ${stability.ratio}×, ${stability.dayCount} gün)` : ''}`}>
                             {st.text}
                           </span>
                         )}
                       </p>
-                      <p className="text-xs opacity-90 mt-0.5">{grade.desc}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{grade.desc}</p>
                       {(tekrarSoru || pm) && (
-                        <p className="text-label mt-1 opacity-80" title={pmIpucu}>
+                        <p className="text-label font-normal text-muted-foreground mt-1" title={pmIpucu}>
                           {tekrarSoru && <>Son ölçüm: <strong>{tekrarSoru}</strong></>}
                           {tekrarSoru && pm && ' · '}
                           {pm && mansetAralik && <>{pm}: görünme sıklığı %{Math.round(mansetAralik.oran)} (%95 güven aralığı %{Math.round(mansetAralik.alt)}–%{Math.round(mansetAralik.ust)})</>}
                         </p>
                       )}
                       {headline.methodChanged && (
-                        <p className="text-label mt-1 opacity-80">
+                        <p className="text-label font-normal text-muted-foreground mt-1">
                           Ölçüm yöntemi{headline.methodChangedAt ? ` ${formatTrDate(headline.methodChangedAt)} tarihinde` : ''} güncellendi — önceki haftayla kıyas yok; ortalama yalnız yeni yöntemle yapılan ölçümleri içerir.
                         </p>
                       )}
-                      <div className="text-[11px] mt-2 opacity-80 leading-relaxed">
+                      <div className="text-label font-normal text-muted-foreground mt-2 leading-relaxed">
                         {best && (
-                          <span>✅ En iyi: <strong>{PROVIDER_LABELS[best.provider] ?? best.provider}</strong> ({pick(best)} puan)</span>
+                          <span><CheckCircle2 className="inline h-3.5 w-3.5 -mt-0.5 mr-1 text-success" aria-hidden />En iyi: <strong>{PROVIDER_LABELS[best.provider] ?? best.provider}</strong> ({pick(best)} puan)</span>
                         )}
                         {worst && best?.provider !== worst?.provider && (
-                          <span> · ❌ En zayıf: <strong>{PROVIDER_LABELS[worst.provider] ?? worst.provider}</strong> ({pick(worst)} puan)</span>
+                          <span> · <XCircle className="inline h-3.5 w-3.5 -mt-0.5 mr-1 text-danger" aria-hidden />En zayıf: <strong>{PROVIDER_LABELS[worst.provider] ?? worst.provider}</strong> ({pick(worst)} puan)</span>
                         )}
                         {citedNotMentioned > 0 && (
                           <div className="mt-1" title="Site URL'i kaynak gösterildi ama marka adı cevapta geçmedi: içeriğin cevabın malzemesi olmuş, önerisi olmamış. Yalnız anılmayı ölçen raporlar bunu göremez.">
-                            🔗 Atıf var · ad anılmadı: <strong>{citedNotMentioned}/{unbrandedProbes.length}</strong> ölçüm (son koşum) — kaynak oldun, öneri değilsin
+                            <Link2 className="inline h-3.5 w-3.5 -mt-0.5 mr-1" aria-hidden />Atıf var · ad anılmadı: <strong>{citedNotMentioned}/{unbrandedProbes.length}</strong> ölçüm (son koşum) — kaynak oldun, öneri değilsin
                           </div>
                         )}
                       </div>
                       {avg < 50 && (
-                        <div className="text-[11px] mt-2 opacity-90 leading-relaxed bg-card/50 rounded-md px-2 py-1.5 border border-current/10">
+                        <div className="text-label font-normal text-muted-foreground mt-3 leading-relaxed rounded-md border border-border bg-muted/40 px-3 py-2">
                           {/* Eski metin "genelde 2-4 hafta sonra skor +15-30 artar" diyordu — kaynaksiz sayi ve sure vaadi, kaldirildi */}
                           <strong>Ne yapmalı:</strong> Sektör sorularını yanıtlayan içerik yayınla ve indekslenmesini sağla. Ölçümde asistanların hepsi web'de arama yapar ve yeni içeriği kaynak olarak bulabilir; etkinin ne zaman ve ne kadar görüneceği garanti edilemez — değişimi sonraki ölçümlerle izle.
                         </div>
@@ -414,10 +418,10 @@ export function CitationHistoryChart({
                 const k = olcum?.asistanlar?.[t.provider] ?? null;
                 const yon = kararYonu(k?.karar);
                 return (
-                  <div key={t.provider} className="rounded-md border p-2 flex items-center gap-2">
+                  <div key={t.provider} className="rounded-md border p-2.5 flex items-center gap-2.5 [&_strong]:font-medium [&_strong]:text-foreground">
                     <EngineLogo provider={t.provider} size={20} className="shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="flex items-center gap-1.5 text-xs font-medium">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
                         <span className="truncate">{label}</span>
                         {/* Grafik cizgisinin rengi — lejant isareti */}
                         <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
@@ -437,7 +441,7 @@ export function CitationHistoryChart({
                         >
                           {t.first ?? '—'} → <strong>{t.last ?? '—'}</strong>
                           {t.delta !== null && t.delta !== 0 && yon !== 'flat' && (
-                            <span className={`ml-1 ${yon === 'up' ? 'text-green-500' : 'text-red-500'}`}>
+                            <span className={`ml-1 ${yon === 'up' ? 'text-success' : 'text-danger'}`}>
                               {t.delta > 0 ? '+' : ''}{t.delta}
                             </span>
                           )}
@@ -448,8 +452,8 @@ export function CitationHistoryChart({
                       )}
                     </div>
                     {t.delta !== null && (
-                      t.delta !== 0 && yon === 'up' ? <TrendingUp className="h-3.5 w-3.5 text-green-500" /> :
-                      t.delta !== 0 && yon === 'down' ? <TrendingDown className="h-3.5 w-3.5 text-red-500" /> :
+                      t.delta !== 0 && yon === 'up' ? <TrendingUp className="h-3.5 w-3.5 text-success" /> :
+                      t.delta !== 0 && yon === 'down' ? <TrendingDown className="h-3.5 w-3.5 text-danger" /> :
                       <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                   </div>
@@ -459,10 +463,10 @@ export function CitationHistoryChart({
 
             {/* Trend grafigi — recharts: responsive (eski sabit 720px SVG yerine), tooltip'li */}
             <ChartContainer height={220}>
-              <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+              <LineChart data={chartData} margin={{ top: 8, right: 20, bottom: 0, left: 0 }}>
                 <CartesianGrid {...CHART_GRID} strokeDasharray="2 4" />
                 <XAxis dataKey="date" {...CHART_AXIS} interval="preserveStartEnd" minTickGap={28} />
-                <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} {...CHART_AXIS} width={38} />
+                <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} {...CHART_AXIS} width={32} />
                 <Tooltip content={<ChartTooltip />} />
                 {/* Olcum yontemi degisim gunu — cizginin bu noktadaki kirilmasi yontemden olabilir */}
                 {methodBreak && (
@@ -496,9 +500,10 @@ export function CitationHistoryChart({
             {runs.length > 0 && (
               <div className="mt-4 pt-4 border-t">
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                  <p className="text-xs font-semibold">Test geçmişi <span className="font-normal text-muted-foreground">({runs.length} koşum — hiçbiri silinmez; iki tanesini seçip karşılaştır)</span></p>
+                  <p className="text-sm font-medium">Test geçmişi <span className="text-label font-normal text-muted-foreground">({runs.length} koşum — hiçbiri silinmez; iki tanesini seçip karşılaştır)</span></p>
                   <Button
                     size="sm"
+                    variant="outline"
                     onClick={() => {
                       // NEDEN dogrudan rapor: kullanici karsilastirmayi panelde ozet olarak degil
                       // A4 rapor olarak istiyor (02.09). Iki adim (karsilastir → raporu ac) kaldirildi.
@@ -511,23 +516,23 @@ export function CitationHistoryChart({
                     Karşılaştır ({selectedRuns.length}/2)
                   </Button>
                 </div>
-                <div className="max-h-56 overflow-y-auto rounded-md border divide-y divide-border/50">
+                <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
                   {runs.map((r: any) => (
-                    <div key={r.id} className="flex items-center gap-3 px-3 py-1.5 text-xs">
-                      <input type="checkbox" checked={selectedRuns.includes(r.id)} onChange={() => toggleRun(r.id)} aria-label="karşılaştırmak için seç" />
-                      <span className="tabular-nums w-[120px] shrink-0">{new Date(r.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${r.trigger === 'system' ? 'text-muted-foreground' : 'text-brand-700 dark:text-brand-300 border-brand-500/30 bg-brand-500/10'}`}>
+                    <div key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs sm:flex-nowrap">
+                      <input type="checkbox" className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-foreground" checked={selectedRuns.includes(r.id)} onChange={() => toggleRun(r.id)} aria-label="karşılaştırmak için seç" />
+                      <span className="tabular-nums sm:w-[120px] shrink-0">{new Date(r.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                      <span className={`shrink-0 text-label font-normal px-1.5 py-0.5 rounded border ${r.trigger === 'system' ? 'text-muted-foreground' : 'border-foreground/30 text-foreground'}`}>
                         {r.trigger === 'system' ? 'otomatik' : 'senin testin'}
                       </span>
-                      <span className="font-semibold tabular-nums" title={aralikAciklamasi(r.gorunme) ?? undefined}>
+                      <span className="shrink-0 font-medium tabular-nums" title={aralikAciklamasi(r.gorunme) ?? undefined}>
                         {r.headlineScore ?? '—'}<span className="text-muted-foreground font-normal">/100</span>
                         {r.headlineScore != null && plusMinus(r.gorunme) && <span className="text-muted-foreground font-normal ml-1">{plusMinus(r.gorunme)}</span>}
                         {typeof r.tekrar === 'number' && r.tekrar > 1 && <span className="text-muted-foreground font-normal ml-1">· {r.tekrar} tekrar</span>}
                       </span>
-                      <span className="text-muted-foreground truncate flex-1 min-w-0">
+                      <span className="order-last basis-full text-muted-foreground sm:order-none sm:basis-0 sm:flex-1 sm:truncate min-w-0">
                         {r.providers.filter((p: any) => p.available).map((p: any) => `${PROVIDER_LABELS[p.provider] ?? p.provider} ${p.score ?? '—'}`).join(' · ')}
                       </span>
-                      <button type="button" className="text-brand-600 dark:text-brand-400 hover:underline shrink-0" onClick={() => showRun(r.id)}>detay</button>
+                      <button type="button" className="ml-auto shrink-0 text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/40 sm:ml-0" onClick={() => showRun(r.id)}>detay</button>
                     </div>
                   ))}
                 </div>
@@ -541,14 +546,15 @@ export function CitationHistoryChart({
                 <button
                   type="button"
                   onClick={() => setShowDetails((v) => !v)}
-                  className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline inline-flex items-center gap-1"
+                  className="text-sm font-medium text-foreground inline-flex items-center gap-1.5 text-left transition-colors hover:text-muted-foreground"
                 >
-                  {showDetails ? '▾' : '▸'} Son test detaylarını {showDetails ? 'gizle' : 'göster'} — hangi sorularda neye cevap geldi?
+                  <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${showDetails ? 'rotate-90' : ''}`} aria-hidden />
+                  Son test detaylarını {showDetails ? 'gizle' : 'göster'} — hangi sorularda neye cevap geldi?
                 </button>
 
                 {showDetails && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-[11px] text-muted-foreground">
+                  <div className="mt-3 space-y-3 [&_strong]:font-medium">
+                    <p className="text-label font-normal text-muted-foreground [&_strong]:text-foreground">
                       Her AI asistanına aynı soruları (en fazla 5{lastResults.some((r: any) => (r.probes ?? []).some((p: any) => typeof p.tekrar === 'number' && p.tekrar > 1)) ? ', her birini birden fazla kez, birbirinden bağımsız' : ''}) sorduk. Aşağıda her sorunun cevabında <strong>URL geçti mi (✓)</strong>, sadece <strong>marka adı geçti mi (~)</strong> veya <strong>hiç geçmedi mi (✗)</strong> görüyorsun; tekrarlı ölçümde her tekrarın sonucu yan yana.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -557,12 +563,12 @@ export function CitationHistoryChart({
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <EngineLogo provider={r.provider} size={18} />
-                              <span className="text-xs font-semibold">{PROVIDER_LABELS[r.provider] ?? r.label ?? r.provider}</span>
+                              <span className="text-sm font-medium">{PROVIDER_LABELS[r.provider] ?? r.label ?? r.provider}</span>
                             </div>
-                            <span className={`text-lg font-bold ${colorForScore(r.score)}`} title={aralikAciklamasi(r.gorunme) ?? undefined}>
+                            <span className={`text-metric tabular-nums ${colorForScore(r.score)}`} title={aralikAciklamasi(r.gorunme) ?? undefined}>
                               {r.score === null ? '—' : r.score}
                               {r.score !== null && plusMinus(r.gorunme) && (
-                                <span className="text-xs font-semibold text-muted-foreground ml-1">{plusMinus(r.gorunme)}</span>
+                                <span className="text-xs font-normal tracking-normal text-muted-foreground ml-1">{plusMinus(r.gorunme)}</span>
                               )}
                             </span>
                           </div>
@@ -574,35 +580,35 @@ export function CitationHistoryChart({
                             if (allFailed) {
                               return <p className="text-label text-muted-foreground mb-2 leading-snug">Bu sağlayıcıda hiçbir soru ölçülemedi; skor hesaplanmadı.</p>;
                             }
-                            return r.reason ? <p className="text-[11px] text-muted-foreground mb-2 leading-snug">{displayProbeText(r.reason)}</p> : null;
+                            return r.reason ? <p className="text-label font-normal text-muted-foreground mb-2 leading-snug">{displayProbeText(r.reason)}</p> : null;
                           })()}
 
                           {/* Aggregate metrics — avg position + sentiment mix + share of voice */}
                           {(r.avgPosition || r.sentimentMix || r.shareOfVoice?.length) && (
-                            <div className="mb-3 -mx-1 px-1 py-2 border-y bg-muted/20 rounded text-[10px] space-y-1.5">
+                            <div className="mb-3 py-2 border-y text-label font-normal space-y-2">
                               {/* Row 1: position + sentiment */}
                               <div className="flex items-center justify-between gap-2">
                                 {r.avgPosition && (
                                   <div className="flex items-center gap-1">
                                     <span className="text-muted-foreground">Ort. sıra:</span>
-                                    <span className="font-bold tabular-nums">#{r.avgPosition.toFixed(1)}</span>
+                                    <span className="font-medium tabular-nums">#{r.avgPosition.toFixed(1)}</span>
                                   </div>
                                 )}
                                 {r.sentimentMix && (
                                   <div className="flex items-center gap-1.5">
                                     {r.sentimentMix.positive > 0 && (
-                                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold">
-                                        😊 {r.sentimentMix.positive}
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-success/10 text-success tabular-nums">
+                                        <Smile className="h-3 w-3" aria-hidden /> {r.sentimentMix.positive}
                                       </span>
                                     )}
                                     {r.sentimentMix.neutral > 0 && (
-                                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-slate-500/15 text-slate-700 dark:text-slate-300 font-semibold">
-                                        😐 {r.sentimentMix.neutral}
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground tabular-nums">
+                                        <Meh className="h-3 w-3" aria-hidden /> {r.sentimentMix.neutral}
                                       </span>
                                     )}
                                     {r.sentimentMix.negative > 0 && (
-                                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-400 font-semibold">
-                                        😟 {r.sentimentMix.negative}
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-danger/10 text-danger tabular-nums">
+                                        <Frown className="h-3 w-3" aria-hidden /> {r.sentimentMix.negative}
                                       </span>
                                     )}
                                   </div>
@@ -616,7 +622,7 @@ export function CitationHistoryChart({
                                     {r.shareOfVoice.slice(0, 5).map((sov: any, i: number) => (
                                       <div
                                         key={i}
-                                        className={sov.isBrand ? 'bg-brand-500' : ['bg-slate-400', 'bg-slate-500', 'bg-slate-600', 'bg-slate-700'][i % 4]}
+                                        className={sov.isBrand ? 'bg-brand' : ['bg-muted-foreground/45', 'bg-muted-foreground/60', 'bg-muted-foreground/75', 'bg-muted-foreground/90'][i % 4]}
                                         style={{ width: `${sov.pct}%` }}
                                         title={`${sov.name}: %${sov.pct} (${sov.mentions}x)`}
                                       />
@@ -624,7 +630,7 @@ export function CitationHistoryChart({
                                   </div>
                                   <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
                                     {r.shareOfVoice.slice(0, 4).map((sov: any, i: number) => (
-                                      <span key={i} className={`text-[9px] ${sov.isBrand ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-muted-foreground'}`}>
+                                      <span key={i} className={`text-label font-normal ${sov.isBrand ? 'text-foreground' : 'text-muted-foreground'}`}>
                                         <span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5 align-middle" style={{ backgroundColor: sov.isBrand ? CHART[1] : CHART[8] }} />
                                         {sov.name} %{sov.pct}
                                       </span>
@@ -658,7 +664,7 @@ export function CitationHistoryChart({
                                     {coklu ? (
                                       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                                         {durumlar.map((d, i) => (
-                                          <span key={i} className={`text-label font-bold tracking-wide px-1.5 py-0.5 rounded ${TON_SINIF[d.tone].badge}`} title={`${i + 1}. tekrar: ${d.label}`}>
+                                          <span key={i} className={`text-label px-1.5 py-0.5 rounded ${TON_SINIF[d.tone].badge}`} title={`${i + 1}. tekrar: ${d.label}`}>
                                             {i + 1}. {d.kisa}
                                           </span>
                                         ))}
@@ -670,45 +676,45 @@ export function CitationHistoryChart({
                                       </div>
                                     ) : (
                                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <span className={`text-label font-bold tracking-wide px-1.5 py-0.5 rounded ${c.badge}`}>
+                                        <span className={`text-label px-1.5 py-0.5 rounded ${c.badge}`}>
                                           {status.label}
                                         </span>
-                                        <span className={`text-label font-mono font-bold ${TON_SINIF[status.tone].text}`}>
+                                        <span className={`text-label font-mono ${TON_SINIF[status.tone].text}`}>
                                           {status.score}
                                         </span>
                                         {p.position && (
-                                          <span className="text-label font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-400" title={`AI cevabında ${p.position}. paragrafta geçtin`}>
+                                          <span className="text-label px-1.5 py-0.5 rounded bg-muted text-foreground tabular-nums" title={`AI cevabında ${p.position}. paragrafta geçtin`}>
                                             #{p.position}
                                           </span>
                                         )}
                                         {p.sentiment === 'positive' && (
-                                          <span className="text-label font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">😊 POZİTİF</span>
+                                          <span className="inline-flex items-center gap-1 text-label px-1.5 py-0.5 rounded bg-success/10 text-success"><Smile className="h-3 w-3" aria-hidden /> Pozitif</span>
                                         )}
                                         {p.sentiment === 'negative' && (
-                                          <span className="text-label font-bold px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-400">😟 NEGATİF</span>
+                                          <span className="inline-flex items-center gap-1 text-label px-1.5 py-0.5 rounded bg-danger/10 text-danger"><Frown className="h-3 w-3" aria-hidden /> Negatif</span>
                                         )}
                                         {p.sentiment === 'neutral' && (
-                                          <span className="text-label font-bold px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-700 dark:text-slate-300">😐 NÖTR</span>
+                                          <span className="inline-flex items-center gap-1 text-label px-1.5 py-0.5 rounded bg-muted text-muted-foreground"><Meh className="h-3 w-3" aria-hidden /> Nötr</span>
                                         )}
                                         {p.competitors?.length > 0 && (
-                                          <span className="text-label px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400" title={p.competitors.map((c: any) => `${c.name} (${c.mentions}x)`).join(', ')}>
-                                            🥊 {p.competitors.length} rakip
+                                          <span className="inline-flex items-center gap-1 text-label font-normal px-1.5 py-0.5 rounded border border-border text-muted-foreground" title={p.competitors.map((c: any) => `${c.name} (${c.mentions}x)`).join(', ')}>
+                                            <Swords className="h-3 w-3" aria-hidden /> {p.competitors.length} rakip
                                           </span>
                                         )}
                                       </div>
                                     )}
-                                    <p className="text-[11px] font-medium leading-snug mb-1">{g.query}</p>
+                                    <p className="text-sm leading-snug mb-1">{g.query}</p>
                                     {/* Olculemeyen soru: ham saglayici metni degil, Turkce neden (lib/probe-error-text) */}
                                     {hata && olculen.length === 0 && (
                                       <p className="text-label text-muted-foreground">{probeErrorText(hata.excerpt)}</p>
                                     )}
                                     {olculen.some((x: any) => x.excerpt) && (
                                       <details className="group">
-                                        <summary className="text-label cursor-pointer text-muted-foreground hover:text-foreground select-none list-none inline-flex items-center gap-1">
-                                          <span className="group-open:rotate-90 inline-block transition-transform">▸</span>
+                                        <summary className="text-label font-normal cursor-pointer text-muted-foreground hover:text-foreground select-none list-none inline-flex items-center gap-1 [&::-webkit-details-marker]:hidden">
+                                          <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" aria-hidden />
                                           {coklu ? 'AI’ın cevaplarını göster' : 'AI’ın cevabını göster'}
                                         </summary>
-                                        <div className="mt-1.5 p-2 rounded-md bg-muted/40 border text-label leading-relaxed text-foreground/80 max-h-32 overflow-y-auto space-y-1.5">
+                                        <div className="mt-1.5 p-2.5 rounded-md bg-muted/40 border text-label font-normal leading-relaxed text-foreground/80 max-h-32 overflow-y-auto space-y-1.5">
                                           {g.probes.map((x: any, i: number) => (
                                             x.excerpt && !isProbeErrorText(x.excerpt) ? (
                                               <p key={i}>
@@ -729,7 +735,7 @@ export function CitationHistoryChart({
                       ))}
                     </div>
                     {lastRunAt && (
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-label font-normal text-muted-foreground">
                         Son test: {new Date(lastRunAt).toLocaleString('tr-TR')}
                       </p>
                     )}

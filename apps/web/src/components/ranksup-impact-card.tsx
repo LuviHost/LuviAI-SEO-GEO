@@ -93,12 +93,12 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
   return (
     <Card className="p-5">
       <div className="flex items-center gap-2.5 mb-4">
-        <span className="grid place-items-center h-8 w-8 rounded-md border border-border bg-muted/50 text-foreground/70">
+        <span className="grid place-items-center h-9 w-9 shrink-0 rounded-md border border-border text-muted-foreground">
           <Sparkles className="h-4 w-4" aria-hidden />
         </span>
-        <div>
-          <h3 className="font-semibold text-sm leading-none">RanksUp etkisi</h3>
-          <p className="text-label text-muted-foreground mt-1">Markanın AI ve Google&apos;daki değişimi · son {days} gün
+        <div className="min-w-0">
+          <h3 className="text-panel-3">RanksUp etkisi</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">Markanın AI ve Google&apos;daki değişimi · son {days} gün
             {seo?.coverage && !seo.coverage.complete && seo.coverage.from
               ? ` (Google verisi ${sinceGscDay(seo.coverage.from)} beri, ${seo.coverage.coveredDays} gün)`
               : ''}
@@ -106,11 +106,11 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-3 [&_strong]:font-medium">
         {/* ── AI Görünürlük (GEO) ── */}
-        <div className="rounded-md border bg-muted/20 p-4">
-          <div className="flex items-center gap-1.5 text-label text-muted-foreground mb-2">
-            <Bot className="h-3.5 w-3.5 text-brand" aria-hidden /> AI görünürlük (GEO)
+        <div className="rounded-md border p-4">
+          <div className="v-rail flex items-center gap-1.5 mb-3">
+            <Bot className="h-3.5 w-3.5" aria-hidden /> AI görünürlük (GEO)
           </div>
           {!hasGeo ? (
             <p className="text-sm text-muted-foreground">Henüz AI ölçümü yok.</p>
@@ -124,7 +124,7 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
             </div>
           ) : g.state === 'baseline' ? (
             <div className="flex items-center gap-2 text-sm">
-              <Rocket className="h-4 w-4 text-brand" aria-hidden />
+              <Rocket className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               <span>Başlangıç: <strong>{g.enginesNow}/{g.totalEngines}</strong> asistanda görünüyorsun{g.lastAvg !== null ? <> · skor <strong>{g.lastAvg}</strong></> : null}. Değişim, sonraki ölçümden sonra görünür.</span>
             </div>
           ) : (
@@ -134,7 +134,7 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
                   : geoDirection === 'down' ? <TrendingDown className={cn('h-5 w-5 self-center', down)} aria-hidden />
                   : <Minus className="h-5 w-5 self-center text-muted-foreground" aria-hidden />}
                 {geoDirection === 'flat' ? (
-                  <span className="text-sm font-semibold text-muted-foreground">Anlamlı değişim yok</span>
+                  <span className="text-sm font-medium text-muted-foreground">Anlamlı değişim yok</span>
                 ) : (
                   <span className={cn('text-metric-lg tabular-nums', geoDirection === 'up' ? up : down)}>
                     {geoGrowth === null ? `+${geoLastAvg}` : `${geoGrowth > 0 ? '+' : ''}${geoGrowth}%`}
@@ -159,9 +159,9 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
         </div>
 
         {/* ── Google (SEO) ── */}
-        <div className="rounded-md border bg-muted/20 p-4">
-          <div className="flex items-center gap-1.5 text-label text-muted-foreground mb-2">
-            <Search className="h-3.5 w-3.5 text-info" aria-hidden /> Google (SEO)
+        <div className="rounded-md border p-4">
+          <div className="v-rail flex items-center gap-1.5 mb-3">
+            <Search className="h-3.5 w-3.5" aria-hidden /> Google (SEO)
           </div>
           {!hasSeo ? (
             <p className="text-sm text-muted-foreground">

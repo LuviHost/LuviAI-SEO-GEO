@@ -5,20 +5,19 @@ import { useReducedMotion } from '@/components/ai-scan';
 
 /*
  * PipelineGauge — FuturisticGauge'in controlled varyantı.
- * Onboarding gauge ile aynı görsel: 5 pastel yay sürekli akıcı döner,
- * aktif step'e karşılık gelen yay kalınlaşır.
+ * 5 yay sürekli akıcı döner, aktif step'e karşılık gelen yay kalınlaşır.
+ *
+ * 12.11.2026 (vitrin dili): pastel yaylar, mor çentikler, parlama filtresi ve beyaz
+ * cam küre kaldırıldı — koyu panelde parlak bir top gibi duruyordu. Artık düz: nötr
+ * yaylar (token), yalnız aktif yay turuncu (küçük işaret), küre kart yüzeyi + ince çizgi.
  *
  * Kullanım: backend pipeline progress göstermek için
  *   (audit, auto-fix, topic engine, article generation vb.).
  */
 
-const PASTEL_COLORS = [
-  '#7dd3fc', // sky-300
-  '#c4b5fd', // violet-300
-  '#fda4af', // rose-300
-  '#fcd34d', // amber-300
-  '#86efac', // green-300
-];
+const ARC_COUNT = 5;
+const NEUTRAL = 'hsl(var(--foreground))';
+const ACTIVE = 'hsl(var(--brand-vivid))';
 
 const TOTAL_TICKS = 80;
 const VIEW = 360;
@@ -57,9 +56,8 @@ export function PipelineGauge({
 
   // 5 yaylık halka, totalSteps -> 5 arcs map
   const activeArcIdx = totalSteps > 0
-    ? Math.min(PASTEL_COLORS.length - 1, Math.floor((activeIdx / totalSteps) * PASTEL_COLORS.length))
+    ? Math.min(ARC_COUNT - 1, Math.floor((activeIdx / totalSteps) * ARC_COUNT))
     : 0;
-  const activeColor = PASTEL_COLORS[activeArcIdx];
 
   // Donusler CSS'e tasindi (animejs sokumu 02.09.2026): sonsuz spin —
   // GPU dostu, JS calistirmaz; reduced'da sinif hic eklenmez.
@@ -74,45 +72,23 @@ export function PipelineGauge({
             <pattern id="pgDotGrid" x="0" y="0" width="14" height="14" patternUnits="userSpaceOnUse">
               <circle cx="1" cy="1" r="0.9" fill="currentColor" opacity="0.35" />
             </pattern>
-
-            <radialGradient id="pgGlobeBody" cx="50%" cy="40%" r="65%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
-              <stop offset="60%" stopColor="#faf5ff" stopOpacity="0.92" />
-              <stop offset="100%" stopColor="#ede9fe" stopOpacity="0.82" />
-            </radialGradient>
-
-            <radialGradient id="pgGlobeGloss" cx="32%" cy="22%" r="42%">
-              <stop offset="0%" stopColor="white" stopOpacity="0.85" />
-              <stop offset="55%" stopColor="white" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="white" stopOpacity="0" />
-            </radialGradient>
-
-            <radialGradient id="pgRimGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="78%" stopColor={activeColor} stopOpacity="0" />
-              <stop offset="100%" stopColor={activeColor} stopOpacity="0.4" />
-            </radialGradient>
-
-            <filter id="pgArcGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
           </defs>
 
           {/* Dot grid */}
-          <g className="text-violet-400/45">
+          <g className="text-muted-foreground/60">
             <circle cx={CENTER} cy={CENTER} r={RING_RADIUS - 18} fill="url(#pgDotGrid)" opacity="0.5" />
           </g>
 
-          {/* Halka — 5 pastel yay, sürekli döner */}
+          {/* Halka — 5 yay, sürekli döner; yalnız aktif yay turuncu */}
+          {/* Donus merkezi: .pg-spin-* fill-box kullanir (globals.css). Satir ici "180px 180px" kutunun
+              sol ustune gore okunup halkayi merkezden kaydiriyor, yaylar SVG kenarinda kirpiliyordu.
+              Boyanmayan tam cember kutuyu simetrik yapar; merkez = kutu merkezi. */}
           <g
             className={spinYavas}
-            style={{ transformOrigin: `${CENTER}px ${CENTER}px` }}
-            filter="url(#pgArcGlow)"
+            style={{ transformOrigin: 'center' }}
           >
-            {PASTEL_COLORS.map((color, i) => {
+            <circle cx={CENTER} cy={CENTER} r={RING_RADIUS} fill="none" stroke="none" />
+            {Array.from({ length: ARC_COUNT }).map((_, i) => {
               const start = i * (ARC_LEN_DEG + ARC_GAP_DEG);
               const end = start + ARC_LEN_DEG;
               const isActive = i === activeArcIdx;
@@ -120,10 +96,10 @@ export function PipelineGauge({
                 <path
                   key={i}
                   d={arcStrokePath(start, end, RING_RADIUS)}
-                  stroke={color}
-                  strokeWidth={isActive ? 11 : 7}
+                  stroke={isActive ? ACTIVE : NEUTRAL}
+                  strokeWidth={isActive ? 9 : 6}
                   strokeLinecap="round"
-                  strokeOpacity={isActive ? 0.95 : 0.55}
+                  strokeOpacity={isActive ? 1 : 0.16}
                   fill="none"
                   style={{
                     transition: 'stroke-width 600ms cubic-bezier(0.22, 1, 0.36, 1), stroke-opacity 600ms ease-out',
@@ -134,7 +110,7 @@ export function PipelineGauge({
           </g>
 
           {/* Tick ring */}
-          <g className={spinTers} style={{ transformOrigin: `${CENTER}px ${CENTER}px` }}>
+          <g className={spinTers} style={{ transformOrigin: 'center' }}>
             {Array.from({ length: TOTAL_TICKS }).map((_, i) => {
               const angle = (i / TOTAL_TICKS) * 360 - 90;
               const rad = (angle * Math.PI) / 180;
@@ -150,55 +126,27 @@ export function PipelineGauge({
                   y1={y1}
                   x2={x2}
                   y2={y2}
-                  stroke="#7c3aed"
-                  strokeOpacity={major ? 0.5 : 0.16}
+                  stroke={NEUTRAL}
+                  strokeOpacity={major ? 0.4 : 0.14}
                   strokeWidth={major ? 1.4 : 0.7}
                 />
               );
             })}
           </g>
 
-          {/* Açık cam küre */}
-          <circle cx={CENTER} cy={CENTER} r={GLOBE_RADIUS} fill="url(#pgGlobeBody)" />
-          <circle cx={CENTER} cy={CENTER} r={GLOBE_RADIUS} fill="url(#pgRimGlow)" />
-          <circle
-            cx={CENTER}
-            cy={CENTER}
-            r={GLOBE_RADIUS}
-            fill="none"
-            stroke={activeColor}
-            strokeOpacity={0.4}
-            strokeWidth={1}
-            style={{ transition: 'stroke 600ms ease-out' }}
-          />
-          <circle
-            cx={CENTER}
-            cy={CENTER}
-            r={GLOBE_RADIUS - 8}
-            fill="none"
-            stroke="#7c3aed"
-            strokeOpacity={0.08}
-            strokeWidth={0.8}
-          />
-          <ellipse
-            cx={CENTER - 14}
-            cy={CENTER - 28}
-            rx={GLOBE_RADIUS * 0.7}
-            ry={GLOBE_RADIUS * 0.4}
-            fill="url(#pgGlobeGloss)"
-          />
+          {/* Merkez: düz kart yüzeyi + ince çizgi (cam küre / parlama yok) */}
+          <circle cx={CENTER} cy={CENTER} r={GLOBE_RADIUS} fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth={1.5} />
         </svg>
 
         {/* Merkez yüzde */}
         <div className="absolute inset-0 grid place-items-center">
           <div className="flex items-baseline gap-0.5 leading-none">
             <span
-              className="text-4xl sm:text-5xl font-bold tracking-tight tabular-nums text-brand"
-              style={{ transition: 'color 600ms ease-out' }}
+              className="text-4xl sm:text-5xl font-[450] tracking-[-0.045em] tabular-nums text-foreground"
             >
               {Math.round(percent)}
             </span>
-            <span className="text-xl sm:text-2xl font-semibold text-foreground/40">%</span>
+            <span className="text-xl sm:text-2xl font-[450] tracking-[-0.04em] text-muted-foreground">%</span>
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
 } from '@/lib/local-visibility';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
@@ -56,7 +57,7 @@ export function LocalPromptBadge({ meta }: { meta: LocalPromptMeta | null | unde
 /** Olcumun durustluk notlari — yerel sekmede ve sonuc kutusunda */
 function HonestyNotes({ compact = false }: { compact?: boolean }) {
   return (
-    <ul className={`space-y-1 text-label text-muted-foreground ${compact ? '' : 'rounded-md border bg-muted/30 p-2.5'}`}>
+    <ul className={`space-y-1 text-label font-normal text-muted-foreground ${compact ? '' : 'rounded-md border bg-muted/40 p-2.5'}`}>
       <li className="flex gap-1.5">
         <Info className="h-3 w-3 mt-0.5 shrink-0" aria-hidden />
         <span>
@@ -331,39 +332,39 @@ export function LocalPromptsTab({ siteId }: { siteId: string }) {
         kuaför&quot;). Sorular sabit kalıplardan oluşur; kaydetmeden önce görür ve seçersin. Oluşturmak ölçüm hakkı harcamaz.
       </p>
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-3 sm:items-end">
         <label className="space-y-1">
-          <span className="text-label text-muted-foreground">İl</span>
-          <input
+          <span className="block text-label text-muted-foreground">İl</span>
+          <Input
             value={il}
             onChange={(e) => setIl(e.target.value)}
             placeholder="Örn: İstanbul"
-            className="w-full rounded-md border bg-background px-3 py-1.5 text-xs"
+            className="h-9"
           />
         </label>
         <label className="space-y-1">
-          <span className="text-label text-muted-foreground">İlçe ya da semt (isteğe bağlı, virgülle en fazla 5)</span>
-          <input
+          <span className="block text-label text-muted-foreground">İlçe ya da semt (isteğe bağlı, virgülle en fazla 5)</span>
+          <Input
             value={ilce}
             onChange={(e) => setIlce(e.target.value)}
             placeholder="Örn: Kadıköy, Üsküdar"
-            className="w-full rounded-md border bg-background px-3 py-1.5 text-xs"
+            className="h-9"
           />
         </label>
         <label className="space-y-1">
-          <span className="text-label text-muted-foreground">Hizmetler (virgülle en fazla 5)</span>
-          <input
+          <span className="block text-label text-muted-foreground">Hizmetler (virgülle en fazla 5)</span>
+          <Input
             value={hizmet}
             onChange={(e) => setHizmet(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !previewing) void preview(); }}
             placeholder="Örn: kuaför, saç boyama"
-            className="w-full rounded-md border bg-background px-3 py-1.5 text-xs"
+            className="h-9"
           />
         </label>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={preview} disabled={previewing || !il.trim() || !hizmet.trim()}>
+        <Button size="sm" variant={drafts ? 'outline' : 'default'} onClick={preview} disabled={previewing || !il.trim() || !hizmet.trim()}>
           {previewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
           Soruları oluştur
         </Button>
@@ -376,7 +377,7 @@ export function LocalPromptsTab({ siteId }: { siteId: string }) {
 
       {drafts && (
         <div className="rounded-md border">
-          <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-muted/50 flex-wrap">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-2.5 py-2">
             <span className="text-label font-medium">{drafts.length} soru — takibe alınacakları seç</span>
             <Button size="sm" onClick={save} disabled={saving || selected.size === 0}>
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
@@ -388,7 +389,7 @@ export function LocalPromptsTab({ siteId }: { siteId: string }) {
               <label key={d.text} className={`flex items-center gap-2 px-2.5 py-1.5 text-xs ${d.exists ? 'opacity-60' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
-                  className="h-3.5 w-3.5 accent-brand-500"
+                  className="h-3.5 w-3.5 accent-foreground"
                   checked={!d.exists && selected.has(d.text)}
                   disabled={d.exists}
                   onChange={() => toggle(d.text)}

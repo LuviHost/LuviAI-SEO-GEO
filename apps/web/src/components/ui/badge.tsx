@@ -3,12 +3,12 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors',
+  'inline-flex items-center rounded px-2 py-0.5 text-xs font-medium transition-colors',
   {
     variants: {
       variant: {
-        default: 'bg-brand text-white',
-        secondary: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+        default: 'bg-brand text-black',
+        secondary: 'bg-muted text-foreground/80',
         // Durum tonlari token'dan (globals.css --success/--warning/--danger/--info)
         success: 'bg-success/10 text-success',
         warning: 'bg-warning/10 text-warning',
@@ -16,7 +16,7 @@ const badgeVariants = cva(
         danger: 'bg-danger/10 text-danger',
         info: 'bg-info/10 text-info',
         brand: 'bg-brand/10 text-brand-700 dark:text-brand-300',
-        outline: 'border border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-200',
+        outline: 'border border-border text-muted-foreground',
       },
     },
     defaultVariants: { variant: 'default' },

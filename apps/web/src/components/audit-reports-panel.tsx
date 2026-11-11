@@ -184,21 +184,21 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
       {/* a) Baslik + manuel tetikleme */}
       <Card>
         <CardContent className="p-4 flex items-start gap-3 flex-wrap">
-          <div className="h-10 w-10 rounded-xl border border-border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
-            <History className="h-5 w-5" />
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground">
+            <History className="h-[18px] w-[18px]" aria-hidden />
           </div>
           <div className="flex-1 min-w-[200px]">
-            <h3 className="text-base font-bold">Tarama Raporları</h3>
+            <h3 className="text-panel-3">Tarama Raporları</h3>
             <p className="text-sm text-muted-foreground">
               Site skoru geçmişi ve iki taramanın karşılaştırması.
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <Button onClick={yeniTarama} disabled={running} size="sm" className="shrink-0">
+            <Button onClick={yeniTarama} disabled={running} size="sm" variant="outline" className="shrink-0">
               <RefreshCw className={cn('h-4 w-4', running && 'animate-spin')} />
               {running ? 'Taranıyor…' : 'Yeni tarama başlat'}
             </Button>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {running ? (durum || 'Sayfada kalabilirsin, bitince haber vereceğiz.') : 'Tarama 1-3 dakika sürebilir'}
             </span>
           </div>
@@ -209,9 +209,9 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h4 className="text-sm font-semibold">Geçmiş taramalar</h4>
+            <h4 className="text-panel-3">Geçmiş taramalar</h4>
             {history.length > 0 && (
-              <span className="text-xs text-muted-foreground">{history.length} kayıt</span>
+              <span className="v-rail">{history.length} kayıt</span>
             )}
           </div>
 
@@ -227,20 +227,20 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
             </p>
           ) : (
             <>
-              <div className="rounded-lg border divide-y">
+              <div className="divide-y rounded-md border">
                 {history.map((h, i) => {
                   // Liste yeni -> eski geldigi icin bir onceki tarama bir SONRAKI satir.
                   // Yontem / kapsam degistiyse fark hukum degil (lib/audit-history.ts)
                   const fark = historyDeltaView(history, i, GECMIS_LIMIT);
                   const kaynak = auditTriggerBadge(h.trigger);
                   return (
-                    <div key={h.id} className="flex items-center gap-3 px-3 py-2 flex-wrap">
-                      <span className="text-xs text-muted-foreground w-[130px] shrink-0">
+                    <div key={h.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                      <span className="v-rail w-[150px] shrink-0">
                         {tarihSaat(h.ranAt)}
                       </span>
-                      <span className="text-sm font-semibold">
+                      <span className="text-sm font-medium tabular-nums">
                         {h.overallScore}
-                        <span className="text-xs text-muted-foreground font-normal">/100</span>
+                        <span className="text-xs font-normal text-muted-foreground">/100</span>
                       </span>
                       <DeltaRozeti view={fark} />
                       {/* Otomatik / dogrulama taramasi gizlenmez, rozetle ayrilir (audit.service getHistory) */}
@@ -259,7 +259,7 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
                       </span>
                       {/* Neden gorunur metin: dokunmatik ekranda title (hover) okunmaz */}
                       {fark.kind === 'not_comparable' && (
-                        <p className="basis-full text-label font-normal text-muted-foreground">{fark.note}</p>
+                        <p className="basis-full text-xs text-muted-foreground">{fark.note}</p>
                       )}
                     </div>
                   );
@@ -278,7 +278,7 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
       {/* c + d) Iki taramayi sec ve kiyasla */}
       <Card>
         <CardContent className="p-4 space-y-4">
-          <h4 className="text-sm font-semibold">Karşılaştırma</h4>
+          <h4 className="text-panel-3">Karşılaştırma</h4>
 
           {historyLoading ? (
             <p className="text-sm text-muted-foreground">Tarama geçmişi yükleniyor…</p>
@@ -289,12 +289,12 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
             </p>
           ) : yetersizVeri ? (
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-lg bg-muted grid place-items-center shrink-0">
-                <History className="h-4 w-4 text-muted-foreground" />
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground">
+                <History className="h-[18px] w-[18px]" aria-hidden />
               </div>
               <div>
-                <p className="text-sm font-semibold">Karşılaştırma için en az iki tarama gerekli</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-sm font-medium">Karşılaştırma için en az iki tarama gerekli</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
                   {history.length === 1
                     ? 'Şu an tek tarama var. Düzeltmelerini yaptıktan sonra yeniden tara, farkı burada göstereceğiz.'
                     : 'İlk taramayı başlattığında geçmiş burada birikmeye başlar.'}
@@ -324,7 +324,7 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
                   Aynı tarama seçili — karşılaştırmak için iki farklı tarama seç.
                 </p>
               ) : tersSira ? (
-                <p className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                <p className="flex items-center gap-2 text-xs text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   Başlangıç taraması bitişten daha yeni — seçimi ters çevir, yoksa artış/azalış işareti ters okunur.
                 </p>
@@ -356,11 +356,11 @@ function TaramaSecici({
 }) {
   return (
     <label className="block">
-      <span className="text-xs text-muted-foreground">{etiket}</span>
+      <span className="text-label text-muted-foreground">{etiket}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full h-9 px-2 rounded-md border border-input text-sm bg-background"
+        className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground transition-colors focus-visible:border-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
       >
         {history.map((h) => {
           const kaynak = auditTriggerBadge(h.trigger);
@@ -382,14 +382,14 @@ function TaramaSecici({
  */
 function DeltaRozeti({ view }: { view: HistoryDeltaView }) {
   if (view.kind === 'first') {
-    return <span className="text-label text-muted-foreground">{FIRST_AUDIT_LABEL}</span>;
+    return <span className="text-xs text-muted-foreground">{FIRST_AUDIT_LABEL}</span>;
   }
   // En eski satirin oncesinde liste disinda tarama olabilir: "ilk tarama" iddiasi yok,
   // farkin neden gosterilmedigini notr metin soyler (lib/audit-history.ts)
   if (view.kind === 'none') {
     return (
       <span
-        className="text-label text-muted-foreground"
+        className="text-xs text-muted-foreground"
         title="Bu, listedeki en eski tarama; daha önceki taramalar burada gösterilmiyor, bu yüzden fark hesaplanmadı."
       >
         {PREVIOUS_NOT_LISTED_LABEL}
@@ -400,7 +400,7 @@ function DeltaRozeti({ view }: { view: HistoryDeltaView }) {
   if (view.kind === 'not_comparable') {
     return (
       // Neden satirin altinda gorunur metin olarak yazilir (dokunmatikte title okunmaz)
-      <span className="inline-flex items-center gap-1 text-label text-muted-foreground">
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
         <span className="tabular-nums">{sayi}</span>
         <Badge variant="secondary" className="px-1.5 py-0 text-label font-medium">{NOT_COMPARABLE_LABEL}</Badge>
       </span>
@@ -408,7 +408,7 @@ function DeltaRozeti({ view }: { view: HistoryDeltaView }) {
   }
   if (view.kind === 'unknown' || view.delta === 0) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-label text-muted-foreground tabular-nums">
+      <span className="inline-flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
         {view.delta === 0 && <Minus className="h-3 w-3" aria-hidden />}
         {sayi}
       </span>
@@ -416,7 +416,7 @@ function DeltaRozeti({ view }: { view: HistoryDeltaView }) {
   }
   const artis = view.delta > 0;
   return (
-    <span className={cn('inline-flex items-center gap-0.5 text-label font-semibold tabular-nums', artis ? 'text-success' : 'text-danger')}>
+    <span className={cn('inline-flex items-center gap-0.5 text-xs font-medium tabular-nums', artis ? 'text-success' : 'text-danger')}>
       {artis ? <TrendingUp className="h-3 w-3" aria-hidden /> : <TrendingDown className="h-3 w-3" aria-hidden />}
       {sayi}
     </span>

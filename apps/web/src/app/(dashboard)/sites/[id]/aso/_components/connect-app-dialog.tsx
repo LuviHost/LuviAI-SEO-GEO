@@ -101,7 +101,7 @@ export function ConnectAppDialog({
                 <TabsTrigger value="manual">Kimlikle ekle</TabsTrigger>
               </TabsList>
               <div>
-                <label htmlFor="aso-country" className="mb-1 block text-label">Ülke</label>
+                <label htmlFor="aso-country" className="mb-1 block text-label text-muted-foreground">Ülke</label>
                 <select
                   id="aso-country"
                   value={country}
@@ -122,7 +122,7 @@ export function ConnectAppDialog({
                 ))}
               </div>
               <div>
-                <label htmlFor="aso-search" className="mb-1 block text-label">Uygulama adı ya da mağaza bağlantısı</label>
+                <label htmlFor="aso-search" className="mb-1 block text-label text-muted-foreground">Uygulama adı ya da mağaza bağlantısı</label>
                 <SearchInput id="aso-search" value={query} onChange={setQuery} placeholder="ör. spotify ya da https://apps.apple.com/…/id…" />
                 <p className="mt-1 text-label text-muted-foreground">
                   {isUrl ? 'Bağlantı algılandı — doğrudan çekiliyor.' : 'Sonuçlar yazdıkça gelir.'}
@@ -130,8 +130,8 @@ export function ConnectAppDialog({
               </div>
               <SearchResults results={results} searching={searching} query={query} isPicked={isPicked} onPick={pick} />
               {totalPicked > 0 && (
-                <div className="flex items-center gap-2 rounded-md border border-brand/20 bg-brand/5 p-3 text-sm">
-                  <Check className="h-4 w-4 shrink-0 text-brand" aria-hidden />
+                <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-3 text-sm">
+                  <Check className="h-4 w-4 shrink-0 text-success" aria-hidden />
                   <div className="min-w-0 flex-1">
                     {pickedIos && <span className="mr-3 inline-flex items-center gap-1"><Apple className="h-3.5 w-3.5" aria-hidden />{pickedIos.name}</span>}
                     {pickedAndroid && <span className="inline-flex items-center gap-1"><Smartphone className="h-3.5 w-3.5" aria-hidden />{pickedAndroid.name}</span>}
@@ -151,12 +151,12 @@ export function ConnectAppDialog({
               <div>
                 <label htmlFor="aso-manual-ios" className="mb-1 flex items-center gap-1.5 text-label"><Apple className="h-3.5 w-3.5" aria-hidden /> App Store kimliği (iOS)</label>
                 <Input id="aso-manual-ios" value={manualIos} onChange={(e) => setManualIos(e.target.value)} placeholder="ör. 6444904356" />
-                <p className="mt-1 text-label text-muted-foreground">Bağlantıdaki "id" sonrası: apps.apple.com/…/id<strong>6444904356</strong></p>
+                <p className="mt-1 text-label text-muted-foreground">Bağlantıdaki "id" sonrası: apps.apple.com/…/id<strong className="font-medium text-foreground">6444904356</strong></p>
               </div>
               <div>
                 <label htmlFor="aso-manual-android" className="mb-1 flex items-center gap-1.5 text-label"><Smartphone className="h-3.5 w-3.5" aria-hidden /> Google Play paket adı (Android)</label>
                 <Input id="aso-manual-android" value={manualAndroid} onChange={(e) => setManualAndroid(e.target.value)} placeholder="ör. com.example.app" />
-                <p className="mt-1 text-label text-muted-foreground">Bağlantıdaki "id=" sonrası: play.google.com/store/apps/details?id=<strong>com.example.app</strong></p>
+                <p className="mt-1 text-label text-muted-foreground">Bağlantıdaki "id=" sonrası: play.google.com/store/apps/details?id=<strong className="font-medium text-foreground">com.example.app</strong></p>
               </div>
               <p className="text-label text-muted-foreground">Birini doldurman yeter.</p>
             </TabsContent>

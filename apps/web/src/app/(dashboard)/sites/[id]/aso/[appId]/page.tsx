@@ -115,8 +115,8 @@ export default function AsoAppOverviewPage() {
         <motion.div variants={fadeUp}>
           <Card className="h-full">
             <CardHeader className="pb-2">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Gauge className="h-4 w-4 text-brand" aria-hidden /> ASO skoru
+              <h3 className="flex items-center gap-2 text-panel-3">
+                <Gauge className="h-4 w-4 text-muted-foreground" aria-hidden /> ASO skoru
                 <InfoTooltip text="Eldeki boyutların ortalaması: mağaza sayfası denetimi, puan ve yorumlar, izlenen anahtar kelimelerin gerçek sıraları. Dönüşüm verisi olmadığı için skora katılmaz; son 30 günün yorum sayısı kesin bilinmiyorsa (yorum çekilmediyse, son çekim 48 saatten eskiyse ya da tek çekimin sınırına dayandıysa) sıfır ya da eksik sayılmaz, hesaba katılmaz." />
               </h3>
             </CardHeader>
@@ -128,8 +128,8 @@ export default function AsoAppOverviewPage() {
               ) : (
                 <>
                   <div className="flex items-end gap-2">
-                    <span className={cn('text-5xl font-semibold tabular-nums leading-none tracking-tight', tone.text)}>{merged.score ?? '—'}</span>
-                    <span className="pb-1 text-label text-muted-foreground">/ 100 · {tone.label}</span>
+                    <span className="text-h3 font-[450] tabular-nums leading-none tracking-[-0.05em]">{merged.score ?? '—'}</span>
+                    <span className="pb-0.5 font-mono text-vitrin-rail text-muted-foreground">/ 100 · <span className={tone.text}>{tone.label}</span></span>
                   </div>
                   <ul className="space-y-2.5">
                     {merged.parts.map((p) => {
@@ -160,8 +160,8 @@ export default function AsoAppOverviewPage() {
         <motion.div variants={fadeUp} className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader className="pb-2">
-              <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <ListTodo className="h-4 w-4 text-brand" aria-hidden /> Sıradaki işler
+              <h3 className="flex items-center gap-2 text-panel-3">
+                <ListTodo className="h-4 w-4 text-muted-foreground" aria-hidden /> Sıradaki işler
               </h3>
             </CardHeader>
             <CardContent>
@@ -173,16 +173,16 @@ export default function AsoAppOverviewPage() {
                 <ul className="divide-y">
                   {actions.slice(0, 5).map((a) => (
                     <li key={a.id}>
-                      <Link href={a.href} className="group flex items-start gap-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+                      <Link href={a.href} className="group flex items-start gap-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         <span
                           className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', a.tone === 'danger' ? 'bg-danger' : a.tone === 'warning' ? 'bg-warning' : 'bg-info')}
                           aria-hidden
                         />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium group-hover:text-brand">{a.title}</span>
+                          <span className="block text-sm font-medium underline-offset-4 group-hover:underline">{a.title}</span>
                           {a.detail && <span className="block text-label text-muted-foreground">{a.detail}</span>}
                         </span>
-                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-brand" aria-hidden />
+                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" aria-hidden />
                       </Link>
                     </li>
                   ))}
@@ -197,8 +197,8 @@ export default function AsoAppOverviewPage() {
         {/* Sıra hareketleri */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><TrendingUp className="h-4 w-4 text-brand" aria-hidden /> Sıra hareketleri</h3>
-            <Link href={`${base}/keywords`} className="text-label text-brand hover:underline">Tüm kelimeler</Link>
+            <h3 className="flex items-center gap-2 text-panel-3"><TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden /> Sıra hareketleri</h3>
+            <Link href={`${base}/keywords`} className="v-rail transition-colors hover:text-foreground">Tüm kelimeler</Link>
           </CardHeader>
           <CardContent>
             {movers.length === 0 ? (
@@ -226,8 +226,8 @@ export default function AsoAppOverviewPage() {
         {/* Son yorumlar */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><MessageSquare className="h-4 w-4 text-brand" aria-hidden /> Son yorumlar</h3>
-            <Link href={`${base}/reviews`} className="text-label text-brand hover:underline">Tüm yorumlar</Link>
+            <h3 className="flex items-center gap-2 text-panel-3"><MessageSquare className="h-4 w-4 text-muted-foreground" aria-hidden /> Son yorumlar</h3>
+            <Link href={`${base}/reviews`} className="v-rail transition-colors hover:text-foreground">Tüm yorumlar</Link>
           </CardHeader>
           <CardContent>
             {reviews.loading && !reviews.data ? (
@@ -309,7 +309,7 @@ function CompetitorsSection({ siteId, defaultCategory, country }: { siteId: stri
       header: <span className="sr-only">Bağlantı</span>,
       align: 'right',
       cell: (c) => c.app_store_url ? (
-        <a href={c.app_store_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-label text-brand hover:underline">
+        <a href={c.app_store_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-label text-muted-foreground transition-colors hover:text-foreground">
           App Store <ExternalLink className="h-3 w-3" aria-hidden />
         </a>
       ) : null,
@@ -318,9 +318,9 @@ function CompetitorsSection({ siteId, defaultCategory, country }: { siteId: stri
 
   return (
     <details className="group rounded-lg border">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand [&::-webkit-details-marker]:hidden">
-        <Users className="h-4 w-4 text-brand" aria-hidden />
-        <span className="text-sm font-semibold">Kategori rakipleri</span>
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <Users className="h-4 w-4 text-muted-foreground" aria-hidden />
+        <span className="text-panel-3">Kategori rakipleri</span>
         <span className="text-label text-muted-foreground">App Store'daki en iyi uygulamalarla kıyasla</span>
         <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
@@ -346,7 +346,7 @@ function CompetitorsSection({ siteId, defaultCategory, country }: { siteId: stri
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Bu kategoride sonuç bulunamadı.</p>
         ) : (
-          <DataTable caption="Kategori rakipleri" columns={columns} rows={rows} rowKey={(c) => `${c.app_name}-${c.developer}`} />
+          <DataTable className="relative" caption="Kategori rakipleri" columns={columns} rows={rows} rowKey={(c) => `${c.app_name}-${c.developer}`} />
         )}
       </div>
     </details>

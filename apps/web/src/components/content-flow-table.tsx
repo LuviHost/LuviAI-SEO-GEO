@@ -14,7 +14,8 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Lightbulb, Loader2, Calendar, FileCheck2, Send, Sparkles, RefreshCw, Eye, Lock } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { AlertTriangle, Lightbulb, Loader2, Calendar, ExternalLink, FileCheck2, GripVertical, Send, Sparkles, RefreshCw, Eye, Lock } from 'lucide-react';
 import { isPlanLocked } from '@/lib/plan-lock';
 import { LockedGenerateButton, LockedRowPreview, PlanUpgradeButton } from '@/components/locked-article';
 import { refreshArticleAllowance, useArticleAllowance } from '@/lib/use-article-allowance';
@@ -64,16 +65,18 @@ type Row = {
 export type ContentRowState = Row['state'];
 
 // Durum tonlari token'dan (success/warning/danger/info) — yeni renk yok
-const STATE_CONFIG: Record<Row['state'], { label: string; color: string; bg: string; border: string; Icon: any }> = {
-  suggested: { label: 'Önerilen', color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/30', Icon: Lightbulb },
-  generating: { label: 'Üretiliyor', color: 'text-brand', bg: 'bg-brand/10', border: 'border-brand/30', Icon: Loader2 },
-  editing: { label: 'Editörde', color: 'text-brand', bg: 'bg-brand/10', border: 'border-brand/30', Icon: Loader2 },
-  scheduled: { label: 'Takvimde', color: 'text-info', bg: 'bg-info/10', border: 'border-info/30', Icon: Calendar },
-  queued: { label: 'Sırada (tarihsiz)', color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/30', Icon: Calendar },
-  locked: { label: 'Kilitli', color: 'text-muted-foreground', bg: 'bg-muted', border: 'border-border', Icon: Lock },
-  ready: { label: 'Hazır (onay)', color: 'text-success', bg: 'bg-success/10', border: 'border-success/30', Icon: FileCheck2 },
-  published: { label: 'Yayında', color: 'text-success', bg: 'bg-success/10', border: 'border-success/30', Icon: Send },
-  failed: { label: 'Başarısız', color: 'text-danger', bg: 'bg-danger/10', border: 'border-danger/30', Icon: Lightbulb },
+// Rozet ui/badge ile ayni gorunum (cercevesiz, %10 zemin). Uretimdeki satir tek canli is:
+// kucuk turuncu isaret yalniz orada; digerleri durum tonu ya da notr.
+const STATE_CONFIG: Record<Row['state'], { label: string; color: string; bg: string; Icon: any }> = {
+  suggested: { label: 'Önerilen', color: 'text-warning', bg: 'bg-warning/10', Icon: Lightbulb },
+  generating: { label: 'Üretiliyor', color: 'text-brand', bg: 'bg-brand/10', Icon: Loader2 },
+  editing: { label: 'Editörde', color: 'text-brand', bg: 'bg-brand/10', Icon: Loader2 },
+  scheduled: { label: 'Takvimde', color: 'text-info', bg: 'bg-info/10', Icon: Calendar },
+  queued: { label: 'Sırada (tarihsiz)', color: 'text-warning', bg: 'bg-warning/10', Icon: Calendar },
+  locked: { label: 'Kilitli', color: 'text-muted-foreground', bg: 'bg-muted', Icon: Lock },
+  ready: { label: 'Hazır (onay)', color: 'text-success', bg: 'bg-success/10', Icon: FileCheck2 },
+  published: { label: 'Yayında', color: 'text-success', bg: 'bg-success/10', Icon: Send },
+  failed: { label: 'Başarısız', color: 'text-danger', bg: 'bg-danger/10', Icon: Lightbulb },
 };
 
 export function ContentFlowTable({
@@ -428,16 +431,16 @@ export function ContentFlowTable({
         <CardHeader>
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="font-semibold flex items-center gap-2">
+              <h2 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-panel-3">
                 İçerik Akışı
-                <span className="inline-flex items-center gap-1 text-label font-normal text-warning">
-                  <span className="h-2 w-0.5 bg-warning/70 rounded" /> AI önerisi
+                <span className="v-rail inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-0.5 rounded bg-warning" aria-hidden /> AI önerisi
                 </span>
-                <span className="inline-flex items-center gap-1 text-label font-normal text-brand">
-                  <span className="h-2 w-0.5 bg-brand rounded" /> üretilen
+                <span className="v-rail inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-0.5 rounded bg-brand" aria-hidden /> üretilen
                 </span>
               </h2>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Önerilen konular, üretilenler ve yayında olanlar tek tabloda. Önerilenleri sürükleyip takvime alabilir veya direkt üretime gönderebilirsin.
               </p>
             </div>
@@ -461,12 +464,12 @@ export function ContentFlowTable({
             <div className="overflow-x-auto border-t">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-muted/30 text-muted-foreground border-b">
-                    <th className="text-left font-medium px-4 py-2.5 w-[40%]">Başlık</th>
-                    <th className="text-left font-medium px-4 py-2.5 hidden md:table-cell">Skor</th>
-                    <th className="text-left font-medium px-4 py-2.5 hidden lg:table-cell">Persona</th>
-                    <th className="text-left font-medium px-4 py-2.5">Durum</th>
-                    <th className="text-right font-medium px-4 py-2.5">Aksiyon</th>
+                  <tr className="border-b text-left font-mono text-vitrin-rail text-muted-foreground">
+                    <th className="w-[40%] min-w-[14rem] px-4 py-2.5 font-normal">Başlık</th>
+                    <th className="hidden px-4 py-2.5 font-normal md:table-cell">Skor</th>
+                    <th className="hidden px-4 py-2.5 font-normal lg:table-cell">Persona</th>
+                    <th className="px-4 py-2.5 font-normal">Durum</th>
+                    <th className="px-4 py-2.5 text-right font-normal">Aksiyon</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -478,29 +481,20 @@ export function ContentFlowTable({
                     // Görsel ayrım: AI önerisi mi yoksa üretilmiş/üretiliyor article mı?
                     // Sol border accent kullanılır — kullanıcı tek bakışta anlasın.
                     const isAISuggestion = row.state === 'suggested';
+                    // Ince (2px) isaret: yalniz baslikta aciklanan iki anlam — AI onerisi ve uretimdeki
+                    // yazi. Diger durumlari "Durum" sutunundaki rozet anlatir (satir boyama yok).
                     const leftAccent = isAISuggestion
-                      ? 'border-l-4 border-l-warning/70'
+                      ? 'border-l-2 border-l-warning'
                       : isInflight
-                        ? 'border-l-4 border-l-brand'
-                        : row.state === 'published'
-                          ? 'border-l-4 border-l-success/70'
-                          : row.state === 'scheduled'
-                            ? 'border-l-4 border-l-info/50'
-                            : row.state === 'locked'
-                              ? 'border-l-4 border-l-border'
-                            : row.state === 'ready'
-                              ? 'border-l-4 border-l-success/70'
-                              : 'border-l-4 border-l-transparent';
+                        ? 'border-l-2 border-l-brand'
+                        : 'border-l-2 border-l-transparent';
 
                     return (
                       <tr
                         key={row.key}
                         className={cn(
-                          'transition-colors',
+                          'transition-colors hover:bg-muted/50',
                           leftAccent,
-                          isInflight && 'bg-brand/5',
-                          isAISuggestion && 'bg-warning/[0.025] hover:bg-warning/5',
-                          !isAISuggestion && !isInflight && 'hover:bg-muted/30',
                         )}
                       >
                         <td className="px-4 py-3 align-top">
@@ -519,10 +513,10 @@ export function ContentFlowTable({
                                 );
                                 e.dataTransfer.effectAllowed = 'copyMove';
                               }}
-                              className="cursor-grab active:cursor-grabbing inline-flex items-start gap-2 -mx-1 -my-0.5 px-2 py-1 rounded hover:bg-warning/5 hover:ring-1 hover:ring-warning/30 transition-all"
+                              className="-mx-1 -my-0.5 inline-flex cursor-grab items-start gap-1.5 rounded px-1 py-1 transition-colors hover:bg-muted active:cursor-grabbing"
                               title="Sürükleyip takvime bırak"
                             >
-                              <span className="text-warning mt-0.5 select-none" aria-hidden>⠿</span>
+                              <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
                               <span className="font-medium leading-snug">{row.topic}</span>
                             </div>
                           ) : (row.state === 'queued' || row.state === 'scheduled') && row.articleId ? (
@@ -535,18 +529,10 @@ export function ContentFlowTable({
                                 );
                                 e.dataTransfer.effectAllowed = 'copyMove';
                               }}
-                              className={cn(
-                                'cursor-grab active:cursor-grabbing inline-flex items-start gap-2 -mx-1 -my-0.5 px-2 py-1 rounded transition-all',
-                                row.state === 'queued'
-                                  ? 'hover:bg-warning/5 hover:ring-1 hover:ring-warning/30'
-                                  : 'hover:bg-info/5 hover:ring-1 hover:ring-info/30',
-                              )}
+                              className="-mx-1 -my-0.5 inline-flex cursor-grab items-start gap-1.5 rounded px-1 py-1 transition-colors hover:bg-muted active:cursor-grabbing"
                               title={row.state === 'queued' ? 'Sürükleyip takvime bırak (tarih ata)' : 'Sürükleyip takvimde başka güne taşı'}
                             >
-                              <span
-                                className={cn('mt-0.5 select-none', row.state === 'queued' ? 'text-warning' : 'text-info')}
-                                aria-hidden
-                              >⠿</span>
+                              <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
                               <span className="font-medium leading-snug">{row.topic}</span>
                             </div>
                           ) : row.state === 'locked' ? (
@@ -569,8 +555,8 @@ export function ContentFlowTable({
                             const sameMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
                             return (
                               <div className={cn(
-                                'text-label mt-0.5 font-mono',
-                                sameMonth ? 'text-muted-foreground' : 'text-warning font-semibold',
+                                'mt-0.5 font-mono text-vitrin-rail',
+                                sameMonth ? 'text-muted-foreground' : 'text-warning',
                               )}>
                                 {d.toLocaleString('tr-TR', {
                                   weekday: 'short',
@@ -580,12 +566,14 @@ export function ContentFlowTable({
                                   hour: '2-digit',
                                   minute: '2-digit',
                                 })}
-                                {!sameMonth && ' · ⚠ takvimde başka ay'}
+                                {!sameMonth && (
+                                  <> · <AlertTriangle className="-mt-0.5 inline h-3 w-3" aria-hidden /> takvimde başka ay</>
+                                )}
                               </div>
                             );
                           })()}
                           {row.publishedAt && row.state === 'published' && (
-                            <div className="text-label text-muted-foreground mt-0.5 font-mono">
+                            <div className="mt-0.5 font-mono text-vitrin-rail text-muted-foreground">
                               Yayın: {new Date(row.publishedAt).toLocaleDateString('tr-TR')}
                             </div>
                           )}
@@ -599,10 +587,9 @@ export function ContentFlowTable({
                         <td className="px-4 py-3 align-top">
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-label font-semibold border',
+                              'inline-flex items-center gap-1.5 whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium',
                               cfg.color,
                               cfg.bg,
-                              cfg.border,
                             )}
                           >
                             <Icon className={cn('h-3 w-3', isInflight && 'animate-spin')} />
@@ -618,13 +605,13 @@ export function ContentFlowTable({
                           {row.state === 'suggested' && (
                             <div className="flex items-center justify-end gap-1.5">
                               {isThisGenerating ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-brand px-3 py-1.5">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground">
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   Üretiliyor…
                                 </span>
                               ) : allowance.locked && !generationOnlyLock ? (
                                 // Hak bitti: "Takvime" de "Uret" de 403 donerdi — tek kilitli dugme
-                                <LockedGenerateButton lock={allowance} />
+                                <LockedGenerateButton lock={allowance} variant="outline" />
                               ) : (
                                 <>
                                   <Button
@@ -646,10 +633,11 @@ export function ContentFlowTable({
                                     <Calendar className="h-3.5 w-3.5 mr-1" /> Takvime
                                   </Button>
                                   {generationOnlyLock ? (
-                                    <LockedGenerateButton lock={allowance} />
+                                    <LockedGenerateButton lock={allowance} variant="outline" />
                                   ) : (
                                     <Button
                                       size="sm"
+                                      variant="secondary"
                                       onClick={() => generate(row.topic)}
                                       disabled={isThisGenerating}
                                       title="Şimdi üret (anında pipeline)"
@@ -662,7 +650,7 @@ export function ContentFlowTable({
                             </div>
                           )}
                           {(row.state === 'generating' || row.state === 'editing') && (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-brand">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
                               Üretiliyor…
                             </span>
@@ -672,7 +660,7 @@ export function ContentFlowTable({
                             return (
                               <div className="flex items-center justify-end gap-1.5">
                                 {isTriggering ? (
-                                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-brand px-3 py-1.5">
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground">
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                     Üretiliyor…
                                   </span>
@@ -680,10 +668,11 @@ export function ContentFlowTable({
                                   // Hak bitti. Bilinen kucuk yanlis kilit: hakki daha once dusulmus,
                                   // takvime geri donmus yazi sunucuda yeniden dusulmez ama panelde
                                   // bu bilgi yok; yazi saati gelince yine de uretilir.
-                                  <LockedGenerateButton lock={allowance} />
+                                  <LockedGenerateButton lock={allowance} variant="outline" />
                                 ) : (
                                   <Button
                                     size="sm"
+                                    variant="secondary"
                                     onClick={async () => {
                                       if (!row.articleId) return;
                                       const aid = row.articleId;
@@ -721,7 +710,7 @@ export function ContentFlowTable({
                             // Uretim dugmesi YOK ("Simdi uret" deneme hakki dolu oldugu icin 403 donerdi):
                             // yukseltme ve kilitli yazinin sayfasi
                             <div className="flex items-center justify-end gap-1.5">
-                              <PlanUpgradeButton />
+                              <PlanUpgradeButton variant="outline" />
                               {row.articleId && (
                                 <Link href={`/sites/${siteId}/articles/${row.articleId}`}>
                                   <Button size="sm" variant="outline" title="Kilitli yazıyı aç">
@@ -762,14 +751,11 @@ export function ContentFlowTable({
                           {row.state === 'published' && (
                             <div className="flex items-center justify-end gap-1.5">
                               {row.publicUrl && (
-                                <a
-                                  href={row.publicUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border hover:border-brand hover:text-brand transition-colors"
-                                >
-                                  🔗 Aç
-                                </a>
+                                <Button size="sm" variant="outline" asChild>
+                                  <a href={row.publicUrl} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="h-3.5 w-3.5" aria-hidden /> Aç
+                                  </a>
+                                </Button>
                               )}
                               {row.articleId && (
                                 <ArticleVideoButton siteId={siteId} article={{ id: row.articleId, title: row.topic, status: 'PUBLISHED' }} label="Video" />
@@ -782,7 +768,7 @@ export function ContentFlowTable({
                             </div>
                           )}
                           {row.state === 'failed' && (
-                            <span className="text-xs text-danger italic">başarısız</span>
+                            <span className="text-xs text-danger">başarısız</span>
                           )}
                         </td>
                       </tr>
@@ -870,37 +856,26 @@ function ScheduleModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm grid place-items-center p-4"
+      className="fixed inset-0 z-50 bg-black/70 grid place-items-center p-4"
       onClick={onClose}
     >
       <Card
-        className="w-full max-w-md"
+        className="w-full max-w-md bg-popover"
         onClick={(e) => e.stopPropagation()}
       >
         <CardHeader>
-          <h3 className="font-semibold">Tarih ve saat seç</h3>
-          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{title}</p>
+          <h3 className="text-panel-3">Tarih ve saat seç</h3>
+          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{title}</p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-xs font-medium text-foreground/70 mb-1 block">Tarih</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-md border bg-card px-3 py-2 text-sm"
-              />
+              <span className="mb-1.5 block text-label text-muted-foreground">Tarih</span>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-foreground/70 mb-1 block">Saat</span>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-md border bg-card px-3 py-2 text-sm"
-                step="900"
-              />
+              <span className="mb-1.5 block text-label text-muted-foreground">Saat</span>
+              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} step="900" />
             </label>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">

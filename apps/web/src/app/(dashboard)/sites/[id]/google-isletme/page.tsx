@@ -22,10 +22,7 @@ import { Yonetim } from '@/components/google-isletme/yonetim';
 function Bolum({ baslik, aciklama, children }: { baslik: string; aciklama?: string; children: React.ReactNode }) {
   return (
     <Card density="dense" className="space-y-3 p-4">
-      <div>
-        <h3 className="font-brand text-base font-semibold tracking-tight">{baslik}</h3>
-        {aciklama && <p className="mt-0.5 text-sm text-muted-foreground">{aciklama}</p>}
-      </div>
+      <SectionHeader as="h3" title={baslik} description={aciklama} />
       {children}
     </Card>
   );

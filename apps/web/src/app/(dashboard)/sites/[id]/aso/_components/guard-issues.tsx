@@ -25,7 +25,7 @@ export function GuardIssues({ issues, store }: { issues?: GuardIssue[] | null; s
   if (!issues?.length) return null;
   const removed = issues.filter((i) => i.action === 'removed').length;
   return (
-    <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm">
+    <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
       <p className="mb-1 flex items-center gap-1.5 font-medium">
         <ShieldCheck className="h-4 w-4 text-warning" aria-hidden /> Mağaza politikası denetimi
       </p>

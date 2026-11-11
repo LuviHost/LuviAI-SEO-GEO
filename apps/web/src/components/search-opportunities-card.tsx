@@ -38,12 +38,12 @@ function pathOf(url: string) {
 function ComponentBar({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
     <div className="min-w-0" title={hint}>
-      <div className="flex justify-between text-label text-muted-foreground">
+      <div className="v-rail flex justify-between">
         <span>{label}</span>
         <span>{pct(value)}</span>
       </div>
       <div className="mt-1 h-1.5 rounded-full bg-muted">
-        <div className="h-1.5 rounded-full bg-brand" style={{ width: `${Math.max(4, Math.round(value * 100))}%` }} />
+        <div className="h-1.5 rounded-full bg-foreground" style={{ width: `${Math.max(4, Math.round(value * 100))}%` }} />
       </div>
     </div>
   );
@@ -81,7 +81,7 @@ export function SearchOpportunitiesCard({ siteId }: { siteId: string }) {
     <Card>
       <CardHeader className="space-y-3">
         <div>
-          <h3 className="font-semibold flex items-center gap-2"><Search className="h-4 w-4" aria-hidden /> Arama fırsatları — GSC × GA4</h3>
+          <h3 className="text-panel-3 flex items-center gap-2"><Search className="h-4 w-4 text-muted-foreground" aria-hidden /> Arama fırsatları — GSC × GA4</h3>
           <p className="text-xs text-muted-foreground mt-1">
             Google&apos;da 4–20. sırada görünen sayfalar. Organik ziyaretçiye değer üretenler ve ilk 3&apos;e yakın olanlar üstte.
             {data?.status === 'ok' && <> Son 28 gün ({data.dateRange.startDate} – {data.dateRange.endDate}).</>}
@@ -156,7 +156,7 @@ export function SearchOpportunitiesCard({ siteId }: { siteId: string }) {
           </div>
         )}
         {data?.status === 'ok' && rows.length > 0 && (
-          <div className="border-t px-5 py-3 text-label text-muted-foreground space-y-1">
+          <div className="border-t px-5 py-3 text-label font-normal text-muted-foreground space-y-1">
             <p>
               Önerilen sıra; talep, değer ve sıraya yakınlığın open-seo ağırlıklarıyla (0,5 / 0,3 / 0,2) birleşimidir.
               Ağırlıklar tek kaynaklı olduğu için skor olarak gösterilmez; çubuklar adaylar arası yüzdelik sıradır.

@@ -57,7 +57,7 @@ export function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border bg-card px-3 py-2 shadow-apple-md text-sm">
+    <div className="rounded-md border bg-popover px-3 py-2 text-sm text-popover-foreground">
       {label && <div className="text-label text-muted-foreground mb-1">{label}</div>}
       <div className="space-y-0.5">
         {payload.map((e, i) => (

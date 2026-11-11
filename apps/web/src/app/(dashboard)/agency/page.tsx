@@ -59,9 +59,9 @@ export default function AgencyDashboardPage() {
 
             <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="mt-6">
               <TabsList>
-                <TabsTrigger value="clients"><Users className="h-3.5 w-3.5" aria-hidden /> Müşteriler</TabsTrigger>
-                <TabsTrigger value="invite"><Mail className="h-3.5 w-3.5" aria-hidden /> Davet et</TabsTrigger>
-                <TabsTrigger value="whitelabel"><Settings className="h-3.5 w-3.5" aria-hidden /> Markalı panel</TabsTrigger>
+                <TabsTrigger value="clients" className="gap-1.5"><Users className="h-3.5 w-3.5" aria-hidden /> Müşteriler</TabsTrigger>
+                <TabsTrigger value="invite" className="gap-1.5"><Mail className="h-3.5 w-3.5" aria-hidden /> Davet et</TabsTrigger>
+                <TabsTrigger value="whitelabel" className="gap-1.5"><Settings className="h-3.5 w-3.5" aria-hidden /> Markalı panel</TabsTrigger>
               </TabsList>
               <TabsContent value="clients" className="mt-4"><ClientsTab clients={data.clients} onInvite={() => setTab('invite')} /></TabsContent>
               <TabsContent value="invite" className="mt-4"><InviteTab onInvited={load} /></TabsContent>
@@ -88,10 +88,10 @@ function ClientsTab({ clients, onInvite }: { clients: any[]; onInvite: () => voi
   return (
     <div className="space-y-2">
       {clients.map((c) => (
-        <div key={c.userId} className="rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20">
+        <div key={c.userId} className="rounded-lg border bg-card p-4 transition-colors hover:border-foreground/30">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <p className="font-semibold text-sm">{c.name ?? c.email}</p>
+              <p className="text-panel-3">{c.name ?? c.email}</p>
               <p className="text-label text-muted-foreground">{c.email} · {new Date(c.createdAt).toLocaleDateString('tr-TR')}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -103,10 +103,10 @@ function ClientsTab({ clients, onInvite }: { clients: any[]; onInvite: () => voi
               )}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
-            <div><span className="text-muted-foreground">Site:</span> <strong>{c.sitesActive}/{c.sitesCount}</strong></div>
-            <div><span className="text-muted-foreground">Sorun:</span> <strong className={c.issuesCount > 5 ? 'text-danger' : ''}>{c.issuesCount}</strong></div>
-            <div><span className="text-muted-foreground">Plan:</span> <strong>{c.plan}</strong></div>
+          <div className="grid grid-cols-3 gap-2 mt-3 border-t pt-3 text-xs">
+            <div><span className="text-muted-foreground">Site:</span> <strong className="font-medium tabular-nums">{c.sitesActive}/{c.sitesCount}</strong></div>
+            <div><span className="text-muted-foreground">Sorun:</span> <strong className={`font-medium tabular-nums ${c.issuesCount > 5 ? 'text-danger' : ''}`}>{c.issuesCount}</strong></div>
+            <div><span className="text-muted-foreground">Plan:</span> <strong className="font-medium">{c.plan}</strong></div>
           </div>
         </div>
       ))}
@@ -178,7 +178,7 @@ function WhitelabelTab({ whitelabel, onSaved }: { whitelabel: any; onSaved: () =
         <label className="flex items-start gap-2 cursor-pointer">
           <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="mt-1" />
           <div>
-            <p className="text-sm font-semibold">Markalı paneli aç</p>
+            <p className="text-sm font-medium">Markalı paneli aç</p>
             <p className="text-xs text-muted-foreground">Kendi alan adından giriş yapan müşterilerin RanksUp yerine senin markanı görür.</p>
           </div>
         </label>
@@ -186,24 +186,24 @@ function WhitelabelTab({ whitelabel, onSaved }: { whitelabel: any; onSaved: () =
 
       <Card><CardContent className="p-4 space-y-3">
         <label className="block">
-          <span className="text-xs font-medium">Marka adı</span>
+          <span className="text-label text-muted-foreground">Marka adı</span>
           <Input value={form.brandName} onChange={(e) => setForm({ ...form, brandName: e.target.value })} className="mt-1" placeholder="Webmasters Ajansı" />
         </label>
         <label className="block">
-          <span className="text-xs font-medium">Logo adresi (URL)</span>
+          <span className="text-label text-muted-foreground">Logo adresi (URL)</span>
           <Input value={form.logoUrl} onChange={(e) => setForm({ ...form, logoUrl: e.target.value })} className="mt-1" placeholder="https://ajansadi.com.tr/logo.png" />
         </label>
         <label className="block">
-          <span className="text-xs font-medium">Marka rengi (hex)</span>
+          <span className="text-label text-muted-foreground">Marka rengi (hex)</span>
           <Input value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} className="mt-1 font-mono" placeholder="#6c5ce7" />
         </label>
         <label className="block">
-          <span className="text-xs font-medium">Alan adı (CNAME)</span>
+          <span className="text-label text-muted-foreground">Alan adı (CNAME)</span>
           <Input value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} className="mt-1" placeholder="ai.ajansadi.com.tr" />
           <p className="text-label text-muted-foreground mt-1">Alan adının CNAME kaydını ranksup.ai'ye yönlendir.</p>
         </label>
         <label className="block">
-          <span className="text-xs font-medium">Gönderen e-posta</span>
+          <span className="text-label text-muted-foreground">Gönderen e-posta</span>
           <Input value={form.emailFrom} onChange={(e) => setForm({ ...form, emailFrom: e.target.value })} className="mt-1" placeholder="noreply@ajansadi.com.tr" />
         </label>
 

@@ -104,13 +104,13 @@ export default function AsoMetadataPage() {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="flex items-center gap-2 font-semibold">
-              <Sparkles className="h-4 w-4 text-brand" aria-hidden /> AI ile yeni metin öner
+            <h4 className="flex items-center gap-2 text-panel-3">
+              <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden /> AI ile yeni metin öner
               <InfoTooltip
                 text={`Seçtiğin hedef kelimelerle ${store === 'IOS' ? 'Ad, Alt başlık, Anahtar kelimeler ve Açıklama' : 'Ad, Kısa açıklama ve Açıklama'} için öneri üretir; sınırı aşan alan kırmızı görünür. Mağaza verisinde olmayan puan, kullanıcı sayısı ve ödül iddiaları ile fiyat ifadeleri çıkarılır. Hiçbir şey mağazaya kendiliğinden yazılmaz.`}
               />
             </h4>
-            <span className="text-label text-muted-foreground">{selectedInStore.length} kelime seçili · {STORE_LABEL[store]}</span>
+            <span className="font-mono text-vitrin-rail text-muted-foreground">{selectedInStore.length} kelime seçili · {STORE_LABEL[store]}</span>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -126,7 +126,7 @@ export default function AsoMetadataPage() {
                 {storeKeywords.map((k) => (
                   <FilterChip key={k.id} selected={selected.has(k.id)} onClick={() => toggle(k.id)} title={k.traffic ? `Trafik ${Math.round(k.traffic)}` : undefined}>
                     {k.keyword}
-                    {k.currentRank != null && <span className="text-muted-foreground">#{k.currentRank}</span>}
+                    {k.currentRank != null && <span className="opacity-60">#{k.currentRank}</span>}
                   </FilterChip>
                 ))}
               </div>
@@ -150,7 +150,7 @@ export default function AsoMetadataPage() {
       {/* 2 — Alan alan mevcut ↔ önerilen */}
       <section aria-labelledby="md-fields" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 id="md-fields" className="font-semibold">{STORE_LABEL[store]} alanları</h4>
+          <h4 id="md-fields" className="text-panel-3">{STORE_LABEL[store]} alanları</h4>
           {audit.data && (counts.error > 0 || counts.warning > 0) && (
             <div className="flex gap-1.5">
               {counts.error > 0 && <Badge variant="danger">{counts.error} hata</Badge>}
@@ -196,8 +196,8 @@ export default function AsoMetadataPage() {
         <GuardIssues issues={result?.issues} store={store} />
 
         {Array.isArray(result?.suggestions) && result!.suggestions!.length > 0 && (
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium"><ListChecks className="h-4 w-4 text-brand" aria-hidden /> AI&apos;ın ek önerileri</p>
+          <div className="rounded-md border p-3">
+            <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium"><ListChecks className="h-4 w-4 text-muted-foreground" aria-hidden /> AI&apos;ın ek önerileri</p>
             <ul className="list-disc space-y-1 pl-5 text-sm">
               {result!.suggestions!.map((s, i) => <li key={i}>{s}</li>)}
             </ul>
@@ -208,7 +208,7 @@ export default function AsoMetadataPage() {
       {/* 3 — App Store Connect'e uygula (yalnız eşleşen ASC uygulaması) */}
       {store === 'IOS' && (
         <section aria-labelledby="md-asc" className="space-y-3">
-          <h4 id="md-asc" className="font-semibold">App Store Connect&apos;e uygula</h4>
+          <h4 id="md-asc" className="text-panel-3">App Store Connect&apos;e uygula</h4>
           <AscGate purpose="Önerileri doğrudan App Store Connect'e yazmak">
             {(ascApp) => (
               <Card>
@@ -241,7 +241,7 @@ export default function AsoMetadataPage() {
 
       {/* 4 — Bulgular (akordeon) */}
       <section aria-labelledby="md-findings" className="space-y-3">
-        <h4 id="md-findings" className="font-semibold">Mağaza denetimi</h4>
+        <h4 id="md-findings" className="text-panel-3">Mağaza denetimi</h4>
         {audit.data ? (
           <FindingsAccordion findings={findings.filter((f) => f.store === store || f.store === 'BOTH')} />
         ) : audit.loading ? (
@@ -267,26 +267,26 @@ export default function AsoMetadataPage() {
 
 function GuideStepper({ store, appName, keywordsHref }: { store: Store; appName: string; keywordsHref: string }) {
   const steps: React.ReactNode[] = [
-    <>Hedef kelimeleri seç, <strong>Önerileri üret</strong>.</>,
-    <>Alanları karşılaştır, beğendiğini <strong>Kopyala</strong>.</>,
+    <>Hedef kelimeleri seç, <strong className="font-medium text-foreground">Önerileri üret</strong>.</>,
+    <>Alanları karşılaştır, beğendiğini <strong className="font-medium text-foreground">Kopyala</strong>.</>,
     store === 'IOS' ? (
-      <>Bağlıysa <strong>taslağa aktar → uygula</strong>; değilse{' '}
-        <a href="https://appstoreconnect.apple.com/" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">App Store Connect</a>
+      <>Bağlıysa <strong className="font-medium text-foreground">taslağa aktar → uygula</strong>; değilse{' '}
+        <a href="https://appstoreconnect.apple.com/" target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-2">App Store Connect</a>
         {' '}→ {appName} → Uygulama Bilgileri.</>
     ) : (
-      <><a href="https://play.google.com/console" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">Play Console</a>
+      <><a href="https://play.google.com/console" target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-2">Play Console</a>
         {' '}→ {appName} → Ana mağaza girişi.</>
     ),
     store === 'IOS' ? <>Kaydet ve yeni sürümle incelemeye gönder (Apple 1-2 gün).</> : <>Kaydet — Play genelde kısa sürede yayına alır.</>,
-    <>1-2 hafta sonra <Link href={keywordsHref} className="text-brand hover:underline">sıraları güncelle</Link>; yukarı ok = başarı.</>,
+    <>1-2 hafta sonra <Link href={keywordsHref} className="text-foreground underline underline-offset-2">sıraları güncelle</Link>; yukarı ok = başarı.</>,
   ];
   return (
     <section aria-labelledby="md-guide" className="rounded-lg border p-4">
-      <h4 id="md-guide" className="mb-3 text-sm font-semibold">Nasıl uygularsın?</h4>
+      <h4 id="md-guide" className="mb-3 text-panel-3">Nasıl uygularsın?</h4>
       <ol className="grid gap-3 md:grid-cols-5">
         {steps.map((s, i) => (
           <li key={i} className="flex gap-2 text-sm md:flex-col">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand/10 text-label font-semibold text-brand">{i + 1}</span>
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded border border-border font-mono text-vitrin-rail text-muted-foreground">{i + 1}</span>
             <span className="text-muted-foreground">{s}</span>
           </li>
         ))}

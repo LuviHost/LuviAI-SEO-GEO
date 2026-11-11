@@ -73,28 +73,28 @@ export function YerelSorular({ siteId, oneri }: { siteId: string; oneri: GbpYere
         Müşterilerinizin AI asistanlara sorabileceği yerel soruları (ör. “Kadıköy’de iyi bir kafe öner”) profilinizdeki
         il, ilçe ve kategoriden hazırladık. Düzeltip soruları oluşturun; seçtikleriniz GEO Lab’de takip edilir.
       </p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-3 sm:items-end">
         <label className="space-y-1">
-          <span className="text-label text-muted-foreground">İl</span>
+          <span className="block text-label text-muted-foreground">İl</span>
           <Input value={il} onChange={(e) => setIl(e.target.value)} placeholder="Örn: İstanbul" />
         </label>
         <label className="space-y-1">
-          <span className="text-label text-muted-foreground">İlçe ya da semt (virgülle, en fazla 5)</span>
+          <span className="block text-label text-muted-foreground">İlçe ya da semt (virgülle, en fazla 5)</span>
           <Input value={ilce} onChange={(e) => setIlce(e.target.value)} placeholder="Örn: Kadıköy, Moda" />
         </label>
         <label className="space-y-1">
-          <span className="text-label text-muted-foreground">Hizmetler (virgülle, en fazla 5)</span>
+          <span className="block text-label text-muted-foreground">Hizmetler (virgülle, en fazla 5)</span>
           <Input value={hizmet} onChange={(e) => setHizmet(e.target.value)} placeholder="Örn: kafe, kahvaltı" />
         </label>
       </div>
-      <Button size="sm" onClick={olustur} disabled={onizleniyor || !il.trim() || !hizmet.trim()}>
+      <Button size="sm" variant={taslaklar ? 'outline' : 'default'} onClick={olustur} disabled={onizleniyor || !il.trim() || !hizmet.trim()}>
         {onizleniyor ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
         Yerel AI soruları oluştur
       </Button>
 
       {taslaklar && (
-        <div className="rounded-lg border">
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/50 px-3 py-2">
+        <div className="rounded-md border">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
             <span className="text-label font-medium">{taslaklar.length} soru — takibe alınacakları seçin</span>
             <Button size="sm" onClick={kaydet} disabled={kaydediliyor || secili.size === 0}>
               {kaydediliyor ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
@@ -106,7 +106,7 @@ export function YerelSorular({ siteId, oneri }: { siteId: string; oneri: GbpYere
               <label key={d.text} className={`flex items-center gap-2 px-3 py-2 text-sm ${d.exists ? 'opacity-60' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
-                  className="h-3.5 w-3.5 accent-brand-500"
+                  className="h-3.5 w-3.5 accent-foreground"
                   checked={!d.exists && secili.has(d.text)}
                   disabled={d.exists}
                   onChange={() => degistir(d.text)}

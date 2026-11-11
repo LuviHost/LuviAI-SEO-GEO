@@ -85,14 +85,14 @@ export function PipelineProgress({
 
   return (
     <div
-      className={`rounded-2xl border bg-gradient-to-br from-violet-50/40 via-white to-fuchsia-50/30 dark:from-violet-950/20 dark:via-card dark:to-fuchsia-950/10 p-5 ${className ?? ''}`}
+      className={`rounded-lg border bg-card p-5 ${className ?? ''}`}
     >
       <div className="flex items-center justify-between gap-3 mb-2">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-brand animate-pulse" />
-          <p className="text-sm font-semibold">{title ?? 'Pipeline çalışıyor'}</p>
+          <Sparkles className="h-4 w-4 text-muted-foreground animate-pulse" />
+          <p className="text-panel-3">{title ?? 'Pipeline çalışıyor'}</p>
         </div>
-        <span className="text-label text-muted-foreground">
+        <span className="v-rail">
           ~{totalSec}sn
         </span>
       </div>
@@ -106,10 +106,10 @@ export function PipelineProgress({
 
         <div className="space-y-2">
           <div>
-            <p className="text-label tracking-[0.2em] text-brand/70 mb-1">
+            <p className="v-rail mb-1">
               Adım {Math.min(currentIdx + 1, steps.length)} / {steps.length}
             </p>
-            <p className="text-base sm:text-lg font-semibold leading-snug">
+            <p className="text-panel-2">
               {steps[safeIdx]?.label}
             </p>
             {steps[safeIdx]?.sublabel && (
@@ -127,11 +127,11 @@ export function PipelineProgress({
                 <li
                   key={s.label}
                   className={`flex items-center gap-2 text-xs ${
-                    done ? 'text-emerald-600 dark:text-emerald-400' : active ? 'text-foreground' : 'text-muted-foreground/60'
+                    done ? 'text-muted-foreground' : active ? 'text-foreground' : 'text-muted-foreground/60'
                   }`}
                 >
                   {done ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
                   ) : active ? (
                     <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse shrink-0 ml-1" />
                   ) : (

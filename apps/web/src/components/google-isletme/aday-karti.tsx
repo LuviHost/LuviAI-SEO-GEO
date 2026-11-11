@@ -33,10 +33,10 @@ export function AdayKarti({ aday: a, aksiyon }: { aday: GbpAday; aksiyon: React.
             alt=""
             loading="lazy"
             referrerPolicy="no-referrer"
-            className="h-20 w-20 rounded-lg border object-cover"
+            className="h-20 w-20 rounded-md border object-cover"
           />
         ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-lg border bg-muted/40">
+          <div className="flex h-20 w-20 items-center justify-center rounded-md border bg-muted/40">
             <MapPin className="h-6 w-6 text-muted-foreground" aria-hidden />
           </div>
         )}
