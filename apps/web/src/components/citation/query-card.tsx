@@ -48,7 +48,8 @@ const PROVIDER_LOGOS: Record<string, VendorName> = {
   perplexity: 'perplexity',
   xai: 'grok',
   deepseek: 'deepseek',
-  meta: 'meta-ai',
+  // `meta` = Muse (PR #69): engine-logo.tsx ile ayni logo
+  meta: 'muse',
 };
 
 const PROVIDER_SHORT: Record<string, string> = {

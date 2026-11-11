@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { ChevronDown } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import { PageUpdatedLine } from '@/components/page-updated-line';
 import { pageUpdated } from '@/lib/page-updated';
+import { VITRIN_WRAP } from '@/lib/vitrin';
 
 /*
  * Cevaplar kodla dogrulandi (18.10.2026). Kaynaklar:
@@ -274,32 +274,46 @@ const FAQS_EN = [
 
 const COPY = {
   tr: {
-    eyebrow: '❓ SSS',
-    titleA: 'Sıkça',
-    titleB: 'sorulan',
-    titleC: 'sorular',
+    rail: 'Sık sorulan sorular',
+    titleA: 'Sıkça sorulan',
+    titleB: 'sorular.',
+    lead: 'Nasıl çalıştığı, fiyat ve deneme, AI görünürlüğü, içerik üretimi ve güvenlik. Karar vermeden önce sorulanların cevabı tek sayfada.',
     helpA: 'Cevabını bulamadığın bir soru varsa ',
     helpEmail: 'destek@luvihost.com',
-    ctaTitle: 'Sorunu çözemedik mi?',
-    ctaSub: 'Hemen dene, sonra karar ver. 14 gün ücretsiz deneme, 2 makale.',
-    ctaBtn: '2 Makale Ücretsiz Dene →',
+    count: 'soru',
     breadcrumbHome: 'Ana Sayfa',
     breadcrumbFaq: 'Sıkça Sorulan Sorular',
   },
   en: {
-    eyebrow: '❓ FAQ',
-    titleA: 'Frequently',
-    titleB: 'asked',
-    titleC: 'questions',
+    rail: 'Frequently asked questions',
+    titleA: 'Frequently asked',
+    titleB: 'questions.',
+    lead: 'How it works, pricing and the trial, AI visibility, content generation and security. The answers people ask for before deciding, on one page.',
     helpA: 'Can\'t find your answer? ',
     helpEmail: 'destek@luvihost.com',
-    ctaTitle: 'Still have questions?',
-    ctaSub: 'Try it now, decide later. 14-day free trial with 2 articles.',
-    ctaBtn: 'Try 2 Articles Free →',
+    count: 'questions',
     breadcrumbHome: 'Home',
     breadcrumbFaq: 'Frequently Asked Questions',
   },
 } as const;
+
+/**
+ * Konu gruplari. `items`, FAQS_TR / FAQS_EN dizilerindeki SIRA NUMARALARIDIR (iki
+ * dizi ayni sirada). Sorularin kendisi ve dizideki sirasi DEGISMEDI — testler
+ * (article-claims.spec, public-docs.spec) satirlari yerinde ariyor; gruplama
+ * yalniz gorunumdur. Yeni soru eklenince numarasi bir gruba yazilmali: hicbir
+ * grupta olmayan soru sayfada gorunmez (asagidaki GRUPSUZ uyarisi bunu yakalar).
+ */
+const GROUPS: Array<{ id: string; tr: string; en: string; items: number[] }> = [
+  { id: 'baslarken', tr: 'Başlarken', en: 'Getting started', items: [0, 1, 21, 5] },
+  { id: 'fiyat', tr: 'Fiyat ve deneme', en: 'Pricing and trial', items: [2, 6, 11, 12, 13, 19] },
+  { id: 'gorunurluk', tr: 'AI görünürlüğü ve GEO', en: 'AI visibility and GEO', items: [4, 16, 17, 20] },
+  { id: 'icerik', tr: 'İçerik ve otomasyon', en: 'Content and automation', items: [3, 9, 18, 10, 15, 14] },
+  { id: 'guvenlik', tr: 'Güvenlik ve uyum', en: 'Security and compliance', items: [7, 8] },
+];
+
+/** Hicbir gruba yazilmamis sorular sayfanin sonunda "Diger" basligiyla yine gorunur */
+const GRUPSUZ = FAQS_TR.map((_, i) => i).filter((i) => !GROUPS.some((g) => g.items.includes(i)));
 
 function buildJsonLd(items: { q: string; a: string }[], breadcrumbHome: string, breadcrumbFaq: string) {
   return {
@@ -332,82 +346,108 @@ function buildJsonLd(items: { q: string; a: string }[], breadcrumbHome: string, 
   };
 }
 
+/**
+ * Koyu vitrin (Kasim 2026): ustte iki tonlu baslik, altinda konu gruplari.
+ * Her grup solda yapiskan baslik, sagda ince cizgiyle ayrilan sorular. Sayfa
+ * alti cagri kutusu kaldirildi; kapanisi ortak VitrinCta yapar (marketing-shell).
+ */
 export default function FaqPage() {
   const { locale } = useT();
   const [open, setOpen] = useState<number | null>(0);
   const FAQS = locale === 'en' ? FAQS_EN : FAQS_TR;
   const c = COPY[locale];
   const faqJsonLd = buildJsonLd(FAQS, c.breadcrumbHome, c.breadcrumbFaq);
+  const groups = [
+    ...GROUPS.map((g) => ({ id: g.id, name: locale === 'en' ? g.en : g.tr, items: g.items })),
+    ...(GRUPSUZ.length ? [{ id: 'diger', name: locale === 'en' ? 'Other' : 'Diğer', items: GRUPSUZ }] : []),
+  ];
 
   return (
-    <div className="relative">
+    <div>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      {/* gradient blob */}
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-      </div>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
-            {c.eyebrow}
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
-            {c.titleA}{' '}
-            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
-              {c.titleB}
-            </span>{' '}
-            {c.titleC}
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            {c.helpA}
-            <a href={`mailto:${c.helpEmail}`} className="text-brand-600 hover:underline">
-              {c.helpEmail}
-            </a>
+      <section>
+        <div className={`${VITRIN_WRAP} pb-16 pt-14 lg:pb-20 lg:pt-24`}>
+          <p className="v-rail mb-10 flex items-center gap-2.5 sm:mb-14">
+            <span className="h-1.5 w-1.5 shrink-0 bg-brand-vivid" aria-hidden />
+            {c.rail}
           </p>
-          <PageUpdatedLine path="/faq" className="mt-4" />
-        </div>
-
-        <div className="space-y-3">
-          {FAQS.map((item, i) => (
-            <div
-              key={i}
-              className={`rounded-2xl border bg-background transition-all ${
-                open === i ? 'border-brand-500/30 shadow-md' : 'hover:border-brand-500/20'
-              }`}
-            >
-              <button
-                onClick={() => setOpen(open === i ? null : i)}
-                className="w-full text-left p-5 flex items-center justify-between gap-4"
-              >
-                <span className="font-semibold faq-question">{item.q}</span>
-                <ChevronDown className={cn('h-5 w-5 transition-transform shrink-0 text-muted-foreground', open === i && 'rotate-180 text-brand-600')} />
-              </button>
-              {open === i && (
-                <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed faq-answer">
-                  {item.a}
-                </div>
-              )}
+          <h1 className="text-vitrin-1">
+            <span className="block">{c.titleA}</span>{' '}
+            <span className="block text-dim">{c.titleB}</span>
+          </h1>
+          <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:gap-10">
+            <p className="max-w-xl text-base leading-[1.75] text-muted-foreground lg:col-span-7">{c.lead}</p>
+            <div className="lg:col-span-5 lg:text-right">
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {c.helpA}
+                <a
+                  href={`mailto:${c.helpEmail}`}
+                  className="border-b border-white/30 pb-0.5 text-foreground transition-colors duration-200 hover:border-brand-vivid hover:text-brand-vivid"
+                >
+                  {c.helpEmail}
+                </a>
+              </p>
+              <PageUpdatedLine path="/faq" className="mt-3 font-mono" />
             </div>
-          ))}
-        </div>
+          </div>
 
-        {/* CTA */}
-        <div className="rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-red-600 text-white p-10 text-center mt-12">
-          <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">{c.ctaTitle}</h2>
-          <p className="text-white/90 mb-6">{c.ctaSub}</p>
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center gap-2 bg-white text-brand-600 hover:bg-white/90 px-8 py-3 rounded-lg font-bold shadow-xl"
-          >
-            {c.ctaBtn}
-          </Link>
+          {/* Konu gruplarina atlama */}
+          <ul className="mt-12 flex flex-wrap gap-x-7 gap-y-3 border-t border-border pt-5">
+            {groups.map((g) => (
+              <li key={g.id}>
+                <a href={`#${g.id}`} className="v-rail inline-flex items-baseline gap-2 transition-colors duration-200 hover:text-foreground">
+                  {g.name}
+                  <span className="text-dim tabular-nums">{g.items.length}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
-      </main>
+      </section>
+
+      {groups.map((g) => (
+        <section key={g.id} id={g.id} className="scroll-mt-16 border-t border-border">
+          <div className={`${VITRIN_WRAP} grid gap-8 py-14 lg:grid-cols-12 lg:gap-10 lg:py-20`}>
+            {/* pt-4: baslik, sagdaki ilk sorunun metniyle ayni hizada baslar */}
+            <div className="lg:col-span-4 lg:pt-4">
+              <div className="lg:sticky lg:top-24">
+                <h2 className="text-vitrin-3">{g.name}</h2>
+                <p className="v-rail mt-2">{g.items.length} {c.count}</p>
+              </div>
+            </div>
+            <div className="border-t border-border lg:col-span-8">
+              {g.items.map((i) => {
+                const item = FAQS[i];
+                const isOpen = open === i;
+                return (
+                  <div key={i} className="border-b border-border">
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      aria-controls={`faq-${i}`}
+                      onClick={() => setOpen(isOpen ? null : i)}
+                      className="flex w-full items-center justify-between gap-6 py-5 text-left transition-colors duration-200 hover:text-brand-vivid"
+                    >
+                      <span className="faq-question text-base font-medium">{item.q}</span>
+                      {/* Arti, acikken 45 derece donup carpi olur */}
+                      <Plus className={cn('h-4 w-4 shrink-0 transition-transform duration-200', isOpen && 'rotate-45')} aria-hidden />
+                    </button>
+                    {isOpen && (
+                      <div id={`faq-${i}`} className="faq-answer max-w-3xl pb-6 text-sm leading-[1.8] text-muted-foreground">
+                        {item.a}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

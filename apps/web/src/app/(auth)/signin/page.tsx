@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth, signIn, ACCOUNT_DELETED_SIGNIN_ERROR } from '@/auth';
-import { Button } from '@/components/ui/button';
 import { BrandWordmark } from '@/components/brand-logo';
 
 /** Ayni parametre URL'de iki kez gelirse Next.js dizi verir */
@@ -68,74 +67,91 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
   if (session?.user) redirect(callbackUrl);
 
+  // Koyu vitrin (Kasim 2026): genis ekranda iki sutun — solda marka yuzu, sagda form.
+  // data-vitrin: globals.css bu isareti gorunce token'lari belge duzeyinde koyu sahneye ceker
+  // (bu sayfa (marketing) duzeninin disinda; koyu tema lib/vitrin.ts yol listesiyle zorlanir).
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
-      {/* gradient blobs */}
-      <div className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 -right-20 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
+    <div data-vitrin className="dark vitrin grid min-h-screen bg-background text-foreground antialiased lg:grid-cols-2">
+      {/* Sol: marka yuzu — yalniz genis ekran */}
+      <div className="relative hidden overflow-hidden border-r border-border lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16">
+        <div
+          className="v-dots pointer-events-none absolute inset-0 [mask-image:linear-gradient(to_top_right,black,transparent_70%)]"
+          aria-hidden
+        />
+        <Link href="/" className="relative inline-flex items-center self-start" aria-label="RanksUp">
+          <BrandWordmark size={22} reversed accent="hsl(var(--brand-vivid))" />
+        </Link>
+        <p className="relative max-w-xl text-vitrin-2">
+          <span className="block">Türkiye&apos;nin AI destekli</span>{' '}
+          <span className="block text-dim">SEO/GEO içerik platformu</span>
+        </p>
       </div>
 
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <Link href="/" className="inline-flex items-center">
-            <BrandWordmark size={32} />
-          </Link>
-          <p className="text-muted-foreground mt-3 text-sm">
-            Türkiye&apos;nin AI destekli SEO/GEO içerik platformu
-          </p>
-        </div>
-
-        <div className="rounded-2xl border bg-background/80 backdrop-blur-xl shadow-xl p-8 space-y-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold">Giriş yap veya kayıt ol</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              14 gün ücretsiz deneme · 2 makale — kart bilgisi gerekmez
+      {/* Sag: form */}
+      <div className="flex flex-col justify-center px-4 py-12 sm:px-10 lg:px-16">
+        <div className="mx-auto w-full max-w-sm">
+          {/* Dar ekranda marka yuzu gorunmez; wordmark ve tanim burada */}
+          <div className="mb-12 lg:hidden">
+            <Link href="/" className="inline-flex items-center" aria-label="RanksUp">
+              <BrandWordmark size={24} reversed accent="hsl(var(--brand-vivid))" />
+            </Link>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Türkiye&apos;nin AI destekli SEO/GEO içerik platformu
             </p>
           </div>
 
+          <h1 className="text-vitrin-3">Giriş yap veya kayıt ol</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            14 gün ücretsiz deneme · 2 makale — kart bilgisi gerekmez
+          </p>
+
           {errorText && (
-            <div role="alert" className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm p-3 rounded-lg">
+            <div role="alert" className="mt-6 rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm leading-relaxed text-danger">
               {errorText}
             </div>
           )}
 
           <form
+            className="mt-8"
             action={async () => {
               'use server';
               await signIn('google', { redirectTo: callbackUrl });
             }}
           >
-            <Button type="submit" variant="outline" className="w-full h-12 text-base hover:border-brand-500/30 transition-colors" size="lg">
-              <GoogleIcon className="h-5 w-5 mr-3" />
+            {/* Google dugmesi beyaz: Google'in kendi dugme diline uygun, koyu sahnede de sayfanin tek belirgin eylemi */}
+            <button
+              type="submit"
+              className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-md bg-white text-base font-medium text-black transition-colors duration-200 hover:bg-white/85"
+            >
+              <GoogleIcon className="h-5 w-5" />
               Google ile devam et
-            </Button>
+            </button>
           </form>
 
-          <div className="relative flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex-1 h-px bg-border" />
+          <div className="v-rail mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
             <span>güvenli OAuth 2.0 ile</span>
-            <div className="flex-1 h-px bg-border" />
+            <div className="h-px flex-1 bg-border" />
           </div>
 
-          <p className="text-xs text-center text-muted-foreground leading-relaxed">
+          <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
             Devam ederek{' '}
-            <Link href="/terms" className="underline hover:text-brand-600 transition-colors">
+            <Link href="/terms" className="underline underline-offset-2 transition-colors duration-200 hover:text-foreground">
               Kullanım Koşulları
             </Link>{' '}
             ve{' '}
-            <Link href="/privacy" className="underline hover:text-brand-600 transition-colors">
+            <Link href="/privacy" className="underline underline-offset-2 transition-colors duration-200 hover:text-foreground">
               Gizlilik Politikası
             </Link>
             &apos;nı kabul etmiş olursun.
           </p>
-        </div>
 
-        <p className="text-center text-sm">
-          <Link href="/" className="text-muted-foreground hover:text-brand-600 transition-colors">
-            ← Ana sayfaya dön
-          </Link>
-        </p>
+          <p className="mt-10 border-t border-border pt-6 text-sm">
+            <Link href="/" className="text-muted-foreground transition-colors duration-200 hover:text-foreground">
+              ← Ana sayfaya dön
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

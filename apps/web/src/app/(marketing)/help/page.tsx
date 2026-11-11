@@ -3,23 +3,24 @@
 import Link from 'next/link';
 import {
   Rocket, Search, Smartphone, Bot, Sparkles,
-  CreditCard, Plug, BarChart3, BookOpen, Clapperboard,
+  CreditCard, Plug, BookOpen, Clapperboard, Mail,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import { PageUpdatedLine } from '@/components/page-updated-line';
-
-type Color = 'orange' | 'purple' | 'blue' | 'amber' | 'rose' | 'emerald' | 'cyan' | 'pink' | 'slate';
+import {
+  VITRIN_CELL, VITRIN_GRID, VITRIN_LINK, VitrinBand, VitrinHero, VitrinSection,
+} from '@/components/vitrin/vitrin-page';
 
 const TOPICS_BASE = [
-  { id: 'getting-started', icon: Rocket, color: 'orange' as Color, href: '/help/getting-started' },
-  { id: 'ai-visibility', icon: Sparkles, color: 'purple' as Color, href: '/help/ai-visibility' },
-  { id: 'aso', icon: Search, color: 'blue' as Color, href: '/help/aso' },
-  { id: 'asa-asc', icon: Smartphone, color: 'amber' as Color, href: '/help/asa-asc' },
-  { id: 'auto-pilot', icon: Bot, color: 'emerald' as Color, href: '/help/auto-pilot' },
-  { id: 'video', icon: Clapperboard, color: 'rose' as Color, href: '/help/video' },
-  { id: 'api-keys', icon: Plug, color: 'cyan' as Color, href: '/help/api-keys' },
-  { id: 'billing', icon: CreditCard, color: 'slate' as Color, href: '/help/billing' },
-  { id: 'glossary', icon: BookOpen, color: 'purple' as Color, href: '/help/glossary' },
+  { id: 'getting-started', icon: Rocket, href: '/help/getting-started' },
+  { id: 'ai-visibility', icon: Sparkles, href: '/help/ai-visibility' },
+  { id: 'aso', icon: Search, href: '/help/aso' },
+  { id: 'asa-asc', icon: Smartphone, href: '/help/asa-asc' },
+  { id: 'auto-pilot', icon: Bot, href: '/help/auto-pilot' },
+  { id: 'video', icon: Clapperboard, href: '/help/video' },
+  { id: 'api-keys', icon: Plug, href: '/help/api-keys' },
+  { id: 'billing', icon: CreditCard, href: '/help/billing' },
+  { id: 'glossary', icon: BookOpen, href: '/help/glossary' },
 ];
 
 // Destek metni plans.ts support_tr ile ayni: her planda e-posta. Yanit suresi
@@ -29,7 +30,7 @@ const TOPICS_BASE = [
 // plana dayanmiyordu. BYOK yalniz Kurumsal.
 const COPY = {
   tr: {
-    eyebrow: '📚 Yardım Merkezi',
+    eyebrow: 'Yardım Merkezi',
     titleA: 'RanksUp nasıl',
     titleB: 'kullanılır?',
     lead1: 'Adım adım rehberler; ilk siteni birkaç dakikada ekle.',
@@ -37,7 +38,7 @@ const COPY = {
     readGuide: 'Rehberi oku →',
     stuckTitle: 'Hâlâ takılı kaldın mı?',
     stuckBody: 'Destek ekibine e-postayla ulaş; sorunu ve site adresini yazman işimizi kolaylaştırır.',
-    mailBtn: '📧 Mail destek',
+    mailBtn: 'Mail destek',
     signinBtn: 'Hesabıma giriş',
     topics: {
       'getting-started': { title: 'Hızlı Başlangıç', desc: 'Hesabını aç, siteni ekle, ilk AI bulgularını gör.' },
@@ -52,7 +53,7 @@ const COPY = {
     },
   },
   en: {
-    eyebrow: '📚 Help Center',
+    eyebrow: 'Help Center',
     titleA: 'How do I use',
     titleB: 'RanksUp?',
     lead1: 'Step-by-step guides; add your first site in a few minutes.',
@@ -60,7 +61,7 @@ const COPY = {
     readGuide: 'Read guide →',
     stuckTitle: 'Still stuck?',
     stuckBody: 'Email our support team; including the problem and your site address helps us look into it.',
-    mailBtn: '📧 Email support',
+    mailBtn: 'Email support',
     signinBtn: 'Sign in to my account',
     topics: {
       'getting-started': { title: 'Quick Start', desc: 'Open your account, add your site, see your first AI findings.' },
@@ -76,92 +77,69 @@ const COPY = {
   },
 } as const;
 
-const COLORS: Record<string, string> = {
-  orange: 'from-brand-500/15 to-brand-600/10 text-brand-600',
-  purple: 'from-purple-500/15 to-purple-600/10 text-purple-600',
-  blue: 'from-blue-500/15 to-blue-600/10 text-blue-600',
-  amber: 'from-amber-500/15 to-amber-600/10 text-amber-600',
-  rose: 'from-rose-500/15 to-rose-600/10 text-rose-600',
-  emerald: 'from-emerald-500/15 to-emerald-600/10 text-emerald-600',
-  cyan: 'from-cyan-500/15 to-cyan-600/10 text-cyan-600',
-  pink: 'from-pink-500/15 to-pink-600/10 text-pink-600',
-  slate: 'from-slate-500/15 to-slate-600/10 text-slate-600',
-};
-
+/**
+ * Koyu vitrin (Kasim 2026): iki tonlu baslik, altinda konular bitisik hucreli izgarada
+ * (kartlar arasi bosluk yerine tek ince cizgi; ikon duz, renkli karo yok). Sayfa alti
+ * destek bolumu Hakkimizda'daki bolumlerle ayni duzende; kapanisi ortak VitrinCta yapar
+ * (marketing-shell).
+ */
 export default function HelpPage() {
   const { locale } = useT();
   const c = COPY[locale];
 
   return (
-    <main className="relative min-h-screen">
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-60 -right-20 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl" />
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-14 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
-            {c.eyebrow}
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
-            {c.titleA}{' '}
-            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
-              {c.titleB}
-            </span>
-          </h1>
-          <p className="text-lg text-muted-foreground">
+    <>
+      <VitrinHero
+        rail={c.eyebrow}
+        a={c.titleA}
+        b={c.titleB}
+        lead={(
+          <p>
             {c.lead1}{' '}
             <br />
             {c.lead2}
-            <a href="mailto:destek@luvihost.com" className="text-brand-600 hover:underline font-semibold">destek@luvihost.com</a>
+            <a href="mailto:destek@luvihost.com" className={VITRIN_LINK}>destek@luvihost.com</a>
           </p>
-          <PageUpdatedLine path="/help" className="mt-4" />
-        </div>
+        )}
+      >
+        <PageUpdatedLine path="/help" className="mt-6 font-mono" />
+      </VitrinHero>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <VitrinBand>
+        {/* Dokuz konu genis ekranda 3x3; iki sutunda son hucre satiri doldurur */}
+        <div className={`${VITRIN_GRID} sm:grid-cols-2 lg:grid-cols-3`}>
           {TOPICS_BASE.map((t) => {
             const topic = c.topics[t.id as keyof typeof c.topics];
             return (
               <Link
                 key={t.href}
                 href={t.href as any}
-                className="p-6 rounded-2xl border bg-background hover:border-brand-500/40 hover:shadow-xl hover:shadow-brand-500/5 transition-all group"
+                className={`${VITRIN_CELL} group flex flex-col transition-colors duration-200 hover:bg-card sm:max-lg:last:col-span-2`}
               >
-                <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${COLORS[t.color]} grid place-items-center mb-3 group-hover:scale-110 transition-transform`}>
-                  <t.icon className="h-5 w-5" />
-                </div>
-                <h2 className="font-bold text-lg mb-1.5">{topic.title}</h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">{topic.desc}</p>
-                <div className="mt-4 text-xs font-bold text-brand-600 group-hover:translate-x-0.5 transition-transform">
+                <t.icon className="h-5 w-5 text-muted-foreground" aria-hidden />
+                <h2 className="mt-6 text-vitrin-3 sm:mt-8">{topic.title}</h2>
+                <p className="mt-3 text-sm leading-[1.8] text-muted-foreground">{topic.desc}</p>
+                <span className="v-rail mt-auto pt-6 transition-colors duration-200 group-hover:text-brand-vivid sm:pt-8">
                   {c.readGuide}
-                </div>
+                </span>
               </Link>
             );
           })}
         </div>
+      </VitrinBand>
 
-        {/* Quick links */}
-        <div className="mt-16 rounded-2xl border-2 border-brand-500/30 bg-gradient-to-br from-brand-500/5 to-amber-400/5 p-8 text-center">
-          <BarChart3 className="h-10 w-10 text-brand-600 mx-auto mb-3" />
-          <h3 className="text-2xl font-bold mb-2">{c.stuckTitle}</h3>
-          <p className="text-muted-foreground mb-5 max-w-xl mx-auto">{c.stuckBody}</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href="mailto:destek@luvihost.com"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-semibold shadow-lg shadow-brand-500/20"
-            >
-              {c.mailBtn}
-            </a>
-            <Link
-              href={'/signin' as any}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border text-sm font-semibold hover:bg-muted/50"
-            >
-              {c.signinBtn}
-            </Link>
-          </div>
+      <VitrinSection title={c.stuckTitle}>
+        <p className="max-w-2xl text-base leading-[1.75] text-muted-foreground">{c.stuckBody}</p>
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <a href="mailto:destek@luvihost.com" className="v-btn">
+            <Mail className="h-4 w-4" aria-hidden />
+            {c.mailBtn}
+          </a>
+          <Link href={'/signin' as any} className="v-btn-line">
+            {c.signinBtn}
+          </Link>
         </div>
-      </div>
-    </main>
+      </VitrinSection>
+    </>
   );
 }

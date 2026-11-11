@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { PageUpdatedLine } from '@/components/page-updated-line';
 import { GbpKarne } from '@/components/landing/gbp-karne';
+import { VitrinHero, VitrinSection } from '@/components/vitrin/vitrin-page';
 import { SITE_URL } from '@/lib/page-updated';
 
 /**
@@ -38,45 +39,48 @@ const KONTROLLER = [
   ['İşletme adı kuralı', 'Ada eklenmiş şehir, slogan ya da iletişim bilgisi (askıya alma riski).'],
 ] as const;
 
+/**
+ * Koyu vitrin (Kasim 2026): iki tonlu baslik, hemen altinda arac (ana sayfadaki alan adi
+ * testi gibi sayfanin birincil eylemi), sonra solda yapiskan baslikli kontrol listesi.
+ */
 export default function GoogleIsletmeKarnesiPage() {
   return (
-    <div className="relative">
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -left-20 top-0 h-96 w-96 rounded-full bg-brand-500/8 blur-3xl" />
-      </div>
-
-      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-        <header className="mb-8">
-          <p className="mb-2 text-xs font-medium text-brand-600">Ücretsiz araç</p>
-          <h1 className="mb-3 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">Google İşletme Karnesi</h1>
-          <p className="leading-relaxed text-muted-foreground">
+    <>
+      <VitrinHero
+        rail="Ücretsiz araç"
+        a="Google İşletme"
+        b="Karnesi"
+        lead={
+          <p>
             Google Haritalar’daki işletme profilinizi saniyeler içinde denetleyin. Eksik bilgileri, yorum ve puan durumunu
             ve Google kurallarına aykırı olabilecek noktaları 100 üzerinden puanla, ne yapmanız gerektiğiyle birlikte görün.
           </p>
-          <PageUpdatedLine path="/google-isletme-karnesi" className="mt-3" fixedLocale="tr" />
-        </header>
+        }
+      >
+        <PageUpdatedLine path="/google-isletme-karnesi" className="mt-4 font-mono" fixedLocale="tr" />
 
-        <GbpKarne />
+        <div className="mt-10 max-w-3xl">
+          <GbpKarne />
+        </div>
+      </VitrinHero>
 
-        <section className="mt-12 space-y-4">
-          <h2 className="text-xl font-bold">Karnede neler kontrol ediliyor?</h2>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {KONTROLLER.map(([baslik, aciklama]) => (
-              <li key={baslik} className="rounded-xl border bg-card p-4">
-                <p className="font-semibold">{baslik}</p>
-                <p className="text-sm text-muted-foreground">{aciklama}</p>
-              </li>
-            ))}
-          </ul>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Profil bilgisinin eksiksiz ve doğru olması, yorumlar ve tutarlı iletişim bilgisi Google’ın yerel sonuçlarda
-            belirttiği ilgililik ve öne çıkma etkenlerine doğrudan girer; yapay zekâ asistanları da yerel öneri yaparken
-            bu bilgileri kullanır. Karne Google Haritalar’daki herkese açık bilgilerden anlık hesaplanır, kaydedilmez.
-            Günde birkaç ücretsiz karne alabilirsiniz.
-          </p>
-          <p className="text-label text-muted-foreground">Veriler: Google Haritalar</p>
-        </section>
-      </div>
-    </div>
+      <VitrinSection title="Karnede neler kontrol ediliyor?">
+        <ul className="border-t border-border">
+          {KONTROLLER.map(([baslik, aciklama]) => (
+            <li key={baslik} className="grid gap-1.5 border-b border-border py-5 sm:grid-cols-[14rem_minmax(0,1fr)] sm:gap-6">
+              <p className="text-base font-medium">{baslik}</p>
+              <p className="text-sm leading-[1.8] text-muted-foreground">{aciklama}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-8 max-w-2xl text-sm leading-[1.8] text-muted-foreground">
+          Profil bilgisinin eksiksiz ve doğru olması, yorumlar ve tutarlı iletişim bilgisi Google’ın yerel sonuçlarda
+          belirttiği ilgililik ve öne çıkma etkenlerine doğrudan girer; yapay zekâ asistanları da yerel öneri yaparken
+          bu bilgileri kullanır. Karne Google Haritalar’daki herkese açık bilgilerden anlık hesaplanır, kaydedilmez.
+          Günde birkaç ücretsiz karne alabilirsiniz.
+        </p>
+        <p className="v-rail mt-4">Veriler: Google Haritalar</p>
+      </VitrinSection>
+    </>
   );
 }

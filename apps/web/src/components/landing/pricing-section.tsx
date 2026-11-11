@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useT, type Locale } from '@/lib/i18n';
 import { trackCta } from '@/lib/landing-track';
 import { cn } from '@/lib/utils';
@@ -32,7 +31,7 @@ export function PricingSection({ initialPlans }: { initialPlans: Record<Locale, 
 
   return (
     <>
-      <div className="flex items-center justify-center gap-3 mb-12" role="group" aria-label={t('land.pricing.title')}>
+      <div className="mb-10 inline-flex rounded-md border border-border p-1" role="group" aria-label={t('land.pricing.title')}>
         {(['monthly', 'annual'] as const).map((b) => (
           <button
             key={b}
@@ -40,13 +39,13 @@ export function PricingSection({ initialPlans }: { initialPlans: Record<Locale, 
             aria-pressed={billing === b}
             onClick={() => setBilling(b)}
             className={cn(
-              'relative px-4 py-2 rounded-lg text-sm font-semibold transition',
+              'inline-flex h-9 items-center gap-2 rounded px-4 text-sm font-medium transition-colors duration-200',
               billing === b ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {t(b === 'monthly' ? 'land.pric.monthly' : 'land.pric.annual')}
             {b === 'annual' && (
-              <span className="absolute -top-3 -right-3 text-label bg-success text-white px-1.5 py-0.5 rounded-full font-bold">
+              <span className={cn('font-mono text-vitrin-rail', billing === b ? 'opacity-70' : 'text-brand-vivid')}>
                 {t('land.pric.discount_badge')}
               </span>
             )}
@@ -54,9 +53,10 @@ export function PricingSection({ initialPlans }: { initialPlans: Record<Locale, 
         ))}
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-7xl mx-auto">
+      {/* Bitisik hucreler: kartlar arasi bosluk yerine tek ince cizgi */}
+      <div className="grid border-l border-t border-border sm:grid-cols-2 lg:grid-cols-4">
         {plans.length === 0
-          ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-96 rounded-2xl border bg-muted/30 animate-pulse" />)
+          ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-96 animate-pulse border-b border-r border-border bg-card" />)
           : plans
               .filter((p) => p.id !== 'trial')
               .map((p) => {
@@ -100,41 +100,30 @@ function PriceCard({
   onCtaClick?: () => void;
 }) {
   return (
-    <div
-      className={cn(
-        'relative flex flex-col rounded-[20px] border bg-card p-7',
-        highlighted ? 'border-brand ring-1 ring-brand' : 'border-border',
-      )}
-    >
-      {highlighted && (
-        <p className="absolute -top-3 left-6 whitespace-nowrap rounded-full bg-brand px-3 py-1 text-label font-semibold text-white">
-          {popularLabel}
-        </p>
-      )}
-      <h3 className="font-brand text-lg font-semibold">{name}</h3>
-      <div className="mt-4 mb-1">
-        <span className="font-brand text-4xl font-semibold tracking-[-0.03em] tabular-nums">{price}</span>
-        <span className="text-muted-foreground text-sm">{period}</span>
+    <div className={cn('relative flex flex-col border-b border-r border-border p-6 sm:p-7', highlighted && 'bg-card')}>
+      {/* Onerilen plan: ustte turuncu cizgi + etiket (cerceve/halka yerine) */}
+      {highlighted && <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-vivid" aria-hidden />}
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-base font-medium">{name}</h3>
+        {highlighted && <p className="font-mono text-vitrin-rail text-brand-vivid">{popularLabel}</p>}
       </div>
-      <p className="text-xs text-muted-foreground min-h-4">{annualNote}</p>
-      {inheritLabel && <p className="mt-5 text-sm font-medium text-muted-foreground">{inheritLabel}</p>}
-      <ul className={cn('space-y-2 text-sm mb-6 flex-1', inheritLabel ? 'mt-3' : 'mt-5')}>
+      <div className="mb-1 mt-6 flex items-baseline gap-1">
+        <span className="text-5xl font-[450] tracking-[-0.05em] tabular-nums">{price}</span>
+        <span className="text-sm text-muted-foreground">{period}</span>
+      </div>
+      <p className="min-h-4 text-xs text-muted-foreground">{annualNote}</p>
+      {inheritLabel && <p className="mt-6 text-sm text-muted-foreground">{inheritLabel}</p>}
+      <ul className={cn('mb-8 flex-1 space-y-2.5 text-sm leading-relaxed', inheritLabel ? 'mt-3' : 'mt-6')}>
         {bullets.map((b, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300" aria-hidden />
+          <li key={i} className="flex items-start gap-2.5">
+            <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-brand-vivid" aria-hidden />
             <span>{b}</span>
           </li>
         ))}
       </ul>
-      <Button
-        asChild
-        className={cn('w-full', highlighted && 'bg-brand text-white hover:bg-brand-600')}
-        variant={highlighted ? 'default' : 'outline'}
-      >
-        <Link href="/pricing" onClick={onCtaClick}>
-          {cta}
-        </Link>
-      </Button>
+      <Link href="/pricing" onClick={onCtaClick} className={cn(highlighted ? 'v-btn' : 'v-btn-line', 'w-full')}>
+        {cta}
+      </Link>
     </div>
   );
 }

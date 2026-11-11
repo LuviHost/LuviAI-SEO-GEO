@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Loader2, AlertCircle, Globe } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowUpRight, Globe } from 'lucide-react';
 import type { api } from '@/lib/api';
 import { trackCta } from '@/lib/landing-track';
 import { useT } from '@/lib/i18n';
@@ -169,9 +169,11 @@ export function AiVisibilityChecker({ mode = 'hero', hintId = 'checker-hint' }: 
       <div className="relative">
         <form
           onSubmit={(e) => { e.preventDefault(); handleStart(); }}
-          className="flex flex-col gap-2 rounded-2xl border border-border bg-background p-1.5 transition-colors focus-within:border-brand sm:flex-row"
+          // Koyu vitrin (ana sayfa ve /rehber — ikisi de ayni sahnede): tek ince cerceve
+          // icinde girdi + bitisik duz turuncu dugme
+          className="flex h-14 items-stretch overflow-hidden rounded-md border border-white/25 bg-card transition-colors duration-200 focus-within:border-brand-vivid"
         >
-          <label className="flex flex-1 items-center gap-3 px-3.5">
+          <label className="flex min-w-0 flex-1 items-center gap-3 px-4">
             <Globe className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
             <span className="sr-only">{c.domainHint}</span>
             <input
@@ -189,15 +191,23 @@ export function AiVisibilityChecker({ mode = 'hero', hintId = 'checker-hint' }: 
               spellCheck={false}
               aria-describedby={hintId}
               disabled={phase === 'loading'}
-              className="min-w-0 flex-1 bg-transparent py-3 text-lg font-medium outline-none placeholder:text-muted-foreground/60"
+              // Odak halkasi formun cercevesinde (focus-within); girdinin kendi halkasi kapali
+              className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground/60 focus-visible:outline-none"
             />
           </label>
           <button
             type="submit"
             disabled={phase === 'loading'}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55"
+            className="v-btn h-auto min-w-[7.5rem] rounded-none px-6 text-base"
           >
-            {phase === 'loading' ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : c.btnStart}
+            {phase === 'loading' ? (
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            ) : (
+              <>
+                {c.btnStart}
+                <ArrowUpRight className="h-4 w-4" aria-hidden />
+              </>
+            )}
           </button>
         </form>
 

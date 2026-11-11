@@ -9,6 +9,7 @@ import { QuotaService } from './quota.service.js';
 import { MeasurementAllowanceService } from './measurement-allowance.service.js';
 import { clientIp } from '../common/client-ip.js';
 import { TrialReadOnlyExempt } from './trial-read-only.decorator.js';
+import { measuredEngines } from './measured-engines.js';
 
 function ensureSelf(req: Request, requestedUserId: string) {
   const user = (req as any).user;
@@ -45,6 +46,9 @@ export class BillingController {
    * `checkout`: satin alma acik mi (PayTR test modunda kapali) — fiyat sayfasi
    * butonlari bununla kilitlenir. Herkese acik uc oturumu tanimaz, bu yuzden
    * anonim ziyaretci karari; hesaba ozel karar (test modunda yonetici acik) /current'ta.
+   * `measuredEngines`: bu kurulumda su an olculen asistanlar (6 sabit + anahtari
+   * tanimliysa Meta/Muse). Ana sayfadaki serit Muse'u yalniz burada varsa gosterir
+   * (measured-engines.ts).
    */
   @Public()
   @Get('plans')
@@ -54,7 +58,7 @@ export class BillingController {
       this.billing.getPlansWithFx(lang),
       this.paytr.checkoutStatus(null, lang),
     ]);
-    return { ...list, checkout };
+    return { ...list, checkout, measuredEngines: measuredEngines() };
   }
 
   @Get('users/:userId/current')

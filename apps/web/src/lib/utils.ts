@@ -18,6 +18,9 @@ const twMerge = extendTailwindMerge({
             'body', 'eyebrow', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
             'display-sm', 'display', 'display-lg', 'display-xl',
             'metric', 'metric-lg', 'label', 'filter',
+            // Koyu vitrin olcegi (tailwind.config fontSize): eksikken
+            // cn('text-vitrin-rail', 'text-brand-vivid') boyutu siliyordu
+            'vitrin-0', 'vitrin-1', 'vitrin-2', 'vitrin-3', 'vitrin-rail',
           ],
         },
       ],

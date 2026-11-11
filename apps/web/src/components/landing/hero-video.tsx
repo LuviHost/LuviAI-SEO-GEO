@@ -23,7 +23,10 @@ const H = 810;
 /** apps/video/scripts/render.mjs posterFrame 520 / 30 fps */
 const POSTER_SECONDS = 520 / 30;
 
-export function HeroVideo() {
+export function HeroVideo({ variant: forced }: {
+  /** Koyu vitrin her zaman koyu render'i ister; verilmezse ziyaretcinin temasi */
+  variant?: 'light' | 'dark';
+} = {}) {
   const { t } = useT();
   const { resolvedTheme } = useTheme();
   const reduced = useReducedMotion();
@@ -34,11 +37,11 @@ export function HeroVideo() {
 
   if (failed) return <ProductPreview />;
 
-  const variant = resolvedTheme === 'dark' ? 'dark' : 'light';
+  const variant = forced ?? (resolvedTheme === 'dark' ? 'dark' : 'light');
   const label = t('land.hero.video_label');
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-2xl">
+    <div className="relative aspect-video w-full overflow-hidden">
       {!mounted || reduced ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}

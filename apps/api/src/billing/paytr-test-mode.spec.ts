@@ -9,6 +9,7 @@ import {
   TEST_PAYMENT_FAILURE_REASON,
 } from './paytr.service.js';
 import { BillingController } from './billing.controller.js';
+import { measuredEngines } from './measured-engines.js';
 
 /**
  * PayTR TEST MODU ucretli plan dagitmamali.
@@ -467,6 +468,8 @@ describe('BillingController — GET alanlari ve odeme ucu gercek servisle', () =
     const { ctrl, billing } = controller(w);
     await expect(ctrl.plans()).resolves.toEqual({
       plans: [{ id: 'pro' }], fx: { rate: 40 }, checkout: { open: false, testMode: true, message: CHECKOUT_TEST_MODE_MESSAGE },
+      // Ana sayfadaki "N asistanda ölçülür" seridinin kaynagi (measured-engines.ts)
+      measuredEngines: measuredEngines(),
     });
     expect((await ctrl.plans('en')).checkout.message).toBe(CHECKOUT_TEST_MODE_MESSAGE_EN);
     expect(billing.getPlansWithFx).toHaveBeenLastCalledWith('en');

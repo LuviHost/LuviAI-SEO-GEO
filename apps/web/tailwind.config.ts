@@ -58,6 +58,15 @@ const config: Config = {
         'metric-lg': ['1.75rem',   { lineHeight: '2rem',   letterSpacing: '-0.02em',  fontWeight: '600' }],
         'label':     ['0.75rem',   { lineHeight: '1rem',   fontWeight: '500' }],
         'filter':    ['0.8125rem', { lineHeight: '1rem',   fontWeight: '500' }],
+        // Vitrin (ana sayfa, 11.11.2026): buyuk, siki aralikli, ince agirlikli Geist.
+        // Boyutlar vw ile olceklenir ki iki satirlik basliklar her genislikte sigsin.
+        // 0 = kanit rakami, 1 = hero / son cagri, 2 = bolum basligi, 3 = satir basligi,
+        // rail = bolum ust seridindeki kucuk mono etiket.
+        'vitrin-0':    ['clamp(4rem, 11vw, 9.5rem)',       { lineHeight: '0.95', letterSpacing: '-0.065em', fontWeight: '450' }],
+        'vitrin-1':    ['clamp(2.75rem, 6.2vw, 5.5rem)',   { lineHeight: '1.04', letterSpacing: '-0.06em',  fontWeight: '450' }],
+        'vitrin-2':    ['clamp(2.125rem, 4.4vw, 4rem)',    { lineHeight: '1.06', letterSpacing: '-0.055em', fontWeight: '450' }],
+        'vitrin-3':    ['clamp(1.25rem, 1.9vw, 1.625rem)', { lineHeight: '1.2',  letterSpacing: '-0.035em', fontWeight: '500' }],
+        'vitrin-rail': ['0.75rem',                         { lineHeight: '1rem', letterSpacing: '0.01em',   fontWeight: '400' }],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -88,6 +97,8 @@ const config: Config = {
         warning: 'hsl(var(--warning) / <alpha-value>)',
         danger: 'hsl(var(--danger) / <alpha-value>)',
         info: 'hsl(var(--info) / <alpha-value>)',
+        // Vitrin: iki tonlu basliklarin sonuk ikinci satiri
+        dim: 'hsl(var(--dim) / <alpha-value>)',
         // Apple-style neutrals — sicak gri tonu
         neutral: {
           50:  '#fafafa',
@@ -104,6 +115,9 @@ const config: Config = {
         },
         brand: {
           DEFAULT: '#f97316',  // orange-500 (mevcut)
+          // Koyu vitrinde kullanilan doygun turuncu (globals.css --brand-vivid);
+          // vitrin disinda DEFAULT ile ayni ton
+          vivid: 'hsl(var(--brand-vivid) / <alpha-value>)',
           50:  '#fff7ed',
           100: '#ffedd5',
           200: '#fed7aa',
