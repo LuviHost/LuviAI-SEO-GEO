@@ -107,6 +107,9 @@ describe('KisiselHazirlikService.firmaHazirla', () => {
     const r = await svc.firmaHazirla({ firma: 'avasya.com.tr', web: 'avasya.com.tr', email: 'bilgi@avasya.com.tr' });
     expect(r.durum).toBe('HAZIR');
     expect(citation.runPublicProbes.mock.calls[0][0]).toMatchObject({ brand: 'Avasya', host: 'avasya.com.tr', queries: [llmCevap.soru], only: ['openai', 'perplexity'] });
+    // Hizli modelle olculur (11.11.2026): kademe verilmezse varsayilan 'premium' = ChatGPT amiral
+    // model, aday basina ~0.15 USD. Soguk e-posta hazirligi ucretsiz testle ayni kademede kalir.
+    expect(citation.runPublicProbes.mock.calls[0][0].tier).toBe('standard');
     const v = (r as { veri: KisiselVeri }).veri;
     expect(v.olcum.gecenler).toEqual(['netas.com.tr', 'ngn.com.tr']);
     expect(kisiselOku(v)).not.toBeNull();

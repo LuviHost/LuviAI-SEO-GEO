@@ -8,7 +8,9 @@ import {
   type BasePlan, type MeasurementEngine,
 } from '../billing/plans.js';
 import { planFeatures } from '../billing/billing.service.js';
+import { FREE_TEST_ENGINES } from '../billing/plan-engines.js';
 import { MEASUREMENT_WINDOW_MS } from '../billing/measurement-allowance.js';
+import { SETUP_MEASUREMENT_WINDOW_DAYS, decideSetupMeasurement, setupMeasurementLimit } from '../audit/setup-measurement-limit.js';
 import { TRIAL_DAYS } from '../billing/trial-policy.js';
 import { RANKSUP_BOT_UA } from '../common/safe-fetch.js';
 import { McpToolsService } from './mcp-tools.service.js';
@@ -16,6 +18,7 @@ import { QuotaService } from '../billing/quota.service.js';
 import { REFERRAL_LABEL_KEEP, REFERRAL_LABEL_MAX, referralLabel } from '../affiliate/referral-label.js';
 import { publishTargetCatalog } from '../publish-targets/publish-target-catalog.js';
 import { EXPORT_TARGET_TYPES } from '../articles/republish-policy.js';
+import { PIVOT_COOLDOWN_DAYS } from '../articles/content-pivot.service.js';
 import {
   AGENT_SETUP_URL,
   DEFAULT_API_ORIGIN,
@@ -172,6 +175,20 @@ describe.each([
     // Deneme: takvimin geri kalani "plan secince" degil, makale uretimi olan planda yazilir
     expect(doc).toContain(`takvimin geri kalanı ${makalePlani.name_tr} planda yazılır`);
     expect(doc).not.toMatch(/plan seçilince yazılır/);
+  });
+
+  // 11.11.2026 (bagimsiz inceleme): "Başlarken" yardim sayfasi panel olcumunu kosulsuz alti
+  // asistanla anlatiyordu; sayfayi okuyan yeni kullanici buyuk olasilikla denemede (dort asistan).
+  it('yardım / başlarken: panel ölçümü plandaki asistanlara sorar (deneme ve Başlangıç dört, üst planlar ayrıca Grok ve DeepSeek)', () => {
+    const gs = stripComments(read(path.join(MARKETING, 'help/getting-started/page.tsx')));
+    const dort = STANDARD_ENGINES.map(asistanAdi);
+    const ek = BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi);
+    const ust = findPlan('pro')!;
+    const kapsam = `planındaki AI asistanlarına (deneme ve ${findPlan('starter')!.name_tr} planında ${dort.slice(0, -1).join(', ')} ve ${dort[dort.length - 1]}; ${ust.name_tr} ve üstünde ayrıca ${ek.join(' ve ')})`;
+    // Iki yerde: HowTo semasi (tek satir) ve sayfa govdesi (satir sonuyla bolunmus olabilir)
+    const duz = gs.replace(/\s+/g, ' ');
+    expect(duz.split(kapsam).length - 1, kapsam).toBe(2);
+    expect(duz).not.toMatch(/ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek(\\'|&apos;)e en fazla 5 soru/);
   });
 
   it('sabit TL fiyati yok — TL her gun TCMB kuruyla hesaplaniyor (FxService)', () => {
@@ -1279,19 +1296,107 @@ describe('Pazarlama sayfaları = ürün', () => {
 describe('Panel metinleri = kod', () => {
   const comp = (rel: string) => stripComments(read(path.join(WEB_SRC, 'components', rel)));
 
-  it('AI bütçe uyarısı yalnız bütçe kapısının durdurduğu işleri sayıyor', () => {
+  // 11.11.2026 (sahip: "zarar etmeyelim"): butce artik AI gorunurluk olcumu disindaki her AI
+  // harcamasini sayar ve dolunca makale uretimini, ceviriyi ve Asistan'i da durdurur. Eskiden
+  // kapi yalniz iki kucuk iste calisiyor, uyari "makale üretimi ve AI ölçümü kendi kotalarıyla
+  // sürer" diyordu. Kapi iki bicimde okunur: enforceAiCostBudget (403) ve aiBudgetBlock (metin
+  // doner; uretim hatti ve ceviri kendi sonuc bicimleriyle durur).
+  it('AI bütçe uyarısı bütçe kapısının durdurduğu işleri sayıyor; ölçüm bütçeye tabi değil', () => {
     const apiSrc = path.resolve(HERE, '..');
     const cagiranlar = walk(apiSrc, /\.ts$/)
       .filter((f) => !f.endsWith('.spec.ts') && path.basename(f) !== 'quota.service.ts')
-      .filter((f) => /\.enforceAiCostBudget\(/.test(read(f)))
+      .filter((f) => /\.(?:enforceAiCostBudget|aiBudgetBlock)\(/.test(stripComments(read(f))))
       .map((f) => path.basename(f))
       .sort();
-    // Yeni bir cagiran eklenirse quota-monitor.tsx uyarisi da guncellenmeli
-    expect(cagiranlar).toEqual(['asc-review-reply.service.ts', 'image-alt-suggest.service.ts']);
+    // Yeni bir cagiran eklenirse quota-monitor.tsx uyarisi ve yardim metinleri de guncellenmeli.
+    // Olcum motoru (audit/ai-citation*, prompt-lab) listede YOK: olcum butceye sayilmaz ve durmaz.
+    // article-scheduler ve content-pivot YENI bir is durdurmaz: uretim hattinin (pipeline.service)
+    // zaten yazmayacagi takvim yazisini / otomatik yeniden yazimi hak dusulmeden ve is acilmadan
+    // ONCE birakir (yoksa yazi her tur sahiplenilir, hak duser, hat reddeder, hak iade edilir).
+    expect(cagiranlar).toEqual([
+      'article-scheduler.service.ts', 'asc-review-reply.service.ts', 'chat.service.ts', 'content-pivot.service.ts',
+      'image-alt-suggest.service.ts', 'pipeline.service.ts', 'translator.service.ts',
+    ]);
+    // Ikisi de butceye HAK DUSULMEDEN once bakar (sonra bakarsa dusulen hak iade beklerdi)
+    const takvim = stripComments(read(path.resolve(HERE, '../articles/article-scheduler.service.ts')));
+    const sahiplen = takvim.slice(takvim.indexOf('async claimForGeneration('), takvim.indexOf('async otoUretimTavaniAcik('));
+    expect(sahiplen.indexOf("if (await this.butceDolu(userId)) return 'budget_exhausted';")).toBeGreaterThan(-1);
+    expect(sahiplen.indexOf("if (await this.butceDolu(userId)) return 'budget_exhausted';")).toBeLessThan(sahiplen.indexOf('await this.chargeArticle(userId)'));
+    const gecikmeli = takvim.slice(takvim.indexOf('async dispatchScheduledArticle('), takvim.indexOf('async claimForGeneration('));
+    expect(gecikmeli.indexOf('if (await this.butceDolu(a.site.userId)) {')).toBeGreaterThan(-1);
+    expect(gecikmeli.indexOf('if (await this.butceDolu(a.site.userId)) {')).toBeLessThan(gecikmeli.indexOf('await this.claimAndQueue(a, a.site.userId)'));
+    const saatlik = takvim.slice(takvim.indexOf('async processDueArticles('), takvim.indexOf('private dueArticlesWhere('));
+    expect(saatlik.indexOf('if (await this.butceDolu(u.id, butceByUser)) {')).toBeGreaterThan(-1);
+    expect(saatlik.indexOf('if (await this.butceDolu(u.id, butceByUser)) {')).toBeLessThan(saatlik.indexOf('await this.scanUserLimit(u.id, limitByUser)'));
+    const pivotTarama = stripComments(read(path.resolve(HERE, '../articles/content-pivot.service.ts')));
+    expect(pivotTarama.indexOf('await this.quota.aiBudgetBlock(site.userId)')).toBeGreaterThan(-1);
+    expect(pivotTarama.indexOf('await this.quota.aiBudgetBlock(site.userId)')).toBeLessThan(pivotTarama.indexOf('await this.chargeRewrite(site.userId, limitByUser, hakkiAyrilmis)'));
+    expect(pivotTarama.indexOf('await this.chargeRewrite(site.userId, limitByUser, hakkiAyrilmis)')).toBeGreaterThan(-1);
+    // Kullanicinin baslattigi makale uretimi kapidan QuotaService icinde gecer:
+    // consumeArticleAllowance (hak dusmeden once) ve assertGenerationSource (hakki onceden dusulmus yazi)
+    const quotaSrc = stripComments(read(path.resolve(HERE, '../billing/quota.service.ts')));
+    expect(quotaSrc.match(/await this\.enforceAiCostBudget\(userId\);/g) ?? []).toHaveLength(2);
     const qm = comp('quota-monitor.tsx');
-    expect(qm).toContain('Görsel alt metni önerisi');
-    expect(qm).toContain('App Store yorum yanıtı taslağı');
+    for (const dolu of [true, false]) {
+      const satir = qm.split('\n').find((l) => l.includes(dolu ? "? 'Makale üretimi" : ": 'Bütçe dolarsa"));
+      expect(satir, dolu ? 'dolu metni' : 'uyari metni').toBeDefined();
+      for (const is of ['akale üretimi', 'makale çevirisi', 'Asistan', 'görsel alt metni önerisi', 'App Store yorum yanıtı taslağı']) {
+        expect(satir!, is).toContain(is);
+      }
+      expect(satir!).toContain('AI görünürlük ölçümü etkilenmez');
+    }
     expect(qm).not.toContain('Yeni AI istekleri durduruldu');
+    expect(qm).not.toMatch(/makale üretimi ve AI ölçümü kendi kotalarıyla sürer/);
+    // Deneme butcesi yenilenmez: "yeni ayda sıfırlanır" yalniz "Ücretli planlarda" diye soylenir
+    expect(qm).toContain('Ücretli planlarda bütçe yeni ayda sıfırlanır');
+    expect(qm.match(/yeni ayda sıfırlanır/g) ?? []).toHaveLength(1);
+    // Yardim sayfalari ayni kurali soyler
+    const bill = stripComments(read(path.join(MARKETING, 'help/billing/page.tsx')));
+    const butce = bill.split('\n').find((l) => l.includes('<strong>AI bütçesi %100</strong>'));
+    expect(butce, 'help/billing AI bütçesi %100 satiri').toBeDefined();
+    for (const is of ['makale üretimi (kendi başlattıkların ve takvimdekiler)', 'makale çevirisi', 'Asistan', 'görsel alt metni önerisi', 'App Store yorum yanıtı taslağı']) {
+      expect(butce!, is).toContain(is);
+    }
+    expect(butce!).toContain('AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz');
+    expect(butce!).toContain('Ücretli planlarda bütçe ay başında sıfırlanır, deneme bütçesi yenilenmez');
+    const oto = stripComments(read(path.join(MARKETING, 'help/auto-pilot/page.tsx')));
+    expect(oto).toContain('makale üretimi (takvimdeki yazılar dahil), makale çevirisi ve Asistan bütçe yenilenene kadar durur');
+    expect(oto).toContain('AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz');
+    for (const sayfa of [bill, oto]) expect(sayfa).not.toMatch(/yorum yanıtı taslağı gibi işlemler durur/);
+  });
+
+  // 11.11.2026: panel sohbetinde (Asistan) hesap basina mesaj siniri. Sayi plans.ts'te
+  // (chatMessagesPerMonth); yardim sayfasi ve panel karti ayni sayiyi soyler. Asistan baska
+  // hicbir musteri metninde anlatilmiyordu; sinir yardim/billing "Aşımda ne olur?" listesinde.
+  it('Asistan mesaj sınırı: yardım metnindeki sayılar plans.ts ile aynı; satıştan kalkan plan anılmıyor', () => {
+    const fmtTr = (n: number) => n.toLocaleString('tr-TR');
+    const bill = stripComments(read(path.join(MARKETING, 'help/billing/page.tsx')));
+    const satir = bill.split('\n').find((l) => l.includes('<strong>Asistan mesajı</strong>'));
+    expect(satir, 'help/billing Asistan mesajı satiri').toBeDefined();
+    const duz = satir!.replace(/&apos;/g, "'");
+    const ucretli = SATISTAKI.filter((p) => p.monthly_usd > 0);
+    expect(ucretli.map((p) => p.id)).toEqual(['starter', 'pro', 'enterprise']);
+    for (const p of ucretli) {
+      // "Başlangıç'ta 100", "Profesyonel'de 500", "Kurumsal'da 5.000"
+      expect(duz, p.id).toMatch(new RegExp(`${p.name_tr}'[td][ae] ${fmtTr(p.chatMessagesPerMonth).replace('.', '\\.')}(?![\\d.])`));
+    }
+    expect(duz).toContain(`ücretsiz denemede toplam ${findPlan('trial')!.chatMessagesPerMonth}`);
+    for (const p of BASE_PLANS.filter((x) => x.legacy)) expect(duz, `${p.id} satista degil`).not.toContain(p.name_tr);
+    expect(duz).toContain('hesap başına ayda');
+    expect(duz).toContain('ay başında yenilenir, deneme hakkı yenilenmez');
+    // Panel karti sayiyi API'den okur (billing.controller getQuota → QuotaService.checkChatQuota), elle yazmaz
+    const qm = comp('quota-monitor.tsx');
+    expect(qm).toContain("label: 'Asistan mesajı'");
+    expect(qm).toContain('used: data.chat.used, limit: data.chat.limit');
+    const ctl = stripComments(read(path.resolve(HERE, '../billing/billing.controller.ts')));
+    expect(ctl).toContain('this.quota.checkChatQuota(userId)');
+    // Sohbet sayfasi sinir / butce reddini ham hata bildirimi degil asistan notu olarak gosterir
+    const chat = stripComments(read(path.join(WEB_SRC, 'app/(dashboard)/sites/[id]/chat/page.tsx')));
+    expect(chat).toContain("const NOTICE_CODES = new Set(['CHAT_MESSAGE_LIMIT', 'AI_BUDGET_EXHAUSTED']);");
+    expect(chat).toMatch(/NOTICE_CODES\.has\(err\.code\)\) \{[\s\S]{0,260}role: 'assistant', content: err\.message, notice: true/);
+    const quotaSrc = read(path.resolve(HERE, '../billing/quota.service.ts'));
+    expect(quotaSrc).toContain("export const CHAT_MESSAGE_LIMIT_CODE = 'CHAT_MESSAGE_LIMIT';");
+    expect(quotaSrc).toContain("export const AI_BUDGET_EXHAUSTED_CODE = 'AI_BUDGET_EXHAUSTED';");
   });
 
   it('AI anahtarları paneli: plan adları plans.ts ile, BYOK planı FEATURE_MIN_PLAN ile aynı; kredi iddiası yok', () => {
@@ -1405,10 +1510,66 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
       expect(metin, ad).not.toMatch(/plan seçilene kadar bekler|yayın saatinden \d+ dakika önce üretime girer|enter generation \d+ minutes before their publish time|yayından 30 gün sonra performansı düşük/);
     }
     // Yeniden yazim Search Console verisine bagli (content-pivot.service.ts)
-    const pivot = autoPilot.split('\n').find((l) => l.includes('30 gün'));
+    // Bekleme suresi koddan (content-pivot PIVOT_COOLDOWN_DAYS; 11.11.2026'ya kadar metin "30 gün" diyordu)
+    const pivot = autoPilot.split('\n').find((l) => l.includes(`yayından ve son güncellemesinden en az ${PIVOT_COOLDOWN_DAYS} gün geçmiş`));
     expect(pivot, 'auto-pilot yeniden yazim maddesi').toBeDefined();
+    expect(autoPilot).not.toMatch(/yayından en az 30 gün geçmiş/);
     expect(pivot!).toMatch(/Search Console bağlıysa/);
     expect(pivot!).toMatch(/Yarı otomatikte yeni hali onayını bekler/);
+    // 11.11.2026 (sahip karari): otomatik yeniden yazim aylik makale hakkindan duser
+    expect(pivot!).toContain('Otomatik yeniden yazılan makale de aylık makale hakkından bir makale düşer; hakkın dolduysa yeniden yazım hak yenilenene kadar bekler');
+  });
+
+  // 11.11.2026: yardim sayfasi kurulumda "sitemap.xml ve llms.txt oluşturulup yüklenir" diyordu;
+  // kurulum zinciri 08.11.2026'dan beri yalniz sitemap yazar (llms.txt onizlemesiz yazilmaz).
+  it('site kurulumunda yalnız eksik sitemap.xml yazılır; llms.txt kendiliğinden yazılmaz (yardım + SSS = worker)', () => {
+    const worker = stripComments(read(path.resolve(HERE, '../../../worker/src/index.ts')));
+    const zincir = worker.slice(worker.indexOf('ONBOARDING_CHAIN: async'));
+    expect(zincir).toContain("await services.autoFix.runAutoFix(siteId, ['sitemap']);");
+    expect(zincir.match(/runAutoFix\(/g) ?? []).toHaveLength(1);
+    const madde = autoPilot.split('\n').find((l) => l.includes('eksik sitemap.xml'));
+    expect(madde, 'auto-pilot kurulum maddesi').toBeDefined();
+    expect(madde!).toContain('eksik sitemap.xml oluşturulup yüklenir');
+    expect(madde!).toContain('llms.txt kendiliğinden yazılmaz; istersen aynı sayfadan önizleyip sen oluşturursun');
+    expect(madde!).toContain('robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır');
+    for (const [ad, metin] of [['help/auto-pilot', autoPilot], ['faq', faq]] as const) {
+      expect(metin, ad).not.toMatch(/sitemap\.xml ve llms\.txt oluşturulup yüklenir|sitemap\.xml and llms\.txt (is|are) created/);
+    }
+    expect(faq).toContain('(1) Site eklenirken FTP/SFTP/cPanel yayın hedefi tanımlıysa eksik sitemap.xml oluşturulup yüklenir');
+  });
+
+  // 11.11.2026 (sahip karari, "zarar etmeyelim"): otomatik yeniden yazim (icerik pivotu) butun
+  // uretim hattini kosturuyor ama makale hakkindan dusmuyordu; aylik tavani da yoktu. Artik
+  // uretilen her makale gibi haktan bir makale duser; hak dolduysa baslamaz. Metinler bunu
+  // soyler; dayandigi kod (content-pivot.service chargeRewrite) degisirse test kirilir.
+  it('otomatik yeniden yazılan makale aylık makale hakkından düşer: SSS (TR + EN), yardım, sözlük, llms = content-pivot.service', () => {
+    const pivotSrc = read(path.resolve(HERE, '../articles/content-pivot.service.ts'));
+    const tarama = pivotSrc.slice(pivotSrc.indexOf('async scanAllSites('), pivotSrc.indexOf('private async chargeRewrite('));
+    // Kod: is kuyruga girmeden once hak duser; dusmezse is acilmaz ve engel olarak raporlanir
+    const dusAt = tarama.indexOf('if (!(await this.chargeRewrite(site.userId, limitByUser, hakkiAyrilmis))) {');
+    expect(dusAt, 'tarama haktan dusmuyor: metinleri guncelle').toBeGreaterThan(-1);
+    expect(dusAt).toBeLessThan(tarama.indexOf('await this.jobQueue.enqueue('));
+    // Dusmezse engel: hak dolu ('quota_exhausted') ya da kalan hak takvime ayrili ('allowance_reserved')
+    expect(tarama.slice(dusAt, tarama.indexOf('await this.jobQueue.enqueue('))).toMatch(/hakkiAyrilmis\.has\(site\.userId\) \? 'allowance_reserved' : 'quota_exhausted';[\s\S]*?continue;/);
+    const dus = pivotSrc.slice(pivotSrc.indexOf('private async chargeRewrite('), pivotSrc.indexOf('async scanSite('));
+    expect(dus).toContain('where: { id: userId, articlesUsedThisMonth: { lt: limit } }');
+    // Engel metni: hak yenilenince sonraki haftalik tarama alir ("bekler" iddiasinin dayanagi)
+    expect(pivotSrc).toContain("case 'quota_exhausted':");
+    expect(pivotSrc).toContain('Hak yeni ayda ya da planını yükselttiğinde yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.');
+
+    const TR = 'otomatik yeniden yazılan makale aylık makale hakkından bir makale düşer, hakkın dolduysa yeniden yazım hak yenilenene kadar bekler';
+    expect(faq).toContain(`Yarı otomatikte yeni hali onayını bekler; ${TR}, (6)`);
+    expect(faq).toContain('the new version waits for your approval; an automatically rewritten article uses one article from your monthly allowance, and if the allowance is used up the rewrite waits until it renews, (6)');
+    const g = stripComments(read(path.join(WEB_SRC, 'lib/glossary.ts')));
+    const kota = g.split('\n').find((l) => l.includes('Aylık makale üretim limitin'));
+    expect(kota, 'sozluk makale kotasi').toBeDefined();
+    expect(kota!).toContain('otomatik akışın yeniden yazdığı makale de bir makale sayılır');
+    expect(llmsFull).toContain('otomatik yeniden yazılan makale de aylık makale hakkından bir makale düşer, hak dolduysa yeniden yazım hak yenilenene kadar bekler');
+    expect(llms.split('\n').find((l) => l.startsWith('- **AI makale**'))!).toContain('Otomatik akışın yeniden yazdığı makale de aylık makale hakkından bir makale düşer.');
+    // Eski iddia geri gelmesin: yeniden yazim hakka sayilmaz / ucretsiz
+    for (const [ad, metin] of [['faq', faq], ['help/auto-pilot', autoPilot], ['sozluk', g], ['llms', llms], ['llms-full', llmsFull]] as const) {
+      expect(metin, ad).not.toMatch(/yeniden yaz[ıi]m[^.]{0,60}(hakk[ıi]ndan düşmez|hakka sayılmaz|ücretsiz)/i);
+    }
   });
 
   it('takılı sayfa otopilotu maddesi planı, Search Console koşulunu ve site başına sınırı kodla aynı yazıyor', () => {
@@ -1689,14 +1850,71 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
     }
   });
 
-  it('kurulum taraması ve başlangıç ölçümü haftalık haktan düşmez (worker trigger system); metin bunu söylüyor', () => {
-    expect(worker, 'kurulum taramasi kullanici tetikli oldu: getting-started ve SSS metnini guncelle').toMatch(/services\.audit\.runAudit\(siteId, \{ trigger: 'system' \}\)/);
-    expect(worker, 'baslangic olcumu kullanici tetikli oldu: metni guncelle').toMatch(/citationTracker\.snapshotSite\(siteId, \{ trigger: 'system' \}\)/);
+  // 11.11.2026 (sahip karari): kurulum TEK otomatik olcum alir. Eskiden denetimin AI testi ve
+  // (akis acikken) baslangic olcumu ayri ayri olcuyordu; metinler "ilk tarama ve otomatik akışın
+  // başlangıç ölçümü" diye iki olcum anlatiyordu. Olcum hala sistem tetikli (haftalik haktan
+  // dusmez): denetim AI adimini kurulum olcumunden alir, olcumu setup-measurement.ts yapar.
+  it('kurulumun otomatik ölçümü haftalık haktan düşmez (sistem tetikli, tek ölçüm); metin bunu söylüyor', () => {
+    const zincir = worker.slice(worker.indexOf('ONBOARDING_CHAIN: async'), worker.indexOf('PROCESS_SCHEDULED: async'));
+    expect(zincir, 'kurulum taramasi kullanici tetikli oldu: getting-started ve SSS metnini guncelle').toMatch(/services\.audit\.runAudit\(siteId, \{ trigger: 'system', aiOlcumu: kurulumOlcumu \}\)/);
+    expect(zincir, 'kurulumda kullanici tetikli tarama: metni guncelle').not.toMatch(/runAudit\(siteId\)|trigger: 'user'/);
+    const kurulum = read(path.resolve(HERE, '../audit/setup-measurement.ts'));
+    expect(kurulum, 'kurulum olcumu kullanici tetikli oldu: metni guncelle').toMatch(/deps\.tracker\.snapshotSite\(siteId, \{ trigger: 'system' \}\)/);
+    // Zincirde ikinci bir olcum yok: metinler "bir ölçüm" diyor
+    expect(zincir, 'kurulum yine ayri bir baslangic olcumu aliyor: metinleri guncelle').not.toMatch(/snapshotSite\(|runForSite\(/);
     const gs = sayfa('help/getting-started/page.tsx');
     expect(gs).not.toMatch(/ölçüm hakkını kullanmış olabilir/);
+    expect(gs).toContain('Kurulumda bir AI ölçümü alınır: sonucu site taramasında ve başlangıç');
+    expect(gs).toContain('Bu ölçüm haftalık hakkından düşmez');
     expect(gs).toContain('haftalık hakkından düşmez');
     expect(gs).toContain(`${trial.aiRunsPerMonth} AI görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
-    expect(sayfa('faq/page.tsx')).toContain('Site kurulumundaki ilk tarama ve otomatik akışın başlangıç ölçümü bu hakka sayılmaz');
+    const sss = sayfa('faq/page.tsx');
+    expect(sss).toContain('Site kurulumunda alınan otomatik ölçüm bu hakka sayılmaz');
+    expect(sss).toContain('The automatic measurement taken during site setup does not count');
+    expect(llmsFull).toContain("Site kurulumunda alınan otomatik ölçüm ve Ürün Radarı'nın haftalık otomatik taraması bu hakka sayılmaz");
+    // Eski "iki olcum" anlatimi geri gelmesin
+    for (const [ad, doc] of [['faq', sss], ['getting-started', gs], ['llms-full', llmsFull]] as const) {
+      expect(doc, ad).not.toMatch(/Kurulumdaki bu ölçümler|otomatik akışın başlangıç ölçümü|automation's baseline measurement/);
+    }
+  });
+
+  // 11.11.2026 (sahip karari, "zarar etmeyelim"): otomatik kurulum olcumu sinirlidir — hesap
+  // basina kayan 30 gunde planin site siniri kadar, ayni alan adi icin 1 (ADMIN muaf). Siteyi
+  // silip yeniden ekleyen hesap olcumu sinirsiz tekrarlatabiliyordu. Kural audit/
+  // setup-measurement-limit.ts; "her eklenen sitede ilk olcum alinir" diyen metin siniri soyler.
+  it('kurulum ölçümü sınırı metinlerde kodla aynı: 30 günde plandaki site sayısı kadar, aynı alan adı için bir kez', () => {
+    expect(SETUP_MEASUREMENT_WINDOW_DAYS, 'pencere degisti: "30 günde" metinlerini guncelle').toBe(30);
+    // Tavan = planin site siniri (metin sayi yazmaz: "plandaki site sayısı kadar")
+    for (const p of BASE_PLANS) expect(setupMeasurementLimit(p.id.toUpperCase()), p.id).toBe(p.sites);
+    const simdi = new Date('2026-11-11T12:00:00.000Z');
+    const gunOnce = (n: number) => new Date(simdi.getTime() - n * 86_400_000).toISOString();
+    // Ayni alan adi 30 gun icinde bir kez; 30 gun dolunca yeniden
+    expect(decideSetupMeasurement(simdi, [{ host: 'ornek.com', at: gunOnce(29) }], 'PRO', 'USER', 'ornek.com')).toMatchObject({ allowed: false, reason: 'domain' });
+    expect(decideSetupMeasurement(simdi, [{ host: 'ornek.com', at: gunOnce(31) }], 'PRO', 'USER', 'ornek.com')).toMatchObject({ allowed: true });
+    // Tavan dolunca yeni alan adi da olculmez
+    const pro = findPlan('pro')!.sites;
+    const dolu = Array.from({ length: pro }, (_, i) => ({ host: `site${i}.com`, at: gunOnce(1) }));
+    expect(decideSetupMeasurement(simdi, dolu, 'PRO', 'USER', 'yeni.com')).toMatchObject({ allowed: false, reason: 'account', limit: pro });
+    expect(decideSetupMeasurement(simdi, dolu.slice(1), 'PRO', 'USER', 'yeni.com')).toMatchObject({ allowed: true });
+
+    const TR = 'hesap başına 30 günde plandaki site sayısı kadar';
+    const sss = sayfa('faq/page.tsx');
+    expect(sss).toContain(`(4) bir başlangıç AI görünürlük ölçümü alınır (${TR}, aynı alan adı için bir kez)`);
+    expect(sss).toContain("(4) a baseline AI visibility measurement is taken (per account, at most as many in 30 days as your plan's site limit, and once per domain)");
+    expect(sss).toContain(`Site kurulumunda alınan otomatik ölçüm bu hakka sayılmaz; bu ölçüm ${TR} ve aynı alan adı için bir kez alınır.`);
+    expect(sss).toContain("The automatic measurement taken during site setup does not count; it is taken at most as many times per account in 30 days as your plan's site limit, and once per domain.");
+    expect(sayfa('help/auto-pilot/page.tsx')).toContain(`Site eklenirken bir başlangıç ölçümü alınır (${TR}, aynı alan adı için bir kez)`);
+    expect(sayfa('help/getting-started/page.tsx')).toContain(`${TR} ve aynı alan adı için bir kez alınır, sınır dolduysa ilk ölçümü kendin başlatırsın`);
+    expect(llmsFull).toContain(`Kurulum ölçümü ${TR} ve aynı alan adı için bir kez alınır; sınır dolduysa ilk ölçümü kullanıcı haftalık hakkıyla başlatır.`);
+    // Sinirsiz vaat geri gelmesin: baslangic olcumunu anlatan her satir siniri da soyler
+    // help/ai-visibility "otomatik akış açıksa" diyordu: kurulum olcumu akisa bagli degil (worker
+    // ONBOARDING_CHAIN denetimin AI adiminda alir), sinirli oldugu da yazmiyordu
+    expect(sayfa('help/ai-visibility/page.tsx')).not.toContain('otomatik akış açıksa bir başlangıç ölçümü alınır');
+    for (const rel of ['faq/page.tsx', 'help/auto-pilot/page.tsx', 'help/ai-visibility/page.tsx']) {
+      const satirlar = sayfa(rel).split('\n').filter((l) => /başlangıç (AI görünürlük )?ölçümü alınır/.test(l));
+      expect(satirlar.length, rel).toBeGreaterThan(0);
+      for (const l of satirlar) expect(l, `${rel}: ${l.trim().slice(0, 80)}`).toContain('30 günde plandaki site sayısı kadar');
+    }
   });
 
   it('yardım: plan listesi plans.ts ile aynı; haftalık kural ve "Tümünü çalıştır" örneği panelle aynı', () => {
@@ -2036,10 +2254,10 @@ describe('Rehber (/rehber) = ürün', () => {
  * platformu" diye satilir. Deneme slogani ("14 gün ücretsiz …") makaleyle BASLAMAZ; denemenin 2
  * makalesi olgu olarak SSS, yardim ve plan ozetlerinde durur (asagida denetlenmez).
  *
- * ASISTAN SAYISI: ana sayfadaki anonim test her yapilandirilmis asistana sorar (alti + anahtari
- * tanimliysa Muse); kilidi acilan tam rapor hesabin plan kapsamiyla olculur (Baslangic 4,
- * Profesyonel ve ustu 6 + Muse — public-citation.controller unlock). Bu ekranlarda sabit
- * "6 AI motorunda" hem Muse olculurken hem Baslangic hesabinda yanlistir.
+ * ASISTAN SAYISI: ana sayfadaki ucretsiz (anonim) test deneme ve Baslangic ile ayni dort asistana
+ * sorar (plan-engines FREE_TEST_ENGINES); kilidi acilan tam rapor hesabin plan kapsamiyla olculur
+ * (Baslangic 4, Profesyonel ve ustu 6 + Muse — public-citation.controller unlock). Bu ekranlarda
+ * sabit "6 AI motorunda" yanlistir.
  */
 describe('konumlandirma: deneme slogani ve test ekranlari', () => {
   const MOBILE = path.resolve(HERE, '../../../../mobile');
@@ -2097,13 +2315,20 @@ describe('konumlandirma: deneme slogani ve test ekranlari', () => {
     expect(checker).toContain(`${bas.name_en} measures ${bas.aiProviders} AI engines, ${pro.name_en} and up ${pro.aiProviders}`);
     expect(unlock).toContain(`${bas.name_tr} planında ${bas.aiProviders} AI motorunda (ChatGPT, Gemini, Claude, Perplexity), ${pro.name_tr} ve üstünde ${pro.aiProviders} (ayrıca Grok, DeepSeek)`);
     expect(unlock).toContain('planındaki AI motorlarında ölçülüyor');
-    // Dayanak: kilit ucu kapsami hesabin planindan gecirir
+    // Ucretsiz testin "Soruluyor: X" satirlari yalniz testin sordugu asistanlari sayar
+    const ucretsiz = new Set(FREE_TEST_ENGINES.map((e) => ENGINE_LABELS[e]));
+    const sorulanlar = [...checker.matchAll(/'(?:Soruluyor|Asking): ([^']+)'/g)].map((m) => m[1]);
+    expect(sorulanlar.length).toBe(2 * ucretsiz.size);
+    for (const ad of sorulanlar) expect(ucretsiz.has(ad), ad).toBe(true);
+    // Dayanak: anonim test dort asistan + hesapli kademe; kilit ucu kapsami hesabin planindan gecirir
+    const servis = read(path.resolve(HERE, '../audit/public-citation.service.ts'));
+    expect(servis).toContain("audience === 'anon' ? { only: [...FREE_TEST_ENGINES], tier: 'standard' as const } : {}");
     const ctrl = read(path.resolve(HERE, '../audit/public-citation.controller.ts'));
     expect(ctrl).toContain('const scope = { engines: ownerEngines(user), tier: ownerModelTier(user) };');
     expect(ctrl).toContain("this.citation.check(domain, clientIp(req), 'signup_baseline', { scope })");
   });
 
-  it('mobil uygulama metinleri sabit asistan sayisi yazmaz (anonim test: alti + olculuyorsa Muse)', () => {
+  it('mobil uygulama metinleri sabit asistan sayisi yazmaz (mobil test = ucretsiz test: dort asistan)', () => {
     const SABIT = /\b6 AI|\b6 asistan|\b6 assistants|\b6 motor/i;
     for (const rel of ['src/i18n.ts', 'app/analyze.tsx', 'app/index.tsx', 'src/screens/Visibility.tsx']) {
       const ihlal = stripComments(read(path.join(MOBILE, rel))).split('\n').filter((l) => SABIT.test(l));

@@ -107,9 +107,16 @@ export const DUE_SCAN_LIMITS = {
  *    'onboarding_free'); deneme hesabinda HIC uretilmez (sahip karari 21.10.2026:
  *    denemede otomasyon yalniz konu basligi uretir; makaleyi kullanici "Uret" /
  *    "Simdi uret" ile baslatir ve hak o an duser).
- *  - Dusmeyenler: otomatik yeniden yazim (icerik pivotu) ve ceviri — ikisi de deneme
- *    hesabinda hic calismaz (content-pivot.service, translator.service): deneme
- *    hesabi yapay zekayla toplam 2 makale uretir, fazlasi icin LLM harcanmaz.
+ *  - Otomatik yeniden yazim (icerik pivotu), haftalik tarama isi kuyruga atarken
+ *    (sahip karari 11.11.2026; content-pivot.service scanAllSites → chargeRewrite). Eskiden
+ *    hic dusmuyordu: cok eski yazisi olan hesap ayda onlarca 5 ajanli yeniden yazimi
+ *    bedavaya kosturabiliyordu. Yazi yayinda kaldigi icin dusus izi is verisindedir
+ *    ('auto_rewrite'; kapali dongu guncellemesiyle ayni tasiyici). Yeni surum cikmazsa
+ *    (is kuyruga girmedi, worker on denetimi engelledi, hat hata verdi, editorden
+ *    gecmedi ve canli yazi korundu) hak geri verilir.
+ *  - Dusmeyen: ceviri. Yeniden yazim ve ceviri deneme hesabinda hic calismaz
+ *    (content-pivot.service, translator.service): deneme hesabi yapay zekayla toplam
+ *    2 makale uretir, fazlasi icin LLM harcanmaz.
  *
  * Durumlara gore:
  *  - SCHEDULED: henuz dusulmedi; kalan haktan AYRILIR (scheduleTopic'te sayilir).
@@ -161,9 +168,10 @@ const PENDING_NEW_STATUSES = ['SCHEDULED', 'GENERATING', 'EDITING', 'READY_TO_PU
  *    takvime yeni konu eklemeyi 403'le kesiyordu. Takvimden de cikarilamiyorlardi
  *    (unscheduleArticle yalniz SCHEDULED alir).
  *  - Yayindaki yazinin onay bekleyen yeniden yazimi (sitede eski metin durur). Yeni bir
- *    yazi degil, var olan sayfanin guncellemesi. Otomatik yeniden yazim (icerik pivotu)
- *    makale hakkindan hic dusmez; kullanicinin baslattigi kapali dongu guncellemesi
- *    hakkini baslatirken zaten dusurdu (content-opportunity incrementArticleUsage).
+ *    yazi degil, var olan sayfanin guncellemesi. Hakki baslatilirken zaten dustu:
+ *    otomatik yeniden yazim (icerik pivotu) taramada (11.11.2026, content-pivot.service),
+ *    kullanicinin baslattigi kapali dongu guncellemesi istekte (content-opportunity
+ *    consumeArticleAllowance). Burada bir daha sayilirsa ayni yazi iki kez duserdi.
  */
 function pendingNewArticleWhere(siteId: string) {
   return {
@@ -187,6 +195,23 @@ function unchargedPendingWhere(userId: string) {
   };
 }
 
+/**
+ * Hakki henuz dusulmemis bekleyen yazi sayisi (unchargedPendingWhere; isaretliler elenir).
+ * Isaret JSON icinde oldugu icin satirlar okunur: SCHEDULED yazilarin agentOutputs'u
+ * neredeyse hep bos, okuma kucuk. Bu yazilar kalan haktan AYRILMISTIR: takvime eklerken
+ * (scheduleTopic) ve otomatik yeniden yazim hak duserken (content-pivot chargeRewrite) sayilir.
+ */
+export async function countUnchargedPendingArticles(
+  prisma: { article: { findMany(args: any): Promise<Array<{ agentOutputs: unknown }>> } },
+  userId: string,
+): Promise<number> {
+  const rows = await prisma.article.findMany({
+    where: unchargedPendingWhere(userId),
+    select: { agentOutputs: true },
+  });
+  return rows.filter((r) => !hasAllowanceCharge(r.agentOutputs)).length;
+}
+
 /** agentOutputs'taki isaretin anahtari (yeni veri yalniz mevcut JSON alaninda) */
 export const ALLOWANCE_CHARGE_KEY = 'allowanceCharge';
 
@@ -205,9 +230,10 @@ export const ALLOWANCE_REFUND_KEY = 'allowanceRefund';
  * ('trigger_now'), kullanicinin baslattigi yeni uretimde dusuldu ('user_start':
  * Uret, MCP create_article, icerik firsati; kapali dongu guncellemesinde isaret is
  * verisindedir) ya da ucretli planda onboarding'in ucretsiz ilk yazisi
- * ('onboarding_free'; hak dusmedigi icin iadesi de yoktur)
+ * ('onboarding_free'; hak dusmedigi icin iadesi de yoktur). 'auto_rewrite' (11.11.2026):
+ * icerik pivotunun otomatik yeniden yazimi; isaret is verisindedir (content-pivot.service).
  */
-export type AllowanceChargeSource = 'calendar' | 'trigger_now' | 'user_start' | 'onboarding_free';
+export type AllowanceChargeSource = 'calendar' | 'trigger_now' | 'user_start' | 'onboarding_free' | 'auto_rewrite';
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -271,7 +297,7 @@ type ClaimResult =
 /** Takvim isinin sonucu (worker is kaydina yazilir) */
 export type ScheduledDispatchResult =
   | { dispatched: true; articleId: string; generateJobId: string }
-  | { skipped: true; reason: 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'AUTOPILOT_PAUSED' | 'QUOTA_EXHAUSTED' | 'TRIAL_MANUAL_ONLY'; status?: string };
+  | { skipped: true; reason: 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'AUTOPILOT_PAUSED' | 'QUOTA_EXHAUSTED' | 'TRIAL_MANUAL_ONLY' | 'AI_BUDGET_EXHAUSTED'; status?: string };
 
 /**
  * Uretim isi baslarken sahiplik karari (claimForGeneration). 'quota_exhausted': yazi
@@ -279,15 +305,17 @@ export type ScheduledDispatchResult =
  * 'attempt_refunded': yazi FAILED ve bu denemenin hakki iade edildi (allowance-refund.ts);
  * uretilmez. 'trial_manual_only': yazi SCHEDULED ve hesap denemede; otomasyon deneme
  * hesabinda uretmez (trial-policy.ts), yazi takvimde kullanicinin "Simdi uret"ini bekler.
+ * 'budget_exhausted': yazi SCHEDULED ve sahibin aylik AI butcesi dolu (butceDolu); uretilmez,
+ * hak dusmez, yazi SCHEDULED kalir ve butce yenilenince saatlik tarama alir.
  */
-export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted' | 'attempt_refunded' | 'trial_manual_only' | 'site_rate_limited';
+export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted' | 'attempt_refunded' | 'trial_manual_only' | 'site_rate_limited' | 'budget_exhausted';
 
 /**
  * Uretim isinin atlama nedeni (worker is sonucuna yazar), sahiplik kararina gore.
  * NEDEN tek tablo: worker 'quota_exhausted'i 'ALREADY_CLAIMED' diye yaziyordu;
  * hakki dolu oldugu icin uretilmeyen yazi is kaydinda "baskasi aldi" gorunuyordu.
  */
-export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED' | 'ATTEMPT_REFUNDED' | 'TRIAL_MANUAL_ONLY' | 'SITE_RATE_LIMITED'>> = Object.freeze({
+export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED' | 'ATTEMPT_REFUNDED' | 'TRIAL_MANUAL_ONLY' | 'SITE_RATE_LIMITED' | 'AI_BUDGET_EXHAUSTED'>> = Object.freeze({
   article_missing: 'ARTICLE_MISSING',
   already_claimed: 'ALREADY_CLAIMED',
   quota_exhausted: 'QUOTA_EXHAUSTED',
@@ -295,6 +323,9 @@ export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationCla
   trial_manual_only: 'TRIAL_MANUAL_ONLY',
   // Site basina otomatik uretim tavani dolu (site-yayin-tavani.ts): yazi SCHEDULED kalir, hak dusmez
   site_rate_limited: 'SITE_RATE_LIMITED',
+  // Sahibin aylik AI butcesi dolu (QuotaService.aiBudgetBlock): yazi SCHEDULED kalir, hak dusmez.
+  // Uretim hattinin kendi atlama koduyla ayni yazilir (pipeline AI_BUDGET_EXHAUSTED_CODE).
+  budget_exhausted: 'AI_BUDGET_EXHAUSTED',
 });
 
 /**
@@ -667,6 +698,11 @@ export class ArticleSchedulerService {
     }
     // Durduruldu: yazi SCHEDULED kalir, akis acilinca saatlik tarama alir
     if (a.site.autopilot === false) return { skipped: true, reason: 'AUTOPILOT_PAUSED' };
+    // Aylik AI butcesi dolu: yazi sahiplenilmez, hak dusmez (butceDolu)
+    if (await this.butceDolu(a.site.userId)) {
+      this.log.log(`[${a.siteId}] Takvim isi: ${a.id} sahibin aylik AI butcesi dolu oldugu icin uretilmedi; SCHEDULED kaldi (butce yenilenince saatlik tarama alir)`);
+      return { skipped: true, reason: 'AI_BUDGET_EXHAUSTED' };
+    }
     const r = await this.claimAndQueue(a, a.site.userId);
     if (r.outcome === 'quota_exhausted') {
       this.log.log(`[${a.siteId}] Takvim isi: ${a.id} makale hakki dolu oldugu icin uretilmedi; SCHEDULED kaldi (hak yenilenince saatlik tarama alir)`);
@@ -718,6 +754,8 @@ export class ArticleSchedulerService {
     // kuyruga atmadan once GENERATING yapar). Deneme hesabinda otomasyon uretmez:
     // yazi takvimde kalir, LLM harcanmaz (trial-policy.ts).
     if (!automaticGenerationAllowed((a.site as { user?: { plan?: string | null } | null }).user?.plan)) return 'trial_manual_only';
+    // Aylik AI butcesi dolu: hak dusulmeden once bakilir, yazi SCHEDULED kalir (butceDolu)
+    if (await this.butceDolu(userId)) return 'budget_exhausted';
     // Site basina otomatik uretim tavani (hak dusulmeden once bakilir; dolusa yazi SCHEDULED kalir)
     if (!(await this.otoUretimTavaniAcik(a.siteId))) return 'site_rate_limited';
     const prepaid = hasAllowanceCharge(a.agentOutputs);
@@ -739,6 +777,29 @@ export class ArticleSchedulerService {
     if (!claimed && !prepaid) await this.refundArticle(userId, articleId);
     if (claimed) await this.otoUretimSay(a.siteId);
     return claimed ? 'proceed' : 'already_claimed';
+  }
+
+  /**
+   * Sahibin aylik AI butcesi dolu mu (QuotaService.aiBudgetBlock; sayac okunamazsa false:
+   * takvim durmaz, karar uretim hattinin kendi kapisina kalir).
+   *
+   * NEDEN takvimde de bakiliyor (11.11.2026): uretim hatti butcesi dolu sahibin yazisini
+   * zaten yazmaz (pipeline settleBudgetBlocked: hak iade edilir, takvim yazisi SCHEDULED'a
+   * doner). Takvim bunu bilmezse ayni yaziyi ay sonuna kadar yeniden sahiplenir: hak duser,
+   * is kuyruga girer, hat reddeder, hak iade edilir. Her tur ayrica sitenin otomatik uretim
+   * sayacini (otoUretimSay; gunde 1, haftada 5) uretilmemis bir yazi icin doldurur; butce
+   * ayin 1'inde acildiginda site gunlerce "tavan dolu" gorunurdu. Butce doluyken yazi hic
+   * alinmaz: hak dusmez, sayac artmaz, is acilmaz.
+   *
+   * Hakki onceden dusmus (isaretli) yazi da bekler: hat onu da yazmayacak.
+   * onbellek: tarama ayni sahibi bir kez sorar (processDueArticles).
+   */
+  private async butceDolu(userId: string, onbellek?: Map<string, boolean>): Promise<boolean> {
+    const bilinen = onbellek?.get(userId);
+    if (bilinen !== undefined) return bilinen;
+    const dolu = (await this.quota.aiBudgetBlock(userId)) !== null;
+    onbellek?.set(userId, dolu);
+    return dolu;
   }
 
   /** Site bugun ve son 7 gunde otomatik uretim tavanini doldurmadi mi (site-yayin-tavani.ts) */
@@ -783,8 +844,10 @@ export class ArticleSchedulerService {
    * hakki dolu / hakki okunamayan kullanici ilk gorulmesinden sonra bu turun
    * sorgularina girmez, boylece engelli satirlar diger musterilerin yazilarini
    * bekletemez. skippedQuota yalniz bu turda GORULEN engelli satirlari sayar.
+   * Sahibinin aylik AI butcesi dolu yazi da alinmaz (butceDolu): hak dusmez, yazi
+   * SCHEDULED kalir; skippedBudget ayni sekilde bu turda gorulen satirlari sayar.
    */
-  async processDueArticles(opts: { userId?: string } = {}): Promise<{ processed: number; skippedQuota: number; alreadyClaimed: number; failed: number }> {
+  async processDueArticles(opts: { userId?: string } = {}): Promise<{ processed: number; skippedQuota: number; skippedBudget: number; alreadyClaimed: number; failed: number }> {
     // Yalniz bu kullanicinin yazilari (plan yukseltme sonrasi tarama: scheduled-kick.ts);
     // verilmezse tum kullanicilar (saatlik is)
     const onlyUserId = typeof opts.userId === 'string' && opts.userId ? opts.userId : undefined;
@@ -794,8 +857,11 @@ export class ArticleSchedulerService {
 
     let processed = 0;
     let skippedQuota = 0;
+    let skippedBudget = 0;
     let alreadyClaimed = 0;
     let failed = 0;
+    // Kullanici basina tek butce okumasi (bu turda): true = aylik AI butcesi dolu
+    const butceByUser = new Map<string, boolean>();
     // Kullanici basina tek hak okumasi (ay basi sifirlamasi dahil): plan hakki
     // (tavan) ya da null = bu turda hakki dolu. Her yazi tavana karsi tek kosullu
     // UPDATE ile duser; UPDATE reddederse kullanici bu tur icin dolu sayilir.
@@ -843,6 +909,13 @@ export class ArticleSchedulerService {
         // Sorgu deneme hesaplarini zaten disarida birakir; ikinci kat (plan sorgu ile
         // okuma arasinda TRIAL'a dusmus olabilir: iptal edilen abonelik)
         if (!automaticGenerationAllowed((u as { plan?: string | null }).plan)) continue;
+        // Aylik AI butcesi dolu sahip: hak okunmadan / dusulmeden once; kalan yazilari da
+        // bu turun sorgularina girmez (hakki dolu kullaniciyla ayni)
+        if (await this.butceDolu(u.id, butceByUser)) {
+          skippedBudget++;
+          skipUsers.add(u.id);
+          continue;
+        }
         // Hakki dustukten sonra takvime geri donmus yazi (isaretli): hak okunmaz,
         // yeniden dusmez — kullanicinin hakki simdi dolu olsa da uretilir
         const prepaid = hasAllowanceCharge(a.agentOutputs);
@@ -911,10 +984,10 @@ export class ArticleSchedulerService {
       // Kalan vadeli yazilar bir sonraki saatlik taramada alinir; sik gorulurse tavanlar gozden gecirilmeli
       this.log.warn(`[scheduler] Tarama tavani doldu (${budgetHit === 'claims' ? `${DUE_SCAN_LIMITS.maxClaims} yazi` : `${DUE_SCAN_LIMITS.maxBatches} sorgu`}); kalan vadeli yazilar sonraki taramada alinir`);
     }
-    if (processed > 0 || skippedQuota > 0 || alreadyClaimed > 0 || failed > 0) {
-      this.log.log(`[scheduler] ${processed} makale uretime alindi (yayin saatinden 15 dk once), ${skippedQuota} makale hakki dolu oldugu icin bekliyor, ${alreadyClaimed} zaten uretimde, ${failed} hata (${batches} sorgu)`);
+    if (processed > 0 || skippedQuota > 0 || skippedBudget > 0 || alreadyClaimed > 0 || failed > 0) {
+      this.log.log(`[scheduler] ${processed} makale uretime alindi (yayin saatinden 15 dk once), ${skippedQuota} makale hakki dolu oldugu icin bekliyor, ${skippedBudget} sahibin aylik AI butcesi dolu oldugu icin bekliyor, ${alreadyClaimed} zaten uretimde, ${failed} hata (${batches} sorgu)`);
     }
-    return { processed, skippedQuota, alreadyClaimed, failed };
+    return { processed, skippedQuota, skippedBudget, alreadyClaimed, failed };
   }
 
   /**
@@ -1085,17 +1158,9 @@ export class ArticleSchedulerService {
     return { ok: true };
   }
 
-  /**
-   * Hakki henuz dusulmemis bekleyen yazi sayisi (unchargedPendingWhere; isaretliler
-   * elenir). Isaret JSON icinde oldugu icin satirlar okunur: SCHEDULED yazilarin
-   * agentOutputs'u neredeyse hep bos, okuma kucuk.
-   */
+  /** Hakki henuz dusulmemis bekleyen yazi sayisi — countUnchargedPendingArticles */
   private async countUnchargedPending(userId: string): Promise<number> {
-    const rows = await this.prisma.article.findMany({
-      where: unchargedPendingWhere(userId),
-      select: { agentOutputs: true },
-    });
-    return rows.filter((r) => !hasAllowanceCharge(r.agentOutputs)).length;
+    return countUnchargedPendingArticles(this.prisma as any, userId);
   }
 
   /** Makale bu sitede yoksa 404 (baska sitenin makalesinin varligi sizmaz) */

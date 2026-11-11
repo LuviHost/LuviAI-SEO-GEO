@@ -55,9 +55,9 @@ describe('enforceCitationQuota mesaji', () => {
 
 describe('enforceAiCostBudget mesaji', () => {
   it('denemede "yeni ayi bekle" demez: butce yalniz ucretli planlarda sifirlanir', async () => {
-    const quota = new QuotaService(fakePrisma({ plan: 'TRIAL', aiCostThisMonthUsd: 3 }));
+    const quota = new QuotaService(fakePrisma({ plan: 'TRIAL', aiCostThisMonthUsd: 8 }));
     const msg = await forbiddenMessage(() => quota.enforceAiCostBudget('u1'));
-    expect(msg).toContain('$3.00 / $3');
+    expect(msg).toContain('$8.00 / $8');
     expect(msg).toContain('Ücretli planlarda bütçe yeni ayda sıfırlanır');
     expect(msg).not.toContain('Yeni ay başlangıcını bekleyebilir');
   });

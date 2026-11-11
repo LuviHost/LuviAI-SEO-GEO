@@ -10,10 +10,14 @@ export const metadata = yardimMeta('auto-pilot', 'Otomatik akış ve Auto-Pilot 
 //  - ASC: asc.cron.ts 05:30 UTC uygulama + surum senkronu ve uyarilar; yorumlar
 //    cron'la CEKILMEZ (runDailySyncAll yalniz syncApps + syncReleases).
 //  - AI gorunurluk: gunluk otomatik olcum KAPALI (AI_CITATION_DAILY_CRON);
-//    otomatik akis acikken yalniz site eklenirken bir baslangic olcumu alinir
-//    (worker ONBOARDING_CHAIN, trigger 'system'). Eski "her gece snapshot"
-//    bolumu yanlisti.
-//  - Butce uyarisi quota.service.ts checkAiCostBudget: %80 uyari, %100 sinir.
+//    yalniz site eklenirken bir baslangic olcumu alinir (worker ONBOARDING_CHAIN,
+//    trigger 'system'). Eski "her gece snapshot" bolumu yanlisti.
+//    11.11.2026 (sahip karari): kurulum TEK olcum alir, akis acik olsun olmasin
+//    (sonuc hem denetime hem olcum gecmisine yazilir); hesap basina kayan 30 gunde
+//    planin site siniri kadar, ayni alan adi icin 1 (api audit/setup-measurement.ts).
+//  - Butce uyarisi quota.service.ts checkAiCostBudget: %80 uyari, %100 sinir. 11.11.2026:
+//    butce dolunca takvim / otomatik uretim de durur (pipeline.service runPipeline, yazi
+//    takvime doner ve hakki iade edilir); olcum butceye sayilmaz.
 //  - Site akisi (18.10.2026, api article-scheduler.service.ts):
 //    * Ilk takvim: worker ONBOARDING_CHAIN scheduleInitialBatch(count: akis
 //      acik 8 / kapali 3) konu motorunun Tier 1 listesinden ALIR; ranker istemi
@@ -31,6 +35,9 @@ export const metadata = yardimMeta('auto-pilot', 'Otomatik akış ve Auto-Pilot 
 //      ve ustunde (Baslangic 0 makale). Ilk makale ve kilitli takvim "ucretli
 //      plan" / "plan yukseltince" degil Profesyonel'de uretilir.
 //    * Yeniden yazim (icerik pivotu) ve ceviri deneme hesabinda calismaz.
+//      11.11.2026 (sahip karari): otomatik yeniden yazim da aylik makale hakkindan
+//      bir makale duser (content-pivot.service chargeRewrite); hak dolduysa
+//      baslamaz, hak yenilenince sonraki haftalik tarama alir.
 //    * "15 dk once" yalniz gecikmeli iste dogru: scheduleTopic (Takvime ekle)
 //      ve rescheduleArticle (tarih ata / tasi) LEAD_TIME_MS ile is kurar.
 //      Ilk takvim ve programatik SEO yazilari icin is kurulmaz; tarama esigi
@@ -82,15 +89,15 @@ export default function Page() {
       </p>
       <ul>
         <li>Site eklenince konu motorunun öncelikli konuları takvime yerleşir (otomatik akış açıkken en fazla 8, kapalıyken en fazla 3) ve Profesyonel ve üstü planlarda ilk makale hemen üretilir (Başlangıç planında makale üretimi yoktur). Bu ilk takvimin diğer makaleleri otomatik akış açıkken zamanı gelince üretilir, akış durdurulmuşsa bekler. Her makale üretime alınırken makale hakkından bir kez düşer; üretim makale çıkmadan başarısız olursa o hak geri verilir. Hakkın dolduysa takvimdeki makaleler hakkın yenilenene ya da planını yükseltene kadar bekler. Ücretsiz denemede (14 gün) makale kendiliğinden yazılmaz: konu başlıkları takvime yerleşir, sitene yayın hedefi bağladıktan sonra toplam 2 makaleyi &ldquo;Şimdi üret&rdquo; ile sen başlatırsın; takvimin geri kalanı panelde kilitli görünür ve Profesyonel plana geçtiğinde yazılır</li>
-        <li>Site eklenirken FTP, SFTP ya da cPanel yayın hedefi tanımlıysa eksik sitemap.xml ve llms.txt oluşturulup yüklenir; hedefi sonradan eklersen düzeltmeyi Site Skoru sayfasından başlatırsın. robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır</li>
+        <li>Site eklenirken FTP, SFTP ya da cPanel yayın hedefi tanımlıysa eksik sitemap.xml oluşturulup yüklenir; hedefi sonradan eklersen düzeltmeyi Site Skoru sayfasından başlatırsın. llms.txt kendiliğinden yazılmaz; istersen aynı sayfadan önizleyip sen oluşturursun. robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır</li>
         <li>Akış açıkken takvime kendin eklediğin, tarih atadığın ya da başka güne taşıdığın makaleler planlanan saatten 15 dakika önce üretime alınır; site eklenirken takvime yerleşenleri saatlik tarama alır (planlanan saatin en fazla 15 dakika öncesinden yaklaşık 45 dakika sonrasına kadar). Akış durdurulmuşsa takvim bekler; üretim birkaç dakika sürer</li>
-        <li>Profesyonel ve üstü planlarda, otomatik akış açık ve Search Console bağlıysa, yayından en az 30 gün geçmiş ve Search Console verisinde gösterim alıp tıklaması ya da sırası zayıf kalan makaleler haftalık taramada yeniden yazılabilir; Yarı otomatikte yeni hali onayını bekler</li>
+        <li>Profesyonel ve üstü planlarda, otomatik akış açık ve Search Console bağlıysa, yayından ve son güncellemesinden en az 60 gün geçmiş ve Search Console verisinde gösterim alıp tıklaması ya da sırası zayıf kalan makaleler haftalık taramada yeniden yazılabilir; Yarı otomatikte yeni hali onayını bekler. Otomatik yeniden yazılan makale de aylık makale hakkından bir makale düşer; hakkın dolduysa yeniden yazım hak yenilenene kadar bekler</li>
         <li>Profesyonel ve üstü planlarda, Search Console bağlı, akış açık ve Tam otomatik moddaysan Google&apos;da 4-15. sırada takılı kalan RanksUp makaleleri her hafta (site başına en fazla 5) iyileştirilip yeniden yayınlanır; Yarı otomatikte bunları Takılı Sayfalar ekranından sen başlatırsın</li>
       </ul>
 
       <h3>AI görünürlük ölçümü otomatik değil</h3>
       <p>
-        Otomatik günlük ölçüm yoktur. Otomatik akış açıkken site eklenirken bir başlangıç ölçümü alınır; sonraki ölçümleri AI Görünürlük
+        Otomatik günlük ölçüm yoktur. Site eklenirken bir başlangıç ölçümü alınır (hesap başına 30 günde plandaki site sayısı kadar, aynı alan adı için bir kez); sonraki ölçümleri AI Görünürlük
         sayfasındaki <strong>&ldquo;Yeniden Test&rdquo;</strong> ile sen başlatırsın. Hesap başına 7 günde bir AI ölçümü yapılabilir.
         Ayrıntılar: <a href="/help/ai-visibility">AI Görünürlük rehberi</a>.
       </p>
@@ -119,8 +126,8 @@ export default function Page() {
         Sitenin <strong>Genel Bakış</strong> sayfasındaki kota kartları:
       </p>
       <ul>
-        <li>Bu ayki makale, AI görünürlük çalıştırması ve site kullanımı, limitleriyle birlikte</li>
-        <li>Aylık AI bütçenin %80&apos;i geçilince uyarı; %100&apos;e ulaşınca görsel alt metni önerisi ve App Store yorum yanıtı taslağı gibi işlemler durur</li>
+        <li>Bu ayki makale, AI görünürlük çalıştırması, Asistan mesajı ve site kullanımı, limitleriyle birlikte</li>
+        <li>Aylık AI bütçenin %80&apos;i geçilince uyarı; %100&apos;e ulaşınca makale üretimi (takvimdeki yazılar dahil), makale çevirisi ve Asistan bütçe yenilenene kadar durur. AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz</li>
       </ul>
     </HelpArticle>
   );

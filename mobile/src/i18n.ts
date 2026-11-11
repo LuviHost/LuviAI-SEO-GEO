@@ -84,7 +84,7 @@ export const I18N: Record<Lang, Strings> = {
 
     home_kicker: 'AI GÖRÜNÜRLÜK',
     home_title: 'Markan AI cevaplarında görünüyor mu?',
-    home_sub: 'Sitenin adresini yaz; ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’in sektörüne dair sorulara verdiği cevaplarda markanın geçip geçmediğini ölçelim. Ücretsiz, hesap gerekmez.',
+    home_sub: 'Sitenin adresini yaz; ChatGPT, Gemini, Claude ve Perplexity’nin sektörüne dair sorulara verdiği cevaplarda markanın geçip geçmediğini ölçelim. Ücretsiz, hesap gerekmez.',
     home_cta: 'Siteni analiz et',
     home_connect_title: 'RanksUp hesabın var mı?',
     home_connect_body: 'Hesabını bağla; sitelerin, bildirimlerin ve ASO verilerin burada görünsün.',
@@ -182,7 +182,7 @@ export const I18N: Record<Lang, Strings> = {
 
     home_kicker: 'AI VISIBILITY',
     home_title: 'Does your brand show up in AI answers?',
-    home_sub: 'Enter your site and we will check whether ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek mention your brand when asked about your industry. Free, no account needed.',
+    home_sub: 'Enter your site and we will check whether ChatGPT, Gemini, Claude and Perplexity mention your brand when asked about your industry. Free, no account needed.',
     home_cta: 'Analyze your site',
     home_connect_title: 'Have a RanksUp account?',
     home_connect_body: 'Connect it to see your sites, notifications and ASO data here.',

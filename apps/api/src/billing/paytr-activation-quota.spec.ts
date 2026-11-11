@@ -190,6 +190,25 @@ describe('activateSubscription — sayac yalniz gercek plan degisiminde sifirlan
   });
 });
 
+// 11.11.2026: deneme butcesi omur boyu ayri bir kovadir ve artik denemenin makale + sohbet
+// harcamasini da sayar (8 USD'ye kadar). Ayni ay icinde plan alan musteri ilk ayina o
+// harcamayla baslamaz; ucretli plandan ucretli plana geciste bu ayin harcamasi korunur (ustteki test).
+describe('denemeden ucretli plana gecis: AI maliyet sayaci ayni ay icinde de sifirlanir', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('deneme bu ay basladi ve bu ay plan aldi: AI maliyeti 0 (video sayaci ve ay kurali degismez)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(local(2026, 11, 20));
+    const w = world({
+      plan: 'TRIAL', subscriptionStatus: 'TRIAL', articlesUsedThisMonth: 2,
+      articlesQuotaResetAt: local(2026, 11, 8), videosUsedThisMonth: 0, aiCostThisMonthUsd: 7.4,
+    });
+    await w.pay('STA', false);
+    expect(w.user).toMatchObject({ plan: 'STARTER', articlesUsedThisMonth: 0, aiCostThisMonthUsd: 0 });
+    expect(await w.quota.checkAiCostBudget('u1')).toMatchObject({ used: 0, cap: 25, hardBlock: false });
+  });
+});
+
 describe('takvim ayi tek donem: ay ortasi yenileme ikinci kota vermez', () => {
   // 11.11.2026 (uc paket): eskiden Baslangic (15 makale; "eskiden 30") ile sinaniyordu. Baslangic'ta
   // artik makale yok — o haliyle test 0 = 0 diye bos gecerdi. Makale hakki olan Profesyonel (40).

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { FileText, Globe, Sparkles } from 'lucide-react';
+import { FileText, Globe, MessageSquare, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNum } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/async-state';
 import { StatusBanner } from '@/components/ui/status-banner';
 
-type Quota = Awaited<ReturnType<typeof api.getUserQuota>>;
+/**
+ * Kota ucunun (api billing.controller getQuota) yaniti. `chat` ve `budget.exempt`
+ * 11.11.2026'da eklendi; eski API'de yoklar, bu yuzden istege bagli okunur.
+ */
+type Quota = Awaited<ReturnType<typeof api.getUserQuota>> & {
+  /** Panel sohbeti (Asistan) mesaj hakki; unlimited: ADMIN, lifetime: deneme (toplam hak) */
+  chat?: { used: number; limit: number; remaining: number; unlimited: boolean; lifetime: boolean } | null;
+  budget?: { exempt?: boolean };
+};
 
 /**
  * Aylik kotalar + AI butce uyarisi. %70'te uyari, %90'da tehlike tonu.
@@ -27,7 +35,7 @@ export function QuotaMonitor() {
   const load = useCallback(() => {
     if (!userId) return;
     api.getUserQuota(userId)
-      .then((d) => { setData(d); setError(null); })
+      .then((d) => { setData(d as Quota); setError(null); })
       .catch((e) => setError(e));
   }, [userId]);
 
@@ -66,10 +74,16 @@ export function QuotaMonitor() {
       key: 'sites', icon: Globe, label: 'Site',
       used: data.sites.current, limit: data.sites.limit,
     },
+    // Asistan mesaji hakki (plans.ts chatMessagesPerMonth). ADMIN'de sinir yok: kart gosterilmez.
+    data.chat && !data.chat.unlimited && data.chat.limit > 0 && {
+      key: 'chat', icon: MessageSquare, label: 'Asistan mesajı',
+      used: data.chat.used, limit: data.chat.limit,
+    },
   ].filter(Boolean) as Array<{ key: string; icon: typeof FileText; label: string; used: number; limit: number }>;
 
   const budget = data.budget;
-  const showBudgetWarn = !!budget && (budget.warn || budget.hardBlock);
+  // ADMIN butceye takilmaz (api checkAiCostBudget exempt): durmayacak isler icin uyari gosterilmez
+  const showBudgetWarn = !!budget && !budget.exempt && (budget.warn || budget.hardBlock);
 
   return (
     <div className="space-y-3">
@@ -78,20 +92,23 @@ export function QuotaMonitor() {
           tone={budget.hardBlock ? 'danger' : 'warning'}
           title={budget.hardBlock ? `Aylık AI bütçen doldu (%${budget.pct})` : `AI bütçenin %${budget.pct}'i kullanıldı`}
         >
-          {/* Butce kapisi (QuotaService.enforceAiCostBudget) yalniz iki isi durdurur:
-              gorsel alt metni onerisi (image-alt-suggest.service) ve App Store
-              yorum yaniti taslagi (asc-review-reply.service). Eski "Yeni AI
-              istekleri durduruldu" metni makale ve olcumu de durmus gibi
-              gosteriyordu; onlar kendi kotalariyla calisir. public-docs.spec.ts
-              cagiran listesini denetler. */}
+          {/* Butce (api QuotaService SPEND_CAP_USD) 11.11.2026'dan beri AI gorunurluk olcumu
+              disindaki her AI harcamasini sayar ve dolunca sunlari durdurur: makale uretimi
+              (kullanicinin baslattigi + takvim / otomatik: consumeArticleAllowance,
+              pipeline.service), makale cevirisi (translator.service), Asistan (chat.service),
+              gorsel alt metni onerisi (image-alt-suggest.service) ve App Store yorum yaniti
+              taslagi (asc-review-reply.service). Olcum sayilmaz ve durmaz. Eski metin "makale
+              üretimi ve AI ölçümü kendi kotalarıyla sürer" diyordu; makale icin artik yanlis.
+              "Ücretli planlarda": deneme butcesi yenilenmez. public-docs.spec.ts cagiran
+              listesini ve bu metni denetler. */}
           ${budget.used.toFixed(2)} / ${budget.cap.toFixed(2)} ·{' '}
           {budget.hardBlock
-            ? 'Görsel alt metni önerisi ve App Store yorum yanıtı taslağı durdu; makale üretimi ve AI ölçümü kendi kotalarıyla sürer. Üst planlarda bütçe sınırı daha yüksek.'
-            : 'Bütçe dolarsa görsel alt metni önerisi ve App Store yorum yanıtı taslağı durur; makale üretimi ve AI ölçümü kendi kotalarıyla sürer.'}
+            ? 'Makale üretimi, makale çevirisi ve Asistan durdu; görsel alt metni önerisi ve App Store yorum yanıtı taslağı da bekler. AI görünürlük ölçümü etkilenmez, kendi kotasıyla sürer. Ücretli planlarda bütçe yeni ayda sıfırlanır.'
+            : 'Bütçe dolarsa makale üretimi, makale çevirisi ve Asistan durur; görsel alt metni önerisi ve App Store yorum yanıtı taslağı da bekler. AI görünürlük ölçümü etkilenmez.'}
         </StatusBanner>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className={cn('grid grid-cols-1 gap-3', items.length > 3 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3')}>
         {items.map((it) => {
           const pct = it.limit > 0 ? Math.min(100, Math.round((it.used / it.limit) * 100)) : 0;
           const tone = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : 'brand';

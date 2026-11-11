@@ -5,7 +5,7 @@ import { decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
-import { ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
+import { FREE_TEST_ENGINES, ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
 import type { ModelTier } from '../billing/plans.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
@@ -14,7 +14,7 @@ import { brandMatcher, resolveSiteBrand, unbrandedOnly } from './brand-in-query.
 import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
 import { citationScore, isErrorProbe, measuredOnly, providerOutcome } from './citation-score.js';
-import { COST_PER_PROBE_USD, POOL_ENV_KEY, costPerProbe, isUnconfiguredProvider } from './citation-providers.js';
+import { COST_PER_PROBE_USD, DAILY_BUDGET_DEFAULT_USD, PER_USER_BUDGET_SHARE, POOL_ENV_KEY, costPerProbe, isUnconfiguredProvider } from './citation-providers.js';
 import {
   withProbeRetry, ProviderConfigError, isFatalProviderError,
   probeErrorCode, probeErrorExcerpt, safeErrorText, safeReasonToken,
@@ -110,9 +110,10 @@ export interface CitationResult {
   /** Site olcumu: tum tekrarlar uzerinden gorunme sikliginin %95 Wilson araligi (visibility-interval.ts); sayilacak cevap yoksa null */
   gorunme?: GorunmeAraligi | null;
   /**
-   * Site olcumu (runForSite): olcumun yapildigi model kademesi (sahibin planindan —
-   * billing/plan-engines.ts). Kaydi yazanlar (ai-citation-tracker, audit.service) yontem
-   * surumunu bundan damgalar (host-match siteMeasurementVersion); alan yoksa 'premium'.
+   * Olcumun yapildigi model kademesi (sahibin planindan — billing/plan-engines.ts); runForSite
+   * ve runQueries doldurur. Kaydi yazanlar yontem surumunu bundan damgalar: site olcumu
+   * (ai-citation-tracker, audit.service) siteMeasurementVersion, Prompt Lab citationMatchVersion
+   * (host-match.ts); alan yoksa 'premium'.
    */
   modelTier?: ModelTier;
 }
@@ -174,25 +175,16 @@ export class AiCitationService {
 
   // Cost guard — gunluk per-provider hard cap (USD).
   // Sadece havuz (pool) kullanimina uygulanir; BYOK kullanicinin kendi parasi oldugu icin saymaz.
+  // Varsayilanlar ve gerekcesi (kiraci payi Profesyonel'in bir gunluk hakkini tasimali):
+  // citation-providers.ts DAILY_BUDGET_DEFAULT_USD. Env ile degisir.
   private readonly DAILY_BUDGET_USD: Record<Provider, number> = {
-    // Opus 5'e gecisle probe basi TAVAN maliyet 0.0024 → 0.03 (12x).
-    // Varsayilan gunluk tavan 5 → 30 USD: bu, gunde ~1000 anthropic probe
-    // demektir (eski kurulumda ~2000 idi). Kapasiteyi geri istiyorsan
-    // AI_BUDGET_ANTHROPIC_USD=60 yap; maliyeti kismak istiyorsan dusur.
-    anthropic:  parseFloat(process.env.AI_BUDGET_ANTHROPIC_USD  ?? '30'),
-    // Ekim 2026: ChatGPT ve Gemini web aramali olculuyor — probe basi tavan
-    // ~0.03-0.04 USD. 15 USD ≈ gunde ~400 probe (~80 site taramasi).
-    gemini:     parseFloat(process.env.AI_BUDGET_GEMINI_USD     ?? '15'),
-    openai:     parseFloat(process.env.AI_BUDGET_OPENAI_USD     ?? '15'),
-    perplexity: parseFloat(process.env.AI_BUDGET_PERPLEXITY_USD ?? '5'),
-    // Kasim 2026: Grok ve DeepSeek de web aramali olculuyor (CITATION_MATCH_VERSION 5);
-    // probe basi tavan 0.0003/0.0006 → 0.10/0.05 USD. Varsayilanlar gunde
-    // ~300 probe'a izin verir; kismak icin env ile dusur.
-    xai:        parseFloat(process.env.AI_BUDGET_GROK_USD       ?? '30'),
-    deepseek:   parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD   ?? '15'),
-    // Kasim 2026: Meta Muse web aramali, probe tavani 0.08 USD → 15 USD ≈ gunde
-    // ~190 probe (20 soruluk karne 20 probe). Eski 3 USD aramasiz Llama icindi.
-    meta:       parseFloat(process.env.AI_BUDGET_META_USD       ?? '15'),
+    anthropic:  parseFloat(process.env.AI_BUDGET_ANTHROPIC_USD  ?? String(DAILY_BUDGET_DEFAULT_USD.anthropic)),
+    gemini:     parseFloat(process.env.AI_BUDGET_GEMINI_USD     ?? String(DAILY_BUDGET_DEFAULT_USD.gemini)),
+    openai:     parseFloat(process.env.AI_BUDGET_OPENAI_USD     ?? String(DAILY_BUDGET_DEFAULT_USD.openai)),
+    perplexity: parseFloat(process.env.AI_BUDGET_PERPLEXITY_USD ?? String(DAILY_BUDGET_DEFAULT_USD.perplexity)),
+    xai:        parseFloat(process.env.AI_BUDGET_GROK_USD       ?? String(DAILY_BUDGET_DEFAULT_USD.xai)),
+    deepseek:   parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD   ?? String(DAILY_BUDGET_DEFAULT_USD.deepseek)),
+    meta:       parseFloat(process.env.AI_BUDGET_META_USD       ?? String(DAILY_BUDGET_DEFAULT_USD.meta)),
   };
 
   // Probe basina maliyet TAVANI — tablo ve gerekceleri citation-providers.ts'te
@@ -206,8 +198,15 @@ export class AiCitationService {
   // degisikligi gerekmesin.
   private readonly MODELS = {
     anthropic: process.env.ANTHROPIC_CITATION_MODEL ?? 'claude-opus-5-5',
-    gemini:    process.env.GEMINI_CITATION_MODEL    ?? 'gemini-2.5-flash',
-    openai:    process.env.OPENAI_CITATION_MODEL    ?? 'gpt-4o-mini',
+    // 11.11.2026 (canli deneme, kobipratik.com — ~/Desktop/model-denemesi-sonuc.txt):
+    //  - Gemini: gemini-2.5-flash 01.12.2026'da gemini-3.5-flash-lite'a yonlendiriliyor; yeni model
+    //    daha ucuz (soru basina 0.019 USD; eskisi 0.039), daha hizli ve eskisindeki "dusunme butun
+    //    cikti hakkini yedi, cevap bos" (MAX_TOKENS) sorununu gostermedi. Iki kademede de ayni:
+    //    ust modeller olcume uygun cikmadi (3.8-flash arama yapmadi, 4-carbon soru basina ~51 sn).
+    //  - ChatGPT: gpt-4o-mini 14.01.2027'de kapaniyor. Profesyonel ve ustu amiral modelle
+    //    (gpt-6-astra, soru basina ~0.16 USD); Baslangic ve deneme MODELS_STANDARD'daki hizli modelle.
+    gemini:    process.env.GEMINI_CITATION_MODEL    ?? 'gemini-3.5-flash-lite',
+    openai:    process.env.OPENAI_CITATION_MODEL    ?? 'gpt-6-astra',
     // Web aramali olcum (Kasim 2026): saglayicilarin resmi arama orneklerindeki modeller
     xai:       process.env.XAI_CITATION_MODEL       ?? 'grok-4.7',
     deepseek:  process.env.DEEPSEEK_CITATION_MODEL  ?? 'deepseek-v4-pro',
@@ -216,13 +215,17 @@ export class AiCitationService {
   };
 
   /**
-   * 'standard' kademe (Baslangic paketi ve deneme — billing/plan-engines.ts): saglayicinin
-   * hizli/ucuz modeli. Burada olmayan saglayici iki kademede de MODELS'teki modelle olculur
-   * (ChatGPT, Gemini ve Perplexity zaten hizli modelde). Model degisince probe tavani da
+   * 'standard' kademe (Baslangic paketi, deneme ve ana sayfadaki ucretsiz test —
+   * billing/plan-engines.ts): saglayicinin hizli/ucuz modeli. Sahip yonergesi (11.11.2026):
+   * "Baslangic hesapli is, premium kalite isi; zarar etmeyelim". Burada olmayan saglayici iki
+   * kademede de MODELS'teki modelle olculur (Gemini ve Perplexity'de olcume uygun bir ust model
+   * yok; Grok, DeepSeek ve Muse yalniz Profesyonel ve ustunde). Model degisince probe tavani da
    * degisir: citation-providers.ts COST_PER_PROBE_USD_STANDARD.
    */
   private readonly MODELS_STANDARD: Partial<Record<keyof AiCitationService['MODELS'], string>> = {
     anthropic: process.env.ANTHROPIC_CITATION_MODEL_STANDARD ?? 'claude-haiku-5-5',
+    // gpt-6-luna: soru basina ~0.011 USD (canli deneme 11.11.2026)
+    openai:    process.env.OPENAI_CITATION_MODEL_STANDARD ?? 'gpt-6-luna',
   };
 
   private modelFor(provider: keyof AiCitationService['MODELS'], tier: ModelTier): string {
@@ -356,13 +359,8 @@ export class AiCitationService {
   // ────────────────────────────────────────────────────────────
   //  BUDGET GUARD (havuz icin gunluk USD cap)
   // ────────────────────────────────────────────────────────────
-  /**
-   * Tek bir kiracinin gunluk havuzdan alabilecegi azami pay.
-   * Butce ONCEDEN yalnizca GLOBAL'di: bir kullanici birkac istekle anthropic
-   * havuzunun tamamini bitirip gun sonuna kadar TUM musterilere
-   * "Gunluk havuz butcesi asildi" hatasi aldirabiliyordu.
-   */
-  private readonly PER_USER_BUDGET_SHARE = 0.25;
+  /** Tek bir kiracinin gunluk havuzdan alabilecegi azami pay — citation-providers.ts */
+  private readonly PER_USER_BUDGET_SHARE = PER_USER_BUDGET_SHARE;
 
   private costKey(provider: Provider, day: string, userId?: string): string {
     return userId ? `ai-cost:${provider}:${day}:u:${userId}` : `ai-cost:${provider}:${day}`;
@@ -390,13 +388,17 @@ export class AiCitationService {
     await this.bumpCostKey(this.publicAnonCostKey(), cost);
   }
 
-  /** Bir anonim testin TAVAN maliyeti: yapilandirilmis saglayicilar x soru sayisi */
+  /**
+   * Bir anonim testin TAVAN maliyeti: testin sordugu (yapilandirilmis) asistanlar x soru sayisi.
+   * Anonim test dort asistana 'standard' kademeyle sorar (billing/plan-engines FREE_TEST_ENGINES;
+   * public-citation.service check) — tavan da o kapsamin.
+   */
   plannedPublicCost(queryCount: number): number {
-    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+    const providers: Provider[] = [...FREE_TEST_ENGINES];
     let usd = 0;
     for (const p of providers) {
       if (!process.env[POOL_ENV_KEY[p]] || isUnconfiguredProvider(p)) continue;
-      usd += (this.COST_PER_PROBE_USD[p] ?? 0) * queryCount;
+      usd += costPerProbe(p, 'standard') * queryCount;
     }
     return usd;
   }
@@ -485,19 +487,30 @@ export class AiCitationService {
   // yerde kalsin diye ayni ozel yardimcilar disari acilir; yeni bir kural
   // yazilmaz.
 
-  /** Havuz butce kapisi (global + kiraci payi) — runProvider'daki kontrolun aynisi */
-  async poolBudgetExceeded(provider: Provider, plannedProbes: number, userId?: string): Promise<boolean> {
-    return this.isOverBudget(provider, plannedProbes, userId);
+  /**
+   * Havuz butce kapisi (global + kiraci payi) — runProvider'daki kontrolun aynisi.
+   * `tier`: deftere yazilacak probe tavaninin kademesi (varsayilan 'premium'). Web aramasiz
+   * soran yollar (GEO heatmap) 'standard' verir: ust model + web aramasi tavaniyla
+   * (ChatGPT 0.50 USD / soru) sayilirsa 20 soruluk izgara deftere 10 USD yazar ve ayni gunun
+   * olcumunu kiraci payindan dusurur.
+   */
+  async poolBudgetExceeded(provider: Provider, plannedProbes: number, userId?: string, tier: ModelTier = 'premium'): Promise<boolean> {
+    return this.isOverBudget(provider, plannedProbes, userId, tier);
   }
 
-  /** Havuz maliyetini gunluk deftere yazar (global + kiraci) — runProvider ile ayni */
-  async recordPoolCost(provider: Provider, probeCount: number, userId?: string): Promise<number> {
-    return this.addCost(provider, probeCount, userId);
+  /** Havuz maliyetini gunluk deftere yazar (global + kiraci) — runProvider ile ayni; `tier` kapidakiyle ayni olmali */
+  async recordPoolCost(provider: Provider, probeCount: number, userId?: string, tier: ModelTier = 'premium'): Promise<number> {
+    return this.addCost(provider, probeCount, userId, tier);
   }
 
-  /** Butce asiminda musteriye gosterilen neden (runProvider ile ayni metin) */
-  poolBudgetReason(provider: Provider): string {
-    return `Günlük havuz bütçesi aşıldı (${this.DAILY_BUDGET_USD[provider]?.toFixed(2)} USD). BYOK ekleyebilir veya yarın tekrar denersiniz.`;
+  /**
+   * Butce asiminda musteriye gosterilen neden (runProvider ile ayni metin).
+   * Tutar ve kendi anahtar (BYOK) onerisi YAZILMAZ (11.11.2026): eski metin global tavani basiyordu
+   * (asilan cogu zaman kiracinin payi) ve kendi anahtarini her plana oneriyordu (BYOK yalniz
+   * Kurumsal'da). Musterinin yapabilecegi tek sey ertesi gun yeniden denemek.
+   */
+  poolBudgetReason(_provider: Provider): string {
+    return 'Bu asistan için bugünkü ölçüm sınırına ulaşıldı; yarın yeniden ölçülebilir.';
   }
 
   /**
@@ -688,7 +701,10 @@ export class AiCitationService {
     if (trigger === 'user' && results.some(r => r.source === 'pool' && this.hasRealProbes(r))) {
       try { await this.quota.incrementCitationUsage(site.userId); } catch { /* noop */ }
     }
-    return results;
+    // Kademe damgasi (runForSite ile ayni): satiri yazan (Prompt Lab persistRuns) yontem
+    // surumunu bundan damgalar — host-match citationMatchVersion
+    const modelTier = ownerModelTier({ plan, role: site.user.role });
+    return results.map((r) => ({ ...r, modelTier }));
   }
 
   // ────────────────────────────────────────────────────────────
@@ -879,7 +895,7 @@ export class AiCitationService {
         switch (provider) {
           case 'anthropic':  probes = await this.probeAnthropic(key, host, brand, queries, systemPrompt, competitors, tier); break;
           case 'gemini':     probes = await this.probeGemini(key, host, brand, queries, systemPrompt, competitors); break;
-          case 'openai':     probes = await this.probeOpenAI(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'openai':     probes = await this.probeOpenAI(key, host, brand, queries, systemPrompt, competitors, tier); break;
           case 'perplexity': probes = await this.probePerplexity(key, host, brand, queries, systemPrompt, competitors); break;
           case 'xai':        probes = await this.probeXai(key, host, brand, queries, systemPrompt, competitors); break;
           case 'deepseek':   probes = await this.probeDeepseek(key, host, brand, queries, systemPrompt, competitors); break;
@@ -1165,7 +1181,7 @@ export class AiCitationService {
     switch (provider) {
       case 'anthropic':  return this.probeAnthropic(key, host, brand, queries, systemPrompt, competitors, tier);
       case 'gemini':     return this.probeGemini(key, host, brand, queries, systemPrompt, competitors);
-      case 'openai':     return this.probeOpenAI(key, host, brand, queries, systemPrompt, competitors);
+      case 'openai':     return this.probeOpenAI(key, host, brand, queries, systemPrompt, competitors, tier);
       case 'perplexity': return this.probePerplexity(key, host, brand, queries, systemPrompt, competitors);
       case 'xai':        return this.probeXai(key, host, brand, queries, systemPrompt, competitors);
       case 'deepseek':   return this.probeDeepseek(key, host, brand, queries, systemPrompt, competitors);
@@ -1311,12 +1327,13 @@ export class AiCitationService {
    * icin olcum her seferinde aramali yapilir (tutarli kiyas). Kaynaklar
    * output_text.annotations icinde url_citation olarak gelir.
    */
-  private async probeOpenAI(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+  private async probeOpenAI(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = [], tier: ModelTier = 'premium'): Promise<CitationProbe[]> {
+    const model = this.modelFor('openai', tier);
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
         const data = await withProbeRetry(() => this.postJson('https://api.openai.com/v1/responses', key, {
-          model: this.MODELS.openai,
+          model,
           instructions: systemPrompt,
           input: q,
           tools: [{ type: 'web_search' }],

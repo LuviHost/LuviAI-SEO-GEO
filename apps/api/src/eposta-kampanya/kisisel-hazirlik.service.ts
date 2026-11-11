@@ -122,11 +122,16 @@ export class KisiselHazirlikService {
     if (!d.ok) return { durum: 'INCELE', inceleme: { neden: d.neden } };
 
     // Iki asistan, tek soru, web aramali. Ikisi de olculmezse "siz yoktunuz" tek kaynaga dayanir → gonderilmez.
+    // Kademe 'standard' (11.11.2026): runPublicProbes'un varsayilani 'premium'; model atamasiyla
+    // ChatGPT'nin ust modeli amiral modele (gpt-6-astra, soru basina ~0.15 USD) gecti. Belirtilmezse
+    // her aday firma o modelle olculur: gunde 30–40 aday ayda ~150 USD (eski gpt-4o-mini ile ~15).
+    // Soguk e-posta hazirligi hizli modelle (gpt-6-luna, ~0.015 USD) olcer — ucretsiz testle ayni.
     const sonuc = await this.citation.runPublicProbes({
       brand: d.marka,
       host,
       queries: [d.soru],
       only: KISISEL_ASISTANLAR.map((x) => x.provider),
+      tier: 'standard',
     });
     const { asistanlar, adaylar } = olcumOzeti(sonuc, host);
     const maliyet = sonuc.reduce((t, r) => t + (r.cost ?? 0), 0) + (res.costUsd ?? 0);

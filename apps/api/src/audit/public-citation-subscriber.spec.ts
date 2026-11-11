@@ -3,6 +3,7 @@ import { BadRequestException, HttpException } from '@nestjs/common';
 import { PublicCitationService } from './public-citation.service.js';
 import { PublicCitationSubscriberService, normalizeSubscriberEmail } from './public-citation-subscriber.service.js';
 import { SUBSCRIBE_EMAIL_LIMIT_MESSAGE } from './public-subscribe-limits.js';
+import { FREE_TEST_ENGINES } from '../billing/plan-engines.js';
 
 /**
  * Abone retest e-postasi ve abonelik baslatma.
@@ -308,13 +309,16 @@ function kurAbonelik(o: { kontrol?: { brand: string; niche?: string | null; cust
 }
 
 describe('abonelik — hos geldin e-postasi', () => {
-  it('olculen 6 asistani yazar (Llama kosulsuz vaat edilmez), marka kacislanir', async () => {
+  it('ucretsiz testin sordugu dort asistani yazar (Grok / DeepSeek / Muse vaat edilmez), marka kacislanir', async () => {
     const t = kurAbonelik({ kontrol: { brand: 'Ornek <b>X</b>' } });
     await t.svc.subscribe({ email: 'Kisi@Ornek.com', domain: 'https://www.ornek.com/x', locale: 'tr' });
     const m = gonderilen(t.email);
     expect(m.to).toBe('kisi@ornek.com');
-    expect(m.html).toContain('6 AI asistanındaki (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek)');
-    expect(m.html).not.toMatch(/Meta AI|Llama|7 AI/);
+    // Yeniden testler anonim kitleyle ayni kapsamda kosar (plan-engines FREE_TEST_ENGINES):
+    // e-posta olculmeyecek asistani vaat etmez (11.11.2026'ya kadar "6 AI asistanı" yaziyordu)
+    expect(FREE_TEST_ENGINES).toEqual(['openai', 'gemini', 'anthropic', 'perplexity']);
+    expect(m.html).toContain('4 AI asistanındaki (ChatGPT, Gemini, Claude, Perplexity)');
+    expect(m.html).not.toMatch(/Meta AI|Llama|Muse|Grok|DeepSeek|[5-7] AI/);
     expect(m.html).not.toContain('<b>X</b>');
     expect(m.html).toContain('Ornek &lt;b&gt;X&lt;/b&gt;');
   });

@@ -183,10 +183,14 @@ export async function failGenerationWithRefund(
 }
 
 /**
- * Kapali dongu guncellemesinin (yayindaki yaziyi kullanicinin baslattigi yeniden yazim)
- * hakki: yazi GENERATING olmaz ve basarisizlikta FAILED yapilmaz (eski hali yayinda kalir),
- * bu yuzden dusus izi is verisindedir (Job.payload.allowanceCharge). Son denemede hata
- * veren isin hakki ayni kurallarla, is satirinin is verisi tasiyici olarak iade edilir.
+ * YAYINDAKI yazinin yeniden yaziminin hakki — kullanicinin baslattigi kapali dongu
+ * guncellemesi ve (11.11.2026) icerik pivotunun otomatik yeniden yazimi: yazi GENERATING
+ * olmaz ve basarisizlikta FAILED yapilmaz (eski hali yayinda kalir), bu yuzden dusus izi
+ * is verisindedir (Job.payload.allowanceCharge). Son denemede hata veren isin hakki ayni
+ * kurallarla, is satirinin is verisi tasiyici olarak iade edilir. Otomatik yeniden yazimda
+ * worker ayrica yeni surum cikarmadan donen isi de buradan iade eder (atlandi, on denetim
+ * engelledi, editorden gecmedi: content-pivot.service rewriteLeftNoNewVersion); iz iade
+ * izine cevrildigi icin ayni is iki yoldan gelse de TEK iade olur.
  */
 export async function refundJobAllowanceCharge(
   prisma: RefundDb,
@@ -211,11 +215,11 @@ export async function refundJobAllowanceCharge(
       return 'refunded' as const;
     });
     if (outcome === 'raced') return { refunded: false, reason: 'raced' };
-    log.log(`[job ${args.bullJobId}] Basarisiz kapali dongu guncellemesinin makale hakki iade edildi (${row.userId})`);
+    log.log(`[job ${args.bullJobId}] Yeni surum cikarmayan yeniden yazimin makale hakki iade edildi (${row.userId})`);
     return { refunded: true };
   } catch (err: any) {
     if (err instanceof CounterNotDecremented) return { refunded: false, reason: 'counter_empty' };
-    log.warn(`[job ${args.bullJobId}] Basarisiz guncellemenin makale hakki iade edilemedi: ${err?.message ?? err}`);
+    log.warn(`[job ${args.bullJobId}] Yeni surum cikarmayan yeniden yazimin makale hakki iade edilemedi: ${err?.message ?? err}`);
     return { refunded: false, reason: 'error' };
   }
 }

@@ -2,10 +2,12 @@
  * Landing AI gorunurluk testi metinleri (TR "sen" dili + EN). Form (ai-visibility-checker)
  * ve sonuc katmani (checker-overlay) ayni sozlugu paylasir. Emoji yok — ikonlar lucide.
  *
- * MOTOR SAYISI YAZILMAZ (11.11.2026). Anonim test her yapilandirilmis asistana sorar: alti
- * asistan + anahtari tanimliysa Muse (yedi) — sabit "6" Muse olculurken yanlisti. Kilidi acan
- * tam rapor ise hesabin PLAN kapsamiyla olculur (Baslangic 4, Profesyonel ve ustu 6 + Muse;
- * api public-citation.controller unlock). Sonuc katmani saglayicilari API cevabindan listeler.
+ * MOTOR SAYISI YAZILMAZ (11.11.2026). Ucretsiz (anonim) test deneme ve Baslangic ile ayni dort
+ * asistana sorar: ChatGPT, Gemini, Claude, Perplexity (api billing/plan-engines FREE_TEST_ENGINES —
+ * canli olcumde yedi asistanli test ~1.34 USD, dort asistanli ~0.21 USD tuttu). Kilidi acan tam
+ * rapor hesabin PLAN kapsamiyla olculur (Baslangic 4, Profesyonel ve ustu 6 + Muse; api
+ * public-citation.controller unlock). Sonuc katmani saglayicilari API cevabindan listeler;
+ * `loadingMessages` yalniz ucretsiz testin sordugu asistanlari sayar.
  */
 export const CHECKER_COPY = {
   tr: {
@@ -58,8 +60,6 @@ export const CHECKER_COPY = {
       'Soruluyor: Claude',
       'Soruluyor: Gemini',
       'Soruluyor: Perplexity',
-      'Soruluyor: Grok',
-      'Soruluyor: DeepSeek',
       'Cevaplar analiz ediliyor…',
       'Rakipler tespit ediliyor…',
       'Skor hesaplanıyor…',
@@ -114,8 +114,6 @@ export const CHECKER_COPY = {
       'Asking: Claude',
       'Asking: Gemini',
       'Asking: Perplexity',
-      'Asking: Grok',
-      'Asking: DeepSeek',
       'Analyzing responses…',
       'Detecting competitors…',
       'Computing score…',

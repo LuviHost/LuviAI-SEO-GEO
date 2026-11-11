@@ -22,8 +22,14 @@ import { AnswerSheet, EngineChip, stripEngines } from './answer-sheet';
  * `engines`: API'nin "su an olculuyor" dedigi saglayicilar (GET /billing/plans →
  * measuredEngines, sayfa sunucuda ceker). Serit ve "N asistanda" sayisi bundan
  * turer: 6 sabit asistan + anahtari tanimliysa Muse. Verilmezse 6.
+ *
+ * `testEngines`: UCRETSIZ testin sordugu asistanlar (GET /billing/plans → freeTestEngines).
+ * 11.11.2026: ucretsiz test deneme ve Baslangic ile ayni dort asistana sorar; serit ise urunun
+ * olctugu butun asistanlari gosterir. "N AI asistaninda test edelim" cumlesi TESTIN sayisini
+ * yazmali — seridin sayisini yazarsa ziyaretciye sormayacagimiz asistanlari vaat eder.
+ * Verilmezse (eski API: test butun asistanlara soruyordu) seridin sayisi kullanilir.
  */
-export function AiCheckerHero({ engines }: { engines?: readonly string[] } = {}) {
+export function AiCheckerHero({ engines, testEngines }: { engines?: readonly string[]; testEngines?: readonly string[] | null } = {}) {
   const { t } = useT();
   const [engine, setEngine] = useState(0);
   const strip = stripEngines(engines);
@@ -44,7 +50,7 @@ export function AiCheckerHero({ engines }: { engines?: readonly string[] } = {})
           <div className="mt-10 max-w-[34rem]">
             <AiVisibilityChecker />
             <p id="checker-hint" className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {t('land3.hero.checker').replace('{n}', String(strip.length))}
+              {t('land3.hero.checker').replace('{n}', String(testEngines?.length ? testEngines.length : strip.length))}
             </p>
           </div>
 

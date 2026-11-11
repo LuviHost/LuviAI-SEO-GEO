@@ -229,13 +229,16 @@ export class GeoHeatmapService {
     // GUNLUK HAVUZ BUTCESI — ana olcumle (runProvider) ayni kapi ve ayni
     // defter: saglayici basina tum sorular icin onceden bakilir; asilmissa o
     // saglayici bu izgarada olculmez (hucre 'error', skora girmez). Maliyet
-    // tavani ai-citation'in probe tablosundan (COST_PER_PROBE_USD) gelir;
-    // heatmap cagrisi web aramasiz oldugundan gercek maliyet bunun altinda
-    // kalir — kapi temkinli tarafta hata yapar.
+    // tavani ai-citation'in probe tablosundan gelir, 'standard' kademeyle
+    // (11.11.2026): heatmap cagrisi web aramasiz ve kucuk modelle; ust model +
+    // web aramasi tavaniyla (ChatGPT 0.50 USD / soru) sayilinca 20 soruluk
+    // izgara deftere 10 USD yaziyor, ayni gunun olcumunu kiraci payindan
+    // dusuruyordu. 'standard' tavan da gercek maliyetin ustunde — kapi yine
+    // temkinli tarafta hata yapar.
     const overBudget = new Set<string>();
     for (const p of providers) {
       if (p.enabled && probeQueries.length > 0
-        && await this.citation.poolBudgetExceeded(p.id as Provider, probeQueries.length, site.userId)) {
+        && await this.citation.poolBudgetExceeded(p.id as Provider, probeQueries.length, site.userId, 'standard')) {
         overBudget.add(p.id);
       }
     }
@@ -273,7 +276,7 @@ export class GeoHeatmapService {
     // ve hasRealProbes ile ayni): hata veren cagri hak yemez.
     for (const p of providers) {
       const measured = cells.filter((c) => c.provider === p.id && isMeasuredCell(c)).length;
-      if (measured > 0) await this.citation.recordPoolCost(p.id as Provider, measured, site.userId).catch(() => 0);
+      if (measured > 0) await this.citation.recordPoolCost(p.id as Provider, measured, site.userId, 'standard').catch(() => 0);
     }
     const measuredQueries = probeQueries.filter((q) => cells.some((c) => c.query === q && isMeasuredCell(c))).length;
     await this.citation.consumeCitationRuns(site.userId, measuredQueries);

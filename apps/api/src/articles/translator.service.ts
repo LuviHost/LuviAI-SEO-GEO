@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { articleOfferPlan, planHasArticles } from '../billing/plans.js';
+import { AI_BUDGET_EXHAUSTED_CODE, QuotaService } from '../billing/quota.service.js';
+import { LLMProviderService } from '../llm/llm-provider.service.js';
+import { anthropicCostUsd, anthropicUsage } from '../llm/anthropic.provider.js';
 import { TRANSLATION_LANGUAGES } from './articles.dto.js';
 
 export interface TranslationResult {
@@ -11,7 +14,12 @@ export interface TranslationResult {
   toLanguage: string;
   bytes?: number;
   error?: string;
+  /** Reddin makine kodu (yalniz butce: AI_BUDGET_EXHAUSTED); toplu ceviri bununla durur */
+  code?: string;
 }
+
+/** Ceviri modeli — maliyet ayni adla fiyat tablosundan hesaplanir (llm/anthropic.provider) */
+const TRANSLATION_MODEL = 'claude-sonnet-5';
 
 type TranslationLanguage = (typeof TRANSLATION_LANGUAGES)[number];
 
@@ -75,7 +83,11 @@ export class TranslatorService {
     ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     : null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly quota: QuotaService,
+    private readonly llm: LLMProviderService,
+  ) {}
 
   /**
    * @param siteId Makalenin ait olmasi gereken site. articles.controller su an
@@ -106,7 +118,7 @@ export class TranslatorService {
     // harcanmaz. Eskiden plan kapisi yoktu.
     const owner = await this.prisma.site.findUnique({
       where: { id: article.siteId },
-      select: { user: { select: { plan: true } } },
+      select: { userId: true, user: { select: { plan: true } } },
     });
     if (String(owner?.user?.plan ?? '') === 'TRIAL') {
       return { ok: false, fromLanguage, toLanguage, error: TRIAL_TRANSLATION_REFUSED };
@@ -156,12 +168,21 @@ export class TranslatorService {
       };
     }
 
+    // Aylik AI butcesi (11.11.2026): site sahibinin butcesi doluysa modele gidilmez.
+    // Ucuz retler (plan, dil, var olan ceviri) once kendi metinleriyle doner. Sayac
+    // okunamazsa ceviri engellenmez (QuotaService.aiBudgetBlock loglar).
+    const ownerId: string | undefined = owner?.userId ?? undefined;
+    const budgetMessage = ownerId ? await this.quota.aiBudgetBlock(ownerId) : null;
+    if (budgetMessage) {
+      return { ok: false, fromLanguage, toLanguage, error: budgetMessage, code: AI_BUDGET_EXHAUSTED_CODE };
+    }
+
     const langName = LANG_NAMES[toLanguage];
 
     try {
       const md = (article.bodyMd ?? '').slice(0, 50000);
       const resp = await this.anthropic.messages.create({
-        model: 'claude-sonnet-5',
+        model: TRANSLATION_MODEL,
         max_tokens: 32000,
         system: `Sen profesyonel ceviri uzmanisin. Markdown formatini KORU (#, ##, **, blockquote, tables, lists). Frontmatter (--- arasindaki YAML) icindeki value'lari cevir, key'leri DEGISTIRME. SEO meta_title ve meta_description native ${langName} okuyucu icin yeniden yaz, kelime kelime ceviri yapma. Internal link URL'lerini AYNEN birak.`,
         messages: [{
@@ -169,6 +190,24 @@ export class TranslatorService {
           content: `Cevir: ${fromLanguage} -> ${langName}\n\nMakale:\n\n${md}`,
         }],
       });
+
+      // Gercek maliyet: yanitin usage alanlari x fiyat tablosu. Eskiden kayda sabit 0.05
+      // yaziliyor, harcama ne deftere ne butce sayacina isleniyordu (32k cikti tavanli bir
+      // Sonnet cagrisi 0.05'in cok ustune cikabilir). Kayit acilamasa da cagri faturalandi:
+      // harcama yanit gelir gelmez, SITE SAHIBININ sayacina yazilir.
+      const usage = anthropicUsage(resp.usage);
+      const costUsd = anthropicCostUsd(TRANSLATION_MODEL, usage);
+      this.llm
+        .recordDirectUsage({
+          context: 'article-translate',
+          siteId: article.siteId,
+          userId: ownerId,
+          conversationId: article.id,
+          provider: 'anthropic',
+          model: TRANSLATION_MODEL,
+          usage,
+        })
+        .catch((err: any) => this.log.warn(`[${article.id}] Ceviri harcamasi kaydedilemedi: ${err?.message ?? err}`));
 
       const translatedMd = resp.content
         .filter((b: any) => b.type === 'text')
@@ -199,7 +238,7 @@ export class TranslatorService {
           status: 'READY_TO_PUBLISH' as any,
           editorScore: article.editorScore,
           editorVerdict: article.editorVerdict,
-          totalCost: 0.05,
+          totalCost: costUsd,
         },
       });
 
@@ -220,7 +259,7 @@ export class TranslatorService {
   /**
    * Site icin tum eligible makaleleri secili dillere bulk cevir (otopilot).
    */
-  async bulkTranslateSite(siteId: string, languages: string[]): Promise<{ scheduled: number; results: any[] }> {
+  async bulkTranslateSite(siteId: string, languages: string[]): Promise<{ scheduled: number; results: any[]; budgetExhausted?: true; message?: string }> {
     // Izin listesi disi dil hic denenmez (DTO'dan bagimsiz ikinci kat)
     const langs = [...new Set((Array.isArray(languages) ? languages : []).filter(isTranslationLanguage))];
     const articles = await this.prisma.article.findMany({
@@ -230,7 +269,10 @@ export class TranslatorService {
     });
 
     const results: any[] = [];
-    for (const a of articles) {
+    // Butce dolunca (basta ya da ceviriler surerken) dongu durur: kalan makaleler icin
+    // ayni ret tekrar tekrar uretilmez, modele de gidilmez.
+    let budgetMessage: string | null = null;
+    outer: for (const a of articles) {
       for (const lang of langs) {
         // Zaten cevirisi var mi? (translate() da bakar; burada sonuc listesini sismez)
         const existing = await this.prisma.article.findFirst({
@@ -241,9 +283,17 @@ export class TranslatorService {
 
         const r = await this.translate(a.id, lang, siteId);
         results.push({ articleId: a.id, ...r });
+        if (r.code === AI_BUDGET_EXHAUSTED_CODE) {
+          budgetMessage = r.error ?? null;
+          break outer;
+        }
       }
     }
 
-    return { scheduled: results.filter((r) => r.ok).length, results };
+    return {
+      scheduled: results.filter((r) => r.ok).length,
+      results,
+      ...(budgetMessage ? { budgetExhausted: true as const, message: budgetMessage } : {}),
+    };
   }
 }

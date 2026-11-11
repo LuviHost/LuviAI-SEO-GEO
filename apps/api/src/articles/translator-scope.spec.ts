@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { NO_ARTICLE_PLAN_TRANSLATION_REFUSED, TRIAL_TRANSLATION_REFUSED, TranslatorService } from './translator.service.js';
 import { articleOfferPlan, findPlan, planHasArticles } from '../billing/plans.js';
+import { AI_BUDGET_EXHAUSTED_CODE } from '../billing/quota.service.js';
+import { anthropicPricing } from '../llm/anthropic.provider.js';
 
 /**
  * TranslatorService — kapsam, dil izin listesi ve gereksiz model cagrisi.
@@ -13,10 +15,13 @@ import { articleOfferPlan, findPlan, planHasArticles } from '../billing/plans.js
 
 const ART = { id: 'a1', siteId: 's1', slug: 'sac-bakimi', language: 'tr', title: 'Saç', bodyMd: '# Saç', frontmatter: {} };
 
-function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any; plan?: string } = {}) {
+const BUDGET_FULL = 'Aylık AI kullanım bütçen doldu ($120.00 / $120). Bütçe yeni ayın başında sıfırlanır.';
+
+function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any; plan?: string; budgetFull?: boolean; articles?: any[] } = {}) {
   const prisma = {
-    // Varsayilan: makale uretimi OLAN ucretli plan (11.11.2026 uc paket: Baslangic'ta yok)
-    site: { findUnique: vi.fn(async () => ({ user: { plan: opts.plan ?? 'PRO' } })) },
+    // Varsayilan: makale uretimi OLAN ucretli plan (11.11.2026 uc paket: Baslangic'ta yok).
+    // userId: SITE SAHIBI — butce onun sayacindan okunur ve harcama ona yazilir.
+    site: { findUnique: vi.fn(async () => ({ userId: 'sahip-1', user: { plan: opts.plan ?? 'PRO' } })) },
     article: {
       findFirst: vi.fn(async ({ where }: any) => {
         if (where.frontmatter) return opts.existing ? { id: 'tr-old' } : null;
@@ -26,14 +31,20 @@ function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any; p
         if (where.siteId && where.siteId !== a.siteId) return null;
         return where.id === a.id ? a : null;
       }),
-      findMany: vi.fn(async () => [ART]),
+      findMany: vi.fn(async () => opts.articles ?? [ART]),
       create: vi.fn(async ({ data }: any) => ({ id: 'new-1', ...data })),
     },
   };
-  const svc = new TranslatorService(prisma as any);
-  const create = vi.fn(async () => ({ content: [{ type: 'text', text: '---\ntitle: "Hair"\n---\n# Hair' }] }));
+  // Butce: QuotaService.aiBudgetBlock doluysa musteri metnini, degilse null doner
+  const quota = { aiBudgetBlock: vi.fn(async (_userId: string) => (opts.budgetFull ? BUDGET_FULL : null)) };
+  const llm = { recordDirectUsage: vi.fn(async (_args: any) => undefined) };
+  const svc = new TranslatorService(prisma as any, quota as any, llm as any);
+  const create = vi.fn(async () => ({
+    content: [{ type: 'text', text: '---\ntitle: "Hair"\n---\n# Hair' }],
+    usage: { input_tokens: 4_000, output_tokens: 6_000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+  }));
   (svc as any).anthropic = { messages: { create } };
-  return { svc, prisma, create };
+  return { svc, prisma, create, quota, llm };
 }
 
 describe('TranslatorService.translate', () => {
@@ -143,5 +154,89 @@ describe('TranslatorService — makale uretimi olmayan plan (Baslangic)', () => 
       expect((await svc.translate('a1', 'en', 's1')).ok, plan).toBe(true);
       expect(create, plan).toHaveBeenCalledTimes(1);
     }
+  });
+});
+
+/**
+ * 11.11.2026 (sahip: aylik AI butcesi olcum disindaki her AI harcamasini kapsar).
+ * Ceviri SDK'yi dogrudan cagiriyor, kayda sabit 0.05 yaziyor ve harcamayi ne deftere ne
+ * butce sayacina isliyordu; butce doluyken de calisiyordu.
+ */
+describe('TranslatorService — aylik AI butcesi ve gercek maliyet', () => {
+  it('butce doluysa modele gitmez, kayit acmaz; musteriye butce metni ve makine kodu doner', async () => {
+    const { svc, prisma, create, quota, llm } = build({ budgetFull: true });
+    const r = await svc.translate('a1', 'en', 's1');
+    expect(r).toMatchObject({ ok: false, error: BUDGET_FULL, code: AI_BUDGET_EXHAUSTED_CODE });
+    expect(quota.aiBudgetBlock).toHaveBeenCalledWith('sahip-1');
+    expect(create).not.toHaveBeenCalled();
+    expect(prisma.article.create).not.toHaveBeenCalled();
+    expect(llm.recordDirectUsage).not.toHaveBeenCalled();
+  });
+
+  it('butce aciksa cevirir (kapi izin verileni engellemez)', async () => {
+    const { svc, create, quota } = build();
+    expect((await svc.translate('a1', 'en', 's1')).ok).toBe(true);
+    expect(quota.aiBudgetBlock).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('ucuz retler butceden once kendi metniyle doner (var olan ceviri, plan): butce hic okunmaz', async () => {
+    const dup = build({ existing: true, budgetFull: true });
+    expect((await dup.svc.translate('a1', 'en', 's1')).error).toBe('Bu makalenin bu dile çevirisi zaten var.');
+    expect(dup.quota.aiBudgetBlock).not.toHaveBeenCalled();
+    const trial = build({ plan: 'TRIAL', budgetFull: true });
+    expect((await trial.svc.translate('a1', 'en', 's1')).error).toBe(TRIAL_TRANSLATION_REFUSED);
+    expect(trial.quota.aiBudgetBlock).not.toHaveBeenCalled();
+  });
+
+  it('makalenin totalCost alani yanitin kullanimindan hesaplanir (sabit 0.05 degil); harcama SITE SAHIBININ sayacina yazilir', async () => {
+    const { svc, prisma, llm } = build();
+    await svc.translate('a1', 'en', 's1');
+    const fiyat = anthropicPricing('claude-sonnet-5')!;
+    const beklenen = (4_000 / 1_000_000) * fiyat.input + (6_000 / 1_000_000) * fiyat.output;
+    const data = (prisma.article.create.mock.calls[0] as any[])[0].data;
+    expect(data.totalCost).toBeCloseTo(beklenen, 10);
+    expect(data.totalCost).not.toBe(0.05);
+    expect(llm.recordDirectUsage).toHaveBeenCalledTimes(1);
+    expect(llm.recordDirectUsage.mock.calls[0][0]).toMatchObject({
+      context: 'article-translate',
+      siteId: 's1',
+      userId: 'sahip-1',
+      conversationId: 'a1',
+      provider: 'anthropic',
+      model: 'claude-sonnet-5',
+      usage: { inputTokens: 4_000, outputTokens: 6_000, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    });
+  });
+
+  it('kayit acilamasa da (cagri faturalandi) harcama yazilir', async () => {
+    const { svc, prisma, llm } = build();
+    prisma.article.create.mockRejectedValueOnce(new Error('Unique constraint failed'));
+    const r = await svc.translate('a1', 'en', 's1');
+    expect(r.ok).toBe(false);
+    expect(llm.recordDirectUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it('toplu ceviri: butce doluysa ilk rette durur, hicbir makale icin modele gitmez', async () => {
+    const articles = [ART, { ...ART, id: 'a2', slug: 'iki' }, { ...ART, id: 'a3', slug: 'uc' }];
+    const { svc, prisma, create, quota } = build({ budgetFull: true, articles });
+    // translate() makaleyi kimligiyle okur: uc makale de bulunsun
+    prisma.article.findFirst.mockImplementation(async ({ where }: any) => {
+      if (where.frontmatter || where.slug) return null;
+      return articles.find((a) => a.id === where.id) ?? null;
+    });
+    const bulk = await svc.bulkTranslateSite('s1', ['en', 'de']);
+    expect(bulk).toMatchObject({ scheduled: 0, budgetExhausted: true, message: BUDGET_FULL });
+    expect(bulk.results).toHaveLength(1);
+    expect(quota.aiBudgetBlock).toHaveBeenCalledTimes(1);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('toplu ceviri: butce aciksa hepsi cevrilir, butce alani donmez', async () => {
+    const { svc, create } = build();
+    const bulk = await svc.bulkTranslateSite('s1', ['en']);
+    expect(bulk.scheduled).toBe(1);
+    expect(bulk.budgetExhausted).toBeUndefined();
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

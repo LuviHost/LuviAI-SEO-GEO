@@ -59,7 +59,7 @@ export const article: RehberArticle = {
         {
           t: 'tool',
           title: 'Elle uğraşmak istemiyor musun? Siteni burada test et',
-          text: 'Alan adını yaz; sitene uygun alıcı sorularını ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’e soralım, markanın anılıp anılmadığını ve sitenin kaynak gösterilip gösterilmediğini gösterelim. Ücretsiz, kayıt gerekmez; aynı ağdan haftada bir test yapılabilir.',
+          text: 'Alan adını yaz; sitene uygun alıcı sorularını ChatGPT, Gemini, Claude ve Perplexity’ye soralım, markanın anılıp anılmadığını ve sitenin kaynak gösterilip gösterilmediğini gösterelim. Ücretsiz, kayıt gerekmez; aynı ağdan haftada bir test yapılabilir.',
         },
       ],
     },

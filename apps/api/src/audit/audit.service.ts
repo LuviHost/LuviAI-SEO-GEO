@@ -139,6 +139,31 @@ export interface AiCitationSkip {
   nextAvailableAt: string | null;
 }
 
+/**
+ * Taramanin AI adimini CAGIRANIN saglamasi (runAudit opts.aiOlcumu): tarama asistanlara
+ * kendisi sormaz, verilen sonucu (ya da atlama nedenini) AI bolumune yazar.
+ *
+ * NEDEN (sahip karari 11.11.2026): site kurulumunda denetimin AI testi ve baslangic
+ * olcumu ayri ayri olcuyordu (ayni sorular, iki kat maliyet). Kurulum artik TEK olcum
+ * alir (audit/setup-measurement.ts): sonuc hem gecmise (snapshot + kosum) hem buraya
+ * yazilir; kurulum olcumu siniri dolduysa `skipped` ile nedeni gelir.
+ * `ranAt`: olcumun yapildigi an (yeniden kullanilan olcumde taramadan eski olabilir);
+ * verilmezse tarama ani.
+ */
+export type AuditAiOlcumu =
+  | { results: Awaited<ReturnType<AiCitationService['runForSite']>>; ranAt?: string }
+  | { skipped: AiCitationSkip };
+
+/** runAudit'in AI adimi secenegi (trigger'in yaninda): bkz. AuditAiOlcumu */
+export interface AuditAiSecenegi {
+  /**
+   * Verilirse AI adimini tarama OLCMEZ: cagiranin sonucu (ya da atlama nedeni) kullanilir —
+   * site kurulumunun tek otomatik olcumu. Fonksiyon AI adiminin sirasinda cagrilir; hata
+   * firlatirsa adim eskisi gibi atlanir (denetim dusmez).
+   */
+  aiOlcumu?: () => Promise<AuditAiOlcumu>;
+}
+
 /** runForSite hatasindan atlama nedeni — HttpException govdesi (code, nextAvailableAt) okunur */
 export function aiCitationSkipFromError(err: unknown): AiCitationSkip {
   const e = err as { getResponse?: () => unknown; response?: unknown; status?: unknown } | null;
@@ -884,8 +909,10 @@ export class AuditService {
    *   kotayi TUKETMEZ. Aksi halde haftalik otomatik tarama, kullanicinin
    *   kendi olcumleri icin ayirdigi hakki sessizce yer ve "kotam neden bitti"
    *   sorusu dogar.
+   * @param opts.aiOlcumu Site kurulumunun tek otomatik olcumu: AI adimini cagiran saglar
+   *   (AuditAiSecenegi). Verilmezse tarama eskisi gibi kendi olcer.
    */
-  async runAudit(siteId: string, opts: { trigger?: AuditTrigger } = {}) {
+  async runAudit(siteId: string, opts: { trigger?: AuditTrigger } & AuditAiSecenegi = {}) {
     const t0 = Date.now();
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
 
@@ -930,9 +957,19 @@ export class AuditService {
     // 4) GEO + AI Citation (olculen tum AI asistanlari) — paralel.
     // AI adimi atlanirsa (haftalik hak, kota, hata) nedeni burada tutulur;
     // degisken degil kutu: kapanis icindeki atamayi TS akis analizi izlemez.
-    const aiAtlama: { neden: AiCitationSkip | null } = { neden: null };
-    const [geoResult, citationResults] = await Promise.all([
-      this.geo.runAudit(site.url),
+    const aiAtlama: { neden: AiCitationSkip | null; olcumAni: string | null } = { neden: null, olcumAni: null };
+    // Cagiran AI adimini kendisi sagliyorsa (site kurulumu: tek otomatik olcum) tarama
+    // asistanlara SORMAZ; sonuc ya da atlama nedeni oradan gelir (AuditAiOlcumu).
+    // (Promise.resolve().then: fonksiyon es zamanli hata firlatsa da asagidaki catch yakalar.)
+    const aiAdimi = opts.aiOlcumu
+      ? Promise.resolve().then(opts.aiOlcumu).then((o) => {
+        if ('skipped' in o) {
+          aiAtlama.neden = o.skipped;
+          return [] as Awaited<ReturnType<AiCitationService['runForSite']>>;
+        }
+        aiAtlama.olcumAni = o.ranAt ?? null;
+        return o.results;
+      })
       // KULLANICI tetikli (varsayilan) — audit'i kullanici baslatir, citation
       // kotasi gercekten dayatilir. Kota doluysa runForSite artik firlatir;
       // asagidaki catch audit'in geri kalanini ayakta tutar, yalnizca citation
@@ -940,9 +977,12 @@ export class AuditService {
       // Kota acisindan yalnizca GERCEK kullanici taramasi hak tuketir.
       // 'test' de 'system' gibi davranir: dogrulama kosumu musterinin aylik
       // gorunurluk hakkini yiyemez.
-      this.aiCitation.runForSite(siteId, 5, {
+      : this.aiCitation.runForSite(siteId, 5, {
         trigger: (opts.trigger ?? 'user') === 'user' ? 'user' : 'system',
-      }).catch((err) => {
+      });
+    const [geoResult, citationResults] = await Promise.all([
+      this.geo.runAudit(site.url),
+      aiAdimi.catch((err) => {
         aiAtlama.neden = aiCitationSkipFromError(err);
         this.log.warn(`[${siteId}] AI Citation testi atlandi (${aiAtlama.neden.code}): ${err.message}`);
         return [] as Awaited<ReturnType<AiCitationService['runForSite']>>;
@@ -1096,7 +1136,8 @@ export class AuditService {
             // providersWithoutSources): rapor snapshot + GeoPromptRun okur
             providers: providersWithoutSources(citationResults),
             ...(aiSkip ? { skipped: aiSkip } : {}),
-            ranAt: new Date().toISOString(),
+            // Cagiranin sagladigi olcum (kurulum) kendi anini tasir; yoksa tarama ani
+            ranAt: aiAtlama.olcumAni ?? new Date().toISOString(),
             // Olcum yontemi surumu (host-match.ts SITE_MEASUREMENT_VERSION — site
             // olcumu runForSite: tekrar + aralik, v6; eslesme kurali v5'i icerir). Eskiden
             // yazilmiyordu; checkMethodVersion alan yoksa 1 okudugu icin v3 ile

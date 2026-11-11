@@ -905,7 +905,10 @@ export const api = {
       sites: { allowed: boolean; current: number; limit: number };
       /** AI gorunurluk calistirmasi (AI Citation + Prompt Lab ayni kovadan duser) */
       aiRuns: { allowed: boolean; used: number; limit: number; remaining: number };
-      budget: { used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean };
+      /** exempt: ADMIN butce engeline takilmaz (api QuotaService.checkAiCostBudget); eski API'de yok */
+      budget: { used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean; exempt?: boolean };
+      /** Asistan (panel sohbeti) aylik mesaj hakki — api plans.ts chatMessagesPerMonth; eski API'de yok */
+      chat?: { used: number; limit: number; remaining: number; unlimited: boolean; lifetime: boolean } | null;
     }>(`/billing/users/${userId}/quota`),
 
   /** Haftalik AI olcum hakki — hesap basina 7 gunde 1 (ADMIN: limited=false) */

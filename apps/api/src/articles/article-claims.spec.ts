@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NO_AUTO_ARTICLE_PLANS, articleOfferPlan } from '../billing/plans.js';
+import { PIVOT_COOLDOWN_DAYS } from './content-pivot.service.js';
 
 /**
  * Makale uretim / yayin akisini anlatan musteri metinleri = kod.
@@ -32,11 +33,40 @@ describe('icerik yenileme (content-pivot) iddialari Search Console kosuluyla', (
     const makalePlani = articleOfferPlan();
     expect(NO_AUTO_ARTICLE_PLANS).toEqual(expect.arrayContaining(['TRIAL', 'STARTER']));
     expect(NO_AUTO_ARTICLE_PLANS).not.toContain(makalePlani.id.toUpperCase());
-    expect(faq).toContain(`(5) ${makalePlani.name_tr} ve üstü planlarda ve Search Console bağlıysa, yayından en az 30 gün geçmiş makaleler`);
-    expect(faq).toContain(`(5) on ${makalePlani.name_en} and higher plans, if Search Console is connected, articles published at least 30 days ago`);
+    // Bekleme suresi koddan (11.11.2026): metin "en az 30 gün" diyordu, kural 08.11.2026'da 60 gune
+    // cikmisti (content-pivot PIVOT_COOLDOWN_DAYS: hem ilk yayindan hem son canli yazimdan sayilir).
+    expect(PIVOT_COOLDOWN_DAYS, 'bekleme degisti: SSS / yardim / karsilastirma metinlerini guncelle').toBe(60);
+    expect(faq).toContain(`(5) ${makalePlani.name_tr} ve üstü planlarda ve Search Console bağlıysa, yayından ve son güncellemesinden en az ${PIVOT_COOLDOWN_DAYS} gün geçmiş makaleler`);
+    expect(faq).toContain(`(5) on ${makalePlani.name_en} and higher plans, if Search Console is connected, articles published and last updated at least ${PIVOT_COOLDOWN_DAYS} days ago`);
+    expect(faq).not.toMatch(/en az 30 gün geçmiş makaleler|articles published at least 30 days ago/);
+    // Dayanak: tarama yalniz bekleme suresi dolmus yazilari okur (ilk yayin + son canli yazim)
+    const pivotSrc = fs.readFileSync(path.resolve(HERE, './content-pivot.service.ts'), 'utf8');
+    const siteTarama = pivotSrc.slice(pivotSrc.indexOf('async scanSite('));
+    expect(siteTarama).toContain('const cutoff = new Date(Date.now() - PIVOT_COOLDOWN_DAYS * 86400000);');
+    expect(siteTarama).toContain('publishedAt: { lte: cutoff },');
+    expect(siteTarama).toContain('const last = lastLiveWriteAt(a.publishedTo) ?? a.publishedAt;');
     expect(faq).not.toMatch(/\(5\) ücretli planlarda|\(5\) on paid plans/);
     // Yari otomatikte yeniden yazilan yazi onay bekler (content-pivot autoPublishEnabled)
     expect(faq).toContain('Yarı otomatikte yeni hali onayını bekler');
+  });
+
+  // 11.11.2026 (sahip karari): otomatik yeniden yazim, uretilen her makale gibi aylik makale
+  // hakkindan bir makale duser; hak dolduysa baslamaz ve hak yenilenince sonraki tarama alir.
+  // Eskiden haktan dusmuyordu ve aylik tavani yoktu (yalniz yazi basina bekleme suresi).
+  it('SSS madde 5 (TR + EN): otomatik yeniden yazilan makale aylik makale hakkindan duser = content-pivot.service', () => {
+    expect(faq).toContain('otomatik yeniden yazılan makale aylık makale hakkından bir makale düşer, hakkın dolduysa yeniden yazım hak yenilenene kadar bekler');
+    expect(faq).toContain('an automatically rewritten article uses one article from your monthly allowance, and if the allowance is used up the rewrite waits until it renews');
+    // Iddianin dayanagi: tarama isi kuyruga atmadan once hakki dusurur (dusmezse is acilmaz),
+    // dusus izi is verisine yazilir (yeni surum cikmazsa hak bu izden geri verilir)
+    const pivot = fs.readFileSync(path.resolve(HERE, './content-pivot.service.ts'), 'utf8');
+    const tarama = pivot.slice(pivot.indexOf('async scanAllSites('), pivot.indexOf('private async chargeRewrite('));
+    expect(tarama.indexOf('if (!(await this.chargeRewrite(site.userId, limitByUser, hakkiAyrilmis))) {')).toBeGreaterThan(-1);
+    expect(tarama.indexOf('if (!(await this.chargeRewrite(site.userId, limitByUser, hakkiAyrilmis))) {')).toBeLessThan(tarama.indexOf('await this.jobQueue.enqueue('));
+    expect(tarama).toContain("const block: PivotBlock = hakkiAyrilmis.has(site.userId) ? 'allowance_reserved' : 'quota_exhausted';");
+    expect(tarama).toContain("...withAllowanceCharge(null, 'auto_rewrite', new Date()),");
+    // Eski kural geri gelmesin: yeniden yazim hakka sayilmaz diyen kod yorumu / metin
+    expect(pivot).not.toMatch(/makale\s+(\/\/\s*)?hakkindan dusmez/);
+    expect(faq).not.toMatch(/yeniden yaz[ıi]m[^.]{0,60}(hakk[ıi]ndan düşmez|hakka sayılmaz)/i);
   });
 
   it('/compare playbook adim 11: "auto" degil "partial"; Search Console ve elle kopru acikca yaziyor', () => {
@@ -46,11 +76,18 @@ describe('icerik yenileme (content-pivot) iddialari Search Console kosuluyla', (
     expect(step!).toContain('Search Console bağlıysa');
     expect(step!).toContain('Search Console connected');
     expect(step!).not.toMatch(/30 gün sonra performansa göre pivot|Performance-based pivot after 30 days/);
+    // Bekleme suresi koddan; "yeniden yazılır" degil "yazılabilir" (kural tetiklenmezse yazilmaz)
+    expect(step!).toContain(`yayından ve son güncellemesinden en az ${PIVOT_COOLDOWN_DAYS} gün sonra Search Console verisinde zayıf kalan makale haftalık taramada yeniden yazılabilir`);
+    expect(step!).toContain(`at least ${PIVOT_COOLDOWN_DAYS} days after it was published and last updated can be rewritten in a weekly scan`);
+    expect(step!).not.toMatch(/yayından 30 gün sonra|30 days after publishing/);
   });
 
   it('/about otomatik akis karti kosulsuz "performansa gore guncelleme" demiyor', () => {
     expect(about).not.toContain('yayından 30 gün sonra performansa göre güncelleme');
     expect(about).toContain('Search Console verisinde zayıf kalan yazıyı');
+    // Bekleme suresi koddan (content-pivot PIVOT_COOLDOWN_DAYS; metin 11.11.2026'ya kadar "30 gün" diyordu)
+    expect(about).toContain(`zayıf kalan yazıyı yayından ve son güncellemesinden en az ${PIVOT_COOLDOWN_DAYS} gün sonra yeniden yazma`);
+    expect(about).not.toMatch(/yayından 30 gün sonra/);
   });
 });
 

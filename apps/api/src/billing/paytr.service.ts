@@ -906,6 +906,11 @@ export class PaytrService {
    * onceki bir aydaysa takvim sifirlamasi henuz yapilmamistir; o durumda
    * video ve AI maliyet sayaclari da burada sifirlanir — yoksa isaretci bu aya
    * gectigi icin maybeResetMonthlyQuota bu ay onlari hic sifirlamazdi.
+   *
+   * DENEMEDEN ucretli plana geciste AI maliyet sayaci HER ZAMAN sifirlanir (11.11.2026):
+   * deneme butcesi ayri, omur boyu bir kovadir (sifirlanmaz) ve artik denemenin makale ile
+   * sohbet harcamasini da sayar (8 USD'ye kadar). Ayni ay icinde plan alan musteri ilk
+   * ayina denemede harcadigiyla baslamasin (Baslangic'ta tavanin ucte biri).
    */
   private async activateSubscription(
     user: { id: string; plan?: string | null; subscriptionStatus?: string | null; articlesQuotaResetAt?: Date | string | null },
@@ -938,6 +943,7 @@ export class PaytrService {
             articlesUsedThisMonth: 0,
             articlesQuotaResetAt: now,
             ...(markerInEarlierMonth ? { videosUsedThisMonth: 0, aiCostThisMonthUsd: 0 } : {}),
+            ...(user.plan === 'TRIAL' ? { aiCostThisMonthUsd: 0 } : {}),
           }
           : {}),
         // Yeni donem odendi: yenileme sayaclari sifirlanir

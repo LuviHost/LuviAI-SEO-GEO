@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AgentRunnerService } from './agent-runner.service.js';
@@ -36,6 +36,10 @@ import {
   keepLiveFrontmatter, sectionPathOf, type ExistingArticleRow, type RejectedRewrite,
 } from './live-rewrite.js';
 import { liveEntries } from './republish-policy.js';
+import { AI_BUDGET_EXHAUSTED_CODE, QuotaService } from '../billing/quota.service.js';
+// Butce doluyken baslamayan uretimin makale hakki: var olan iade kurallariyla (tek islem, tek iade)
+import { failGenerationWithRefund, refundJobAllowanceCharge } from './allowance-refund.js';
+import { hasAllowanceCharge } from './article-scheduler.service.js';
 
 export interface PipelineResult {
   articleId: string;
@@ -54,6 +58,17 @@ export interface PipelineResult {
   liveKept?: boolean;
   /** Ek alan: reddedilen taslagin ozeti (kayitta agentOutputs.rejectedRewrite) */
   rejectedRewrite?: RejectedRewrite;
+  /**
+   * Ek alanlar: hat HIC BASLAMADI (ajan cagrisi yok) — sahibin aylik AI butcesi dolu
+   * (settleBudgetBlocked). Worker bu sonucu is sonucu olarak yazar; is COMPLETED biter,
+   * BullMQ yeniden denemez. editorVerdict 'REVIZE' doner ki cagiran yayinlamaya kalkmasin.
+   */
+  skipped?: true;
+  reason?: typeof AI_BUDGET_EXHAUSTED_CODE;
+  /** Musteriye gosterilebilir neden (QuotaService butce metni) */
+  message?: string;
+  /** Hat baslamadiktan sonra yazinin durumu (SCHEDULED: takvime dondu, FAILED, ya da degismedi) */
+  articleStatus?: string | null;
 }
 
 /**
@@ -121,6 +136,7 @@ export class PipelineService {
     private readonly urlInventory: SiteUrlInventoryService,
     private readonly linkValidator: LinkValidatorService,
     private readonly qaGate: QaGateService,
+    private readonly quota: QuotaService,
   ) {}
 
   /**
@@ -304,6 +320,19 @@ export class PipelineService {
       include: { brain: true },
     });
 
+    // Aylik AI butcesi (11.11.2026): SITE SAHIBININ butcesi doluysa hat baslamaz, hicbir
+    // ajan cagrilmaz. Uretimin her yolu buradan gecer (kullanici, takvim, otomatik yeniden
+    // yazim); kullanicinin baslattigi yollar ayrica istek aninda 403 alir
+    // (QuotaService.consumeArticleAllowance). Sayac okunamazsa uretim engellenmez (aiBudgetBlock).
+    const budgetMessage = await this.quota.aiBudgetBlock(site.userId);
+    if (budgetMessage) {
+      // Yer tutucusuz cagri = senkron run-now (HTTP): 403; cagiran hakki geri verir
+      if (!opts.articleId) {
+        throw new ForbiddenException({ statusCode: 403, message: budgetMessage, code: AI_BUDGET_EXHAUSTED_CODE });
+      }
+      return this.settleBudgetBlocked({ siteId: opts.siteId, topic: opts.topic, articleId: opts.articleId }, budgetMessage, t0);
+    }
+
     if (!site.brain) {
       throw new Error(`Site ${opts.siteId}: brain henüz oluşturulmamış. Önce BRAIN_GENERATE çalıştırın.`);
     }
@@ -354,6 +383,12 @@ export class PipelineService {
 
     const agentOutputs: Record<string, any> = { contentPlan };
     let totalCost = 0;
+    // Her ajan cagrisi SITE SAHIBININ kimligiyle: maliyet sahibin aylik AI butce sayacina
+    // ve site basina harcama dokumune islenir (LLMProviderService.recordUsage). Sahip,
+    // istegi yapan degil: yoneticinin musteri sitesinde baslattigi uretim musterinin
+    // butcesinden duser. Eskiden kimlik verilmiyordu; makale harcamasi butceye hic ugramiyor,
+    // defter satirlari da sitesiz yaziliyordu.
+    const usageOwner = { siteId: opts.siteId, userId: site.userId, conversationId: opts.articleId };
 
     // 01 — Anahtar Kelime
     this.log.log(`[${opts.siteId}] [1/6] Anahtar kelime: "${opts.topic}"`);
@@ -361,6 +396,7 @@ export class PipelineService {
       agentName: '01-keyword',
       agentSystemSuffix: AGENT_01_KEYWORD.systemSuffix,
       brainContext,
+      ...usageOwner,
       input: `Konu: ${opts.topic}`,
     });
     agentOutputs.keyword = { output: keyword.output, usage: keyword.usage };
@@ -372,6 +408,7 @@ export class PipelineService {
       agentName: '02-outline',
       agentSystemSuffix: AGENT_02_OUTLINE.systemSuffix,
       brainContext,
+      ...usageOwner,
       input: withContentTemplate(keyword.output, contentType, 'outline'),
     });
     agentOutputs.outline = { output: outline.output, usage: outline.usage };
@@ -383,6 +420,7 @@ export class PipelineService {
       agentName: '03-writer',
       agentSystemSuffix: AGENT_03_WRITER.systemSuffix,
       brainContext,
+      ...usageOwner,
       input: withContentTemplate(outline.output + dateNote + authorNote, contentType, 'writer'),
     });
     agentOutputs.writer = { output: writer.output, usage: writer.usage };
@@ -422,6 +460,7 @@ export class PipelineService {
         agentName: '04-editor',
         agentSystemSuffix: AGENT_04_EDITOR.systemSuffix,
         brainContext,
+        ...usageOwner,
         // Kapı bulguları editöre madde madde gider — "kaliteyi artır" gibi
         // muğlak bir istek değil, kapatılacak somut liste.
         // Tip şablonu kontrolü ve yazar notu yalnız rehber dışı tipte / yazar kayıtlıysa eklenir.
@@ -515,6 +554,7 @@ export class PipelineService {
         agentName: '05-visuals',
         agentSystemSuffix: AGENT_05_VISUALS.systemSuffix,
         brainContext,
+        ...usageOwner,
         input: currentDraft,
         maxTokens: 4096,
       });
@@ -811,6 +851,108 @@ export class PipelineService {
       },
     });
     this.log.log(`[${siteId}] Mail gonderildi: ${site.user.email} (${template}${liveUpdate ? ', canli yazinin guncellemesi' : ''})`);
+  }
+
+  /**
+   * Sahibin aylik AI butcesi dolu: hat baslamadi. Yazi onceki durumuna doner, dusulen
+   * makale hakki iade edilir; sonuc TIPLI bir "atlandi" sonucudur (hata degil) — worker onu
+   * is sonucu olarak yazar ve BullMQ isi uc kez yeniden denemez.
+   *
+   *  - Uretime alinmis yazi (GENERATING / EDITING): hak iadesi + FAILED tek islemde
+   *    (allowance-refund failGenerationWithRefund: iade yalniz o denemenin hak isaretinden,
+   *    tam bir kez; onboarding'in ucretsiz yazisi ve onceki donemde dusulen hak iade edilmez).
+   *    TAKVIM yazisi (scheduledAt dolu) ardindan takvime geri konur (SCHEDULED): butce
+   *    yenilenince saatlik tarama onu her zamanki sahiplenmeyle alir ve hakki o zaman duser.
+   *    Takvim disi yazi (Uret, MCP, icerik firsati; istek anindaki butce kapisindan sonra
+   *    butcenin dolmasi) FAILED kalir: kullanici "Simdi uret" ile yeniden baslatir. Ayrim
+   *    takili uretim supurucusuyle ayni (generating-sweeper.ts); fark: supurucu takvime
+   *    geri koydugu yazinin hakkini iade etmez, burada edilir (uretim bu ay olmayacak, sayac
+   *    uretilmeyen yaziyi "kullanildi" gostermesin).
+   *  - Yayindaki yazi (icerik pivotu, kapali dongu guncellemesi): durum ve metin zaten
+   *    degismedi. Kapali dongu guncellemesinin hak izi is verisindedir; uretim isinin kaydi
+   *    bulunup ayni iade kuraliyla geri verilir (refundJobAllowanceCharge).
+   * Buradaki hicbir hata sonucu degistirmez: en kotu durumda yazi GENERATING kalir ve takili
+   * uretim supurucusu onu iadesiyle birlikte kapatir.
+   */
+  private async settleBudgetBlocked(
+    opts: { siteId: string; topic: string; articleId: string },
+    message: string,
+    t0: number,
+  ): Promise<PipelineResult> {
+    const row = await this.prisma.article
+      .findUnique({ where: { id: opts.articleId }, select: { status: true, slug: true, title: true, scheduledAt: true } })
+      .catch(() => null);
+    let articleStatus: string | null = row ? String(row.status) : null;
+    let refunded = false;
+    try {
+      if (row && (articleStatus === 'GENERATING' || articleStatus === 'EDITING')) {
+        const r = await failGenerationWithRefund(this.prisma, {
+          articleId: opts.articleId,
+          where: { id: opts.articleId, status: { in: ['GENERATING', 'EDITING'] as any } },
+        });
+        refunded = r.refunded;
+        if (r.failed) {
+          articleStatus = 'FAILED';
+          if (row.scheduledAt) {
+            const back = await this.prisma.article.updateMany({
+              where: { id: opts.articleId, status: 'FAILED' as any },
+              data: { status: 'SCHEDULED' as any },
+            });
+            if (back.count === 1) articleStatus = 'SCHEDULED';
+          }
+        }
+      } else if (row) {
+        refunded = await this.refundLiveUpdateCharge(opts.siteId, opts.articleId);
+      }
+    } catch (err: any) {
+      this.log.warn(`[${opts.siteId}] Bütçe engeli: yazı önceki durumuna döndürülemedi (article=${opts.articleId}): ${err?.message ?? err}`);
+    }
+    this.log.warn(
+      `[${opts.siteId}] Üretim başlatılmadı: sahibin aylık AI bütçesi dolu (article=${opts.articleId}, durum=${articleStatus ?? 'kayıt yok'}`
+        + `${refunded ? ', makale hakkı iade edildi' : ''})`,
+    );
+    return {
+      articleId: opts.articleId,
+      slug: row?.slug ?? '',
+      title: row?.title ?? opts.topic,
+      bodyMd: '',
+      editorScore: null,
+      editorVerdict: 'REVIZE',
+      totalCostUsd: 0,
+      durationMs: Date.now() - t0,
+      agentOutputs: {},
+      skipped: true,
+      reason: AI_BUDGET_EXHAUSTED_CODE,
+      message,
+      articleStatus,
+    };
+  }
+
+  /**
+   * Yayindaki yazinin kullanicinin baslattigi guncellemesi (kapali dongu) hakki baslarken
+   * dusurur ve izini IS VERISINE yazar (yazi GENERATING olmaz; allowance-refund.ts). Hat
+   * baslamadiysa o iz uzerinden iade edilir. Is kaydi yazi kimligiyle bulunur (hat BullMQ
+   * kimligini bilmez); iade is verisindeki ize kosullu oldugu icin iki kez yapilamaz.
+   */
+  private async refundLiveUpdateCharge(siteId: string, articleId: string): Promise<boolean> {
+    const jobs = await this.prisma.job.findMany({
+      where: {
+        type: 'GENERATE_ARTICLE' as any,
+        siteId,
+        status: { in: ['QUEUED', 'PROCESSING'] as any },
+        // MySQL'de JSON yolu `$` ile baslayan tek dize (generating-sweeper.ts ile ayni kalip)
+        payload: { path: '$.articleId', equals: articleId },
+      },
+      orderBy: { queuedAt: 'desc' },
+      take: 5,
+      select: { bullJobId: true, payload: true },
+    });
+    for (const job of jobs) {
+      if (!job.bullJobId || !hasAllowanceCharge(job.payload)) continue;
+      const r = await refundJobAllowanceCharge(this.prisma, { bullJobId: job.bullJobId });
+      if (r.refunded) return true;
+    }
+    return false;
   }
 
   /** Yeniden yazilan kaydin (opts.articleId) mevcut hali; yoksa null */

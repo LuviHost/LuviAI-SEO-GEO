@@ -102,6 +102,19 @@ export async function fetchMeasuredEngines(): Promise<string[]> {
     : [];
 }
 
+/**
+ * Ana sayfadaki UCRETSIZ testin sordugu asistanlar — /billing/plans yanitindaki `freeTestEngines`
+ * (api billing/plan-engines FREE_TEST_ENGINES: deneme ve Baslangic ile ayni dort asistan).
+ * "Alan adını yaz, N AI asistanında test edelim" cumlesindeki sayi bundan gelir. Alan yoksa
+ * (eski API: test olculen butun asistanlara soruyordu) null — cagiran olculen listeye duser.
+ */
+export async function fetchFreeTestEngines(): Promise<string[] | null> {
+  const data = await getJson<{ freeTestEngines?: unknown }>('/billing/plans?locale=tr');
+  return Array.isArray(data?.freeTestEngines)
+    ? data.freeTestEngines.filter((x): x is string => typeof x === 'string')
+    : null;
+}
+
 export async function fetchTestimonials(limit = 6): Promise<PublicTestimonial[]> {
   const data = await getJson<PublicTestimonial[]>(`/testimonials/public?limit=${limit}`);
   return Array.isArray(data) ? data : [];

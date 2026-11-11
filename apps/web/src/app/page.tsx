@@ -7,7 +7,7 @@ import { ExplainerDialog, WatchVideoButton } from '@/components/landing/explaine
 import { PricingSection } from '@/components/landing/pricing-section';
 import { FaqSection } from '@/components/landing/faq-section';
 import { T, LandingAnalytics, LocaleNumber } from '@/components/landing/landing-islands';
-import { fetchPlans, fetchMeasuredEngines, fetchTestimonials, type PublicTestimonial } from '@/components/landing/landing-data';
+import { fetchPlans, fetchMeasuredEngines, fetchFreeTestEngines, fetchTestimonials, type PublicTestimonial } from '@/components/landing/landing-data';
 import { PageUpdatedLine } from '@/components/page-updated-line';
 import { pageUpdated } from '@/lib/page-updated';
 import { VITRIN_WRAP } from '@/lib/vitrin';
@@ -57,12 +57,15 @@ const CASE_ROWS: Array<{ label: Key; before: number; after: number; decimals?: n
 ];
 
 export default async function LandingPage() {
-  const [plansTr, plansEn, testimonials, engines] = await Promise.all([
+  const [plansTr, plansEn, testimonials, engines, testEngines] = await Promise.all([
     fetchPlans('tr'),
     fetchPlans('en'),
     fetchTestimonials(6),
     // Su an olculen asistanlar: serit Muse'u yalniz API "olculuyor" derse gosterir
     fetchMeasuredEngines(),
+    // Ucretsiz testin sordugu asistanlar (dort): "N AI asistaninda test edelim" cumlesindeki sayi.
+    // Ayni adres (/billing/plans?locale=tr): Next istegi tekillestirir, ek cagri gitmez.
+    fetchFreeTestEngines(),
   ]);
   // Karsilastirma tablosundaki RanksUp fiyati plan verisinden — elle yazilmaz
   const comparePlan = plansTr.find((p) => p.id === 'starter');
@@ -99,7 +102,7 @@ export default async function LandingPage() {
       {/* overflow-hidden: kartin arkasindaki nokta dokusu sutunun disina tasiyor; burada kirpilir
           (sarmalayicidaki overflow-x-clip'i tanimayan eski tarayicilarda yatay kaymayi onler) */}
       <section id="test" className="scroll-mt-16 overflow-hidden">
-        <AiCheckerHero engines={engines} />
+        <AiCheckerHero engines={engines} testEngines={testEngines} />
       </section>
 
       {/* ─── UC YUZEY ─────────────────────────────────────────── */}

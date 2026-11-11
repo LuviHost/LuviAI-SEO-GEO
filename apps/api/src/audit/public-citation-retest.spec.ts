@@ -181,7 +181,11 @@ describe('check() — sabit soru seti (retest)', () => {
 
     expect(t.niche.detectFromUrl).not.toHaveBeenCalled();
     expect(getirici.cagri).toHaveLength(0);
-    expect(t.ai.runPublicProbes).toHaveBeenCalledWith({ brand: 'Kobipratik', host: 'kobipratik.com', queries: SORULAR, competitors: [] });
+    // Abone retest'i anonim kademedir: ucretsiz testle ayni dort asistan, hesapli modeller (11.11.2026)
+    expect(t.ai.runPublicProbes).toHaveBeenCalledWith({
+      brand: 'Kobipratik', host: 'kobipratik.com', queries: SORULAR, competitors: [],
+      only: ['openai', 'gemini', 'anthropic', 'perplexity'], tier: 'standard',
+    });
     expect(r).toMatchObject({
       brand: 'Kobipratik', niche: 'finans', customNiche: 'kredi karşılaştırma', checkId: 'retest-1',
       access: { tier: 'anon', unlockedQueries: 3, totalQueries: 4, lockedQueries: 1 },

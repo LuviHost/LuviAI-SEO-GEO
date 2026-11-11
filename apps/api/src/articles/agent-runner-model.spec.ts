@@ -94,3 +94,24 @@ describe('agent-runner model secimi', () => {
     expect(SETTINGS_CATALOG.filter((s) => s.category === 'model').map((s) => s.key)).toContain('MODEL_MEMBER');
   });
 });
+
+/**
+ * 11.11.2026 (sahip: aylik AI butcesi makale harcamasini da sayar). LLMProviderService butce
+ * sayacini (User.aiCostThisMonthUsd) yalniz userId'li cagrida artirir; ajan cagrisi kimlik
+ * tasimadigi icin makale uretiminin harcamasi butceye hic ugramiyor, defter satirlari da
+ * sitesiz yaziliyordu.
+ */
+describe('agent-runner harcama kimligi', () => {
+  it('siteId, userId (site sahibi) ve conversationId LLM cagrisina AYNEN gecer', async () => {
+    const { svc, chat } = runner();
+    await svc.run({ agentName: '03-writer', agentSystemSuffix: 'rol', brainContext, input: 'girdi', siteId: 's1', userId: 'sahip-1', conversationId: 'a1' });
+    expect(chat.mock.calls[0][0]).toMatchObject({ context: 'agent-03-writer', siteId: 's1', userId: 'sahip-1', conversationId: 'a1' });
+  });
+
+  it('kimlik verilmezse uydurulmaz (cagiran sorumlu)', async () => {
+    const { svc, chat } = runner();
+    await call(svc, '01-keyword');
+    expect(chat.mock.calls[0][0].userId).toBeUndefined();
+    expect(chat.mock.calls[0][0].siteId).toBeUndefined();
+  });
+});

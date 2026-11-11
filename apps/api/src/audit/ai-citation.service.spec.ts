@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AI_COST_KV_TTL_DAYS, AiCitationService, noPoolKeyReason } from './ai-citation.service.js';
+import { COST_PER_PROBE_USD, DAILY_BUDGET_DEFAULT_USD, PER_USER_BUDGET_SHARE, costPerProbe } from './citation-providers.js';
+
+/** Perplexity'de bir kiracinin gunluk payi (USD) — tavan ve pay degisirse testler kendiliginden uyar */
+const PERPLEXITY_PAYI = DAILY_BUDGET_DEFAULT_USD.perplexity * PER_USER_BUDGET_SHARE;
 
 /**
  * Olcum servisinin anonim uca da acilan yolu (runPublicProbes) uzerinden:
@@ -161,9 +165,9 @@ describe('addCost — maliyet sayaci suresi', () => {
     expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
     const [sql, key, value, inc] = prisma.$executeRawUnsafe.mock.calls[0] as unknown as [string, string, string, number];
     expect(key).toBe(`ai-cost:perplexity:${new Date().toISOString().slice(0, 10)}`);
-    // perplexity tavani 0.0006 x 2 probe
-    expect(Number(value)).toBeCloseTo(0.0012, 10);
-    expect(inc).toBeCloseTo(0.0012, 10);
+    // perplexity tavani (citation-providers.ts) x 2 probe — sayi tablodan okunur
+    expect(Number(value)).toBeCloseTo(2 * COST_PER_PROBE_USD.perplexity, 10);
+    expect(inc).toBeCloseTo(2 * COST_PER_PROBE_USD.perplexity, 10);
     const [insert, update] = sql.split('ON DUPLICATE KEY UPDATE');
     expect(insert).toContain('`expiresAt`');
     expect(insert).toContain(`UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY`);
@@ -273,10 +277,13 @@ describe('jenerik marka korumasi (CITATION_MATCH_VERSION 4)', () => {
 
 describe('anonim test tavan maliyeti (plannedPublicCost)', () => {
   it('yalniz anahtari olan saglayicilar x soru sayisi; anahtarsiz saglayici sayilmaz', () => {
-    // beforeEach yalniz Perplexity anahtarini birakir: 0.0006 USD x 3 soru
-    expect(service().plannedPublicCost(3)).toBeCloseTo(0.0018, 6);
+    // beforeEach yalniz Perplexity anahtarini birakir: tavan x 3 soru
+    expect(service().plannedPublicCost(3)).toBeCloseTo(3 * COST_PER_PROBE_USD.perplexity, 6);
     process.env.ANTHROPIC_API_KEY = 'sk-ant-test-1234567890';
-    expect(service().plannedPublicCost(3)).toBeCloseTo(0.0018 + 0.6, 6);
+    // 11.11.2026: anonim test HESAPLI kademeyle olculur (Claude Haiku) — tavan da o kademenin;
+    // gelismis kademenin tavaniyla (Opus 0.2) planlansaydi gunluk anonim butce gereksiz erken dolardi
+    expect(costPerProbe('anthropic', 'standard')).toBeLessThan(COST_PER_PROBE_USD.anthropic);
+    expect(service().plannedPublicCost(3)).toBeCloseTo(3 * COST_PER_PROBE_USD.perplexity + 3 * costPerProbe('anthropic', 'standard'), 6);
   });
 
   it('anonim defter anahtari havuz anahtarlarindan ayri', () => {
@@ -360,7 +367,7 @@ describe('runForSite — her soru her asistana N kez (CITATION_TEKRAR)', () => {
     // Havuz maliyeti 6 probe uzerinden (global + kiraci defteri)
     const tutarlar = prisma.$executeRawUnsafe.mock.calls.map((c: any[]) => Number(c[2]));
     expect(tutarlar).toHaveLength(2);
-    for (const t of tutarlar) expect(t).toBeCloseTo(6 * 0.0006, 10);
+    for (const t of tutarlar) expect(t).toBeCloseTo(6 * COST_PER_PROBE_USD.perplexity, 10);
   });
 
   it('CITATION_TEKRAR=2 ve ust sinir 5', async () => {
@@ -391,8 +398,9 @@ describe('runForSite — her soru her asistana N kez (CITATION_TEKRAR)', () => {
   it('kiraci payi 3 turu kaldirmiyor: tekrar sigan kadar duser (asistan dusmez)', async () => {
     delete process.env.CITATION_TEKRAR;
     const bugun = new Date().toISOString().slice(0, 10);
-    // perplexity kiraci payi 5 x 0.25 = 1.25 USD; tur = 2 soru x 0.0006 = 0.0012 USD → yalniz 1 tur sigar
-    const { svc } = olcumServisi('PRO', { [`ai-cost:perplexity:${bugun}:u:u1`]: String(1.25 - 0.0018) });
+    // perplexity kiraci payi = gunluk tavan x pay (citation-providers); bir tur = 2 soru x tavan.
+    // Kalan pay 1.5 turluk birakilir → yalniz 1 tur sigar (sayilar citation-providers tablosundan)
+    const { svc } = olcumServisi('PRO', { [`ai-cost:perplexity:${bugun}:u:u1`]: String(PERPLEXITY_PAYI - 3 * COST_PER_PROBE_USD.perplexity) });
     const f = perplexityCevaplari();
     const pr = (await svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
     expect(perplexityCagrilari(f)).toHaveLength(2);
@@ -401,12 +409,12 @@ describe('runForSite — her soru her asistana N kez (CITATION_TEKRAR)', () => {
 
   it('pay hic kalmadiysa eski davranis: butce nedeniyle olculmez', async () => {
     const bugun = new Date().toISOString().slice(0, 10);
-    const { svc } = olcumServisi('PRO', { [`ai-cost:perplexity:${bugun}:u:u1`]: '1.25' });
+    const { svc } = olcumServisi('PRO', { [`ai-cost:perplexity:${bugun}:u:u1`]: String(PERPLEXITY_PAYI) });
     const f = perplexityCevaplari();
     const pr = (await svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
     expect(perplexityCagrilari(f)).toHaveLength(0);
     expect(pr).toMatchObject({ available: false, probes: [] });
-    expect(pr.reason).toMatch(/Günlük havuz bütçesi/);
+    expect(pr.reason).toMatch(/bugünkü ölçüm sınırına ulaşıldı/);
   });
 
   it('kalici hata (401) turu dusurur: saglayici kullanilamaz, neden kod', async () => {

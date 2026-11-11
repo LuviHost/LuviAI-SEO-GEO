@@ -104,7 +104,7 @@ export const article: RehberArticle = {
         {
           t: 'tool',
           title: 'Kendi siteni ücretsiz ölç',
-          text: 'Alan adını yaz; sitene uygun alıcı sorularını ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’e soralım, markanın anılıp anılmadığını ve sitenin kaynak gösterilip gösterilmediğini gösterelim. Kayıt gerekmez; aynı ağdan haftada bir test yapılabilir.',
+          text: 'Alan adını yaz; sitene uygun alıcı sorularını ChatGPT, Gemini, Claude ve Perplexity’ye soralım, markanın anılıp anılmadığını ve sitenin kaynak gösterilip gösterilmediğini gösterelim. Kayıt gerekmez; aynı ağdan haftada bir test yapılabilir.',
         },
       ],
     },

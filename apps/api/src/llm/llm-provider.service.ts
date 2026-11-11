@@ -4,7 +4,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { AnthropicProvider } from './anthropic.provider.js';
 import { OpenAIProvider } from './openai.provider.js';
 import { GeminiProvider } from './gemini.provider.js';
-import type { ChatRequest, ChatResponse, ILLMProvider } from './llm.types.js';
+import type { ChatRequest, ChatResponse, ILLMProvider, ModelPricing, ProviderName, UsageMetadata } from './llm.types.js';
 
 /**
  * LLMProviderService — multi-provider router + token usage recorder.
@@ -119,11 +119,68 @@ export class LLMProviderService {
     return response;
   }
 
+  /** Fiyati bilinmeyen modeller icin uyari bir kez yazilir (her cagrida log dolmasin) */
+  private readonly unpricedWarned = new Set<string>();
+
   private async recordUsage(req: ChatRequest, res: ChatResponse): Promise<void> {
     const pricing = this.providers.find(p => p.name === res.provider)?.getPricing(req.model);
-    if (!pricing) return;
+    if (!pricing) {
+      // Fiyat tablosunda olmayan model: harcama deftere ve sahibin aylik AI butcesine YAZILAMAZ;
+      // butce o model icin kor kalir (ornek: env ile tabloda olmayan bir yazar modeli secilirse).
+      // Sessiz kalmasin: tabloya (saglayicinin PRICING'i) eklenmesi gerektigi gorunsun.
+      if (!this.unpricedWarned.has(req.model)) {
+        this.unpricedWarned.add(req.model);
+        this.log.warn(`Fiyatı bilinmeyen model "${req.model}" (${res.provider}, ${req.context}): harcama deftere ve aylık AI bütçesine yazılmadı — fiyat tablosuna ekleyin`);
+      }
+      return;
+    }
+    await this.writeUsage(
+      { context: req.context, siteId: req.siteId, userId: req.userId, conversationId: req.conversationId },
+      res.provider, res.model, res.usage, pricing,
+    );
+  }
 
+  /**
+   * SDK'yi DOGRUDAN cagiran servislerin harcamasi (panel sohbeti: arac dongusu bu servisin
+   * chat()'ine sigmiyor; makale cevirisi). chat() ile AYNI defter satirlari ve AYNI sayac
+   * (User.aiCostThisMonthUsd): butce kapisi (QuotaService.enforceAiCostBudget) yalniz bu
+   * sayaca bakar.
+   *
+   * NEDEN (11.11.2026, sahip: aylik AI butcesi olcum disindaki her harcamayi kapsar): sohbet
+   * deftere kendi sabit fiyatiyla yaziyor ama sayaca hic dokunmuyordu, ceviri ikisine de
+   * yazmiyordu; butce en buyuk harcayanlari gormuyordu. `userId` SITE SAHIBI olmali (butce
+   * hesabin; yoneticinin musteri sitesindeki islemi musterinin butcesinden duser).
+   * chat() uzerinden giden cagri icin CAGRILMAZ (cift sayim).
+   */
+  async recordDirectUsage(args: {
+    context: string;
+    siteId?: string;
+    userId?: string;
+    conversationId?: string;
+    provider: ProviderName;
+    model: string;
+    usage: UsageMetadata;
+  }): Promise<void> {
+    const pricing = this.providers.find(p => p.name === args.provider)?.getPricing(args.model);
+    if (!pricing) {
+      this.log.warn(`[${args.context}] "${args.model}" fiyat tablosunda yok; harcama deftere ve butce sayacina yazilmadi`);
+      return;
+    }
+    await this.writeUsage(
+      { context: args.context, siteId: args.siteId, userId: args.userId, conversationId: args.conversationId },
+      args.provider, args.model, args.usage, pricing,
+    );
+  }
+
+  private async writeUsage(
+    meta: { context: string; siteId?: string; userId?: string; conversationId?: string },
+    provider: ProviderName,
+    model: string,
+    usage: UsageMetadata,
+    pricing: ModelPricing,
+  ): Promise<void> {
     const records: any[] = [];
+    const base = { siteId: meta.siteId, userId: meta.userId, provider, model, context: meta.context, conversationId: meta.conversationId };
 
     // Cache okumasi CIFT SAYILMASIN.
     // OpenAI (prompt_tokens) ve Gemini (promptTokenCount) alanlari cache'ten
@@ -134,19 +191,15 @@ export class LLMProviderService {
     // ilk iki saglayicida ayni token iki kez sayilir ve musteriye gosterilen
     // token toplami sisik cikar. Kayit da maliyet hesabiyla ayni konvansiyonu
     // kullanmali.
-    const inputIncludesCacheRead = res.provider === 'openai' || res.provider === 'gemini';
+    const inputIncludesCacheRead = provider === 'openai' || provider === 'gemini';
     const promptTokens = inputIncludesCacheRead
-      ? Math.max(0, res.usage.inputTokens - res.usage.cacheReadTokens)
-      : res.usage.inputTokens;
+      ? Math.max(0, usage.inputTokens - usage.cacheReadTokens)
+      : usage.inputTokens;
 
     if (promptTokens > 0) {
       records.push({
-        siteId: req.siteId,
-        userId: req.userId,
-        provider: res.provider,
-        model: res.model,
+        ...base,
         tokenType: 'prompt',
-        context: req.context,
         inputTokens: promptTokens,
         outputTokens: 0,
         cacheReadTokens: 0,
@@ -157,74 +210,68 @@ export class LLMProviderService {
         // oraniyla sayilir. Onceden ham inputTokens kullanildigi icin
         // OpenAI/Gemini trafiginde ayni token iki kez faturalaniyordu.
         costUsd: (promptTokens / 1_000_000) * pricing.input,
-        conversationId: req.conversationId,
       });
     }
-    if (res.usage.outputTokens > 0) {
+    if (usage.outputTokens > 0) {
       records.push({
-        siteId: req.siteId,
-        userId: req.userId,
-        provider: res.provider,
-        model: res.model,
+        ...base,
         tokenType: 'completion',
-        context: req.context,
         inputTokens: 0,
-        outputTokens: res.usage.outputTokens,
+        outputTokens: usage.outputTokens,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
         rate: pricing.output,
-        costUsd: (res.usage.outputTokens / 1_000_000) * pricing.output,
-        conversationId: req.conversationId,
+        costUsd: (usage.outputTokens / 1_000_000) * pricing.output,
       });
     }
-    if (res.usage.cacheReadTokens > 0 && pricing.cacheRead) {
+    if (usage.cacheReadTokens > 0 && pricing.cacheRead) {
       records.push({
-        siteId: req.siteId,
-        userId: req.userId,
-        provider: res.provider,
-        model: res.model,
+        ...base,
         tokenType: 'cache_read',
-        context: req.context,
         inputTokens: 0,
         outputTokens: 0,
-        cacheReadTokens: res.usage.cacheReadTokens,
+        cacheReadTokens: usage.cacheReadTokens,
         cacheWriteTokens: 0,
         rate: pricing.cacheRead,
-        costUsd: (res.usage.cacheReadTokens / 1_000_000) * pricing.cacheRead,
-        conversationId: req.conversationId,
+        costUsd: (usage.cacheReadTokens / 1_000_000) * pricing.cacheRead,
       });
     }
-    if (res.usage.cacheWriteTokens > 0 && pricing.cacheWrite) {
+    if (usage.cacheWriteTokens > 0 && pricing.cacheWrite) {
       records.push({
-        siteId: req.siteId,
-        userId: req.userId,
-        provider: res.provider,
-        model: res.model,
+        ...base,
         tokenType: 'cache_write',
-        context: req.context,
         inputTokens: 0,
         outputTokens: 0,
         cacheReadTokens: 0,
-        cacheWriteTokens: res.usage.cacheWriteTokens,
+        cacheWriteTokens: usage.cacheWriteTokens,
         rate: pricing.cacheWrite,
-        costUsd: (res.usage.cacheWriteTokens / 1_000_000) * pricing.cacheWrite,
-        conversationId: req.conversationId,
+        costUsd: (usage.cacheWriteTokens / 1_000_000) * pricing.cacheWrite,
       });
     }
 
     if (records.length === 0) return;
-    await this.prisma.tokenUsageRecord.createMany({ data: records });
+
+    // Defter yazilamasa da butce sayaci artar: kapi (enforceAiCostBudget) yalniz sayaca
+    // bakar. Eskiden sayac defter yaziminin ARKASINDAYDI; defter hata verince harcama
+    // butceye hic islemiyordu. Defter hatasi cagirana yine bildirilir (loglanir).
+    let ledgerError: unknown = null;
+    try {
+      await this.prisma.tokenUsageRecord.createMany({ data: records });
+    } catch (err) {
+      ledgerError = err;
+    }
 
     // Aylık aiCostThisMonthUsd field'ını da güncelle (budget guard için)
-    if (req.userId) {
+    if (meta.userId) {
       const totalCost = records.reduce((s, r) => s + (r.costUsd ?? 0), 0);
       if (totalCost > 0) {
         await this.prisma.user.update({
-          where: { id: req.userId },
+          where: { id: meta.userId },
           data: { aiCostThisMonthUsd: { increment: totalCost } } as any,
         }).catch(() => { /* user might be deleted, sessiz geç */ });
       }
     }
+    if (ledgerError) throw ledgerError;
   }
 
   /** Site / user / global için aggregated spend bilgisi */

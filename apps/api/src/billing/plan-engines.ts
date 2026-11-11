@@ -17,6 +17,19 @@ import {
  *  - ADMIN muaf: butun asistanlar, gelismis modeller.
  *  - Bilinmeyen plan EN DAR kapsami alir (kapi acik unutulmaz).
  */
+/**
+ * Ana sayfadaki UCRETSIZ (anonim) testin, mobil uygulamadaki testin ve e-posta abonesi
+ * retest'inin sordugu asistanlar: deneme ve Baslangic ile ayni dort asistan, hesapli modeller.
+ *
+ * NEDEN (11.11.2026, canli olcum — ~/Desktop/model-denemesi-3-sonuc.txt): anonim test yedi
+ * asistana soruyordu. Soru basina gercek maliyet yedi asistanla ~0.45 USD (Grok tek basina
+ * ~0.23: soru basina 6–8 arama; Muse ~0.09; DeepSeek ~0.05), dort asistanla ~0.07 USD. Uc
+ * soruluk bir ucretsiz test ~1.34 USD yerine ~0.21 USD. Sahip yonergesi: "Baslangic hesapli is,
+ * premium kalite isi; zarar etmeyelim" — Grok, DeepSeek ve Muse Profesyonel ozelligi.
+ * Web bu listeyi GET /billing/plans → freeTestEngines'ten okur ("N AI asistaninda test edelim").
+ */
+export const FREE_TEST_ENGINES: readonly MeasurementEngine[] = STANDARD_ENGINES;
+
 type Owner = { plan?: string | null; role?: string | null } | null | undefined;
 
 function planIdOf(owner: Owner): PlanId | null {

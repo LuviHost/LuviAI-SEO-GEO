@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NO_AUTO_ARTICLE_PLANS, articleOfferPlan, planHasArticles } from '../billing/plans.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 import { autoPublishEnabled } from './publish-approval.js';
+import { countUnchargedPendingArticles, hasAllowanceCharge, withAllowanceCharge } from './article-scheduler.service.js';
 import { activeLiveWriteBlock, lastLiveWriteAt, liveEntries, republishModeForType, targetLabel } from './republish-policy.js';
 import { rejectedRewriteAt } from './live-rewrite.js';
 // Yayindaki yazinin TUM canli kopyalari yerinde guncellenebilir mi: takili sayfa
@@ -92,6 +94,40 @@ export function pivotRewritePlan(input: { publishedTo: unknown; targets: Republi
  *    agentOutputs.liveWriteBlocked yazar; S4) ve o zamandan beri bir canli kopyaya
  *    yazilmadiysa 30 gun tekrar denenmez.
  *  - Ayni yazi ayni taramada bir kez isaretlenir (GSC kurali + AI kurali cift is acmaz).
+ *
+ * MAKALE HAKKI (sahip karari 11.11.2026): otomatik yeniden yazim, uretilen her makale
+ * gibi aylik makale hakkindan BIR yazi duser. NEDEN: yeniden yazim butun 5 ajanli hatti
+ * kosturur ama haktan dusmuyordu ve aylik tavani yoktu (yalniz yazi basina bekleme
+ * suresi); cok eski yazisi olan hesap ayda onlarca ucretli yeniden yazimi bedavaya
+ * tetikleyebiliyordu. Kurallar:
+ *  - Hak, tarama isi kuyruga atarken tek kosullu UPDATE ile duser (chargeRewrite;
+ *    article-scheduler chargeArticle ile ayni kalip). Sira taramanin sirasidir: kalan
+ *    hakki listedeki ilk yazilar alir.
+ *  - Hak dolduysa yeniden yazim BASLAMAZ, sonucta 'quota_exhausted' ile raporlanir.
+ *    Bu bir deneme sayilmaz (hicbir bekleme kaydi yazilmaz): hak yenilenince sonraki
+ *    haftalik tarama ayni yaziyi yeniden alir.
+ *  - TAKVIME AYRILAN HAK KULLANILMAZ (bagimsiz inceleme, 11.11.2026): musterinin takvime
+ *    ekledigi, hakki henuz dusulmemis yazilar kalan haktan ayrilmistir (takvim ekleme bunu
+ *    sayar: article-scheduler scheduleTopic). Yeniden yazim yalniz ayrilmamis hakki kullanir;
+ *    yoksa Pazartesi taramasi son 4 hakki alir, musterinin takvimdeki 4 konusu "hak doldu"
+ *    diye ay sonuna kadar bekler ve "Üret" de 403 verirdi. Engel 'allowance_reserved'.
+ *  - Dusus izi is verisindedir (allowanceCharge 'auto_rewrite'; yazi yayinda kaldigi
+ *    icin agentOutputs'a yazilmaz — kapali dongu guncellemesiyle ayni tasiyici,
+ *    allowance-refund.ts refundJobAllowanceCharge). Yeni surum cikmazsa hak TAM BIR KEZ
+ *    geri verilir: is kuyruga girmedi (burada), worker isi atladi / on denetim engelledi
+ *    / editorden gecmedi ve canli yazi korundu (worker, rewriteLeftNoNewVersion), hat son
+ *    denemede hata verdi (worker catch).
+ *  - Worker izsiz otomatik yeniden yazim isini kosturmaz (automatedRewriteBlock
+ *    'allowance_not_charged'): hak dusulmeden kuyruga girmis is bedava LLM harcamasin.
+ *  - ADMIN icin ayri muafiyet yok: makale hakki kodu (QuotaService.checkArticleQuota)
+ *    rol ayirmaz.
+ *
+ * AYLIK AI BUTCESI (11.11.2026): sahibin aylik AI butcesi doluysa (QuotaService.aiBudgetBlock)
+ * yeniden yazim BASLAMAZ ve hak dusmez ('budget_exhausted'). NEDEN burada da bakiliyor: uretim
+ * hatti butcesi dolu sahibin yazisini zaten yazmaz (pipeline settleBudgetBlocked) ve worker
+ * hakki geri verir; tarama bunu bilmezse her hafta hak dusup is acar, hat reddeder, hak iade
+ * edilir. Hak dolu engeli gibi deneme sayilmaz (bekleme kaydi yazilmaz): butce yenilenince
+ * sonraki haftalik tarama ayni yaziyi alir. Butce okunamazsa tarama durmaz (karar hatta kalir).
  */
 
 /**
@@ -123,7 +159,16 @@ export const PIVOT_SCAN_LIMIT = 50;
 /** scanAllSites sonucunda tasinan engelli yazi ayrintisi tavani (is sonucu kucuk kalsin) */
 const BLOCKED_DETAIL_CAP = 100;
 
-export type PivotBlock = PivotPlanBlock | 'recent_rejected_rewrite' | 'recent_live_write_blocked' | 'not_published' | 'trial_plan' | 'no_article_plan';
+export type PivotBlock =
+  | PivotPlanBlock | 'recent_rejected_rewrite' | 'recent_live_write_blocked' | 'not_published' | 'trial_plan' | 'no_article_plan'
+  /** Bu ayki makale hakki dolu: yeniden yazim baslamadi, hak yenilenince sonraki tarama alir (11.11.2026) */
+  | 'quota_exhausted'
+  /** Is verisinde hak dusus izi yok (hak dusulmeden kuyruga girmis is): worker kosturmaz */
+  | 'allowance_not_charged'
+  /** Sahibin aylik AI butcesi dolu: yeniden yazim baslamadi, hak dusmedi; butce yenilenince sonraki tarama alir (11.11.2026) */
+  | 'budget_exhausted'
+  /** Kalan makale hakki takvimde bekleyen yazilara ayrili: yeniden yazim o hakki kullanmaz (11.11.2026) */
+  | 'allowance_reserved';
 
 /** Otomatik yazim engelinin bekleme suresinde mi (yoksa null); kaydin ani ve atlanan hedeflerin adlari */
 function recentLiveWriteBlock(agentOutputs: unknown, publishedTo: unknown, cutoff: Date): { at: Date; labels: string[] } | null {
@@ -175,7 +220,30 @@ export function pivotBlockText(block: PivotBlock, labels: string[] = [], at?: Da
       return 'Ücretsiz deneme hesabında otomatik yeniden yazım yapılmaz (denemede yapay zekâ toplam 2 makale üretir); planını yükselttiğinde başlar.';
     case 'no_article_plan':
       return `Bu pakette makale üretimi yok; otomatik yeniden yazım ${articleOfferPlan().name_tr} ve üzeri planlarda çalışır.`;
+    case 'quota_exhausted':
+      return 'Bu ayki makale hakkın doldu; otomatik yeniden yazım da makale hakkından bir makale düştüğü için başlatılmadı. Hak yeni ayda ya da planını yükselttiğinde yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.';
+    case 'allowance_not_charged':
+      return 'Bu otomatik yeniden yazım işi için makale hakkı düşülmemiş; iş çalıştırılmadı. Yazı sonraki haftalık taramada yeniden değerlendirilir.';
+    case 'allowance_reserved':
+      return 'Kalan makale hakkın takvimde üretilmeyi bekleyen yazılarına ayrılı; otomatik yeniden yazım o hakkı kullanmaz. Hak yeni ayda ya da planını yükselttiğinde yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.';
+    case 'budget_exhausted':
+      return 'Aylık AI kullanım bütçen doldu; otomatik yeniden yazım başlatılmadı ve makale hakkından düşülmedi. Bütçe yeni ayın başında sıfırlanır; yazı sonraki haftalık taramada yeniden değerlendirilir.';
   }
+}
+
+/**
+ * Otomatik yeniden yazim isi YENI SURUM CIKARMADAN mi dondu (worker GENERATE_ARTICLE sonucu):
+ * is atlandi (skipped: uretim kapali, yazi silinmis, on denetim engelledi) ya da editorden
+ * gecmedi ve canli yazi korundu (liveKept; AI kapaliyken sahte hat da buraya duser).
+ * Worker bu durumda taramada dusulen makale hakkini geri verir (dosya basi MAKALE HAKKI).
+ * Kullanicinin baslattigi isler (automatedRewrite yok) burada HIC true donmez: onlarin
+ * iadesi kendi yollarindadir (allowance-refund.ts), davranislari degismedi.
+ * Hata ile biten is buraya gelmez (sonuc yok); son denemenin iadesi worker'in catch'inde.
+ */
+export function rewriteLeftNoNewVersion(jobData: unknown, result: unknown): boolean {
+  if ((jobData as { automatedRewrite?: unknown } | null | undefined)?.automatedRewrite !== true) return false;
+  const r = result as { skipped?: unknown; liveKept?: unknown } | null | undefined;
+  return r?.skipped === true || r?.liveKept === true;
 }
 
 @Injectable()
@@ -185,23 +253,29 @@ export class ContentPivotService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobQueue: JobQueueService,
+    private readonly quota: QuotaService,
   ) {}
 
   async scanAllSites(): Promise<{
     scanned: number;
+    /** Yeniden yazimi baslatilabilecek yazilar (akis kapali sitede kuyruga girmez) */
     flagged: number;
     queued: number;
-    /** Ek alan: yeniden yazilmak istenip canli kopyalari yeni metni alamadigi icin baslatilmayanlar */
+    /**
+     * Ek alan: yeniden yazilmak istenip baslatilmayanlar — canli kopyalari yeni metni
+     * alamiyor, bekleme suresinde ya da (akis acik sitede) bu ayki makale hakki / aylik
+     * AI butcesi dolu.
+     */
     blocked: number;
     blockedDetails: Array<PivotBlocked & { siteId: string }>;
   }> {
     const sites = await this.prisma.site.findMany({
       where: {
         status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] },
-        // Deneme hesabi taranmaz: yeniden yazim 5 ajanli LLM hattidir ve makale
-        // hakkindan dusmez; deneme hesabi yapay zekayla toplam 2 makale uretir
-        // (QuotaService LIMITS.TRIAL), fazlasina LLM harcanmaz. Eskiden 30 gunluk
-        // deneme yazilari her hafta yeniden yazilabiliyordu.
+        // Deneme hesabi taranmaz: denemede otomasyon makale uretmez (trial-policy.ts);
+        // hesap yapay zekayla toplam 2 makaleyi kendi baslatir (QuotaService LIMITS.TRIAL),
+        // otomatik yeniden yazim o hakki kullanicinin haberi olmadan harcamasin. Eskiden
+        // 30 gunluk deneme yazilari her hafta yeniden yazilabiliyordu.
         // 11.11.2026 (uc paket): makale uretimi olmayan plan (Baslangic) da taranmaz —
         // plans.ts NO_AUTO_ARTICLE_PLANS (deneme + aylik makale hakki olmayan planlar).
         user: { plan: { notIn: NO_AUTO_ARTICLE_PLANS as any[] } },
@@ -214,6 +288,14 @@ export class ContentPivotService {
     let queued = 0;
     let blocked = 0;
     const blockedDetails: Array<PivotBlocked & { siteId: string }> = [];
+    // Kullanici basina tek hak okumasi (ay basi sifirlamasi dahil): plan hakki (tavan)
+    // ya da null = bu taramada hakki dolu. Hak hesap basina: ayni kullanicinin sonraki
+    // sitelerindeki yazilar da ayni tavana karsi duser.
+    const limitByUser = new Map<string, number | null>();
+    // Kalan hakki takvimde bekleyen yazilara ayrili kullanicilar (chargeRewrite doldurur)
+    const hakkiAyrilmis = new Set<string>();
+    // Kullanici basina tek butce okumasi: true = aylik AI butcesi dolu (dosya basi AYLIK AI BUTCESI)
+    const butceByUser = new Map<string, boolean>();
 
     for (const site of sites) {
       try {
@@ -233,23 +315,59 @@ export class ContentPivotService {
           // yayinlar (publish-approval.ts). Eskiden her zaman true'ydu.
           const autoPublish = autoPublishEnabled(site);
           for (const f of r.flagged) {
-            await this.jobQueue.enqueue({
-              type: 'GENERATE_ARTICLE',
-              userId: site.userId,
-              siteId: site.id,
-              payload: {
+            // Aylik AI butcesi: doluysa hak dusulmeden once durur (dosya basi AYLIK AI BUTCESI)
+            let butceDolu = butceByUser.get(site.userId);
+            if (butceDolu === undefined) {
+              butceDolu = (await this.quota.aiBudgetBlock(site.userId)) !== null;
+              butceByUser.set(site.userId, butceDolu);
+            }
+            if (butceDolu) {
+              const b: PivotBlocked = { articleId: f.articleId, reason: f.reason, block: 'budget_exhausted', blockReason: pivotBlockText('budget_exhausted') };
+              flagged--;
+              blocked++;
+              this.log.log(`[${site.id}] pivot: ${b.articleId} yeniden yazılmadı (${b.block}) — ${b.blockReason}`);
+              if (blockedDetails.length < BLOCKED_DETAIL_CAP) blockedDetails.push({ siteId: site.id, ...b });
+              continue;
+            }
+            // Makale hakki: yeniden yazim bir makale sayilir (dosya basi MAKALE HAKKI).
+            // Hak dolduysa is acilmaz; engel olarak raporlanir ve hicbir bekleme kaydi
+            // yazilmaz (sonraki tarama, hak yenilendiyse, ayni yaziyi yeniden alir).
+            if (!(await this.chargeRewrite(site.userId, limitByUser, hakkiAyrilmis))) {
+              const block: PivotBlock = hakkiAyrilmis.has(site.userId) ? 'allowance_reserved' : 'quota_exhausted';
+              const b: PivotBlocked = { articleId: f.articleId, reason: f.reason, block, blockReason: pivotBlockText(block) };
+              flagged--;
+              blocked++;
+              this.log.log(`[${site.id}] pivot: ${b.articleId} yeniden yazılmadı (${b.block}) — ${b.blockReason}`);
+              if (blockedDetails.length < BLOCKED_DETAIL_CAP) blockedDetails.push({ siteId: site.id, ...b });
+              continue;
+            }
+            try {
+              await this.jobQueue.enqueue({
+                type: 'GENERATE_ARTICLE',
+                userId: site.userId,
                 siteId: site.id,
-                topic: f.pivotTopic,
-                articleId: f.articleId, // var olan kayit overwrite
-                skipImages: true,
-                autoPublish,
-                pivotReason: f.reason,
-                // OTOMATIK yeniden yazim: editor PASS vermezse pipeline yayindaki
-                // kaydi ezmez; worker uretimden once canli kopyalari yeniden denetler.
-                // Kullanicinin baslattigi akislar (kapali dongu, "Şimdi üret") koymaz.
-                automatedRewrite: true,
-              } as any,
-            });
+                payload: {
+                  siteId: site.id,
+                  topic: f.pivotTopic,
+                  articleId: f.articleId, // var olan kayit overwrite
+                  skipImages: true,
+                  autoPublish,
+                  pivotReason: f.reason,
+                  // OTOMATIK yeniden yazim: editor PASS vermezse pipeline yayindaki
+                  // kaydi ezmez; worker uretimden once canli kopyalari yeniden denetler.
+                  // Kullanicinin baslattigi akislar (kapali dongu, "Şimdi üret") koymaz.
+                  automatedRewrite: true,
+                  // Hakkin dusus izi (allowanceCharge): yeni surum cikmazsa worker hakki
+                  // bu iz uzerinden TAM BIR KEZ geri verir (allowance-refund.ts)
+                  ...withAllowanceCharge(null, 'auto_rewrite', new Date()),
+                } as any,
+              });
+            } catch (err) {
+              // Is kuyruga girmedi: dusulen hak geri verilir (uretilmeyen yazi haktan
+              // dusmus kalmasin). Hata sitenin taramasini eskisi gibi keser (asagidaki catch).
+              await this.quota.refundArticleAllowance(site.userId);
+              throw err;
+            }
             queued++;
           }
         }
@@ -260,6 +378,42 @@ export class ContentPivotService {
 
     this.log.log(`Content pivot: ${sites.length} site, ${scanned} makale incelendi, ${flagged} flag, ${queued} kuyruga eklendi, ${blocked} yeniden yazilamaz`);
     return { scanned, flagged, queued, blocked, blockedDetails };
+  }
+
+  /**
+   * Otomatik yeniden yazim icin makale hakkindan BIR yazi dus — yalniz sayac planin
+   * hakkinin altindaysa (tek kosullu UPDATE: `articlesUsedThisMonth < hak`). Dusulduyse true.
+   *
+   * article-scheduler chargeArticle ile AYNI kalip: kosul ve artis tek SQL'de calisir,
+   * ayni kullanicinin son hakkini ayni anda isteyen iki yol (bu tarama + saatlik takvim
+   * taramasi + kullanicinin "Üret"i) birlikte gecemez. Tavan kullanici basina bir kez
+   * okunur (checkArticleQuota ay basi sifirlamasini da yapar); UPDATE reddederse kullanici
+   * bu taramanin geri kalaninda dolu sayilir (sonraki yazilari icin sorgu atilmaz).
+   * Hak okunamazsa hata firlar: sitenin taramasi kesilir, hicbir is acilmaz (takvim
+   * taramasi gibi kapali taraf — okunamayan hakla LLM harcanmaz), sonraki hafta yeniden denenir.
+   *
+   * Tavan, planin hakkindan TAKVIMDE BEKLEYEN (hakki henuz dusulmemis) yazilar dusulerek
+   * hesaplanir (dosya basi: takvime ayrilan hak kullanilmaz). Kalan hak tumuyle ayriliysa
+   * kullanici `reserved` kumesine yazilir: cagiran engeli 'allowance_reserved' diye raporlar.
+   */
+  private async chargeRewrite(userId: string, limits: Map<string, number | null>, reserved: Set<string>): Promise<boolean> {
+    let limit = limits.get(userId);
+    if (limit === undefined) {
+      const q = await this.quota.checkArticleQuota(userId);
+      const waiting = q.allowed ? await countUnchargedPendingArticles(this.prisma as any, userId) : 0;
+      limit = q.allowed ? q.limit - waiting : null;
+      // Ayrilan yazi varsa bu taramada tavana carpmak "hak doldu" degil "kalan hak ayrili"dir
+      if (waiting > 0) reserved.add(userId);
+      limits.set(userId, limit);
+    }
+    if (limit === null) return false;
+    const r = await this.prisma.user.updateMany({
+      where: { id: userId, articlesUsedThisMonth: { lt: limit } },
+      data: { articlesUsedThisMonth: { increment: 1 } },
+    });
+    if (r.count === 1) return true;
+    limits.set(userId, null);
+    return false;
   }
 
   /**
@@ -430,8 +584,17 @@ export class ContentPivotService {
    * yazinin onceki otomatik yayini engellenmis olabilir (isler tekillestirilmez:
    * ikinci is ilkinin engellenen yayinindan sonra kosabilir). Yeniden yazim
    * baslayamazsa nedeni, aksi halde null. LLM butcesi harcanmadan doner.
+   *
+   * @param jobData Worker isin verisini (job.data) gecirir: otomatik yeniden yazim makale
+   *   hakkindan duser ve izi is verisindedir (dosya basi MAKALE HAKKI). Iz yoksa is
+   *   kosmaz ('allowance_not_charged') — bu kural devreye girmeden once kuyruga girmis
+   *   ya da hak dusmeden acilmis bir is 5 ajanli hatti bedavaya kosturmasin. Verilmezse
+   *   (worker disi cagri) iz denetlenmez.
    */
-  async automatedRewriteBlock(articleId: string): Promise<{ block: PivotBlock; blockReason: string } | null> {
+  async automatedRewriteBlock(articleId: string, jobData?: unknown): Promise<{ block: PivotBlock; blockReason: string } | null> {
+    if (jobData !== undefined && !hasAllowanceCharge(jobData)) {
+      return { block: 'allowance_not_charged', blockReason: pivotBlockText('allowance_not_charged') };
+    }
     const a = await this.prisma.article.findUnique({
       where: { id: articleId },
       select: { siteId: true, slug: true, status: true, publishedTo: true, agentOutputs: true, site: { select: { user: { select: { plan: true } } } } },

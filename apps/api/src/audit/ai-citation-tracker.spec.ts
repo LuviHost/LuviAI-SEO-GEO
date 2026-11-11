@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { AiCitationTrackerService } from './ai-citation-tracker.service.js';
+import { SITE_MEASUREMENT_VERSION, siteMeasurementVersion } from './host-match.js';
 
 /**
  * getHistory: CITATION_MATCH_VERSION farkli snapshot'lar ayni seride
@@ -207,9 +208,9 @@ describe('AiCitationTrackerService — tekrar ve aralik (v6)', () => {
     const svc = new AiCitationTrackerService(prisma as any, { runForSite: vi.fn(async () => results) } as any);
     const out = await svc.snapshotSite('s1', { trigger: 'user' });
 
-    expect(upserts.every((u) => u.create.matchVersion === 6 && u.update.matchVersion === 6)).toBe(true);
+    expect(upserts.every((u) => u.create.matchVersion === SITE_MEASUREMENT_VERSION && u.update.matchVersion === SITE_MEASUREMENT_VERSION)).toBe(true);
     expect(upserts.find((u) => u.create.provider === 'openai').create.probes.map((x: any) => x.tekrar)).toEqual([1, 1, 2, 2, 3, 3]);
-    expect(runData.matchVersion).toBe(6);
+    expect(runData.matchVersion).toBe(SITE_MEASUREMENT_VERSION);
     const openai = runData.providers.find((x: any) => x.provider === 'openai');
     expect(openai).toMatchObject({ tekrar: 3, gorunme: { gorunen: 3, olculen: 6 } });
     expect(openai.probes.map((x: any) => x.tekrar)).toEqual([1, 1, 2, 2, 3, 3]);
@@ -342,15 +343,18 @@ describe('AiCitationTrackerService — model kademesi ve plan kapsami', () => {
     return { upserts, runData };
   }
 
-  it('standard kademe (Baslangic, deneme): snapshot ve kosum 106 damgasi; premium ve damgasiz sonuc 6', async () => {
+  it('standard kademe (Baslangic, deneme): snapshot ve kosum surum + 100 damgasi; premium ve damgasiz sonuc guncel surum', async () => {
+    const STD = siteMeasurementVersion('standard');
+    const PRE = siteMeasurementVersion('premium');
+    expect(STD).toBe(PRE + 100);
     const std = await kaydet([sonuc('openai', 40, 'standard'), sonuc('anthropic', 20, 'standard')]);
-    expect(std.upserts.map((u) => [u.create.matchVersion, u.update.matchVersion])).toEqual([[106, 106], [106, 106]]);
-    expect(std.runData.matchVersion).toBe(106);
+    expect(std.upserts.map((u) => [u.create.matchVersion, u.update.matchVersion])).toEqual([[STD, STD], [STD, STD]]);
+    expect(std.runData.matchVersion).toBe(STD);
     const pre = await kaydet([sonuc('openai', 40, 'premium'), sonuc('xai', 20, 'premium')]);
-    expect(pre.upserts.every((u) => u.create.matchVersion === 6 && u.update.matchVersion === 6)).toBe(true);
-    expect(pre.runData.matchVersion).toBe(6);
-    // Kademe tasimayan sonuc (eski cagiran): eski surum
-    expect((await kaydet([sonuc('openai', 40)])).runData.matchVersion).toBe(6);
+    expect(pre.upserts.every((u) => u.create.matchVersion === PRE && u.update.matchVersion === PRE)).toBe(true);
+    expect(pre.runData.matchVersion).toBe(PRE);
+    // Kademe tasimayan sonuc (eski cagiran): guncel surum, kademesiz
+    expect((await kaydet([sonuc('openai', 40)])).runData.matchVersion).toBe(PRE);
   });
 
   it('getHistory: kademe degisimi (6 → 106) Claude serisinde "yontem degisti" okunur, fark hesaplanmaz', async () => {

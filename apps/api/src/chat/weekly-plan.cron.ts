@@ -263,10 +263,14 @@ export class WeeklyPlanCron {
   private async produceForSite(site: WeeklyPlanCandidate, weekTag: string): Promise<void> {
     // Mevcut chat yolu — ayri bir LLM cagrisi yazilmadi ki skill prompt'u,
     // tool seti, token muhasebesi ve konusma kaydi tek yerden yonetilsin.
+    // automated: platformun baslattigi mesaj musterinin aylik Asistan mesaji hakkindan
+    // dusmez ve hakka takilmaz. Aylik AI butcesi yine gecerli (harcama gercek): butcesi
+    // dolan hesabin plani uretilmez, hata asagida site bazinda loglanir.
     const result = await this.chat.sendMessage(
       site.siteId,
       { id: site.userId, role: site.userRole, plan: site.plan },
       { skill: 'weekly-plan' },
+      { automated: true },
     );
 
     const planText = result.message.content ?? '';

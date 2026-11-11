@@ -36,8 +36,15 @@ import { escapeRegex } from '../common/text-normalize.js';
  *     web_search) da web aramali olculuyor (Kasim 2026). Onceden ikisi yalniz
  *     egitim bilgisiyle cevapliyor, genc siteler yapisal olarak 0 aliyordu; 6
  *     asistanin ortalamasi (manset) da bu yuzden degisir → 4 ile 5 kiyaslanmaz.
+ * 6 = (bu sabit hic 6 olmadi: 6, site olcumunun tekrarli surumunun numarasi — asagida.)
+ * 7 = ChatGPT ve Gemini yeni modellerle olculuyor (11.11.2026): ChatGPT gpt-6 ailesi
+ *     (Profesyonel ve ustu gpt-6-astra; Baslangic, deneme ve ucretsiz test gpt-6-luna),
+ *     Gemini gemini-3.5-flash-lite. Eski modeller (gpt-4o-mini, gemini-2.5-flash) saglayicilarca
+ *     kapatiliyor. Canli denemede yeni ChatGPT modelleri ayni sorularda farkli markalari andi —
+ *     5 ile 7 arasi kiyas "yontem degisti" okunur. Ucretsiz test ayrica Claude'u hizli modelle
+ *     (claude-haiku-5-5) olcer.
  */
-export const CITATION_MATCH_VERSION = 5;
+export const CITATION_MATCH_VERSION = 7;
 
 /**
  * SITE olcumunun yontem surumu — runForSite'in yazdigi kayitlar:
@@ -56,13 +63,14 @@ export const CITATION_MATCH_VERSION = 5;
  *     varsayilan 3; deneme planinda 1); skor tum tekrarlardan, gorunme
  *     sikligina %95 Wilson araligi (visibility-interval.ts). Panelde fark
  *     yalniz araliklar ortusmuyorsa "artti/azaldi" okunur.
+ * 8 = 6'nin tekrarli olcumu + CITATION_MATCH_VERSION 7'nin modelleri (11.11.2026).
  *
  * KURAL: her zaman CITATION_MATCH_VERSION'dan BUYUK kalir (host-match.spec.ts).
  * Eslesme kurali bir daha degisirse ikisi birlikte, ayni yeni numaraya
  * cikarilir — ayni numara iki farkli yontemi anlatmasin (geo-rapor-html.ts
  * YONTEM_DEGISIKLIGI tablosu numarayla anlatir).
  */
-export const SITE_MEASUREMENT_VERSION = 6;
+export const SITE_MEASUREMENT_VERSION = 8;
 
 /**
  * 'standard' MODEL KADEMESIYLE yapilan site olcumunun surumu = guncel surum + 100
@@ -76,12 +84,37 @@ export const SITE_MEASUREMENT_VERSION = 6;
  * alarmi (ai-mention-alarm) bunu "Claude görünürlüğü %X düştü" diye okurdu. Kiyas kodu
  * surumleri yalniz ESITLIKLE karsilastirir; farkli numara "yontem degisti" demektir.
  * Ofset: SITE_MEASUREMENT_VERSION bir daha artarsa iki kademe birlikte artar, cakismaz.
- * Profesyonel ve ustu hesaplarin surumu DEGISMEZ (6): onlarin olcumu ayni.
+ * Kademe, surumun "yuzler" basamagidir: siteMeasurementBase / isStandardTierVersion ayirir
+ * (geo-rapor-html yontemNotu iki degisikligi ayri anlatir).
  */
 export const STANDARD_TIER_VERSION_OFFSET = 100;
 
 export function siteMeasurementVersion(tier: 'standard' | 'premium' | null | undefined = 'premium'): number {
   return tier === 'standard' ? SITE_MEASUREMENT_VERSION + STANDARD_TIER_VERSION_OFFSET : SITE_MEASUREMENT_VERSION;
+}
+
+/** Surum 'standard' kademeyle mi damgalanmis (ofsetli) */
+/**
+ * Prompt Lab satirinin (GeoPromptRun.matchVersion) yontem surumu: CITATION_MATCH_VERSION,
+ * hizli modellerle ('standard') olculduyse + STANDARD_TIER_VERSION_OFFSET.
+ *
+ * NEDEN (11.11.2026, bagimsiz inceleme): satirlar iki kademede de ayni surumle damgalaniyordu.
+ * Dal (fan-out) sorulari her planda ayni uc asistana gider; Baslangic'tan Profesyonel'e gecen
+ * hesabin dal hucreleri bire bir eslesir ve KPI kiyasi (ai-kpis compareCells, surum esitligi)
+ * hizli model ile ust model farkini gercek bir artis / dusus diye gosterirdi. Site olcumu
+ * ayni ayrimi siteMeasurementVersion ile yapar.
+ */
+export function citationMatchVersion(tier: 'standard' | 'premium' | null | undefined = 'premium'): number {
+  return tier === 'standard' ? CITATION_MATCH_VERSION + STANDARD_TIER_VERSION_OFFSET : CITATION_MATCH_VERSION;
+}
+
+export function isStandardTierVersion(version: number): boolean {
+  return version >= STANDARD_TIER_VERSION_OFFSET;
+}
+
+/** Kademe ofseti cikarilmis yontem surumu (106 → 6, 108 → 8, 8 → 8) */
+export function siteMeasurementBase(version: number): number {
+  return isStandardTierVersion(version) ? version - STANDARD_TIER_VERSION_OFFSET : version;
 }
 
 /** Iki etiketli kayit edilebilir sonekler (kurate — PSL'nin bizi ilgilendiren kismi) */

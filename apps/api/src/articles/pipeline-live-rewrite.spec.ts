@@ -108,9 +108,11 @@ function build(opts: { existing?: Record<string, unknown> | null; editor?: strin
   const urlInventory = { getInventory: vi.fn(async () => []), isInternal: vi.fn(() => false), normalizePath: vi.fn(() => null) };
   const linkValidator = { validateArticleMarkdown: vi.fn(async (_s: string, md: string) => ({ bodyMd: md, report: { remapped: 0, unlinked: 0 } })) };
   const qaGate = { checkSafe: vi.fn(async () => undefined) };
+  // Aylik AI butcesi acik (dolu durumu pipeline-budget.spec.ts'te)
+  const quota = { aiBudgetBlock: vi.fn(async () => null) };
   const svc = new PipelineService(
     prisma as any, runner as any, email as any, schemaClassifier as any, settings as any,
-    urlInventory as any, linkValidator as any, qaGate as any,
+    urlInventory as any, linkValidator as any, qaGate as any, quota as any,
   );
   const writes = () => prisma.article.update.mock.calls.map((c: any) => c[0].data);
   const lastWrite = () => writes().at(-1);

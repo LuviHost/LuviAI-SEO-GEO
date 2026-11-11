@@ -134,7 +134,8 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — otomatik yeniden yaz
 
   it('is verisindeki automatedRewrite pipeline\'a gecer; uretimden ONCE canli kopyalar yeniden denetlenir', () => {
     expect(handler).toMatch(/GENERATE_ARTICLE: async \(\{[^}]*automatedRewrite[^}]*\}, job\)/);
-    const precheck = handler.indexOf('services.contentPivot.automatedRewriteBlock(articleId)');
+    // 11.11.2026: on denetim is verisini de alir (otomatik yeniden yazim makale hakkindan duser; izsiz is kosmaz)
+    const precheck = handler.indexOf('services.contentPivot.automatedRewriteBlock(articleId, job?.data)');
     expect(precheck).toBeGreaterThan(-1);
     expect(precheck).toBeLessThan(handler.indexOf('services.pipeline.runPipeline('));
     expect(handler).toMatch(/if \(block\) \{[\s\S]*?return \{ skipped: true, reason: 'LIVE_REWRITE_BLOCKED'/);

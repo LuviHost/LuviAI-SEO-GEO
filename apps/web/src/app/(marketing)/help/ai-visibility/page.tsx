@@ -109,7 +109,7 @@ export default function Page() {
       </Step>
       <Step n={4} title="Her hafta karşılaştır">
         Otomatik günlük ölçüm yoktur. &ldquo;Yeniden Test&rdquo; ile aldığın her ölçüm kaydedilir ve grafiğe eklenir; iki ölçümü yan yana karşılaştırabilirsin.
-        Site eklerken otomatik akış açıksa bir başlangıç ölçümü alınır.
+        Site eklenirken bir başlangıç ölçümü alınır (hesap başına 30 günde plandaki site sayısı kadar, aynı alan adı için bir kez).
       </Step>
 
       <Tip kind="info">
