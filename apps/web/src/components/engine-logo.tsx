@@ -17,7 +17,8 @@ const PROVIDER_TO_VENDOR: Record<string, VendorName> = {
   xai: 'grok',
   grok: 'grok',
   deepseek: 'deepseek',
-  meta: 'meta-ai',
+  // `meta` = Muse (PR #69); kendi logosuyla. `llama` eski kayitlar icin Meta isaretinde kalir.
+  meta: 'muse',
   llama: 'meta-ai',
 };
 

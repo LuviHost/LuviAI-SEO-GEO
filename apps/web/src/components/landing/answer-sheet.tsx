@@ -42,7 +42,7 @@ export const MEASURED: Array<{ label: string; vendor: VendorName }> = [
  * (GET /billing/plans → measuredEngines; bkz. stripEngines). Kosulsuz gostermek
  * olcmedigimiz bir asistani vaat etmek olurdu.
  */
-export const MUSE: { label: string; vendor: VendorName } = { label: 'Muse', vendor: 'meta-ai' };
+export const MUSE: { label: string; vendor: VendorName } = { label: 'Muse', vendor: 'muse' };
 
 /** Seritte gosterilecek asistanlar: 6 sabit + (API olculuyor diyorsa) Muse */
 export function stripEngines(measuredProviders?: readonly string[]): Array<{ label: string; vendor: VendorName }> {

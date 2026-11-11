@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 export type VendorName =
   // AI providers (9)
   | 'anthropic' | 'claude-ai' | 'chatgpt' | 'openai' | 'deepseek'
-  | 'perplexity' | 'grok' | 'gemini' | 'mistral' | 'meta-ai'
+  | 'perplexity' | 'grok' | 'gemini' | 'mistral' | 'meta-ai' | 'muse'
   // Search engines (2)
   | 'google' | 'bing'
   // Tech stack (8)
@@ -40,6 +40,9 @@ const VENDOR_TO_FILE: Record<VendorName, string> = {
   'gemini':      '/brands/gemini.svg',
   'mistral':     '/brands/mistral.svg',
   'meta-ai':     '/brands/meta-ai.svg',
+  // Meta'nin asistani Muse'un kendi logosu (11.11.2026, sahip verdi). `meta` saglayicisi
+  // artik Muse oldugu icin olcum sonuclarinda ve ana sayfa seridinde bu kullanilir.
+  'muse':        '/brands/muse.svg',
   'google':      '/brands/google.svg',
   'bing':        '/brands/bing.svg',
   'nextjs':      '/brands/nextjs.svg',
@@ -78,6 +81,7 @@ export const VENDOR_LABEL: Record<VendorName, string> = {
   'gemini':      'Gemini',
   'mistral':     'Mistral AI',
   'meta-ai':     'Meta AI (Muse)',
+  'muse':        'Muse',
   'google':      'Google',
   'bing':        'Bing',
   'nextjs':      'Next.js',
