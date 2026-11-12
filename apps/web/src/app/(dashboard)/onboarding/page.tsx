@@ -474,6 +474,8 @@ function MissionStage({
   const [stuck, setStuck] = useState(false);
   // Yonlendirme karari verildi (konular hazir): gosterge %100 + "Hazır" gosterir
   const [complete, setComplete] = useState(false);
+  // Adimlarin gercek durumu en az bir kez sunucudan okundu
+  const [polled, setPolled] = useState(false);
   // Tarayıcımız siteyi okuyamıyorsa (WAF, robots.txt, DNS) zincir ilerlemez —
   // 8 dakika beklemek yerine nedeni ve çözümü hemen göster
   const [crawlAccess, setCrawlAccess] = useState<CrawlAccess | null>(null);
@@ -501,8 +503,13 @@ function MissionStage({
     setRetrying(true);
     try {
       const res = await api.retryOnboarding(siteId);
-      if (res?.queued === false) toast.info('Kurulum zaten sürüyor; biraz bekle.');
-      else toast.success('Kurulum yeniden başladı; birkaç dakika sürebilir');
+      if (res?.queued === false) {
+        // Zincir hala calisiyor: hicbir sey yeniden baslamadi. Saat sifirlanmaz, cikis
+        // yolu ("Panele git") ekranda kalir — yoksa dugmeler 12 dakika daha kaybolurdu.
+        toast.info('Kurulum hâlâ sürüyor; yeniden başlatılmadı. Panele geçebilirsin, arka planda tamamlanır.');
+        return true;
+      }
+      toast.success('Kurulum yeniden başladı; birkaç dakika sürebilir');
       setStuck(false);
       startedAtRef.current = Date.now();
       try { window.localStorage.setItem(`luviai-mission-startedAt-${siteId}`, String(startedAtRef.current)); } catch (_e) { /* noop */ }
@@ -563,6 +570,7 @@ function MissionStage({
         // "Kurulum durdu" bir yoklama boyunca yuzdeye donup geri gelirdi.
         if (site) setCrawlAccess(currentCrawlAccess(site.crawlAccess, audit));
 
+        setPolled(true);
         setTasks([
           { key: 'brain', label: 'Marka beyni', done: brainDone },
           { key: 'audit', label: 'Site taraması', done: auditDone },
@@ -629,6 +637,7 @@ function MissionStage({
         tasks={tasks}
         startedAt={startedAtRef.current}
         complete={complete}
+        ready={polled}
         halted={activeAccess ? {
           title: 'Kurulum durdu',
           detail: activeAccess.state === 'blocked'

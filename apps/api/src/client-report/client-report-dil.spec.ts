@@ -5,7 +5,7 @@ import { AuditChecksService, type CheckResult } from '../audit/audit-checks.serv
 import { computeRobotsCheck } from '../audit/robots-check.js';
 import { buildClientReport, type RaporGirdisi } from './client-report-build.js';
 import { bosGirdi, mukellefGirdisi } from './client-report.fixture.js';
-import { BILGI_NOTLARI, BULGU_METINLERI } from './client-report-texts.js';
+import { BILGI_NOTLARI, BULGU_METINLERI, GEO_SINYAL_ADI, KONTROL_METINLERI } from './client-report-texts.js';
 import type { MusteriRaporu, RaporSeo } from './client-report.types.js';
 
 /**
@@ -148,6 +148,14 @@ describe('rapora ham tarama metni girmez', () => {
     expect(eksik).toEqual([]);
   });
 
+  it('taramanin HER kontrolunun ve GEO sinyalinin raporda Turkce adi var (Ingilizce tarama adina dusulmez)', async () => {
+    for (const c of await kontroller(null)) expect(Object.hasOwn(KONTROL_METINLERI, c.id), c.id).toBe(true);
+    const geo = readFileSync(join(__dirname, '..', 'audit', 'geo-runner.service.ts'), 'utf8');
+    const sinyaller = [...geo.matchAll(/\{ id: "([a-z_]+)",\s+label:/g)].map((m) => m[1]);
+    expect(sinyaller.length).toBeGreaterThanOrEqual(8);
+    for (const id of sinyaller) expect(Object.hasOwn(GEO_SINYAL_ADI, id), id).toBe(true);
+  });
+
   it('dosyasi olmayan, zinciri eksik, iki dilli site: raporda ham metin, panel dili ya da ic not yok', async () => {
     const r = buildClientReport(girdi(await kontroller(null), geoVeDiger), NOW);
     dilTemiz(r);
@@ -176,6 +184,110 @@ describe('rapora ham tarama metni girmez', () => {
     expect(r.aksiyonlar.find((a) => a.baslik === 'Arama motoru botlarının robots.txt engelini kaldırın')).toMatchObject({ etki: 'yuksek' });
   });
 
+  /**
+   * Bagimsiz inceleme bulgusu (12.11.2026): tarama robots.txt sorunlarini "Sitemap satiri
+   * yok" → "bot engelli" sirasiyla yazar; ikisi de uyari. Satirin onerisi ve aksiyonu
+   * yalniz ILK sorundan gelince bot engeli "robots.txt dosyasına site haritası satırını
+   * ekleyin [düşük etki]" arkasinda kayboluyordu.
+   */
+  describe('ayni kontrolde ayni onemde iki sorun: agir olan gizlenmez', () => {
+    const AI_ENGELLI = 'User-agent: OAI-SearchBot\nDisallow: /\n\nUser-agent: PerplexityBot\nDisallow: /\n\nUser-agent: *\nAllow: /';
+
+    it('AI botu engeli + eksik site haritasi satiri: satir ikisini de soyler, rozet yok, iki ayri aksiyon ve bot engeli once', async () => {
+      const checks = await kontroller(AI_ENGELLI, { sitemapUrl: 'https://kirli.com/sitemap.xml' });
+      const robotsCheck = checks.find((c) => c.id === 'robots_txt')!;
+      expect(robotsCheck.issues.map((i) => i.type)).toEqual(['robots_no_sitemap', 'robots_ai_search_blocked']);
+      expect(robotsCheck.issues.every((i) => i.severity === 'warning')).toBe(true);
+      // 70 puanla "gecerli": panel yesil gosterir, rapor "gecti" demez
+      expect(robotsCheck).toMatchObject({ found: true, valid: true, score: 70 });
+
+      const g = girdi(checks);
+      g.audit!.issues = (g.audit!.issues as Array<{ checkId: string }>).filter((i) => i.checkId === 'robots_txt');
+      const r = buildClientReport(g, NOW);
+      const k = seoOf(r).kontroller.find((x) => x.id === 'robots_txt')!;
+      expect(k.durum).toBe('uyari');
+      expect(k.bulgu).toMatch(/^robots\.txt şu AI arama botlarını engelliyor: OAI-SearchBot, PerplexityBot\./);
+      expect(k.bulgu).toContain('"Sitemap:" satırı yok');
+      expect(k.oneri).toContain('"Disallow: /" satırını kaldırın');
+      expect(k.oneri).toContain('"Sitemap:" satırı ekleyin');
+      expect(k.otomatik).toBe(false);
+      expect(r.aksiyonlar.map((a) => [a.baslik, a.etki])).toEqual([
+        ['AI arama botlarının robots.txt engelini gözden geçirin', 'orta'],
+        ['robots.txt dosyasına site haritası satırını ekleyin', 'dusuk'],
+      ]);
+      expect(r.ozet.metin.at(-1)).toBe('Öncelikli ilk adım: AI arama botlarının robots.txt engelini gözden geçirin.');
+    });
+
+    it('yalniz eksik site haritasi satiri: uyari, "RanksUp düzeltebilir"', async () => {
+      const checks = await kontroller('User-agent: *\nAllow: /', { sitemapUrl: 'https://kirli.com/sitemap.xml' });
+      const k = seoOf(buildClientReport(girdi(checks), NOW)).kontroller.find((x) => x.id === 'robots_txt')!;
+      expect(k).toMatchObject({ durum: 'uyari', skor: 80, otomatik: true });
+      expect(k.oneri).toBe('robots.txt dosyasına, site haritasının tam adresini içeren bir "Sitemap:" satırı ekleyin.');
+    });
+
+    it('H1: icerigi JavaScript ile olusan sayfa, tekrarlanan H1\'in arkasinda kaybolmaz', async () => {
+      const g = girdi(await kontroller(null));
+      const h1 = (g.audit!.checks as any).h1_uniqueness;
+      h1.issues = h1.issues.filter((i: { type: string }) => i.type !== 'h1_missing');
+      g.audit!.issues = h1.issues.map((i: object) => ({ ...i, checkId: 'h1_uniqueness' }));
+      expect(h1.issues.map((i: { type: string }) => i.type)).toEqual(['h1_duplicate', 'js_shell_pages']);
+      const r = buildClientReport(g, NOW);
+      const k = seoOf(r).kontroller.find((x) => x.id === 'h1_uniqueness')!;
+      expect(k.bulgu).toMatch(/^1 sayfa sunucudan boş bir JavaScript iskeleti/);
+      expect(k.neden).toContain('JavaScript çalıştırmayan tarayıcılar boş görür');
+      expect(k.oneri).toContain('sunucu tarafında oluşturun');
+      // Iki ayri is, ikisi de listede (sira: ayni etkide kolay olan once)
+      expect(r.aksiyonlar.map((a) => [a.baslik, a.efor])).toEqual([
+        ['Tekrarlanan H1 başlıklarını sayfaya özgü yapın', 'orta'],
+        ['Sayfa içeriğini sunucu tarafında oluşturun', 'zor'],
+      ]);
+    });
+
+    it('ayni isin iki tipi tek aksiyon: eksik + kisa baslik ayri satir acmaz', async () => {
+      const g = girdi(await kontroller(null));
+      g.audit!.issues = (g.audit!.issues as Array<{ checkId: string }>).filter((i) => i.checkId === 'meta_title');
+      const r = buildClientReport(g, NOW);
+      expect(r.aksiyonlar.map((a) => a.baslik)).toEqual(['Eksik ve kısa sayfa başlıklarını düzeltin']);
+    });
+  });
+
+  it('aksiyon plani: sistemin urettigi maddenin aciklamasi (panel dili) rapora girmez; elle yazilan girer', () => {
+    const g = mukellefGirdisi();
+    g.aksiyonPlani = [
+      { title: 'llms.txt yayınla', description: `Site köküne llms.txt ekle; karar senin. ${HAM}`, impact: 'low', effort: 'easy', status: 'todo', source: 'agent_readiness', sourceRef: 'llms-txt' },
+      { title: 'Haftalık plan maddesi', description: `Bunu düzelt ${HAM}`, impact: 'medium', effort: 'easy', status: 'todo', source: 'chat', sourceRef: null },
+      { title: 'Ürün sayfalarını yeniden yazacağız', description: 'Ajansla 15 Kasım toplantısında kararlaştırıldı.', impact: 'high', effort: 'hard', status: 'in_progress', source: 'manual', sourceRef: null },
+    ];
+    // Taramadan turetilen aksiyonlar 10 sinirinda plan maddelerini kesmesin
+    g.audit!.issues = [];
+    const r = buildClientReport(g, NOW);
+    expect(JSON.stringify(r)).not.toContain(HAM);
+    const plan = r.aksiyonlar.filter((a) => a.kaynak === 'plan');
+    expect(plan.map((a) => [a.baslik, a.aciklama])).toEqual([
+      ['Ürün sayfalarını yeniden yazacağız', 'Ajansla 15 Kasım toplantısında kararlaştırıldı.'],
+      ['Haftalık plan maddesi', null],
+      ['llms.txt yayınla', null],
+    ]);
+  });
+
+  it('eski tarama tipleri: bugunku olcuyle bulgu olmayan tip rapora girmez; yontem v1 gorsel bulgusu sayisiz cumle alir', () => {
+    const g = mukellefGirdisi();
+    const eskiRobots = { severity: 'warning', type: 'robots_ai_crawlers', checkId: 'robots_txt', description: `AI crawler'lar robots.txt'te anılmıyor ${HAM}`, fixable: true };
+    const eskiGorsel = { severity: 'warning', type: 'image_alt_low', checkId: 'image_alt', description: `Görsellerin %40'ında alt yok ${HAM}`, fixable: false };
+    (g.audit!.checks as any).robots_txt = { id: 'robots_txt', name: 'Robots.txt', found: true, valid: true, score: 80, issues: [eskiRobots], details: {} };
+    (g.audit!.checks as any).image_alt.issues = [eskiGorsel];
+    g.audit!.issues = [eskiRobots, eskiGorsel];
+    const r = buildClientReport(g, NOW);
+    expect(JSON.stringify(r)).not.toContain(HAM);
+    const seo = seoOf(r);
+    // Botlari adiyla anmamak bulgu degil: kontrol gecer, aksiyon uretilmez
+    expect(seo.kontroller.find((k) => k.id === 'robots_txt')).toMatchObject({ durum: 'gecti', bulgu: null });
+    expect(seo.kontroller.find((k) => k.id === 'image_alt')!.bulgu).toBe('Görsellerin bir bölümünde alt metni yok.');
+    expect(r.aksiyonlar.map((a) => a.baslik)).toEqual(['Görsellere alt metin yazın']);
+    expect(r.aksiyonlar[0].aciklama).toBe('Görsellerin bir bölümünde alt metni yok.');
+    expect(seo.bulgu.toplam).toBe(1);
+  });
+
   it('bilinmeyen (ileride eklenen) sorun tipi rapora METINSIZ girer — panel dili sizmaz', () => {
     const g = mukellefGirdisi();
     const yeni = { severity: 'warning', type: 'yeni_bir_tip', checkId: 'canonical', description: `bunu duzelt, siten zarar goruyor ${HAM}`, fixable: false };
@@ -188,15 +300,15 @@ describe('rapora ham tarama metni girmez', () => {
     expect(k.neden.length).toBeGreaterThan(20);
   });
 
-  it('sayfa hizi aksiyonu Lighthouse basligini basmaz; firsat sayisi ve en buyuk kazanc yazar', async () => {
-    const r = buildClientReport(girdi(await kontroller(null), geoVeDiger), NOW);
-    const hiz = r.aksiyonlar.find((a) => a.baslik === 'Sayfa hızını iyileştirin');
-    // 10 aksiyon sinirinda yer bulamayabilir; metin kurali ayrica denenir
-    if (hiz) expect(hiz.aciklama).toBe('PageSpeed ölçümü, sayfaların yüklenmesini hızlandırabilecek 2 iyileştirme alanı buldu; en büyük tahmini kazanç 2,4 saniye.');
-    const g = mukellefGirdisi();
-    const r2 = buildClientReport(g, NOW);
-    expect(r2.aksiyonlar.find((a) => a.baslik === 'Sayfa hızını iyileştirin')!.aciklama)
-      .toBe('PageSpeed ölçümü, sayfaların yüklenmesini hızlandırabilecek 1 iyileştirme alanı buldu; en büyük tahmini kazanç 1,2 saniye.');
+  it('sayfa hizi aksiyonu Lighthouse basligini basmaz; olcumun kapsamini (anasayfa, mobil), firsat sayisini ve en buyuk kazanci yazar', async () => {
+    const g = girdi(await kontroller(null), geoVeDiger);
+    // Yalniz hiz bulgulari: 10 aksiyon sinirinda kaybolmasin
+    g.audit!.issues = geoVeDiger.filter((i) => i.checkId === 'pagespeed');
+    const r = buildClientReport(g, NOW);
+    expect(r.aksiyonlar.map((a) => a.baslik)).toEqual(['Sayfa hızını iyileştirin']);
+    expect(r.aksiyonlar[0].aciklama).toBe('PageSpeed ölçümü (anasayfa, mobil), yüklenmeyi hızlandırabilecek 2 iyileştirme alanı gösterdi; en büyük tahmini kazanç 2,4 saniye.');
+    expect(buildClientReport(mukellefGirdisi(), NOW).aksiyonlar.find((a) => a.baslik === 'Sayfa hızını iyileştirin')!.aciklama)
+      .toBe('PageSpeed ölçümü (anasayfa, mobil), yüklenmeyi hızlandırabilecek 1 iyileştirme alanı gösterdi; en büyük tahmini kazanç 1,2 saniye.');
   });
 
   it('GEO sinyali bulgusu skoru taramanin sinyal listesinden alir', async () => {
@@ -207,7 +319,8 @@ describe('rapora ham tarama metni girmez', () => {
     const sss = r.aksiyonlar.find((a) => a.baslik.startsWith('Okurların sorduğu soruları'))!;
     expect(sss.aciklama).toBe('Sayfalarda görünür soru-cevap bölümü yok ya da çok az. Bu sinyalin skoru 0/100.');
     const tarih = r.aksiyonlar.find((a) => a.baslik === 'Sayfalara yayın ve güncelleme tarihi ekleyin')!;
-    expect(tarih.aciklama).toBe('Sayfalarda yayın ya da güncelleme tarihi bilgisi bulunamadı. Bu sinyalin skoru 0/100.');
+    // Sinyal sayfa ortalamasidir: dusuk skor "hic yok" degil "cogunda yok" demektir
+    expect(tarih.aciklama).toBe('Örneklenen sayfaların çoğunda yayın ya da güncelleme tarihi bilgisi yok. Bu sinyalin skoru 0/100.');
   });
 });
 
@@ -263,9 +376,12 @@ describe('yanlis "gecti" yok: hreflang, HTTPS, llms.txt', () => {
     const seo = seoOf(r);
     const k = seo.kontroller.find((x) => x.id === 'hreflang')!;
     expect(k).toMatchObject({ durum: 'uyari', skor: 0, otomatik: false });
-    expect(k.bulgu).toBe('Sitede birden çok dil sürümü var (EN) ama sayfalarda hreflang etiketi yok.');
+    // Tespit orneklemden: "goruldu"; tek kodda "birden cok (EN)" denmez; kontrol yalniz HTML etiketini okur
+    expect(k.bulgu).toBe('Taramada sitenin varsayılan dilinin yanında EN dil sürümü görüldü ama sayfaların HTML kodunda hreflang etiketi yok. Etiketler site haritasında ya da HTTP başlığında tanımlıysa bu tarama onları görmez.');
     expect(seo.bilgiKontrolleri!.map((b) => b.id)).not.toContain('hreflang');
-    expect(r.aksiyonlar.map((a) => a.baslik).concat(seo.kontroller.map((x) => x.oneri)).join(' ')).toContain('hreflang');
+    const g = girdi(await kontroller(null));
+    g.audit!.issues = (g.audit!.issues as Array<{ checkId: string }>).filter((i) => i.checkId === 'hreflang');
+    expect(buildClientReport(g, NOW).aksiyonlar.map((a) => [a.baslik, a.etki, a.efor])).toEqual([['Dil sürümlerine hreflang etiketleri ekleyin', 'orta', 'orta']]);
   });
 
   it('tek dilli site (yeni tarama): hreflang bilgi kontrolu — "gecti" sayilmaz', async () => {
@@ -284,7 +400,7 @@ describe('yanlis "gecti" yok: hreflang, HTTPS, llms.txt', () => {
 
   it('eski tarama (dil surumu hic aranmadi): "gecti" de "gerekmez" de denmez', () => {
     const seo = seoOf(buildClientReport(mukellefGirdisi(), NOW));
-    expect(seo.bilgiKontrolleri).toEqual([{ id: 'hreflang', ad: 'Hreflang', not: BILGI_NOTLARI.hreflangBilinmiyor }]);
+    expect(seo.bilgiKontrolleri).toContainEqual({ id: 'hreflang', ad: 'Hreflang', not: BILGI_NOTLARI.hreflangBilinmiyor });
     expect(BILGI_NOTLARI.hreflangBilinmiyor).toContain('başka dil sürümü varsa eklenmesi önerilir');
   });
 
@@ -293,8 +409,8 @@ describe('yanlis "gecti" yok: hreflang, HTTPS, llms.txt', () => {
     (g.audit!.checks as any).hreflang.details = { pagesWithHreflang: 12, note: '12 sayfada hreflang tag bulundu' };
     const seo = seoOf(buildClientReport(g, NOW));
     expect(seo.kontroller.find((k) => k.id === 'hreflang')).toMatchObject({ durum: 'gecti' });
-    expect(seo.bilgiKontrolleri).toEqual([]);
-    expect(seo.sayac.toplam).toBe(14);
+    expect(seo.bilgiKontrolleri!.map((b) => b.id)).toEqual(['llms_txt']);
+    expect(seo.sayac.toplam).toBe(13);
   });
 
   it('sertifika zinciri eksik: HTTPS "gecti" degil; neden ve oneri zincire ozel', async () => {
@@ -306,6 +422,14 @@ describe('yanlis "gecti" yok: hreflang, HTTPS, llms.txt', () => {
     expect(k.neden).toContain('güvenli bağlantı kuramaz');
     expect(k.oneri).toContain('fullchain.pem');
     expect(k.oneri).not.toContain('SSL sertifikası kurup');
+  });
+
+  it('llms yontem v3 oncesi tarama: dosya o taramanin skoruna girmisti — bilgi notu "skora girmez" demez', () => {
+    const seo = seoOf(buildClientReport(mukellefGirdisi(), NOW));
+    const not = seo.bilgiKontrolleri!.find((b) => b.id === 'llms_txt')!.not;
+    expect(not).toBe(BILGI_NOTLARI.llmsEskiYok);
+    expect(not).not.toContain('skor');
+    expect(KONTROL_METINLERI.llms_txt.neden).not.toContain('skora girmez');
   });
 
   it('llms.txt (v3, skora girmez) yoksa "Uyarı · 30/100" satiri cikmaz; bilgi kontroludur', async () => {

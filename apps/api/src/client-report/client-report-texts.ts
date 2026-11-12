@@ -50,7 +50,7 @@ export const KONTROL_METINLERI: Readonly<Record<string, KontrolMetni>> = {
   },
   llms_txt: {
     ad: 'llms.txt',
-    neden: 'AI asistanlarına sitenin özetini sunan, isteğe bağlı bir dosyadır. Google Arama bu dosyayı yok sayıyor, bağımsız ölçümlerde görünürlüğe etkisi görülmedi; bu yüzden skora girmez, yalnız bilgi olarak gösterilir.',
+    neden: 'AI asistanlarına sitenin özetini sunan, isteğe bağlı bir dosyadır. Google Arama bu dosyayı yok sayıyor, bağımsız ölçümlerde görünürlüğe etkisi görülmedi.',
     oneri: 'Site kökünde kısa bir llms.txt yayınlayın; düşük maliyetli bir hijyen adımıdır.',
   },
   schema_markup: {
@@ -115,7 +115,8 @@ export function kontrolMetni(id: string, taramaAdi?: unknown): KontrolMetni {
   return KONTROL_METINLERI[id] ?? {
     ad: typeof taramaAdi === 'string' && taramaAdi ? taramaAdi : id,
     neden: 'Taramanın kontrol ettiği teknik bir SEO sinyalidir.',
-    oneri: 'Bulgu metnindeki adımı uygulayın.',
+    // Bulgu cumlesi olmayabilir (tipin rapor metni yoksa): "bulgudaki adimi uygulayin" denmez
+    oneri: 'Bu kontrolün ayrıntısı RanksUp panelindeki tarama sonucunda yer alır.',
   };
 }
 
@@ -305,18 +306,29 @@ export const BULGU_METINLERI: Readonly<Record<string, (b: BulguBaglami) => strin
     const n = adet(b, 'suspicious');
     return `${n !== null ? `${n} görselin` : 'Bazı görsellerin'} alt metni dosya adı ya da "resim", "görsel" gibi genel bir kelime; görseli anlatmıyor.`;
   },
+  // Yontem v1 taramalarinin tipi (09.10.2026 oncesi): sayi o kayitta guvenilir degil, sayisiz
+  image_alt_low: () => 'Görsellerin bir bölümünde alt metni yok.',
   orphan_pages: (b) => {
     const n = ilkSayiOf(b.description);
     return n !== null ? `${n} sayfa, taranan hiçbir sayfadan bağlantı almıyor.` : 'Bazı sayfalar, taranan hiçbir sayfadan bağlantı almıyor.';
   },
+  // Tespit bir ORNEKLEMDEN ve iki isaretten (adres yolu / <html lang>) gelir: "görüldü" denir.
+  // Kontrol yalniz HTML'deki <link hreflang> etiketlerini okur; site haritasi / HTTP basligi notu bunun icin.
   hreflang_missing: (b) => {
-    const diller = Array.isArray(b.details.languages) ? b.details.languages.filter((x: unknown): x is string => typeof x === 'string') : [];
-    return `Sitede birden çok dil sürümü var${diller.length > 0 ? ` (${diller.map((d: string) => d.toUpperCase()).join(', ')})` : ''} ama sayfalarda hreflang etiketi yok.`;
+    const diller = (Array.isArray(b.details.languages) ? b.details.languages.filter((x: unknown): x is string => typeof x === 'string') : [])
+      .map((d: string) => d.toUpperCase());
+    const surum = diller.length === 0
+      ? 'Taramada sitenin farklı dil sürümleri görüldü'
+      : b.details.evidence === 'url-path' && diller.length === 1
+        ? `Taramada sitenin varsayılan dilinin yanında ${diller[0]} dil sürümü görüldü`
+        : `Taramada sitenin farklı dil sürümleri görüldü (${diller.join(', ')})`;
+    return `${surum} ama sayfaların HTML kodunda hreflang etiketi yok. Etiketler site haritasında ya da HTTP başlığında tanımlıysa bu tarama onları görmez.`;
   },
   faq_missing: (b) => geoBulgusu('Sayfalarda görünür soru-cevap bölümü yok ya da çok az.', b),
   definition_missing: (b) => geoBulgusu('Sayfalarda "X nedir?" sorusuna doğrudan cevap veren tanım içeriği az.', b),
   citation_format_missing: (b) => geoBulgusu('Sayfalarda liste ve tablo biçimi az kullanılıyor.', b),
-  freshness_missing: (b) => geoBulgusu('Sayfalarda yayın ya da güncelleme tarihi bilgisi bulunamadı.', b),
+  // Sinyal sayfa ortalamasidir (tarih yok 0, eski tarih 30-60, yeni 100): < 30 "hic yok" degil "cogunda yok"
+  freshness_missing: (b) => geoBulgusu('Örneklenen sayfaların çoğunda yayın ya da güncelleme tarihi bilgisi yok.', b),
   evidence_missing: (b) => geoBulgusu('İçerik sayfalarında kaynaklı rakam, karşılaştırma tablosu ya da adım listesi gibi kanıt blokları az.', b),
   thin_content_geo: (b) => geoBulgusu('İçerik sayfaları kısa: az kelime ve az alt başlık içeriyor.', b),
 };
@@ -340,6 +352,31 @@ export function bulguMetni(tip: unknown, b: BulguBaglami): string | null {
 }
 
 /**
+ * Ayni onemdeki sorunlar arasinda ONCE gelen tip (kucuk sayi once). Kontrolun
+ * rapor satirindaki "neden" ve aksiyon basligi ilk sorundan gelir; tarama
+ * sirasina birakilinca robots.txt'te hem AI botu engeli hem eksik site haritasi
+ * satiri olan sitede satir ve aksiyon yalniz "Sitemap satırı ekleyin" diyordu
+ * (tarama o sorunu once yazar) ve bot engeli gorunmuyordu.
+ */
+export const TIP_ONCELIGI: Readonly<Record<string, number>> = {
+  robots_search_engine_blocked: 0,
+  robots_ai_search_blocked: 1,
+  robots_missing: 2,
+  robots_no_sitemap: 3,
+  js_shell_pages: 0,
+  h1_missing: 1,
+  h1_duplicate: 2,
+};
+
+/**
+ * Raporda HIC gosterilmeyen eski sorun tipleri. robots_ai_crawlers (robots
+ * yontem v1): "AI botlari robots.txt'te adiyla anilmiyor" — botlari adiyla
+ * anmak bir standart degil, isimle anilmayan bot "*" grubuna uyar
+ * (robots-check.ts); bugunku olcuyle bulgu degildir.
+ */
+export const RAPOR_DISI_TIPLER: ReadonlySet<string> = new Set(['robots_ai_crawlers']);
+
+/**
  * Sorun tipine OZEL "neden onemli" / "onerilen duzeltme". Kontrolun genel
  * metni (KONTROL_METINLERI) cogu sorun icin dogrudur; burada yalniz genel
  * metnin YANLIS yonlendirdigi tipler var: dosyasi hic olmayan siteye
@@ -356,6 +393,7 @@ export const TIP_ONERISI: Readonly<Record<string, (b: BulguBaglami) => string>> 
   robots_no_sitemap: () => 'robots.txt dosyasına, site haritasının tam adresini içeren bir "Sitemap:" satırı ekleyin.',
   robots_search_engine_blocked: (b) => engelOnerisi(engelliBotlar(b.details, true)),
   robots_ai_search_blocked: (b) => `${engelOnerisi(engelliBotlar(b.details, false))} Engel bilinçli bir tercihse değişiklik gerekmez.`,
+  hreflang_missing: () => 'Her dil sürümünün sayfalarına, diğer dil sürümlerini gösteren hreflang etiketlerini ekleyin.',
   tls_chain_incomplete: () => 'Sunucuyu tam sertifika zincirini gönderecek şekilde ayarlayın (Let’s Encrypt kullanılıyorsa cert.pem yerine fullchain.pem).',
   js_shell_pages: () => 'Bu sayfaların içeriğini sunucu tarafında oluşturun (sunucu tarafı render ya da statik üretim).',
 };
@@ -365,6 +403,10 @@ export const BILGI_NOTLARI = {
   llmsVar: 'Dosya var. İsteğe bağlı bir dosyadır; site skoruna girmez.',
   llmsYok: 'Dosya yok. İsteğe bağlı bir dosyadır; site skoruna girmez.',
   llmsDogrulanamadi: 'Dosya doğrulanamadı. İsteğe bağlı bir dosyadır; site skoruna girmez.',
+  /** llms yontem v3 oncesi tarama: dosya o taramanin skoruna GIRMISTI — "skora girmez" denmez */
+  llmsEskiVar: 'Dosya var. İsteğe bağlı bir dosyadır.',
+  llmsEskiYok: 'Dosya yok. İsteğe bağlı bir dosyadır.',
+  llmsEskiDogrulanamadi: 'Dosya doğrulanamadı. İsteğe bağlı bir dosyadır.',
   /** Yeni tarama: dil surumu arandi, gorulmedi */
   hreflangTekDil: 'Taramada sitenin başka dil sürümü görülmedi. hreflang yalnız birden çok dil sürümü olan sitelerde gerekir.',
   /** Eski tarama: dil surumu hic aranmadi — "gecti" denemez, "gerekmez" de denemez */
@@ -412,6 +454,12 @@ export interface AksiyonMetni {
   baslik: string;
   efor: 'kolay' | 'orta' | 'zor';
   etki?: 'yuksek' | 'orta' | 'dusuk';
+  /**
+   * Kontrolun diger sorunlarindan AYRI bir is: kendi aksiyon satirini alir.
+   * (Ör. robots.txt'te bot engeli ile eksik site haritasi satiri iki ayri is;
+   * kisa baslik ile eksik baslik ise tek is.)
+   */
+  ayri?: boolean;
 }
 
 export const AKSIYON_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
@@ -452,13 +500,13 @@ export const AKSIYON_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
  * oluyordu.
  */
 export const AKSIYON_TIP_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
-  robots_missing: { baslik: 'robots.txt dosyası yayınlayın', efor: 'kolay', etki: 'dusuk' },
-  robots_no_sitemap: { baslik: 'robots.txt dosyasına site haritası satırını ekleyin', efor: 'kolay', etki: 'dusuk' },
-  robots_search_engine_blocked: { baslik: 'Arama motoru botlarının robots.txt engelini kaldırın', efor: 'kolay' },
-  robots_ai_search_blocked: { baslik: 'AI arama botlarının robots.txt engelini gözden geçirin', efor: 'kolay' },
+  robots_missing: { baslik: 'robots.txt dosyası yayınlayın', efor: 'kolay', etki: 'dusuk', ayri: true },
+  robots_no_sitemap: { baslik: 'robots.txt dosyasına site haritası satırını ekleyin', efor: 'kolay', etki: 'dusuk', ayri: true },
+  robots_search_engine_blocked: { baslik: 'Arama motoru botlarının robots.txt engelini kaldırın', efor: 'kolay', ayri: true },
+  robots_ai_search_blocked: { baslik: 'AI arama botlarının robots.txt engelini gözden geçirin', efor: 'kolay', ayri: true },
   tls_chain_incomplete: { baslik: 'Sunucuyu tam sertifika zincirini gönderecek şekilde ayarlayın', efor: 'kolay' },
   hreflang_missing: { baslik: 'Dil sürümlerine hreflang etiketleri ekleyin', efor: 'orta' },
-  js_shell_pages: { baslik: 'Sayfa içeriğini sunucu tarafında oluşturun', efor: 'zor' },
+  js_shell_pages: { baslik: 'Sayfa içeriğini sunucu tarafında oluşturun', efor: 'zor', ayri: true },
   h1_duplicate: { baslik: 'Tekrarlanan H1 başlıklarını sayfaya özgü yapın', efor: 'orta' },
   meta_desc_short: { baslik: 'Kısa meta açıklamaları genişletin', efor: 'orta' },
   meta_title_short: { baslik: 'Kısa sayfa başlıklarını genişletin', efor: 'orta' },
@@ -485,7 +533,9 @@ export const RAPOR_ONEM_DUZELTMESI: Readonly<Record<string, 'warning' | 'info'>>
 /**
  * Sayfa hizi aksiyonunun aciklamasi. PageSpeed firsat basliklari Lighthouse'un
  * kendi metnidir (Ingilizce gelebilir) ve rapora basilmaz; yalniz kac firsat
- * bulundugu ve en buyuk tahmini kazanc yazilir.
+ * bulundugu ve en buyuk tahmini kazanc yazilir. Olcum YALNIZ anasayfada ve
+ * mobil profilde yapilir (audit.service → pagespeed.service runAudit), firsat
+ * listesi en fazla 5 maddedir: "sayfalarin" ya da "butun firsatlar" denmez.
  */
 export function hizAksiyonAciklamasi(firsatMetinleri: string[]): string {
   const kazanclar = firsatMetinleri
@@ -493,7 +543,7 @@ export function hizAksiyonAciklamasi(firsatMetinleri: string[]): string {
     .map((m) => (m ? Number(m[1]) : 0));
   const enBuyuk = Math.max(0, ...kazanclar);
   const n = firsatMetinleri.length;
-  return `PageSpeed ölçümü, sayfaların yüklenmesini hızlandırabilecek ${n} iyileştirme alanı buldu${enBuyuk > 0 ? `; en büyük tahmini kazanç ${String(enBuyuk).replace('.', ',')} saniye` : ''}.`;
+  return `PageSpeed ölçümü (anasayfa, mobil), yüklenmeyi hızlandırabilecek ${n} iyileştirme alanı gösterdi${enBuyuk > 0 ? `; en büyük tahmini kazanç ${String(enBuyuk).replace('.', ',')} saniye` : ''}.`;
 }
 
 /**

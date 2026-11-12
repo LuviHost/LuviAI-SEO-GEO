@@ -67,6 +67,20 @@ describe('activeTaskKeys / activeMessages — yalniz gercekten suren adim', () =
     expect(activeTaskKeys(adimlar('brain', 'audit'))).toEqual(['topics']);
   });
 
+  it('tarama sonucsuz kaldiysa (hata verdi) ama konular hazirsa ekran hala "site taranıyor" demez', () => {
+    // Zincir tarama hatasinda durmaz: konular ve takvim calisir, "Site taraması" adimi hic bitmez
+    expect(activeTaskKeys(adimlar('brain', 'topics'))).toEqual(['schedule']);
+    expect(activeMessages(adimlar('brain', 'topics'))).toEqual(['Yayın takvimi planlanıyor']);
+    expect(activeTaskKeys(adimlar('brain', 'topics', 'schedule'))).toEqual([]);
+    expect(activeMessages(adimlar('brain', 'topics', 'schedule'))).toEqual(['Kurulum tamamlanıyor']);
+  });
+
+  it('platform tespiti icin cumle yok (sonucsuz bittiyse "tespit ediliyor" yanlis olurdu)', () => {
+    for (const t of [adimlar(), adimlar('brain'), adimlar('brain', 'audit')]) {
+      expect(activeMessages(t).join(' | ')).not.toContain('Platform');
+    }
+  });
+
   it('hepsi bittiyse bos cumle listesi donmez', () => {
     expect(activeTaskKeys(adimlar(...SIRA))).toEqual([]);
     expect(activeMessages(adimlar(...SIRA))).toEqual(['Kurulum tamamlanıyor']);
@@ -84,6 +98,20 @@ describe('kurulum ekrani: sure esikleri API ile tutarli', () => {
     expect(ekran).toBe(12);
     expect(api).toBe(15);
     expect(api).toBeGreaterThan(ekran);
+  });
+
+  it('zincir hala calisiyorsa "yeniden baslat" saati sifirlamaz, cikis yolunu gizlemez', () => {
+    // queued === false dalinda setStuck(false) / startedAt sifirlama OLMAMALI
+    const dal = sayfa.slice(sayfa.indexOf('if (res?.queued === false) {'), sayfa.indexOf("toast.success('Kurulum yeniden başladı"));
+    expect(dal).toContain('return true;');
+    expect(dal).not.toContain('setStuck(false)');
+    expect(dal).not.toContain('startedAtRef.current = Date.now()');
+  });
+
+  it('uzun adim notu deneme hesabinda da dogru: "birkaç kez sorulur" demez (denemede tek tur)', () => {
+    const gosterge = readFileSync(new URL('../components/ai-scan/mission-wheel.tsx', import.meta.url), 'utf8');
+    expect(gosterge).toContain('AI asistanlarına sorular sorulur');
+    expect(gosterge).not.toContain('birkaç kez sorulur');
   });
 
   it('ekran sureye dayali yuzde tahmini kullanmaz; "1-3 dakikada biter" demez', () => {

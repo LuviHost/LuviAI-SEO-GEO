@@ -46,10 +46,18 @@ export function MissionWheel({
   startedAt,
   halted,
   complete = false,
+  ready = true,
   className,
 }: {
   tasks: MissionTask[];
   startedAt: number;
+  /**
+   * Adimlarin gercek durumu sunucudan geldi mi? Gelmeden once `tasks` yer tutucudur
+   * (hepsi bitmemis). Ilk gercek durum bir "adim bitti" olayi DEGILDIR: sayfa
+   * kurulumun ortasinda yenilendiyse adim ici pay kurulumun baslangicindan sayilir,
+   * sifirdan baslamaz.
+   */
+  ready?: boolean;
   /** Kurulum durduysa baslik + kisa aciklama; ilerleme gostergesi yerine bu cikar */
   halted?: { title: string; detail: string } | null;
   /** Yonlendirme basladi: adimlarin hepsi bitmemis olsa da %100 gosterilir */
@@ -65,10 +73,12 @@ export function MissionWheel({
   const doneCount = tasks.filter((t) => t.done).length;
   const allDone = complete || doneCount === tasks.length;
 
-  // Suren adimin ne zaman basladigi: biten adim sayisi degisince sifirlanir.
-  // Ilk deger kurulumun baslangici — sayfa yenilense de adim ici pay sifirdan baslamaz.
-  const stepRef = useRef<{ count: number; at: number }>({ count: doneCount, at: startedAt });
-  if (stepRef.current.count !== doneCount) stepRef.current = { count: doneCount, at: Date.now() };
+  // Suren adimin ne zaman basladigi: biten adim sayisi degisince sifirlanir. Gercek
+  // durum gelene kadar (ready) sayac kurulmaz; ilk gercek durumda baslangic kurulumun
+  // baslangicidir (yenilenen sayfada suren adimin ne zaman basladigi bilinmez).
+  const stepRef = useRef<{ count: number; at: number; seeded: boolean }>({ count: doneCount, at: startedAt, seeded: false });
+  if (ready && !stepRef.current.seeded) stepRef.current = { count: doneCount, at: startedAt, seeded: true };
+  else if (stepRef.current.seeded && stepRef.current.count !== doneCount) stepRef.current = { count: doneCount, at: Date.now(), seeded: true };
 
   // Saniyede bir yeniden ciz: adim ici pay ilerlesin
   useEffect(() => {
@@ -146,8 +156,7 @@ export function MissionWheel({
           </div>
           {longStep && (
             <p className="mx-auto mt-3 max-w-md text-center text-sm text-muted-foreground">
-              En uzun adım bu: site taranırken her AI asistanına sorular birkaç kez sorulur. Birkaç dakika sürebilir; kurulum
-              ilerliyor.
+              En uzun adım bu: site taranırken AI asistanlarına sorular sorulur. Birkaç dakika sürebilir; kurulum ilerliyor.
             </p>
           )}
         </>
@@ -171,7 +180,7 @@ export function MissionWheel({
                 {t.done ? (
                   <Check className="h-3.5 w-3.5 shrink-0 text-brand-vivid" strokeWidth={2.5} aria-hidden />
                 ) : (
-                  // Yalniz GERCEKTEN suren adimin ikonu atar; sirasini bekleyen adim durur
+                  // Sirasi gelmis adimin ikonu atar; sirasini bekleyen adim durur
                   <Icon className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground', running && 'motion-safe:animate-pulse')} aria-hidden />
                 )}
                 <span className={t.done || running ? 'text-foreground' : 'text-muted-foreground'}>{t.label}</span>

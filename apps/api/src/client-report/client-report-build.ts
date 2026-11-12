@@ -23,8 +23,8 @@ import { isErrorProbe } from '../audit/citation-score.js';
 import { unbrandedOnly } from '../audit/brand-in-query.js';
 import { fixRouteFor, fixRouteForIssue } from '../audit/fix-routes.js';
 import {
-  AI_DUSUK_ESIGI, AI_SKOR_YONTEMI, BILGI_NOTLARI, GEO_SINYAL_ADI, OLCULMEDI, RAPOR_ONEM_DUZELTMESI, SAYFA_SORUNU_METINLERI,
-  TIP_NEDENI, TIP_ONERISI, aiGorunurlukAksiyonAciklamasi, aksiyonMetni, bulguMetni, hizAksiyonAciklamasi, kapsamCumlesi, kontrolMetni,
+  AI_DUSUK_ESIGI, AI_SKOR_YONTEMI, AKSIYON_TIP_METINLERI, BILGI_NOTLARI, GEO_SINYAL_ADI, OLCULMEDI, RAPOR_DISI_TIPLER, RAPOR_ONEM_DUZELTMESI,
+  SAYFA_SORUNU_METINLERI, TIP_NEDENI, TIP_ONCELIGI, TIP_ONERISI, aiGorunurlukAksiyonAciklamasi, aksiyonMetni, bulguMetni, hizAksiyonAciklamasi, kapsamCumlesi, kontrolMetni,
   type BulguBaglami,
 } from './client-report-texts.js';
 import {
@@ -151,20 +151,43 @@ type Issue = { severity?: string; type?: string; description?: string; checkId?:
  */
 function issuesOf(v: unknown): Issue[] {
   if (!Array.isArray(v)) return [];
-  return (v.filter((i) => i && typeof i === 'object') as Issue[]).map((i) => {
-    const duzeltme = typeof i.type === 'string' ? RAPOR_ONEM_DUZELTMESI[i.type] : undefined;
-    return duzeltme && i.severity === 'critical' ? { ...i, severity: duzeltme } : i;
-  });
+  return (v.filter((i) => i && typeof i === 'object') as Issue[])
+    // Bugunku olcuyle bulgu olmayan eski tipler rapora hic girmez (RAPOR_DISI_TIPLER)
+    .filter((i) => !(typeof i.type === 'string' && RAPOR_DISI_TIPLER.has(i.type)))
+    .map((i) => {
+      const duzeltme = typeof i.type === 'string' ? RAPOR_ONEM_DUZELTMESI[i.type] : undefined;
+      return duzeltme && i.severity === 'critical' ? { ...i, severity: duzeltme } : i;
+    });
 }
 
 const SEVERITY_SIRA: Record<string, number> = { critical: 0, warning: 1 };
+const TIP_SIRA_VARSAYILAN = 50;
 
-/** En agir sorun once; ayni onemde tarama sirasi (stabil) */
+/**
+ * En agir sorun once; ayni onemde tipin onceligi (TIP_ONCELIGI — ör. bot engeli,
+ * eksik site haritasi satirindan once), sonra tarama sirasi (stabil).
+ */
 function onemSirali(issues: Issue[]): Issue[] {
+  const onem = (i: Issue) => SEVERITY_SIRA[String(i.severity)] ?? 2;
+  const tipSirasi = (i: Issue) => TIP_ONCELIGI[String(i.type)] ?? TIP_SIRA_VARSAYILAN;
+  // Tip onceligi yalniz AYNI kontrolun sorunlari arasinda gecerlidir: kontroller
+  // kendi aralarinda tarama sirasini korur (ayni onemde ilk gorulen kontrol once).
+  const grup = (i: Issue) => `${onem(i)}|${String(i.checkId ?? '')}`;
+  const grupSirasi = new Map<string, number>();
+  issues.forEach((i, idx) => { if (!grupSirasi.has(grup(i))) grupSirasi.set(grup(i), idx); });
   return issues
     .map((i, idx) => ({ i, idx }))
-    .sort((a, b) => (SEVERITY_SIRA[String(a.i.severity)] ?? 2) - (SEVERITY_SIRA[String(b.i.severity)] ?? 2) || a.idx - b.idx)
+    .sort((a, b) =>
+      onem(a.i) - onem(b.i)
+      || grupSirasi.get(grup(a.i))! - grupSirasi.get(grup(b.i))!
+      || tipSirasi(a.i) - tipSirasi(b.i)
+      || a.idx - b.idx)
     .map(({ i }) => i);
+}
+
+/** Kritik ya da uyari duzeyinde sorun mu (bilgi duzeyi sorun durum ve aksiyon uretmez) */
+function ciddi(i: Issue): boolean {
+  return i.severity === 'critical' || i.severity === 'warning';
 }
 
 function onemOf(severity: unknown): Onem {
@@ -177,14 +200,20 @@ const DURUM_SIRA: Record<KontrolDurumu, number> = { kritik: 0, uyari: 1, dogrula
 // ─── SEO ────────────────────────────────────────────────────────────
 
 /**
- * Kontrol satirinin durumu. Panel (site-flow-stepper) ile ayni kural:
- * dogrulanamayan → dogrulanamadi; found && valid → gecti; aksi halde en agir
- * sorunun onemi (yalniz bilgi duzeyi sorunu olan basarisiz kontrol uyari).
+ * Kontrol satirinin durumu. Panel (site-flow-stepper) kuralinin bir fazlasi:
+ * dogrulanamayan → dogrulanamadi; found && valid VE kritik/uyari sorunu yok →
+ * gecti; aksi halde en agir sorunun onemi (yalniz bilgi duzeyi sorunu olan
+ * basarisiz kontrol uyari).
+ *
+ * "Sorunu varken gecti olmaz": robots.txt iki AI arama botunu engellerken 70
+ * puanla gecerli sayilir; panel bunu yesil gosterir, ama musteri raporunda
+ * "Geçen kontroller" arasinda durup aksiyon listesinde "bot engelini gozden
+ * gecirin" yazmasi celiskiydi.
  */
 export function kontrolDurumu(entry: Record<string, any>): KontrolDurumu {
   if (isUnverifiedCheck(entry)) return 'dogrulanamadi';
-  if (entry.found && entry.valid) return 'gecti';
   const sorunlar = issuesOf(entry.issues);
+  if (entry.found && entry.valid && !sorunlar.some(ciddi)) return 'gecti';
   if (sorunlar.some((i) => i.severity === 'critical')) return 'kritik';
   return 'uyari';
 }
@@ -200,9 +229,10 @@ function kontrolSatirlari(checks: unknown): Array<[string, Record<string, any>]>
  * Bilgi amacli kontrol mu? Boyle bir satir "gecti" ya da "sorunlu" sayilmaz;
  * raporda ayri listelenir (RaporSeo.bilgiKontrolleri), sayaca girmez.
  *
- *  - llms.txt (yontem v3, details.informational): genel skora girmez. Eskiden
- *    dosyasi olmayan site raporda "Uyarı · 30/100" satiri aliyordu — skora
- *    girmeyen bir dosya icin.
+ *  - llms.txt: istege bagli dosya. Yontem v3'te (details.informational) genel
+ *    skora girmez; eskiden dosyasi olmayan site raporda "Uyarı · 30/100"
+ *    satiri aliyordu. v3 ONCESI taramada dosya o taramanin skoruna girmisti:
+ *    not "skora girmez" DEMEZ (BILGI_NOTLARI.llmsEski*).
  *  - hreflang, sitede hic etiket yokken: kontrol bir sey OLCMEDI. Yeni tarama
  *    dil surumu arar (details.applicable === false: gorulmedi); eski tarama hic
  *    aramadi (alan yok) ve iki dilli siteye de "gecti" yazdi. Ikisinde de
@@ -210,8 +240,9 @@ function kontrolSatirlari(checks: unknown): Array<[string, Record<string, any>]>
  */
 function bilgiKontrolu(id: string, v: Record<string, any>): RaporBilgiKontrolu | null {
   const d = nesne(v.details);
-  if (id === 'llms_txt' && d.informational === true) {
-    const not = isUnverifiedCheck(v) ? BILGI_NOTLARI.llmsDogrulanamadi : v.found ? BILGI_NOTLARI.llmsVar : BILGI_NOTLARI.llmsYok;
+  if (id === 'llms_txt') {
+    const durum = isUnverifiedCheck(v) ? 'Dogrulanamadi' : v.found ? 'Var' : 'Yok';
+    const not = BILGI_NOTLARI[`${d.informational === true ? 'llms' : 'llmsEski'}${durum}` as keyof typeof BILGI_NOTLARI];
     return { id, ad: kontrolMetni(id, v.name).ad, not };
   }
   if (id === 'hreflang' && v.found && v.valid && !isUnverifiedCheck(v)) {
@@ -228,6 +259,11 @@ function sorunsuzBulgu(id: string, details: Record<string, any>): string | null 
     const s = sayi(details.pagesWithSchema);
     const t = sayi(details.total);
     if (s !== null && t !== null) return kapsamCumlesi('Yapısal veri (JSON-LD)', s, t);
+  }
+  // Yalniz cok uzun aciklama: tarama bunun icin sorun yazmaz ama kontrol gecemez
+  if (id === 'meta_description') {
+    const uzun = sayi(details.tooLong);
+    if (uzun !== null && uzun > 0) return `${uzun} sayfanın meta açıklaması 160 karakterden uzun; arama sonucunda kesilebilir.`;
   }
   return null;
 }
@@ -256,7 +292,19 @@ function kontrolleriDerle(checks: unknown): { kontroller: RaporKontrol[]; bilgiK
       const cumleler = sorunlar.map((i) => bulguMetni(i.type, baglam(i))).filter((c): c is string => !!c);
       bulgu = [...new Set(cumleler)].join(' ') || sorunsuzBulgu(id, nesne(v.details));
     }
-    const tip = durum === 'kritik' || durum === 'uyari' ? String(ilk?.type ?? '') : '';
+    const sorunlu = durum === 'kritik' || durum === 'uyari';
+    const tip = sorunlu ? String(ilk?.type ?? '') : '';
+    // Oneri kontrolun BUTUN ciddi sorunlarindan: yalniz ilk sorunun onerisi yazilinca
+    // bot engeli olan robots.txt'te satir yalniz "Sitemap satırı ekleyin" diyebiliyordu.
+    const ciddiSorunlar = sorunlar.filter(ciddi);
+    const oneriler = sorunlu
+      ? [...new Set(ciddiSorunlar.map((i) => TIP_ONERISI[String(i.type)]?.(baglam(i))).filter((o): o is string => !!o))]
+      : [];
+    // "RanksUp düzeltebilir": ciddi sorunlarin HEPSI otomatik yolda olmali (rota sorun tipinden —
+    // robots.txt'teki bot engeli elle duzeltilir). Sorunu olmayan basarisiz kontrolde kontrolun rotasi.
+    const otomatik = sorunlu && (ciddiSorunlar.length > 0
+      ? ciddiSorunlar.every((i) => fixRouteForIssue({ checkId: id, type: i.type }) === 'auto_fix')
+      : fixRouteFor(id) === 'auto_fix');
     satirlar.push({
       id,
       ad: metin.ad,
@@ -264,11 +312,9 @@ function kontrolleriDerle(checks: unknown): { kontroller: RaporKontrol[]; bilgiK
       skor: durum === 'dogrulanamadi' ? null : sayi(v.score),
       bulgu,
       neden: TIP_NEDENI[tip] ?? metin.neden,
-      oneri: TIP_ONERISI[tip]?.(baglam(ilk)) ?? metin.oneri,
-      // Dogrulanamayan dosyaya otomatik duzeltme onerilmez (fix-routes / audit-checks gerekcesi).
-      // Rota SORUN tipinden: robots.txt'teki bot engeli gibi elle duzeltilen sorun "RanksUp düzeltebilir" demez.
-      otomatik: durum !== 'gecti' && durum !== 'dogrulanamadi'
-        && (ilk ? fixRouteForIssue({ checkId: id, type: ilk.type }) : fixRouteFor(id)) === 'auto_fix',
+      oneri: oneriler.length > 0 ? oneriler.join(' ') : metin.oneri,
+      // Dogrulanamayan dosyaya otomatik duzeltme onerilmez (fix-routes / audit-checks gerekcesi)
+      otomatik,
     });
   }
   // Stabil siralama: kritik → uyari → dogrulanamadi → gecti; ayni durumda tarama sirasi
@@ -627,11 +673,21 @@ function eforOf(v: string): Efor | null {
   return v === 'easy' ? 'kolay' : v === 'hard' ? 'zor' : v === 'medium' ? 'orta' : null;
 }
 
-/** Sorunun aksiyon anahtari: pagespeed_* tek "sayfa hizi" aksiyonunda toplanir */
+/** Sorunun ait oldugu aksiyon ailesi (kontrol): pagespeed_* tek "sayfa hizi" ailesinde toplanir */
 function aksiyonAnahtari(issue: Issue): string | null {
   const id = String(issue.checkId ?? '');
   if (id === 'pagespeed' || String(issue.type ?? '').startsWith('pagespeed_')) return 'pagespeed';
   return aksiyonMetni(id, issue.type) ? id : null;
+}
+
+/**
+ * Aksiyon satirinin tekillestirme anahtari. Kontrol basina TEK aksiyon; yalniz
+ * "ayri is" diye isaretli tipler (AKSIYON_TIP_METINLERI.ayri — ör. robots.txt'te
+ * bot engeli ile eksik site haritasi satiri) kendi satirini alir.
+ */
+function aksiyonSatiri(anahtar: string, issue: Issue): string {
+  const tip = String(issue.type ?? '');
+  return AKSIYON_TIP_METINLERI[tip]?.ayri ? `${anahtar}#${tip}` : anahtar;
 }
 
 export const AKSIYON_SINIRI = 10;
@@ -651,7 +707,10 @@ function aksiyonlariDerle(g: RaporGirdisi, ai: RaporAi): RaporAksiyon[] {
     .filter((i) => i.status === 'todo' || i.status === 'in_progress')
     .map((i) => ({
       baslik: i.title,
-      aciklama: i.description ?? null,
+      // Aciklama yalniz ELLE yazilan maddede basilir. Sistemin urettigi maddelerin
+      // (ajan hazirligi, haftalik plan, sohbet…) aciklamasi panel dilindedir ("sen",
+      // "ekle", "karar senin") ve musteri raporuna girmez; baslik kalir.
+      aciklama: i.source === 'manual' ? i.description ?? null : null,
       etki: etkiOf(i.impact),
       efor: eforOf(i.effort),
       kaynak: 'plan' as const,
@@ -668,11 +727,13 @@ function aksiyonlariDerle(g: RaporGirdisi, ai: RaporAi): RaporAksiyon[] {
   const turetilen: RaporAksiyon[] = [];
   const gorulen = new Set<string>();
   // Kritik once, sonra uyari; bilgi duzeyi bulgu aksiyona donusmez
-  const sirali = onemSirali(tumSorunlar.filter((i) => i.severity === 'critical' || i.severity === 'warning'));
+  const sirali = onemSirali(tumSorunlar.filter(ciddi));
   for (const issue of sirali) {
     const anahtar = aksiyonAnahtari(issue);
-    if (!anahtar || gorulen.has(anahtar) || plandakiler.has(anahtar)) continue;
-    gorulen.add(anahtar);
+    if (!anahtar || plandakiler.has(anahtar)) continue;
+    const satir = aksiyonSatiri(anahtar, issue);
+    if (gorulen.has(satir)) continue;
+    gorulen.add(satir);
     // Aciklama rapor cumlesidir; ham tarama metni ("sen" dili, ic notlar) basilmaz
     let aciklama: string | null;
     if (anahtar === 'ai_citation') {
@@ -886,7 +947,7 @@ export function buildClientReport(g: RaporGirdisi, now: Date): MusteriRaporu {
     AI_SKOR_YONTEMI,
     'AI asistanlarının yanıtları ölçümden ölçüme değişebilir; tek bir ölçüm kesin bir sıralama değildir.',
     'Anılma oranı ve ses payı, son 7 günde marka adı geçmeyen sorularla yapılan takip ölçümlerinden hesaplanır.',
-    'Taramadan türetilen aksiyonların etki ve efor etiketleri kural tabanlıdır: etki bulgunun önem düzeyinden, efor düzeltme yolundan gelir (RanksUp’ın otomatik düzeltebildiği dosyalar “kolay”).',
+    'Taramadan türetilen aksiyonların etki ve efor etiketleri kural tabanlıdır: etki çoğunlukla bulgunun önem düzeyinden gelir, görünürlüğe etkisi sınırlı adımlar (ör. robots.txt dosyasının yokluğu) “düşük etki” olarak işaretlenir; efor düzeltme yolundan gelir (RanksUp’ın otomatik düzeltebildiği dosyalar “kolay”).',
     '“Henüz ölçülmedi” yazan alanlarda veri yoktur; bu alanlar sıfır olarak yorumlanmamalıdır.',
   ];
   if (!ai.olcum.olculemedi && (ai.olcum.tekrar ?? 1) > 1) {

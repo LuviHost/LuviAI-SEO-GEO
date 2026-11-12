@@ -32,6 +32,12 @@ export const LONG_STEP_NOTE_AFTER_MS = 45_000;
  */
 export function activeTaskKeys(tasks: MissionTask[]): MissionTaskKey[] {
   const pending = (k: MissionTaskKey) => tasks.some((t) => t.key === k && !t.done);
+  const done = (k: MissionTaskKey) => tasks.some((t) => t.key === k && t.done);
+  // Sonraki asama bittiyse oncekiler de BITMISTIR — "bitmedi" gorunen adim sonucsuz
+  // kalmistir (tarama hata verdi, platform tespit edilemedi; zincir yine de ilerler).
+  // Yoksa ekran konular hazirken hala "site taranıyor" derdi.
+  if (done('schedule')) return [];
+  if (done('topics')) return pending('schedule') ? ['schedule'] : [];
   const ilk = (['brain', 'audit', 'platform'] as MissionTaskKey[]).filter(pending);
   // Platform tespiti zinciri bekletmez (tespit edilemese de konular baslar)
   if (ilk.some((k) => k !== 'platform')) return ilk;
@@ -51,7 +57,7 @@ export function activeMessages(tasks: MissionTask[]): string[] {
     // AI olcumu sorularini marka beyninden alir: beyin bitmeden baslamaz
     if (brainDone) out.push('AI asistanlarına sorular soruluyor');
   }
-  if (active.includes('platform')) out.push('Platform tespit ediliyor');
+  // Platform tespiti icin cumle yok: saniyeler surer; sonucsuz bittiyse "tespit ediliyor" yanlis olurdu
   if (active.includes('topics')) out.push('İçerik konuları üretiliyor');
   if (active.includes('schedule')) out.push('Yayın takvimi planlanıyor');
   return out.length > 0 ? out : ['Kurulum tamamlanıyor'];

@@ -51,18 +51,44 @@ export const INTERNAL_LINKING_METHOD_VERSION = 2;
  * Hreflang kontrolunun olcum yontemi (details.methodVersion).
  * v2 (12.11.2026): sitede dil surumu varsa (language-versions.ts) ve hicbir
  * sayfada hreflang yoksa kontrol BASARISIZ (0, uyari). v1 her siteye kosulsuz
- * 100 yaziyordu. Damga yalniz dil surumu GORULEN sitede yazilir: tek dilli
- * sitede iki yontem ayni sonucu verir, karsilastirma etkilenmez.
+ * 100 yaziyordu.
  */
 export const HREFLANG_METHOD_VERSION = 2;
 
 /**
+ * HTTPS kontrolunun olcum yontemi (details.methodVersion).
+ * v2 (12.11.2026): sunucu sertifika zincirini eksik gonderiyorsa (baglanti
+ * ancak biz tamamlayinca kuruldu) uyari + HTTPS_CHAIN_INCOMPLETE_SCORE. v1
+ * yalniz adresin https olup olmadigina bakiyordu.
+ */
+export const HTTPS_METHOD_VERSION = 2;
+
+/**
  * HTTPS var ama sunucu sertifika zincirini eksik gonderiyor: puan. Site
  * tarayicilarda aciliyor (0 degil), ama zinciri tamamlamayan her program icin
- * kapali (100 degil). Onceki yontemle kiyas sorunu yok: zincir tamamlama
- * 12.11.2026'da geldi, ondan once boyle bir site hic taranamiyordu.
+ * kapali (100 degil).
  */
 export const HTTPS_CHAIN_INCOMPLETE_SCORE = 70;
+
+/**
+ * Yontem surumu farkli iki olcum yine de AYNI HUKMU mu veriyor?
+ *
+ * hreflang ve HTTPS v2, v1'in hic bakmadigi TEK bir durumu olcer (dil surumu
+ * var + etiket yok; zincir eksik). Yeni olcum o durumu bulmadiysa v1 de ayni
+ * sonucu verirdi: karsilastirma "yontem degisti" DEMEZ, yoksa her sitenin bir
+ * sonraki karsilastirmasi sebepsiz "kiyaslanamaz" olurdu. Yeni olcum o durumu
+ * bulduysa eski tarafin "100"u bir olcum degildir: fark sitenin degil olcunun
+ * ("kotulesti" denmez). Iki taraf da v2 ise bu fonksiyona gelinmez; fark
+ * sitenindir (etiket eklendi → iyilesti).
+ *
+ * @param newer surumu BUYUK olan tarafin checks girdisi
+ */
+export function methodVerdictUnchanged(id: string, olderVersion: number, newerVersion: number, newer: unknown): boolean {
+  const e = newer as { found?: unknown; valid?: unknown; details?: { chainIncomplete?: unknown } } | null;
+  if (id === 'hreflang' && olderVersion === 1 && newerVersion === HREFLANG_METHOD_VERSION) return e?.found === true && e?.valid === true;
+  if (id === 'https' && olderVersion === 1 && newerVersion === HTTPS_METHOD_VERSION) return e?.details?.chainIncomplete !== true;
+  return false;
+}
 
 /** llms_txt bilgi kontrolunun panel notu (details.note) */
 export const LLMS_INFO_NOTE = 'Bilgi: llms.txt genel skora girmez. Google Arama dosyayı yok sayıyor; bağımsız ölçümlerde görünürlüğe etkisi görülmedi.';
@@ -490,7 +516,9 @@ export class AuditChecksService {
     // tamamlar; tamamlamayan programlar baglanamaz. Eskiden boyle bir site
     // "HTTPS: gecti / 100" aliyordu ve bulgu hicbir yerde gorunmuyordu
     // (labenko.com, 12.11.2026). Hangi AI botlarinin bu yuzden baglanamadigi
-    // OLCULMEDI — metin "baglanamayabilir" der, kesin konusmaz.
+    // OLCULMEDI — metin "baglanamayabilir" der, kesin konusmaz. Yontem v2
+    // (HTTPS_METHOD_VERSION): zincir tamamlama ile bu bulgu arasinda taranan
+    // sitede eski "100" bir olcum degildi; karsilastirma "kotulesti" demez.
     const chainIncomplete = isHttps && c.tlsChainIncomplete === true;
     const issues: AuditIssue[] = [];
     if (!isHttps) {
@@ -511,7 +539,7 @@ export class AuditChecksService {
       found: isHttps, valid: isHttps && !chainIncomplete,
       score: !isHttps ? 0 : chainIncomplete ? HTTPS_CHAIN_INCOMPLETE_SCORE : 100,
       issues,
-      ...(chainIncomplete ? { details: { chainIncomplete: true } } : {}),
+      details: { methodVersion: HTTPS_METHOD_VERSION, ...(chainIncomplete ? { chainIncomplete: true } : {}) },
     };
   }
 
@@ -644,7 +672,7 @@ export class AuditChecksService {
         score: 0,
         issues: [{
           severity: 'warning', type: 'hreflang_missing',
-          description: `Sitede birden çok dil sürümü var (${diller}) ama sayfalarda hreflang etiketi yok. hreflang, Google'ın her kullanıcıya doğru dil sürümünü göstermesine yardım eder.`,
+          description: `Taramada sitenin farklı dil sürümleri görüldü (${diller}) ama sayfaların HTML'inde hreflang etiketi yok. hreflang, Google'ın her kullanıcıya doğru dil sürümünü göstermesine yardım eder. (Etiketler site haritasında ya da HTTP başlığında tanımlıysa bu kontrol onları görmez.)`,
           fixable: false,
         }],
         details: {
@@ -669,10 +697,10 @@ export class AuditChecksService {
       score: 100,
       issues: [],
       details: {
-        // Surum damgasi YALNIZ dil surumu gorulen sitede: tek dilli sitede v2
-        // ile v1 ayni olcumdur (100); her yerde damgalamak butun sitelerin bir
-        // sonraki karsilastirmasini sebepsiz "yontem degisti" yapardi.
-        ...(versions.multilingual ? { methodVersion: HREFLANG_METHOD_VERSION, languages: versions.languages, evidence: versions.evidence } : {}),
+        // Gecen sonuc v1 ile ayni hukumdur: karsilastirma bunu "yontem degisti"
+        // saymaz (methodVerdictUnchanged).
+        methodVersion: HREFLANG_METHOD_VERSION,
+        ...(versions.multilingual ? { languages: versions.languages, evidence: versions.evidence } : {}),
         applicable,
         pagesWithHreflang: count,
         note: count > 0

@@ -728,11 +728,12 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
       {ai.rakipler.sesPayiListesi.olculemedi ? (
         <div className="rapor-blok space-y-2">
           <OlculmediKutusu olcum={ai.rakipler.sesPayiListesi} baslik="Rakiplerle birlikte anılma" />
-          {/* Liste kurulumda otomatik cikarilir; musteri onaylamadan "takip edilen rakipler" diye sunulmaz */}
+          {/* Liste kurulumda otomatik onerilir; musteri onaylamadan "takip edilen rakipler" diye sunulmaz.
+              Listenin sonradan elle duzenlenip duzenlenmedigi bilinmiyor: cumle iki durumda da dogru kalmali. */}
           {ai.rakipler.tanimli.length > 0 && (
             <p className="text-sm text-muted-foreground">
               Karşılaştırma için tanımlı rakipler: {ai.rakipler.tanimli.join(', ')}. Rakip listesi kurulum sırasında otomatik önerilir ve
-              panelden düzenlenebilir; kesinleşmiş bir liste olarak okunmamalıdır.
+              panelden düzenlenebilir.
             </p>
           )}
         </div>

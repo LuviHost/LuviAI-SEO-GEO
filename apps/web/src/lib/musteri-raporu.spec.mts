@@ -139,7 +139,9 @@ describe('rapor belgesi: musteriye yanlis okunan etiketler', () => {
   it('rakip listesi "Takip edilen rakipler" diye sunulmaz (kurulumda otomatik onerilir, onaylanmamistir)', () => {
     expect(belge).not.toContain('Takip edilen rakipler');
     expect(belge).toContain('Karşılaştırma için tanımlı rakipler');
-    expect(belge).toContain('kesinleşmiş bir liste olarak okunmamalıdır');
+    expect(belge).toContain('kurulum sırasında otomatik önerilir ve');
+    // Sahibin elle duzenledigi liste icin yanlis olurdu
+    expect(belge).not.toContain('kesinleşmiş');
   });
 
   it('takvim sayisi kimin takvimi oldugunu soyler', () => {
