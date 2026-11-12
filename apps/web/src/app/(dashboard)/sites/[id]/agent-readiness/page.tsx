@@ -37,12 +37,23 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   unreachable:  { text: 'Siteye ulaşılamadı', cls: 'text-warning' },
 };
 
-const IMPACT_BADGE: Record<string, { text: string; cls: string }> = {
-  high:   { text: 'Yüksek etki', cls: 'border-foreground/30 text-foreground' },
-  medium: { text: 'Orta etki',   cls: 'border-border text-muted-foreground' },
-  low:    { text: 'Düşük etki',  cls: 'border-border text-muted-foreground/70' },
+/**
+ * Etki etiketi. Kontrol GECMISSE ya da puansiz bilgi satiriysa sessiz mono yazi (kutu yok):
+ * cerceveli hali dugme gibi duruyordu (sahip geri bildirimi, 12.11.2026), her satirda renkli
+ * rozet ise gecen kontrolu de alarm gibi gosteriyordu. Renk yalniz EKSIK kontrolde: yuksek
+ * etki tehlike, orta etki uyari tonunda — ilgilenilmesi gereken satir one cikar.
+ */
+const IMPACT_TEXT: Record<string, string> = {
+  high: 'Yüksek etki',
+  medium: 'Orta etki',
+  low: 'Düşük etki',
   // Puansız bilgi kontrolü — skora girmez
-  info:   { text: 'Bilgi',       cls: 'border-border bg-muted text-muted-foreground' },
+  info: 'Bilgi',
+};
+const IMPACT_FAIL_VARIANT: Record<string, 'danger' | 'warning' | 'secondary'> = {
+  high: 'danger',
+  medium: 'warning',
+  low: 'secondary',
 };
 
 /** Metodoloji rozetleri — skor sürümü değiştikçe önceki taramalarla puan farkı açıklanır */
@@ -354,11 +365,15 @@ export default function AgentReadinessPage() {
                               <div className="text-xs text-muted-foreground truncate">{check.statusText}</div>
                             </div>
                             {state === 'blocked' ? (
-                              <Badge variant="outline" className="text-label shrink-0 bg-warning/10 text-warning border-warning/30">Ölçülemedi</Badge>
-                            ) : (
-                              <Badge variant="outline" className={cn('text-label shrink-0', IMPACT_BADGE[check.impact]?.cls)}>
-                                {IMPACT_BADGE[check.impact]?.text}
+                              <Badge variant="warning" className="text-label shrink-0">Ölçülemedi</Badge>
+                            ) : state === 'fail' && IMPACT_FAIL_VARIANT[check.impact] ? (
+                              <Badge variant={IMPACT_FAIL_VARIANT[check.impact]} className="text-label shrink-0">
+                                {IMPACT_TEXT[check.impact]}
                               </Badge>
+                            ) : (
+                              <span className="shrink-0 font-mono text-vitrin-rail text-muted-foreground">
+                                {IMPACT_TEXT[check.impact]}
+                              </span>
                             )}
                             <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform shrink-0', open && 'rotate-180')} />
                           </button>
