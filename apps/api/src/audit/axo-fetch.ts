@@ -70,9 +70,14 @@ const UNREACHABLE_REASON: Record<string, string> = {
   // safeFetchText 2xx govdeyi acamadiginda (desteklenmeyen ya da bozuk
   // Content-Encoding) bu kodla hata atar; "baglanti kurulamadi" demek yanlis olur
   content_encoding: 'Sitenin yanıtı çözülemedi (desteklenmeyen ya da bozuk sıkıştırma).',
+  // Sertifika dogrulanamadi (eksik zincir tamamlanamadi, suresi dolmus, alan adi
+  // uyusmuyor...) — site ayakta olabilir, "baglanti kurulamadi" demek yanlis olur
+  tls: 'Sitenin HTTPS sertifikası doğrulanamadı (eksik zincir, süresi dolmuş ya da alan adıyla uyuşmayan sertifika).',
 };
 
 const UNREACHABLE_HINT = 'Sitenin herkese açık olduğundan ve sunucunun yanıt verdiğinden emin olun; sorun sürerse barındırma sağlayıcınızla görüşün.';
+/** Sertifika hatasinda sunucu ayaktadir; "yanit verdiginden emin olun" yanlis yonlendirir */
+const TLS_HINT = 'Sertifikanın geçerli olduğunu ve sunucunun tam sertifika zincirini gönderdiğini kontrol edin (Let’s Encrypt kullanıyorsanız cert.pem yerine fullchain.pem).';
 
 export async function probeUrl(url: string, opts: ProbeOptions = {}, fetcher: TextFetcher = safeFetchText): Promise<Probe> {
   const empty = { url, finalUrl: url, status: 0, text: '', contentType: '', headers: {}, truncated: false, binary: false };
@@ -81,7 +86,7 @@ export async function probeUrl(url: string, opts: ProbeOptions = {}, fetcher: Te
     res = await fetcher(url, { timeoutMs: 10_000, maxBytes: 512 * 1024, ...opts });
   } catch (err: any) {
     const kind = err instanceof SafeFetchError ? err.code : 'network';
-    return { ...empty, state: 'unreachable', block: { kind, reason: UNREACHABLE_REASON[kind] ?? UNREACHABLE_REASON.network, hint: UNREACHABLE_HINT, vendor: null, status: 0 } };
+    return { ...empty, state: 'unreachable', block: { kind, reason: UNREACHABLE_REASON[kind] ?? UNREACHABLE_REASON.network, hint: kind === 'tls' ? TLS_HINT : UNREACHABLE_HINT, vendor: null, status: 0 } };
   }
 
   const base = {

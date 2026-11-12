@@ -154,6 +154,11 @@ export interface ScanContext {
   a2aCards: Array<{ identifier: string; url: string | null; probe: Probe | null; check: A2aCardCheck }>;
   /** v3 ticaret olcumu (servis ceker, burada degerlendirilir); yoksa hicbir sey yoklanmamis sayilir */
   commerce?: CommerceSignals;
+  /**
+   * Sunucu sertifika zincirini eksik gonderiyor; tarayicimiz zinciri tamamlayarak
+   * baglandi (bkz. common/tls-chain.ts). Puansiz bulgu olarak gosterilir.
+   */
+  tlsChainIncomplete?: boolean;
 }
 
 export type ProductFeedKind = 'shopify' | 'woocommerce' | 'merchant';
@@ -227,6 +232,21 @@ function levelQuickWins(ctx: ScanContext, rv: RobotsView): ReadinessLevel {
     audit: [fetchStep(ctx.siteUrl, home)],
     blocked: blockedOf(home),
   });
+
+  // 0b. Sertifika zinciri — yalniz eksikse gosterilir; bilgi (puana girmez).
+  // Site tarayicida acilir ama zinciri kendisi tamamlamayan istemciler baglanamaz
+  // (labenko.com, 12.11.2026). Hangi AI botlarinin tamamladigi olculmedi; iddia yok.
+  if (ctx.tlsChainIncomplete && home.state === 'ok') {
+    checks.push({
+      id: 'tls-chain',
+      name: 'HTTPS sertifika zinciri',
+      ok: false,
+      impact: 'info',
+      statusText: 'Sunucu sertifika zincirini eksik gönderiyor; RanksUpBot eksik sertifikaları kendisi indirerek bağlandı',
+      howTo: 'Sunucuyu tam sertifika zincirini gönderecek şekilde ayarlayın (Let’s Encrypt kullanıyorsanız cert.pem yerine fullchain.pem). Tarayıcılar eksik zinciri kendileri tamamlar; program olarak bağlanan bazı araçlar ve botlar tamamlamaz ve siteyi okuyamaz.',
+      audit: [{ step: 'CONCLUDE', detail: 'Sunucunun gönderdiği sertifikalar güvenilen bir köke bağlanmıyor; eksik ara sertifikalar sertifikadaki adresten indirilip doğrulandı', ok: false }],
+    });
+  }
 
   // 1. robots.txt
   const robotsStatus = robotsBlocked

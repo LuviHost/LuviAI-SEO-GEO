@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
@@ -11,6 +11,13 @@ import { removeSiteVideoFiles } from '../videos/article-video.config.js';
 import { DEFAULT_PUBLISH_APPROVAL_MODE } from '../articles/publish-approval.js';
 import { ownerEngines } from '../billing/plan-engines.js';
 import { measuredEngines } from '../billing/measured-engines.js';
+
+/** Kurulumu SURMEKTE olan durumlar — zincir yalniz bunlardan yeniden baslatilir */
+const ONBOARDING_RETRY_FROM = new Set(['ONBOARDING', 'AUDIT_PENDING', 'AUDIT_COMPLETE']);
+/** Bu sureden yeni, bitmemis bir zincir "calisiyor" sayilir (zincir genelde 1-3 dk surer) */
+const ONBOARDING_RUNNING_WINDOW_MS = 6 * 60 * 1000;
+/** Site basina 24 saatte en fazla kac kurulum zinciri (ilk kurulum dahil) */
+export const ONBOARDING_RETRY_DAILY_LIMIT = 12;
 
 /**
  * Site satirindaki sirlar — API cevabina ASLA cikmamali.
@@ -268,6 +275,51 @@ export class SitesService {
       // Onboarding "Kaydet" cevabi da tam satiri (sirlar dahil) donuyordu
       omit: SITE_SECRET_FIELDS,
     });
+  }
+
+  /**
+   * Kurulum zincirini yeniden kuyruga alir (kurulum ekranindaki "Tekrar dene").
+   *
+   * NEDEN VAR: tarayicimiz siteyi okuyamayinca (engel, sertifika, DNS) zincir
+   * denemelerini tuketip FAILED olur, site kurulumda kalir. Ekrandaki dugme
+   * completeOnboarding'i cagiriyordu; o yalniz durumu ACTIVE yapar, HICBIR SEYI
+   * yeniden calistirmaz — kullanici "yeniden basladi" yazisini gorup taranmamis
+   * bir siteyle panele dusuyordu (labenko.com incelemesi, 12.11.2026).
+   *
+   * Sinirlar: kurulumu bitmis sitede calismaz; zincir zaten kuyrukta/calisiyorsa
+   * ikincisi eklenmez; site basina 24 saatte en fazla RETRY_DAILY_LIMIT zincir
+   * (her zincir bir beyin uretimi demektir — sinirsiz yeniden deneme maliyettir).
+   */
+  async retryOnboarding(siteId: string, user: RequestingUser): Promise<{ queued: boolean; reason?: 'running' }> {
+    const site = await this.assertOwnership(siteId, user);
+    if ((site as any).onboardingCompletedAt || !ONBOARDING_RETRY_FROM.has(String(site.status))) {
+      throw new BadRequestException('Bu sitenin kurulumu tamamlanmış; yeniden başlatılamaz.');
+    }
+    const now = Date.now();
+    const running = await this.prisma.job.findFirst({
+      where: {
+        siteId,
+        type: 'ONBOARDING_CHAIN' as any,
+        status: { in: ['QUEUED', 'PROCESSING'] as any },
+        queuedAt: { gt: new Date(now - ONBOARDING_RUNNING_WINDOW_MS) },
+      },
+      select: { id: true },
+    });
+    if (running) return { queued: false, reason: 'running' };
+    const recent = await this.prisma.job.count({
+      where: { siteId, type: 'ONBOARDING_CHAIN' as any, queuedAt: { gt: new Date(now - 24 * 60 * 60 * 1000) } },
+    });
+    if (recent >= ONBOARDING_RETRY_DAILY_LIMIT) {
+      throw new HttpException('Bu site için bugün çok fazla kurulum denemesi yapıldı. Yarın yeniden deneyin ya da destekle iletişime geçin.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    await this.jobQueue.enqueue({
+      type: 'ONBOARDING_CHAIN',
+      userId: site.userId,
+      siteId,
+      payload: { siteId },
+      priority: 10,
+    });
+    return { queued: true };
   }
 
   async regenerateBrain(siteId: string, user: RequestingUser) {

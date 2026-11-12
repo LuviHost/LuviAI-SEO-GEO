@@ -898,6 +898,9 @@ export const api = {
 
   completeOnboarding: (siteId: string) =>
     request<any>(`/sites/${siteId}/complete-onboarding`, { method: 'POST' }),
+  /** Kurulum zincirini yeniden baslatir (complete-onboarding'in aksine yeniden CALISTIRIR) */
+  retryOnboarding: (siteId: string) =>
+    request<{ queued: boolean; reason?: 'running' }>(`/sites/${siteId}/retry-onboarding`, { method: 'POST' }),
 
   getUserQuota: (userId: string) =>
     request<{

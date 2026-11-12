@@ -8,6 +8,7 @@ import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 import { KNOWN_AI_BOTS } from './known-ai-bots.js';
 import { parseRobotsAiStance as parseStance, type RobotsAiStance } from './robots-ai-stance.js';
 import { probeUrl, createLimiter, describeProbe, type Probe, type ProbeOptions } from './axo-fetch.js';
+import { tlsChainCompletedFor } from '../common/tls-chain.js';
 import { assessRobotsBody, robotsSitemapUrls } from './robots-merge.js';
 import {
   parseAiCatalog, sitemapKind, looksLikeHtml, parseJsonSafe, validateMcpServerCard, validateA2aAgentCard,
@@ -349,6 +350,8 @@ export class AgentReadinessService {
       mcpCards,
       a2aCards,
       commerce,
+      // Ana sayfaya ancak eksik sertifika zincirini tamamlayarak baglandiysak bulgu olarak gosterilir
+      tlsChainIncomplete: [origin, home.finalUrl].some((u) => { try { return tlsChainCompletedFor(new URL(u).hostname); } catch { return false; } }),
     };
   }
 

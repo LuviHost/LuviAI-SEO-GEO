@@ -59,3 +59,33 @@ describe('accessFromFetchError', () => {
     expect(accessFromFetchError('https://site.com/', new Error('x')).reason).toBe('Siteye bağlantı kurulamadı.');
   });
 });
+
+/**
+ * Sertifika hatalari artik "Siteye bağlantı kurulamadı" altinda toplanmaz.
+ *
+ * NEDEN VAR: labenko.com (12.11.2026) tarayicida aciliyordu ama sunucusu
+ * sertifika zincirini eksik gonderiyordu. Panel "bağlantı kurulamadı, sunucunun
+ * açık olduğunu kontrol edin" dedi; site sahibi neyi duzeltecegini anlayamadi.
+ */
+describe('accessFromFetchError — sertifika hatalari', () => {
+  it('eksik zincir: neden ve cozum soylenir, "bağlantı kurulamadı" denmez', () => {
+    const a = accessFromFetchError('https://site.com/', new SafeFetchError('tls', 'x', 'chain'));
+    expect(a).toMatchObject({ state: 'unreachable', kind: 'tls', url: 'https://site.com/', status: null });
+    expect(a.reason).toContain('sertifika zinciri eksik');
+    expect(a.hint).toContain('fullchain.pem');
+    expect(a.reason).not.toContain('bağlantı kurulamadı');
+  });
+
+  it.each([
+    ['expired', 'süresi dolmuş'],
+    ['name', 'bu alan adı için düzenlenmemiş'],
+    ['self_signed', 'kendinden imzalı'],
+    ['other', 'doğrulanamadı'],
+    [undefined, 'doğrulanamadı'],
+  ] as const)('tur %s → ayri neden', (detail, parca) => {
+    const a = accessFromFetchError('https://site.com/', new SafeFetchError('tls', 'x', detail));
+    expect(a.kind).toBe('tls');
+    expect(a.reason).toContain(parca);
+    expect(a.hint.length).toBeGreaterThan(20);
+  });
+});

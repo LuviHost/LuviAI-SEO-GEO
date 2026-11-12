@@ -123,6 +123,8 @@ export function pageFailureText(page: CustomerPageFailure): string {
     case 'redirect': return 'Sayfa çok fazla yönlendirme yapıyor.';
     // Yanit geldi ama govde cozulemedi — "baglanilamadi" yanlis yonlendirirdi
     case 'content_encoding': return 'Sayfa çözülemeyen bir sıkıştırmayla (Content-Encoding) geldi; okunamadı.';
+    // Site ayakta olabilir; sorun sertifikada — "baglanilamadi" yanlis yonlendirirdi
+    case 'tls': return 'Sayfanın HTTPS sertifikası doğrulanamadı; okunamadı.';
     default: return 'Sayfaya bağlanılamadı.';
   }
 }
