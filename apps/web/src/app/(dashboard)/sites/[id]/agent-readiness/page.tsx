@@ -56,6 +56,26 @@ const IMPACT_FAIL_VARIANT: Record<string, 'danger' | 'warning' | 'secondary'> = 
   low: 'secondary',
 };
 
+/**
+ * Etki seviyesi cubuklari (yuksek 3, orta 2, dusuk 1). Gecen kontrollerde etiketler kutusuz
+ * gri yaziya inince "Yüksek etki" ile "Bilgi" ayni gorunuyordu (sahip geri bildirimi,
+ * 12.11.2026); seviye renkle degil bicimle ayrisir. Puansiz bilgi satirinda cubuk yok.
+ */
+const IMPACT_LEVEL: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+function ImpactBars({ level }: { level: number }) {
+  return (
+    <span className="inline-flex items-end gap-0.5" aria-hidden>
+      {[1, 2, 3].map((n) => (
+        <span
+          key={n}
+          className={cn('w-0.5 rounded-sm bg-current', n === 1 ? 'h-1.5' : n === 2 ? 'h-2.5' : 'h-3.5', n > level && 'opacity-25')}
+        />
+      ))}
+    </span>
+  );
+}
+
 /** Metodoloji rozetleri — skor sürümü değiştikçe önceki taramalarla puan farkı açıklanır */
 const METHOD_LABEL: Record<number, { text: string; title: string }> = {
   2: {
@@ -367,9 +387,21 @@ export default function AgentReadinessPage() {
                             {state === 'blocked' ? (
                               <Badge variant="warning" className="text-label shrink-0">Ölçülemedi</Badge>
                             ) : state === 'fail' && IMPACT_FAIL_VARIANT[check.impact] ? (
-                              <Badge variant={IMPACT_FAIL_VARIANT[check.impact]} className="text-label shrink-0">
+                              <Badge variant={IMPACT_FAIL_VARIANT[check.impact]} className="shrink-0 gap-1.5 text-label">
+                                <ImpactBars level={IMPACT_LEVEL[check.impact]} />
                                 {IMPACT_TEXT[check.impact]}
                               </Badge>
+                            ) : IMPACT_LEVEL[check.impact] ? (
+                              // Gecen kontrol: kutusuz; yuksek etki parlak yazi + uc dolu cubuk
+                              <span
+                                className={cn(
+                                  'inline-flex shrink-0 items-center gap-1.5 font-mono text-vitrin-rail',
+                                  check.impact === 'high' ? 'text-foreground' : 'text-muted-foreground',
+                                )}
+                              >
+                                <ImpactBars level={IMPACT_LEVEL[check.impact]} />
+                                {IMPACT_TEXT[check.impact]}
+                              </span>
                             ) : (
                               <span className="shrink-0 font-mono text-vitrin-rail text-muted-foreground">
                                 {IMPACT_TEXT[check.impact]}
