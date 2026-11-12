@@ -213,6 +213,16 @@ export class SitesController {
   }
 
   /**
+   * POST /sites/:id/retry-onboarding — kurulum zincirini yeniden baslatir
+   * (tarayicimiz siteyi okuyamadiysa sorun giderildikten sonra "Tekrar dene").
+   * complete-onboarding'ten FARKLI: o kurulumu bitmis sayar, bu yeniden calistirir.
+   */
+  @Post(':id/retry-onboarding')
+  async retryOnboarding(@Req() req: Request, @Param('id') id: string) {
+    return this.sites.retryOnboarding(id, ensureUser(req));
+  }
+
+  /**
    * PATCH /sites/:id/webhook body { url, kind }
    *
    * Yalniz panel oturumuyla: '/sites/:id/webhook' api-keys.service

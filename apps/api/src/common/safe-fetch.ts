@@ -2,7 +2,9 @@ import { BlockList, isIP } from 'node:net';
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import { pipeline, Transform } from 'node:stream';
 import { createBrotliDecompress, createGunzip, createInflate, constants as zlibConstants } from 'node:zlib';
+import { rootCertificates } from 'node:tls';
 import { Agent, request } from 'undici';
+import { ChainCompleter, isChainError, tlsChainNotNeeded, tlsErrorDetail, type IssuerFetcher, type TlsErrorDetail } from './tls-chain.js';
 
 /**
  * Kullanicinin verdigi (ya da taranan sayfadan gelen) URL'den ikili veri
@@ -23,6 +25,9 @@ import { Agent, request } from 'undici';
  *  5. Govde akis halinde okunur; boyut tavani asilinca kesilir. Zaman asimi.
  *  6. Baglantilar main.ts'teki genel dagitici gibi IPv4'e sabittir (bkz.
  *     ipv4OnlyFromEnv) — bu dosyadaki ajanlar o dagiticiyi kullanmaz.
+ *  7. Sunucu sertifika zincirini eksik gonderirse (tarayicida acilan, Node'un
+ *     reddettigi siteler) eksik halkalar indirilip imzalariyla dogrulanir ve
+ *     baglanti yeniden denenir; dogrulama KAPATILMAZ (bkz. tls-chain.ts).
  */
 
 /**
@@ -128,10 +133,22 @@ export type SafeFetchErrorCode =
    * compress...) ya da bozuk sikistirma. Sayfa OKUNAMADI demektir — gurultu
    * metin diye donup puanlanmaz (bkz. fetchTextGuarded).
    */
-  | 'content_encoding';
+  | 'content_encoding'
+  /**
+   * HTTPS sertifikasi dogrulanamadi (eksik zincir tamamlanamadi, suresi dolmus,
+   * alan adi uyusmuyor, kendinden imzali). Turu `detail`'de. Eskiden 'network'
+   * altinda "Siteye baglanti kurulamadi" diye gorunuyordu; site ayakta, sorun
+   * sertifikada — nedenini soyleyebilmek icin ayrildi.
+   */
+  | 'tls';
 
 export class SafeFetchError extends Error {
-  constructor(public readonly code: SafeFetchErrorCode, message: string) {
+  constructor(
+    public readonly code: SafeFetchErrorCode,
+    message: string,
+    /** Yalniz code === 'tls': sertifika hatasinin turu */
+    public readonly detail?: TlsErrorDetail,
+  ) {
     super(message);
   }
 }
@@ -146,6 +163,10 @@ export interface SafeFetchPolicy {
   allowAnyPort?: boolean;
   /** Varsayilan: SAFE_FETCH_IPV4_ONLY (bkz. ipv4OnlyFromEnv). Yalnizca test bunu acikca verir. */
   ipv4Only?: boolean;
+  /** Yalnizca test — guvenilen kokler (PEM). Uretimde Node'un kok deposu kullanilir. */
+  trustedRoots?: readonly string[];
+  /** Yalnizca test — eksik zincir tamamlanirken ust sertifikayi veren islev (uretimde AIA adresinden indirilir). */
+  fetchIssuer?: IssuerFetcher;
 }
 
 /** Baglanti anindaki DNS cozumu — engelli adrese cozulurse baglanti hic kurulmaz */
@@ -214,6 +235,8 @@ export interface SafeFetchOptions {
   maxRedirects?: number;
   /** Ornek: /^image\// — uymazsa govde indirilmeden reddedilir */
   accept?: RegExp;
+  /** Istekte gonderilen Accept basligi (varsayilan image/*) */
+  acceptHeader?: string;
 }
 
 export interface SafeFetchResult {
@@ -246,7 +269,136 @@ export function makeSafeFetch(policy: SafeFetchPolicy = {}) {
     headersTimeout: 10_000,
     bodyTimeout: 10_000,
   });
-  return (rawUrl: string, opts: SafeFetchOptions = {}) => fetchGuarded(agent, isBlocked, allowAnyPort, rawUrl, opts);
+  const ctx: FetchCtx = { agent, isBlocked, allowAnyPort, chain: makeChainSupport(isBlocked, allowAnyPort, policy, 10_000) };
+  return (rawUrl: string, opts: SafeFetchOptions = {}) => fetchGuarded(ctx, rawUrl, opts);
+}
+
+/** Bir istek ureticisinin ortak baglami */
+interface FetchCtx {
+  agent: Agent;
+  isBlocked: IsBlocked;
+  allowAnyPort: boolean;
+  /** Eksik sertifika zincirini tamamlama destegi; AIA indirmesinin kendisinde null (ozyineleme olmasin) */
+  chain: ChainSupport | null;
+}
+
+interface ChainSupport {
+  /** Zinciri daha once tamamlanmis alan adinin ajani; yoksa null */
+  agentFor(url: URL): Agent | null;
+  /** Zinciri tamamlamayi dener; basarirsa o alan adinin ajani, tamamlanamazsa null */
+  complete(url: URL): Promise<Agent | null>;
+  /** Onbellekteki zincir artik gecmiyorsa (sunucu sertifika degistirdi) unut */
+  forget(url: URL): void;
+}
+
+const MAX_CHAIN_AGENTS = 200;
+
+/**
+ * Eksik sertifika zinciri destegi (bkz. tls-chain.ts). Tamamlanan her alan adi
+ * icin Node'un kokleri + DOGRULANMIS ara sertifikalarla ayri bir ajan tutulur;
+ * baglantilar yine korumali lookup'tan gecer (SSRF garantisi ayni).
+ */
+function makeChainSupport(isBlocked: IsBlocked, allowAnyPort: boolean, policy: SafeFetchPolicy, timeoutMs: number): ChainSupport {
+  const connect = guardedConnectOptions(isBlocked, { timeoutMs: 10_000, ipv4Only: policy.ipv4Only });
+  const roots = policy.trustedRoots ?? rootCertificates;
+  // Ajan, kuruldugu ek sertifikalarla birlikte tutulur: zincir yeniden
+  // tamamlanip baska bir ara sertifika gelirse (sertifika yenilendi) eski ajan
+  // kullanilmaz.
+  const agents = new Map<string, { agent: Agent; extrasKey: string }>();
+  const keyOf = (url: URL) => `${url.hostname.toLowerCase()}:${url.port || '443'}`;
+  const drop = (key: string) => {
+    agents.get(key)?.agent.close().catch(() => {});
+    agents.delete(key);
+  };
+
+  // Ust sertifika, yapragin icindeki adresten (AIA) AYNI SSRF kurallariyla
+  // indirilir: adresi sitenin sertifikasi belirler, ic aga cikamamali.
+  let plain: FetchCtx | null = null;
+  const fetchIssuer: IssuerFetcher = policy.fetchIssuer ?? (async (url) => {
+    plain ??= {
+      agent: new Agent({ connect, headersTimeout: 5_000, bodyTimeout: 5_000 }),
+      isBlocked, allowAnyPort, chain: null,
+    };
+    const res = await fetchGuarded(plain, url, {
+      maxBytes: 64 * 1024, timeoutMs: 5_000, maxRedirects: 2,
+      acceptHeader: 'application/pkix-cert, application/x-x509-ca-cert, */*',
+    });
+    return res.body;
+  });
+  const completer = new ChainCompleter({ connect, fetchIssuer, roots: policy.trustedRoots });
+
+  const agentWith = (url: URL, extras: string[]): Agent => {
+    const key = keyOf(url);
+    const extrasKey = extras.join('\n');
+    const hit = agents.get(key);
+    if (hit && hit.extrasKey === extrasKey) return hit.agent;
+    if (hit) drop(key);
+    const agent = new Agent({ connect: { ...connect, ca: [...roots, ...extras] }, headersTimeout: timeoutMs, bodyTimeout: timeoutMs });
+    agents.set(key, { agent, extrasKey });
+    if (agents.size > MAX_CHAIN_AGENTS) drop(agents.keys().next().value as string);
+    return agent;
+  };
+
+  return {
+    agentFor(url) {
+      if (url.protocol !== 'https:') return null;
+      const extras = completer.cached(url);
+      if (extras) return agentWith(url, extras);
+      // Onbellek suresi doldu: ajan da birakilir, istek normal yoldan denenir
+      if (agents.has(keyOf(url))) drop(keyOf(url));
+      return null;
+    },
+    async complete(url) {
+      const extras = await completer.complete(url);
+      return extras ? agentWith(url, extras) : null;
+    },
+    forget(url) {
+      drop(keyOf(url));
+      completer.forget(url);
+    },
+  };
+}
+
+/** Sozu bekler; sinyal once kesilirse undefined doner (soz arka planda surer). */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T | undefined> {
+  if (signal.aborted) return Promise.resolve(undefined);
+  return new Promise((resolve, reject) => {
+    const onAbort = () => resolve(undefined);
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => { signal.removeEventListener('abort', onAbort); resolve(value); },
+      (err) => { signal.removeEventListener('abort', onAbort); reject(err); },
+    );
+  });
+}
+
+/**
+ * Istegi gonderir. Sunucu sertifika zincirini eksik gonderdiyse zinciri
+ * tamamlayip BIR kez yeniden dener; tamamlanamazsa hata oldugu gibi doner.
+ */
+async function sendGuarded<T>(ctx: FetchCtx, current: URL, deadline: AbortSignal, send: (dispatcher: Agent) => Promise<T>): Promise<T> {
+  const known = ctx.chain?.agentFor(current) ?? null;
+  try {
+    const res = await send(known ?? ctx.agent);
+    // Normal yoldan baglandik: sunucu zinciri tam gonderiyor (ya da duzeltildi)
+    if (!known && ctx.chain && current.protocol === 'https:') tlsChainNotNeeded(current.hostname);
+    return res;
+  } catch (err: any) {
+    if (!ctx.chain || current.protocol !== 'https:' || deadline.aborted || !isChainError(err)) {
+      throw toSafeFetchError(err, current, deadline);
+    }
+    if (known) ctx.chain.forget(current);
+    // Tamamlama istegin suresini ASAMAZ: sure dolarsa istek zaman asimiyla biter,
+    // tamamlama arka planda surer ve sonucu bir sonraki istek icin onbellege girer.
+    const fixed = await untilAborted(ctx.chain.complete(current), deadline);
+    if (deadline.aborted) throw new SafeFetchError('timeout', 'Zaman asimi');
+    if (!fixed) throw toSafeFetchError(err, current, deadline);
+    try {
+      return await send(fixed);
+    } catch (err2: any) {
+      throw toSafeFetchError(err2, current, deadline);
+    }
+  }
 }
 
 /** Baglanti katmani hatasini tek bicime cevir — ic adres/IP bilgisi mesaja sizmaz. */
@@ -259,28 +411,27 @@ function toSafeFetchError(err: any, current: URL, deadline: AbortSignal): SafeFe
   if (code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ENODATA') {
     return new SafeFetchError('dns', `Alan adi cozulemedi: ${current.hostname}`);
   }
+  const tls = tlsErrorDetail(err);
+  if (tls) return new SafeFetchError('tls', `Sertifika dogrulanamadi (${String(code)})`, tls);
   return new SafeFetchError('network', String(err?.message ?? err).slice(0, 200));
 }
 
-async function fetchGuarded(agent: Agent, isBlocked: IsBlocked, allowAnyPort: boolean, rawUrl: string, opts: SafeFetchOptions): Promise<SafeFetchResult> {
+async function fetchGuarded(ctx: FetchCtx, rawUrl: string, opts: SafeFetchOptions): Promise<SafeFetchResult> {
+  const { isBlocked, allowAnyPort } = ctx;
   const maxBytes = opts.maxBytes ?? 8 * 1024 * 1024;
   const maxRedirects = opts.maxRedirects ?? 3;
   const deadline = AbortSignal.timeout(opts.timeoutMs ?? 10_000);
   let current = assertUrl(rawUrl, isBlocked, allowAnyPort);
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    let res;
-    try {
-      res = await request(current, {
-        method: 'GET',
-        dispatcher: agent,
-        maxRedirections: 0,
-        signal: deadline,
-        headers: { 'user-agent': RANKSUP_BOT_UA, accept: 'image/*' },
-      });
-    } catch (err: any) {
-      throw toSafeFetchError(err, current, deadline);
-    }
+    const target = current;
+    const res = await sendGuarded(ctx, target, deadline, (dispatcher) => request(target, {
+      method: 'GET',
+      dispatcher,
+      maxRedirections: 0,
+      signal: deadline,
+      headers: { 'user-agent': RANKSUP_BOT_UA, accept: opts.acceptHeader ?? 'image/*' },
+    }));
 
     if (res.statusCode >= 300 && res.statusCode < 400) {
       const loc = res.headers.location;
@@ -548,10 +699,12 @@ export function makeSafeTextFetch(policy: SafeFetchPolicy = {}) {
   const isBlocked = policy.isBlocked ?? isBlockedAddress;
   const allowAnyPort = policy.allowAnyPort === true;
   const agent = makeAgent(isBlocked, 30_000, policy.ipv4Only);
-  return (rawUrl: string, opts: SafeTextOptions = {}) => fetchTextGuarded(agent, isBlocked, allowAnyPort, rawUrl, opts);
+  const ctx: FetchCtx = { agent, isBlocked, allowAnyPort, chain: makeChainSupport(isBlocked, allowAnyPort, policy, 30_000) };
+  return (rawUrl: string, opts: SafeTextOptions = {}) => fetchTextGuarded(ctx, rawUrl, opts);
 }
 
-async function fetchTextGuarded(agent: Agent, isBlocked: IsBlocked, allowAnyPort: boolean, rawUrl: string, opts: SafeTextOptions): Promise<SafeTextResult> {
+async function fetchTextGuarded(ctx: FetchCtx, rawUrl: string, opts: SafeTextOptions): Promise<SafeTextResult> {
+  const { isBlocked, allowAnyPort } = ctx;
   const method = opts.method ?? 'GET';
   const maxBytes = opts.maxBytes ?? 2 * 1024 * 1024;
   const errorBodyBytes = opts.errorBodyBytes ?? 64 * 1024;
@@ -568,15 +721,11 @@ async function fetchTextGuarded(agent: Agent, isBlocked: IsBlocked, allowAnyPort
   let current = assertUrl(rawUrl, isBlocked, allowAnyPort);
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    let res;
-    try {
-      res = await request(current, {
-        method, dispatcher: agent, maxRedirections: 0, signal: deadline, headers,
-        body: method === 'POST' ? opts.body : undefined,
-      });
-    } catch (err: any) {
-      throw toSafeFetchError(err, current, deadline);
-    }
+    const target = current;
+    const res = await sendGuarded(ctx, target, deadline, (dispatcher) => request(target, {
+      method, dispatcher, maxRedirections: 0, signal: deadline, headers,
+      body: method === 'POST' ? opts.body : undefined,
+    }));
 
     const status = res.statusCode;
     const resHeaders = flattenHeaders(res.headers as Record<string, string | string[] | undefined>);

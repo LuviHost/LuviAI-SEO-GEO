@@ -552,3 +552,28 @@ describe('robots.txt yalniz CR satir sonu — AXO durusu', () => {
     expect(stance!.bots.every((b) => b.effective === 'block')).toBe(true);
   });
 });
+
+/**
+ * Eksik sertifika zinciri bulgusu (labenko.com, 12.11.2026): tarayicimiz zinciri
+ * tamamlayarak baglandiysa site sahibi bunu gormeli — ama kanit tabani olmayan
+ * bir seyle puan kirilmaz ve hangi AI botlarinin baglanamadigi iddia edilmez.
+ */
+describe('tls-chain — eksik sertifika zinciri bulgusu', () => {
+  it('yalniz zincir eksikse cikar; puansizdir, skoru ve siradaki duzeltmeleri degistirmez', () => {
+    const base = run(makeCtx());
+    const flagged = run(makeCtx({}, { tlsChainIncomplete: true }));
+    expect(base.check('tls-chain')).toBeUndefined();
+    const c = flagged.check('tls-chain');
+    expect(c).toMatchObject({ ok: false, impact: 'info' });
+    expect(c.howTo).toContain('fullchain.pem');
+    expect(flagged.summary.overallScore).toBe(base.summary.overallScore);
+    // Karsilastirma bos kalmasin: listede baska kontroller var, aralarinda tls-chain yok
+    expect(flagged.summary.nextUpToFix.length).toBeGreaterThan(0);
+    expect(flagged.summary.nextUpToFix.map((x) => x.checkId)).not.toContain('tls-chain');
+    expect(flagged.summary.nextUpToFix).toEqual(base.summary.nextUpToFix);
+  });
+
+  it('ana sayfa okunamadiysa gosterilmez', () => {
+    expect(run(makeCtx({ home: wall() }, { tlsChainIncomplete: true })).check('tls-chain')).toBeUndefined();
+  });
+});

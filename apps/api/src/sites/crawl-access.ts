@@ -14,7 +14,7 @@ import { SafeFetchError } from '../common/safe-fetch.js';
  * nasil izin verilecegini gosterir. Basarili bir tarama kaydi siler.
  */
 
-export type CrawlAccessKind = BlockKind | 'robots' | 'timeout' | 'dns' | 'network' | 'unsafe_target' | 'http_error';
+export type CrawlAccessKind = BlockKind | 'robots' | 'timeout' | 'dns' | 'network' | 'tls' | 'unsafe_target' | 'http_error';
 
 export interface CrawlAccessIssue {
   /**
@@ -64,6 +64,37 @@ export function accessFromRobots(url: string): CrawlAccessIssue {
   };
 }
 
+/** Sertifika hatasinin turune gore neden + site sahibinin yapacagi */
+function tlsReason(detail: SafeFetchError['detail']): { reason: string; hint: string } {
+  switch (detail) {
+    case 'chain':
+      return {
+        reason: 'Sitenin HTTPS sertifika zinciri eksik: sunucu, sertifikasını imzalayan ara sertifikaları göndermiyor ve zincir tamamlanamadı.',
+        hint: 'Sunucuyu tam sertifika zincirini gönderecek şekilde ayarlayın (Let’s Encrypt kullanıyorsanız cert.pem yerine fullchain.pem). Site tarayıcıda açılsa bile program olarak bağlanan araçlar bağlanamayabilir.',
+      };
+    case 'expired':
+      return {
+        reason: 'Sitenin HTTPS sertifikasının süresi dolmuş ya da sertifika henüz geçerli değil.',
+        hint: 'Sertifikayı yenileyin; otomatik yenileme kuruluysa çalıştığını kontrol edin.',
+      };
+    case 'name':
+      return {
+        reason: 'Sitenin HTTPS sertifikası bu alan adı için düzenlenmemiş.',
+        hint: 'Sertifikanın bu alan adını (www’lu ve www’suz hâliyle) kapsadığını kontrol edin.',
+      };
+    case 'self_signed':
+      return {
+        reason: 'Site, tanınan bir sertifika otoritesinden alınmamış (kendinden imzalı) bir sertifika kullanıyor.',
+        hint: 'Let’s Encrypt gibi tanınan bir otoriteden alınmış bir sertifika kurun.',
+      };
+    default:
+      return {
+        reason: 'Sitenin HTTPS sertifikası doğrulanamadı.',
+        hint: 'Sertifikanın geçerli olduğunu ve sunucunun tam sertifika zincirini gönderdiğini kontrol edin.',
+      };
+  }
+}
+
 /** SafeFetchError → kullaniciya gosterilecek neden. Ic adres/IP mesaja SIZMAZ. */
 export function accessFromFetchError(url: string, err: unknown): CrawlAccessIssue {
   const code = err instanceof SafeFetchError ? err.code : 'network';
@@ -104,6 +135,11 @@ export function accessFromFetchError(url: string, err: unknown): CrawlAccessIssu
         reason: 'Site yanıtı çözülemedi: sunucu desteklenmeyen ya da bozuk bir sıkıştırmayla (Content-Encoding) yanıt verdi.',
         hint: 'Sunucunun yalnızca gzip, br veya deflate sıkıştırması kullandığını ve sıkıştırılmış dosyaların bozuk olmadığını kontrol edin.',
       };
+    // Sertifika dogrulanamadi. "Baglanti kurulamadi" demek yanlis yonlendirir:
+    // site ayakta ve tarayicida aciliyor olabilir (labenko.com, 12.11.2026 —
+    // sunucu zinciri eksik gonderiyordu). Nedeni ve cozumu ayri soylenir.
+    case 'tls':
+      return { ...base, kind: 'tls', ...tlsReason(err instanceof SafeFetchError ? err.detail : undefined) };
     default:
       return {
         ...base, kind: 'network',

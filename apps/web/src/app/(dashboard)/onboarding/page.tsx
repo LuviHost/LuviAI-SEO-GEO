@@ -467,6 +467,8 @@ function MissionStage({
   // Tarayıcımız siteyi okuyamıyorsa (WAF, robots.txt, DNS) zincir ilerlemez —
   // 8 dakika beklemek yerine nedeni ve çözümü hemen göster
   const [crawlAccess, setCrawlAccess] = useState<CrawlAccess | null>(null);
+  // "Tekrar dene"ye basildiginda eldeki kayit yok sayilir (asagida: activeAccess)
+  const [ignoredAccessAt, setIgnoredAccessAt] = useState<string | null>(null);
   // Tick: her 30sn'de bir elapsed'i kontrol et
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -482,19 +484,36 @@ function MissionStage({
 
   // Manuel retry: onboarding chain'i yeniden tetikle
   const [retrying, setRetrying] = useState(false);
-  const handleRetryChain = async () => {
+  // Zinciri GERCEKTEN yeniden kuyruga alir (retry-onboarding). Eskiden
+  // complete-onboarding cagriliyordu: o yalniz siteyi ACTIVE yapar, hicbir seyi
+  // yeniden calistirmaz; "yeniden basladi" yazisi dogru degildi.
+  const handleRetryChain = async (): Promise<boolean> => {
     setRetrying(true);
     try {
-      await api.completeOnboarding(siteId);
-      toast.success('Kurulum yeniden başladı (1-2 dk)');
+      const res = await api.retryOnboarding(siteId);
+      if (res?.queued === false) toast.info('Kurulum zaten sürüyor; biraz bekle.');
+      else toast.success('Kurulum yeniden başladı (1-2 dk)');
       setStuck(false);
       startedAtRef.current = Date.now();
       try { window.localStorage.setItem(`luviai-mission-startedAt-${siteId}`, String(startedAtRef.current)); } catch (_e) { /* noop */ }
+      return true;
     } catch (err: any) {
       toast.error(`Yeniden başlatılamadı: ${err.message}`);
+      return false;
     } finally {
       setRetrying(false);
     }
+  };
+
+  // Tarayicimiz siteyi okuyamadiysa kurulum ILERLEMEZ: yuzde ve donen cumleler
+  // yerine "Kurulum durdu" gosterilir. "Tekrar dene" eldeki kaydi yok sayar; yeni
+  // deneme de okuyamazsa API kaydi yeni zamanla yazar ve durum yeniden gorunur
+  // (karsilastirma kaydin kendi zamaniyla — istemci saatine bagli degil).
+  const activeAccess = crawlAccess && crawlAccess.at !== ignoredAccessAt ? crawlAccess : null;
+  const retryAfterAccess = async () => {
+    setIgnoredAccessAt(crawlAccess?.at ?? null);
+    const ok = await handleRetryChain();
+    if (!ok) setIgnoredAccessAt(null);
   };
 
   // Polling effect
@@ -530,7 +549,9 @@ function MissionStage({
         const topicsDone = !!(queue?.tier1Topics?.length);
         const platformDone = !!(site?.platform);
         const scheduleDone = site?.status === 'ACTIVE';
-        setCrawlAccess(currentCrawlAccess(site?.crawlAccess, audit));
+        // Site okunamadiysa (gecici ag hatasi) eldeki erisim kaydi korunur: yoksa
+        // "Kurulum durdu" bir yoklama boyunca yuzdeye donup geri gelirdi.
+        if (site) setCrawlAccess(currentCrawlAccess(site.crawlAccess, audit));
 
         setTasks([
           { key: 'brain', label: 'Marka beyni', done: brainDone },
@@ -591,13 +612,23 @@ function MissionStage({
 
   return (
     <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
-      <p className="v-rail mb-2 text-center">Siten hazırlanıyor</p>
+      <p className="v-rail mb-2 text-center">{activeAccess ? 'Kurulum' : 'Siten hazırlanıyor'}</p>
 
-      <MissionWheel tasks={tasks} startedAt={startedAtRef.current} estimatedMs={ESTIMATED_TOTAL_MS} />
+      <MissionWheel
+        tasks={tasks}
+        startedAt={startedAtRef.current}
+        estimatedMs={ESTIMATED_TOTAL_MS}
+        halted={activeAccess ? {
+          title: 'Kurulum durdu',
+          detail: activeAccess.state === 'blocked'
+            ? 'Site tarayıcımızı engellediği için kurulum ilerlemiyor.'
+            : 'Tarayıcımız siteyi okuyamadığı için kurulum ilerlemiyor.',
+        } : null}
+      />
 
-      {crawlAccess && (
+      {activeAccess && (
         <div className="mx-auto mt-6 max-w-2xl space-y-3">
-          <CrawlAccessNotice access={crawlAccess} />
+          <CrawlAccessNotice access={activeAccess} onRetry={retryAfterAccess} retrying={retrying} />
           <div className="flex justify-center">
             <Button
               variant="outline"
@@ -609,6 +640,9 @@ function MissionStage({
               Panele git <ArrowRight className="h-4 w-4" aria-hidden />
             </Button>
           </div>
+          <p className="text-center text-label text-muted-foreground">
+            Sorunu giderdikten sonra “Tekrar dene”ye bas; kurulum yeniden başlar.
+          </p>
         </div>
       )}
 
