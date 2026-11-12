@@ -14,8 +14,16 @@ import { measuredEngines } from '../billing/measured-engines.js';
 
 /** Kurulumu SURMEKTE olan durumlar — zincir yalniz bunlardan yeniden baslatilir */
 const ONBOARDING_RETRY_FROM = new Set(['ONBOARDING', 'AUDIT_PENDING', 'AUDIT_COMPLETE']);
-/** Bu sureden yeni, bitmemis bir zincir "calisiyor" sayilir (zincir genelde 1-3 dk surer) */
-const ONBOARDING_RUNNING_WINDOW_MS = 6 * 60 * 1000;
+/**
+ * Bu sureden yeni, bitmemis bir zincir "calisiyor" sayilir. 6 dakikaydi ("zincir
+ * genelde 1-3 dk surer" varsayimi); oysa site taramasi kurulumun AI olcumunu de
+ * bekler (her asistana 5 soru sirayla, tekrarli; cagri basina 120 sn zaman
+ * asimi) ve saglikli bir zincir 6 dakikayi gecebilir. Pencere kisa kalinca
+ * kurulum ekranindaki "Kurulumu yeniden başlat" HALA CALISAN zincirin yanina
+ * ikincisini kuyruga aliyordu. Ekran cikis yolunu 12. dakikada gosterir
+ * (web onboarding STUCK_AFTER_MS); pencere ondan uzun olmali.
+ */
+export const ONBOARDING_RUNNING_WINDOW_MS = 15 * 60 * 1000;
 /** Site basina 24 saatte en fazla kac kurulum zinciri (ilk kurulum dahil) */
 export const ONBOARDING_RETRY_DAILY_LIMIT = 12;
 

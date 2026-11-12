@@ -44,7 +44,15 @@ import {
 } from '@/components/ai-scan';
 
 const POLL_INTERVAL_MS = 2000;          // 4s → 2s, ilk wow için
-const ESTIMATED_TOTAL_MS = 60_000;       // 90s → 60s hedef
+/**
+ * Kurulum bu kadar surdukten sonra "normalden uzun suruyor" + cikis yolu gosterilir.
+ * Eskiden 8 dakikaydi ve metin kurulumun bir-uc dakikada bittigini soyluyordu; site taramasi AI
+ * olcumunu de bekledigi icin (her asistana 5 soru, tekrarli) kurulum birkac dakika surer
+ * ve saglikli bir kurulum da bu esigi gecebiliyordu. API'nin "zincir calisiyor" penceresi
+ * (sites.service ONBOARDING_RUNNING_WINDOW_MS, 15 dk) bundan UZUN olmali: yoksa
+ * "Kurulumu yeniden başlat" hala calisan zincirin yanina ikincisini kuyruga alir.
+ */
+const STUCK_AFTER_MS = 12 * 60_000;
 const RESUME_KEY = 'luviai-quickmission-active-site';
 /**
  * Bayat anahtar TTL'i. NEDEN: anahtar yalniz gorev bitince siliniyordu; zinciri yarida
@@ -462,8 +470,10 @@ function MissionStage({
     topIssue?: string;
     topTopic?: string;
   }>({});
-  // Stuck-check: 8 dk'dan uzun sürüyorsa kullanıcıya çıkış yolu sun
+  // Stuck-check: STUCK_AFTER_MS'ten uzun sürüyorsa kullanıcıya çıkış yolu sun
   const [stuck, setStuck] = useState(false);
+  // Yonlendirme karari verildi (konular hazir): gosterge %100 + "Hazır" gosterir
+  const [complete, setComplete] = useState(false);
   // Tarayıcımız siteyi okuyamıyorsa (WAF, robots.txt, DNS) zincir ilerlemez —
   // 8 dakika beklemek yerine nedeni ve çözümü hemen göster
   const [crawlAccess, setCrawlAccess] = useState<CrawlAccess | null>(null);
@@ -474,7 +484,7 @@ function MissionStage({
   useEffect(() => {
     const id = setInterval(() => {
       const elapsed = Date.now() - startedAtRef.current;
-      if (elapsed > 8 * 60_000) setStuck(true);
+      if (elapsed > STUCK_AFTER_MS) setStuck(true);
       forceTick((t) => t + 1);
     }, 30_000);
     return () => clearInterval(id);
@@ -492,7 +502,7 @@ function MissionStage({
     try {
       const res = await api.retryOnboarding(siteId);
       if (res?.queued === false) toast.info('Kurulum zaten sürüyor; biraz bekle.');
-      else toast.success('Kurulum yeniden başladı (1-2 dk)');
+      else toast.success('Kurulum yeniden başladı; birkaç dakika sürebilir');
       setStuck(false);
       startedAtRef.current = Date.now();
       try { window.localStorage.setItem(`luviai-mission-startedAt-${siteId}`, String(startedAtRef.current)); } catch (_e) { /* noop */ }
@@ -579,6 +589,7 @@ function MissionStage({
 
         // Tamamlandı → yönlendir
         if (scheduleDone || (brainDone && auditDone && topicsDone)) {
+          setComplete(true);
           // Kısa bir gösterim için 1.4sn bekle (HUD "done" state'i dönsün)
           setTimeout(() => {
             if (!cancelled) {
@@ -617,7 +628,7 @@ function MissionStage({
       <MissionWheel
         tasks={tasks}
         startedAt={startedAtRef.current}
-        estimatedMs={ESTIMATED_TOTAL_MS}
+        complete={complete}
         halted={activeAccess ? {
           title: 'Kurulum durdu',
           detail: activeAccess.state === 'blocked'
@@ -677,12 +688,12 @@ function MissionStage({
         </div>
       )}
 
-      {/* 8 dakikadan uzun suren kurulum icin cikis yolu */}
+      {/* STUCK_AFTER_MS'ten uzun suren kurulum icin cikis yolu */}
       {stuck && (
         <div className="mx-auto mt-8 max-w-xl space-y-3">
           <StatusBanner tone="warning" title="İşlem normalden uzun sürüyor">
-            Genelde 1-3 dakikada biter; {elapsedMin} dakikadır bekliyoruz. Kurulum zinciri yarıda kalmış olabilir
-            (sunucu güncellemesi, ağ gecikmesi ya da AI sağlayıcısının yavaşlığı).
+            Kurulum çoğunlukla birkaç dakikada biter; {elapsedMin} dakikadır sürüyor. AI sağlayıcılarından biri yavaş yanıt
+            veriyor olabilir ya da kurulum yarıda kalmış olabilir. Panele geçebilirsin; kurulum sürüyorsa arka planda tamamlanır.
           </StatusBanner>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button className="flex-1" onClick={handleRetryChain} disabled={retrying}>

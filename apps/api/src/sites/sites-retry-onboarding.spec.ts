@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ONBOARDING_RETRY_DAILY_LIMIT, SitesService } from './sites.service.js';
+import { ONBOARDING_RETRY_DAILY_LIMIT, ONBOARDING_RUNNING_WINDOW_MS, SitesService } from './sites.service.js';
 
 /**
  * Kurulum ekranindaki "Tekrar dene" kurulum zincirini GERCEKTEN yeniden baslatir.
@@ -40,6 +40,20 @@ describe('retryOnboarding', () => {
     expect(where).toMatchObject({ siteId: 's1', type: 'ONBOARDING_CHAIN', status: { in: ['QUEUED', 'PROCESSING'] } });
     // Takili kalmis eski bir is sonsuza kadar engel olmasin: yalniz yeni isler sayilir
     expect(where.queuedAt.gt).toBeInstanceOf(Date);
+  });
+
+  it('"calisiyor" penceresi saglikli bir zincirden ve ekranin cikis esiginden (12 dk) uzun', async () => {
+    // Site taramasi AI olcumunu de bekler; zincir birkac dakika surer. Pencere 6 dakikayken
+    // 8. dakikada cikan "Kurulumu yeniden başlat" hala calisan zincirin yanina ikincisini ekliyordu.
+    expect(ONBOARDING_RUNNING_WINDOW_MS).toBe(15 * 60_000);
+    expect(ONBOARDING_RUNNING_WINDOW_MS).toBeGreaterThan(12 * 60_000);
+    const { svc, prisma } = service({ running: true });
+    const once = Date.now();
+    await svc.retryOnboarding('s1', user);
+    const sinir: Date = (prisma.job.findFirst.mock.calls[0] as any[])[0].where.queuedAt.gt;
+    // 13 dakika once kuyruga girmis bir zincir hala "calisiyor" sayilir
+    expect(sinir.getTime()).toBeLessThan(once - 13 * 60_000);
+    expect(sinir.getTime()).toBeGreaterThanOrEqual(once - ONBOARDING_RUNNING_WINDOW_MS - 1000);
   });
 
   it.each([
