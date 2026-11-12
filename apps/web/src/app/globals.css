@@ -601,6 +601,20 @@
 @page rapor {
   size: A4;
   margin: 16mm 14mm 18mm;
+  /* Kenar bosluklari da beyaz: koyu temada (color-scheme: dark) sayfa kutusunun
+     varsayilan zemini koyu; "Arka plan grafikleri" acik basilinca kenarlar siyah cikiyordu. */
+  background: #fff;
+
+  /* BOS ama tanimli ust kenar kutusu: Chrome, yazarin kenar kutusu tanimladigi
+     kenarda kendi ust/alt bilgisini basmaz. Alt kenarda bizim kutularimiz zaten
+     var; ust kenarda yoktu ve tarayici her sayfanin ustune tarih-saat ile sayfa
+     basligini basiyordu ("11/12/26, 5:03 PM" — Turkiye'de 11 Aralik diye okunur;
+     labenko.com raporu, 12.11.2026). Kenar kutusu desteklemeyen tarayicilarda
+     (Safari, Firefox) etkisizdir; orada yazdir penceresindeki "Ust bilgi ve alt
+     bilgiler" secenegi kapatilir. */
+  @top-left {
+    content: '';
+  }
 
   @bottom-left {
     content: 'RanksUp · Site Raporu';

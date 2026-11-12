@@ -7,8 +7,8 @@ import { CHART, PROVIDER_COLORS, PROVIDER_FALLBACK, PROVIDER_LABELS } from '@/li
 import { cn } from '@/lib/utils';
 import {
   AI_SONUC_ETIKETI, DURUM_ETIKETI, EFOR_ETIKETI, ETKI_ETIKETI, ONEM_ETIKETI,
-  kalanOrnek, kpiMetni, raporBolumleri, skorTonu, skorTuruMetni, trSayi, trTarih,
-  type AiSonuc, type KontrolDurumu, type MusteriRaporu, type Olculemedi, type Onem, type RaporBolumu,
+  asistanSayilari, hucreSayisi, kalanOrnek, kpiMetni, raporBolumleri, skorTonu, skorTuruMetni, trSayi, trTarih,
+  type AiSonuc, type KontrolDurumu, type MusteriRaporu, type Olculemedi, type Onem, type RaporAiAsistan, type RaporBolumu,
 } from '@/lib/musteri-raporu';
 
 /**
@@ -191,8 +191,10 @@ function Kapak({ rapor, paylasimSonu }: { rapor: MusteriRaporu; paylasimSonu: st
 
       <div>
         <div className="flex items-center gap-4">
-          {/* Panelle ayni favicon bileseni: yuklenemezse bas harfler (onError) — kirik gorsel basilmaz */}
-          <SiteFavicon url={rapor.site.url} name={rapor.site.ad} size="lg" className="h-16 w-16" />
+          {/* Panelle ayni favicon bileseni: yuklenemezse bas harfler (onError) — kirik gorsel basilmaz.
+              eager: baski kopyasi ekranda gizli durur; tembel yuklenen gorsel orada hic istenmiyor,
+              PDF kapaginda kutu BOS cikiyordu (labenko.com, 12.11.2026). */}
+          <SiteFavicon url={rapor.site.url} name={rapor.site.ad} size="lg" className="h-16 w-16" eager />
           <div className="min-w-0">
             <p className="font-brand text-h4 font-semibold leading-tight tracking-tight">{rapor.site.ad}</p>
             <p className="mt-1 break-all text-sm text-muted-foreground">{rapor.site.url}</p>
@@ -263,6 +265,8 @@ function SeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
   if (seo.olculemedi) return <OlculmediKutusu olcum={seo} baslik="Site taraması" />;
   const sorunlu = seo.kontroller.filter((k) => k.durum !== 'gecti');
   const gecen = seo.kontroller.filter((k) => k.durum === 'gecti');
+  // 12.11.2026 oncesi paylasim kayitlarinda alan yok
+  const bilgi = seo.bilgiKontrolleri ?? [];
   const ton = skorTonu(seo.siteSkoru);
   return (
     <div>
@@ -336,6 +340,20 @@ function SeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
           <span className="font-medium text-success">Geçen kontroller: </span>
           {gecen.map((k) => k.ad).join(', ')}.
         </p>
+      )}
+      {/* "Geçti" ya da "sorunlu" sayilmayan kontroller: skora girmeyen llms.txt, etiket bulunmayan sitede hreflang */}
+      {bilgi.length > 0 && (
+        <div className="rapor-blok mt-3 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Bilgi amaçlı kontroller</p>
+          <ul className="mt-1 space-y-1">
+            {bilgi.map((b) => (
+              <li key={b.id}>
+                <span className="font-medium text-foreground">{b.ad}: </span>
+                {b.not}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <AltBaslik>Sayfa düzeyindeki sorunlar</AltBaslik>
@@ -430,8 +448,9 @@ function BotZiyaretleri({ rapor }: { rapor: MusteriRaporu }) {
             {/* Sayilar IP adresi saglayicinin resmi listesinde olan (dogrulanmis) bot ziyaretleri */}
             <Kutu etiket="Son 7 gün" deger={trSayi(rapor.botlar.son7)} ipucu="Doğrulanmış AI bot ziyareti" />
             <Kutu etiket="Son 30 gün" deger={trSayi(rapor.botlar.son30)} ipucu="Doğrulanmış AI bot ziyareti" />
-            <Kutu etiket="Yayında" deger={trSayi(rapor.icerik.yayinda)} ipucu="RanksUp içeriği" />
-            <Kutu etiket="Takvimde" deger={trSayi(rapor.icerik.takvimde)} ipucu="Planlanan içerik" />
+            {/* "Takvimde 3" tek basina musterinin istemedigi bir plan gibi okunuyordu: kimin takvimi oldugu yazilir */}
+            <Kutu etiket="Yayınlanan içerik" deger={trSayi(rapor.icerik.yayinda)} ipucu="RanksUp ile" />
+            <Kutu etiket="RanksUp içerik takvimi" deger={trSayi(rapor.icerik.takvimde)} ipucu="Planlı içerik" />
           </div>
           {rapor.botlar.botlar.length > 0 && (
             <p className="mt-2 text-sm text-muted-foreground">
@@ -448,7 +467,7 @@ function BotZiyaretleri({ rapor }: { rapor: MusteriRaporu }) {
       )}
       {rapor.botlar.olculemedi && (
         <p className="mt-2 text-sm text-muted-foreground">
-          İçerik: {trSayi(rapor.icerik.yayinda)} yayında, {trSayi(rapor.icerik.takvimde)} takvimde.
+          RanksUp ile yayınlanan içerik: {trSayi(rapor.icerik.yayinda)}. RanksUp içerik takvimindeki planlı içerik: {trSayi(rapor.icerik.takvimde)}.
         </p>
       )}
     </>
@@ -562,9 +581,22 @@ function asistanAdi(saglayici: string, ad: string): string {
   return PROVIDER_LABELS[saglayici] ?? ad;
 }
 
+/** Asistan satirinin sayilari: once kac SORUDA gorundugu, tekrarli olcumde ayrica kac YANITTA */
+function AsistanSayilari({ a, tekrar }: { a: RaporAiAsistan; tekrar: number }) {
+  const m = asistanSayilari(a, tekrar);
+  return (
+    <>
+      <span className="block">{m.ana}</span>
+      {m.ek && <span className="block text-label">{m.ek}</span>}
+    </>
+  );
+}
+
 function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
   const ai = rapor.ai;
   const o = ai.olcum;
+  // Tek turluk olcumde (ya da eski paylasim kaydinda) 1: hucre sayisi ve tekrar notu gosterilmez
+  const tekrar = o.olculemedi ? 1 : o.tekrar ?? 1;
   return (
     <div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 print:grid-cols-4">
@@ -625,7 +657,7 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
                     )}
                   </td>
                   <td className="py-2 text-right tabular-nums text-muted-foreground">
-                    {a.sonuc === 'olculemedi' ? (a.neden ?? '—') : `${a.alintiSayisi} kaynak · ${a.anilmaSayisi} anılma · ${a.olculenSoru} soru`}
+                    {a.sonuc === 'olculemedi' ? (a.neden ?? '—') : <AsistanSayilari a={a} tekrar={tekrar} />}
                   </td>
                 </tr>
               ))}
@@ -658,11 +690,19 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
                           {q.soru}
                           {q.markali && <span className="ml-1 text-label text-muted-foreground">(markalı soru, skora girmez)</span>}
                         </td>
-                        {q.sonuclar.map((s, i) => (
-                          <td key={o.asistanlar[i]?.saglayici ?? i} className={cn('px-1 py-2 text-center text-base', SONUC_ISARETI[s].sinif)} aria-label={AI_SONUC_ETIKETI[s]}>
-                            {SONUC_ISARETI[s].isaret}
-                          </td>
-                        ))}
+                        {q.sonuclar.map((s, i) => {
+                          const sayi = hucreSayisi(s, q.ayrinti?.[i], tekrar);
+                          return (
+                            <td
+                              key={o.asistanlar[i]?.saglayici ?? i}
+                              className={cn('px-1 py-2 text-center text-base', SONUC_ISARETI[s].sinif)}
+                              aria-label={sayi ? `${AI_SONUC_ETIKETI[s]}: ${sayi} yanıtta` : AI_SONUC_ETIKETI[s]}
+                            >
+                              {SONUC_ISARETI[s].isaret}
+                              {sayi && <span className="block text-label tabular-nums text-muted-foreground">{sayi}</span>}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>
@@ -672,6 +712,12 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
                     <span key={s}><span className={SONUC_ISARETI[s].sinif}>{SONUC_ISARETI[s].isaret}</span> {AI_SONUC_ETIKETI[s]}</span>
                   ))}
                 </p>
+                {tekrar > 1 && (
+                  <p className="mt-1 text-label text-muted-foreground">
+                    Her soru bir asistana birden çok kez (en fazla {tekrar}) soruldu. İşaretin altındaki sayı, yanıtların kaçında sitenin kaynak
+                    gösterildiğini ya da marka adının geçtiğini gösterir (ör. 2/3: üç yanıtın ikisinde).
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -682,8 +728,12 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
       {ai.rakipler.sesPayiListesi.olculemedi ? (
         <div className="rapor-blok space-y-2">
           <OlculmediKutusu olcum={ai.rakipler.sesPayiListesi} baslik="Rakiplerle birlikte anılma" />
+          {/* Liste kurulumda otomatik cikarilir; musteri onaylamadan "takip edilen rakipler" diye sunulmaz */}
           {ai.rakipler.tanimli.length > 0 && (
-            <p className="text-sm text-muted-foreground">Takip edilen rakipler: {ai.rakipler.tanimli.join(', ')}.</p>
+            <p className="text-sm text-muted-foreground">
+              Karşılaştırma için tanımlı rakipler: {ai.rakipler.tanimli.join(', ')}. Rakip listesi kurulum sırasında otomatik önerilir ve
+              panelden düzenlenebilir; kesinleşmiş bir liste olarak okunmamalıdır.
+            </p>
           )}
         </div>
       ) : (

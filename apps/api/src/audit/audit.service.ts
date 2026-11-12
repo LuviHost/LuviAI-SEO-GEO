@@ -342,6 +342,9 @@ const KAPSAM_NOTU_CHECK_ID = 'crawl_access';
 const SAYFA_KONTROLLERI = new Set([
   'meta_title', 'meta_description', 'open_graph', 'twitter_card', 'canonical',
   'h1_uniqueness', 'image_alt', 'internal_linking', 'schema_markup',
+  // Yontem v2: dil surumu taranan sayfalardan tespit edilir (language-versions.ts).
+  // "/EN" sayfasi bu kez taranamadiysa site tek dilli gorunur; hreflang sorunu "cozuldu" sayilmaz.
+  'hreflang',
 ]);
 
 /** Kontrol bu taramada olculmedi mi? (sorunun yoklugu hukum degildir) */

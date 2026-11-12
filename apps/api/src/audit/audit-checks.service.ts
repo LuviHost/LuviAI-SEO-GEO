@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { CrawlResourceStatus, CrawlResult } from '../sites/site-crawler.service.js';
 import { computeImageAltCheck } from './image-alt-check.js';
 import { computeRobotsCheck, ROBOTS_METHOD_VERSION } from './robots-check.js';
+import { detectLanguageVersions } from './language-versions.js';
 
 export type Severity = 'critical' | 'warning' | 'info';
 
@@ -45,6 +46,23 @@ export const LLMS_METHOD_VERSION = 3;
  * degismeden "+60 iyilesti" cikabilir.
  */
 export const INTERNAL_LINKING_METHOD_VERSION = 2;
+
+/**
+ * Hreflang kontrolunun olcum yontemi (details.methodVersion).
+ * v2 (12.11.2026): sitede dil surumu varsa (language-versions.ts) ve hicbir
+ * sayfada hreflang yoksa kontrol BASARISIZ (0, uyari). v1 her siteye kosulsuz
+ * 100 yaziyordu. Damga yalniz dil surumu GORULEN sitede yazilir: tek dilli
+ * sitede iki yontem ayni sonucu verir, karsilastirma etkilenmez.
+ */
+export const HREFLANG_METHOD_VERSION = 2;
+
+/**
+ * HTTPS var ama sunucu sertifika zincirini eksik gonderiyor: puan. Site
+ * tarayicilarda aciliyor (0 degil), ama zinciri tamamlamayan her program icin
+ * kapali (100 degil). Onceki yontemle kiyas sorunu yok: zincir tamamlama
+ * 12.11.2026'da geldi, ondan once boyle bir site hic taranamiyordu.
+ */
+export const HTTPS_CHAIN_INCOMPLETE_SCORE = 70;
 
 /** llms_txt bilgi kontrolunun panel notu (details.note) */
 export const LLMS_INFO_NOTE = 'Bilgi: llms.txt genel skora girmez. Google Arama dosyayı yok sayıyor; bağımsız ölçümlerde görünürlüğe etkisi görülmedi.';
@@ -176,7 +194,14 @@ export class AuditChecksService {
     const issues: AuditIssue[] = [];
     if (!found) {
       issues.push({
-        severity: 'critical',
+        // UYARI, kritik degil (12.11.2026): site haritasi kesfi HIZLANDIRIR,
+        // onkosul degildir. Google: ~500 sayfadan kucuk ve sayfalari birbirine
+        // bagli sitede site haritasi gerekmeyebilir
+        // (developers.google.com/search/docs/crawling-indexing/sitemaps/overview);
+        // sitemaps.org: tarayicilar sayfalari cogunlukla baglantilardan bulur,
+        // site haritasi bunu tamamlar. Iki sayfalik sitede "kritik" ve ilk
+        // oncelik diye gostermek musteri raporunda abartiydi. Puan degismedi.
+        severity: 'warning',
         type: 'sitemap_missing',
         description: 'sitemap.xml bulunamadı — Google\'ın siteni keşfetmesi yavaşlar',
         fixable: true,
@@ -460,15 +485,33 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   private checkHttps(c: CrawlResult): CheckResult {
     const isHttps = c.baseUrl.startsWith('https://');
-    return {
-      id: 'https', name: 'HTTPS',
-      found: isHttps, valid: isHttps,
-      score: isHttps ? 100 : 0,
-      issues: isHttps ? [] : [{
+    // Sunucu sertifika zincirini eksik gonderiyor (ara sertifikalar yok): biz
+    // tamamlayarak baglandik (common/tls-chain.ts), tarayicilar da cogunlukla
+    // tamamlar; tamamlamayan programlar baglanamaz. Eskiden boyle bir site
+    // "HTTPS: gecti / 100" aliyordu ve bulgu hicbir yerde gorunmuyordu
+    // (labenko.com, 12.11.2026). Hangi AI botlarinin bu yuzden baglanamadigi
+    // OLCULMEDI — metin "baglanamayabilir" der, kesin konusmaz.
+    const chainIncomplete = isHttps && c.tlsChainIncomplete === true;
+    const issues: AuditIssue[] = [];
+    if (!isHttps) {
+      issues.push({
         severity: 'critical', type: 'no_https',
         description: 'Site HTTP üzerinden çalışıyor — Google "Güvenli değil" damgası vurar',
         fixable: false,
-      }],
+      });
+    } else if (chainIncomplete) {
+      issues.push({
+        severity: 'warning', type: 'tls_chain_incomplete',
+        description: 'Sunucu HTTPS sertifika zincirini eksik gönderiyor: sertifikayı imzalayan ara sertifikalar yanıtta yok. Tarayıcılar eksik sertifikayı çoğunlukla kendisi tamamlar; tamamlamayan programlar ve botlar siteye bağlanamayabilir. Sunucuyu tam zinciri gönderecek şekilde ayarla (Let’s Encrypt kullanıyorsan cert.pem yerine fullchain.pem).',
+        fixable: false,
+      });
+    }
+    return {
+      id: 'https', name: 'HTTPS',
+      found: isHttps, valid: isHttps && !chainIncomplete,
+      score: !isHttps ? 0 : chainIncomplete ? HTTPS_CHAIN_INCOMPLETE_SCORE : 100,
+      issues,
+      ...(chainIncomplete ? { details: { chainIncomplete: true } } : {}),
     };
   }
 
@@ -585,12 +628,40 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   //  14. Hreflang (multi-language)
   // ───────────────────────────────────────────────────────────
+  // Yontem v2 — dil surumu olan sitede hreflang yoklugu artik "gecti" degil;
+  // bkz. language-versions.ts ve HREFLANG_METHOD_VERSION.
   private checkHreflang(c: CrawlResult): CheckResult {
     let count = 0;
     for (const p of c.pages) if (p.hreflangs && p.hreflangs.length > 0) count++;
-    // Hreflang sadece multi-language siteler icin gereklidir.
-    // Tek dilli sitelerde "yok" olmasi normal — score 100 ve found:true ile "uygulanmiyor" anlamini verelim
-    // boylece UI'da "YOK" yerine "VAR" yesil rozeti goruntulenir.
+    const versions = detectLanguageVersions(c.pages);
+
+    if (versions.multilingual && count === 0) {
+      const diller = versions.languages.map((l) => l.toUpperCase()).join(', ');
+      return {
+        id: 'hreflang', name: 'Hreflang',
+        found: false,
+        valid: false,
+        score: 0,
+        issues: [{
+          severity: 'warning', type: 'hreflang_missing',
+          description: `Sitede birden çok dil sürümü var (${diller}) ama sayfalarda hreflang etiketi yok. hreflang, Google'ın her kullanıcıya doğru dil sürümünü göstermesine yardım eder.`,
+          fixable: false,
+        }],
+        details: {
+          methodVersion: HREFLANG_METHOD_VERSION,
+          applicable: true,
+          pagesWithHreflang: 0,
+          languages: versions.languages,
+          evidence: versions.evidence,
+          samples: versions.samples,
+        },
+      };
+    }
+
+    // Dil surumu gorulmedi (ya da hreflang var): eski hukumle AYNI — 100.
+    // "applicable: false" musteri raporunun bunu "gecti" diye saymamasi icin
+    // (kontrol bu sitede bir sey olcmedi).
+    const applicable = versions.multilingual || count > 0;
     return {
       id: 'hreflang', name: 'Hreflang',
       found: true,
@@ -598,6 +669,11 @@ export class AuditChecksService {
       score: 100,
       issues: [],
       details: {
+        // Surum damgasi YALNIZ dil surumu gorulen sitede: tek dilli sitede v2
+        // ile v1 ayni olcumdur (100); her yerde damgalamak butun sitelerin bir
+        // sonraki karsilastirmasini sebepsiz "yontem degisti" yapardi.
+        ...(versions.multilingual ? { methodVersion: HREFLANG_METHOD_VERSION, languages: versions.languages, evidence: versions.evidence } : {}),
+        applicable,
         pagesWithHreflang: count,
         note: count > 0
           ? `${count} sayfada hreflang tag bulundu`

@@ -41,12 +41,26 @@ export interface RaporKontrol {
   durum: KontrolDurumu;
   /** Dogrulanamayan kontrolde null (skora girmedi) */
   skor: number | null;
-  /** Taramanin kendi bulgu metni (ilk sorun) ya da dogrulanamama nedeni */
+  /**
+   * Rapor diliyle bulgu cumleleri (kontrolun butun sorunlari) ya da
+   * dogrulanamama nedeni. Ham tarama metni DEGIL (client-report-texts.ts).
+   */
   bulgu: string | null;
   neden: string;
   oneri: string;
   /** RanksUp bu sorunu yayin hedefi uzerinden otomatik duzeltebilir mi */
   otomatik: boolean;
+}
+
+/**
+ * Bilgi amacli kontrol: "gecti" ya da "sorunlu" sayilmaz, sayaca girmez.
+ * llms.txt (skora girmez) ve hic etiket bulunmayan sitede hreflang (kontrol
+ * bir sey olcmedi — tek dilli sitede gerekmez).
+ */
+export interface RaporBilgiKontrolu {
+  id: string;
+  ad: string;
+  not: string;
 }
 
 export interface RaporSayfaSorunu {
@@ -60,7 +74,7 @@ export interface RaporSayfaSorunu {
   ornekler: string[];
   /** Ornekler hakkinda durust not (yoksa / kisitliysa nedeni) */
   ornekNotu: string | null;
-  /** Taramanin kendi aciklamasi */
+  /** Sorunun rapor diliyle cumlesi (ham tarama metni degil) */
   aciklama: string;
 }
 
@@ -72,6 +86,8 @@ export interface RaporSeo {
   sayac: { gecti: number; kritik: number; uyari: number; dogrulanamadi: number; toplam: number };
   bulgu: { toplam: number; kritik: number; uyari: number; bilgi: number };
   kontroller: RaporKontrol[];
+  /** Sayac disi bilgi kontrolleri; 12.11.2026 oncesi paylasim kayitlarinda yok */
+  bilgiKontrolleri?: RaporBilgiKontrolu[];
   sayfaSorunlari: RaporSayfaSorunu[];
   gorseller: Olculebilir<{
     icerikGorseli: number;
@@ -112,7 +128,14 @@ export interface RaporAiAsistan {
   sonuc: AiSonuc;
   alintiSayisi: number;
   anilmaSayisi: number;
+  /** Skora giren YANIT sayisi (soru × tekrar) — ad tarihsel, soru sayisi degil */
   olculenSoru: number;
+  /** Skora giren (markasiz) farkli soru sayisi; eski paylasim kayitlarinda yok */
+  soruSayisi?: number;
+  /** En az bir yanitinda sitenin kaynak gosterildigi soru sayisi */
+  alintiSoru?: number;
+  /** Hic kaynak gosterilmeyen ama en az bir yanitinda marka adi gecen soru sayisi */
+  anilmaSoru?: number;
   neden: string | null;
 }
 
@@ -120,8 +143,10 @@ export interface RaporAiSorgu {
   soru: string;
   /** Marka adini iceren soru — skora girmez */
   markali: boolean;
-  /** Asistan sirasiyla (asistanlar dizisi) sonuc */
+  /** Asistan sirasiyla (asistanlar dizisi) sonuc — o sorunun TUM yanitlarinin ozeti */
   sonuclar: AiSonuc[];
+  /** Asistan sirasiyla: gecerli yanit sayisi ve kacinda kaynak / yalniz marka adi; eski kayitlarda yok */
+  ayrinti?: Array<{ yanit: number; alinti: number; anilma: number }>;
 }
 
 export interface RaporAi {
@@ -136,6 +161,8 @@ export interface RaporAi {
     skorTuru: 'rolling' | 'first-run' | 'son-olcum';
     asistanlar: RaporAiAsistan[];
     sorgular: RaporAiSorgu[];
+    /** Bir sorunun bir asistana en fazla kac kez soruldugu (1 = tek tur); eski kayitlarda yok */
+    tekrar?: number;
   }>;
   anilmaOrani: Olculebilir<{ deger: number; markasizOlcum: number }>;
   sesPayi: Olculebilir<{ deger: number }>;
