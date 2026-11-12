@@ -38,10 +38,10 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
 };
 
 /**
- * Etki etiketi. Kontrol GECMISSE ya da puansiz bilgi satiriysa sessiz mono yazi (kutu yok):
- * cerceveli hali dugme gibi duruyordu (sahip geri bildirimi, 12.11.2026), her satirda renkli
- * rozet ise gecen kontrolu de alarm gibi gosteriyordu. Renk yalniz EKSIK kontrolde: yuksek
- * etki tehlike, orta etki uyari tonunda — ilgilenilmesi gereken satir one cikar.
+ * Etki rozeti — her satirda renkli (sahip karari, 12.11.2026): yuksek etki kirmizi, orta etki
+ * sari. Dusuk etki ve puansiz bilgi notr gri: yesil bu sayfada "gecti" rengi (soldaki tik),
+ * dusuk etkiye verilirse eksik kontrol de tamam gibi okunur. Bicim paneldeki diger rozetlerle
+ * ayni (yumusak dolgu, cerceve yok — cerceveli hali dugme gibi duruyordu).
  */
 const IMPACT_TEXT: Record<string, string> = {
   high: 'Yüksek etki',
@@ -50,17 +50,14 @@ const IMPACT_TEXT: Record<string, string> = {
   // Puansız bilgi kontrolü — skora girmez
   info: 'Bilgi',
 };
-const IMPACT_FAIL_VARIANT: Record<string, 'danger' | 'warning' | 'secondary'> = {
+const IMPACT_VARIANT: Record<string, 'danger' | 'warning' | 'secondary'> = {
   high: 'danger',
   medium: 'warning',
   low: 'secondary',
+  info: 'secondary',
 };
 
-/**
- * Etki seviyesi cubuklari (yuksek 3, orta 2, dusuk 1). Gecen kontrollerde etiketler kutusuz
- * gri yaziya inince "Yüksek etki" ile "Bilgi" ayni gorunuyordu (sahip geri bildirimi,
- * 12.11.2026); seviye renkle degil bicimle ayrisir. Puansiz bilgi satirinda cubuk yok.
- */
+/** Etki seviyesi cubuklari (yuksek 3, orta 2, dusuk 1): seviye renge ek olarak bicimle de okunur. Bilgi satirinda cubuk yok. */
 const IMPACT_LEVEL: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
 function ImpactBars({ level }: { level: number }) {
@@ -386,26 +383,17 @@ export default function AgentReadinessPage() {
                             </div>
                             {state === 'blocked' ? (
                               <Badge variant="warning" className="text-label shrink-0">Ölçülemedi</Badge>
-                            ) : state === 'fail' && IMPACT_FAIL_VARIANT[check.impact] ? (
-                              <Badge variant={IMPACT_FAIL_VARIANT[check.impact]} className="shrink-0 gap-1.5 text-label">
-                                <ImpactBars level={IMPACT_LEVEL[check.impact]} />
-                                {IMPACT_TEXT[check.impact]}
-                              </Badge>
-                            ) : IMPACT_LEVEL[check.impact] ? (
-                              // Gecen kontrol: kutusuz; yuksek etki parlak yazi + uc dolu cubuk
-                              <span
+                            ) : (
+                              <Badge
+                                variant={IMPACT_VARIANT[check.impact] ?? 'secondary'}
                                 className={cn(
-                                  'inline-flex shrink-0 items-center gap-1.5 font-mono text-vitrin-rail',
-                                  check.impact === 'high' ? 'text-foreground' : 'text-muted-foreground',
+                                  'shrink-0 gap-1.5 text-label',
+                                  check.impact !== 'high' && check.impact !== 'medium' && 'text-muted-foreground',
                                 )}
                               >
-                                <ImpactBars level={IMPACT_LEVEL[check.impact]} />
+                                {IMPACT_LEVEL[check.impact] ? <ImpactBars level={IMPACT_LEVEL[check.impact]} /> : null}
                                 {IMPACT_TEXT[check.impact]}
-                              </span>
-                            ) : (
-                              <span className="shrink-0 font-mono text-vitrin-rail text-muted-foreground">
-                                {IMPACT_TEXT[check.impact]}
-                              </span>
+                              </Badge>
                             )}
                             <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform shrink-0', open && 'rotate-180')} />
                           </button>
