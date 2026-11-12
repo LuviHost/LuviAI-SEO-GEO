@@ -36,6 +36,17 @@ export interface RaporKontrol {
   otomatik: boolean;
 }
 
+/**
+ * Bilgi amacli kontrol: "gecti" ya da "sorunlu" sayilmaz, sayaca girmez.
+ * llms.txt (skora girmez) ve hic etiket bulunmayan sitede hreflang (kontrol
+ * bir sey olcmedi — tek dilli sitede gerekmez).
+ */
+export interface RaporBilgiKontrolu {
+  id: string;
+  ad: string;
+  not: string;
+}
+
 export interface RaporSayfaSorunu {
   tur: string;
   baslik: string;
@@ -54,6 +65,8 @@ export interface RaporSeo {
   sayac: { gecti: number; kritik: number; uyari: number; dogrulanamadi: number; toplam: number };
   bulgu: { toplam: number; kritik: number; uyari: number; bilgi: number };
   kontroller: RaporKontrol[];
+  /** Sayac disi bilgi kontrolleri; 12.11.2026 oncesi paylasim kayitlarinda yok */
+  bilgiKontrolleri?: RaporBilgiKontrolu[];
   sayfaSorunlari: RaporSayfaSorunu[];
   gorseller: Olculebilir<{
     icerikGorseli: number;
@@ -91,7 +104,14 @@ export interface RaporAiAsistan {
   sonuc: AiSonuc;
   alintiSayisi: number;
   anilmaSayisi: number;
+  /** Skora giren YANIT sayisi (soru × tekrar) — ad tarihsel, soru sayisi degil */
   olculenSoru: number;
+  /** Skora giren (markasiz) farkli soru sayisi; eski paylasim kayitlarinda yok */
+  soruSayisi?: number;
+  /** En az bir yanitinda sitenin kaynak gosterildigi soru sayisi */
+  alintiSoru?: number;
+  /** Hic kaynak gosterilmeyen ama en az bir yanitinda marka adi gecen soru sayisi */
+  anilmaSoru?: number;
   neden: string | null;
 }
 
@@ -101,7 +121,15 @@ export interface RaporAi {
     skor: number | null;
     skorTuru: 'rolling' | 'first-run' | 'son-olcum';
     asistanlar: RaporAiAsistan[];
-    sorgular: Array<{ soru: string; markali: boolean; sonuclar: AiSonuc[] }>;
+    sorgular: Array<{
+      soru: string;
+      markali: boolean;
+      sonuclar: AiSonuc[];
+      /** Asistan sirasiyla: gecerli yanit sayisi ve kacinda kaynak / yalniz marka adi; eski kayitlarda yok */
+      ayrinti?: Array<{ yanit: number; alinti: number; anilma: number }>;
+    }>;
+    /** Bir sorunun bir asistana en fazla kac kez soruldugu (1 = tek tur); eski kayitlarda yok */
+    tekrar?: number;
   }>;
   anilmaOrani: Olculebilir<{ deger: number; markasizOlcum: number }>;
   sesPayi: Olculebilir<{ deger: number }>;
@@ -252,6 +280,51 @@ export function skorTonu(s: number | null): 'success' | 'warning' | 'danger' | '
 export function kalanOrnek(s: Pick<RaporSayfaSorunu, 'sayi' | 'ornekler' | 'birim'>): number {
   if (s.sayi === null || s.birim !== 'sayfa') return 0;
   return Math.max(0, s.sayi - s.ornekler.length);
+}
+
+// ─── AI olcumu: soru ve yanit sayilari ──────────────────────────────
+
+/**
+ * Soru tablosu hucresinde isaretin altindaki "2/3": gecerli yanitlarin kacinda
+ * site kaynak gosterildi (ya da yalniz marka adi gecti). Tek turluk olcumde ve
+ * eski paylasim kayitlarinda (ayrinti yok) gosterilmez.
+ */
+export function hucreSayisi(
+  sonuc: AiSonuc,
+  ayrinti: { yanit: number; alinti: number; anilma: number } | undefined,
+  tekrar: number,
+): string | null {
+  if (!ayrinti || tekrar <= 1 || ayrinti.yanit === 0) return null;
+  if (sonuc === 'alinti') return `${ayrinti.alinti}/${ayrinti.yanit}`;
+  if (sonuc === 'anilma') return `${ayrinti.anilma}/${ayrinti.yanit}`;
+  return null;
+}
+
+/**
+ * Asistan satirinin sayilari. "15 soru" YAZMAZ: `olculenSoru` yanit sayisidir
+ * (soru × tekrar) ve soru tablosundaki satir sayisiyla celisiyordu (5 soru
+ * listelenirken "15 soru", labenko.com raporu 12.11.2026). `ana`: kac SORUDA
+ * gorundugu; `ek`: tekrarli olcumde kac YANITTA (yalniz gorunduyse).
+ */
+export function asistanSayilari(
+  a: Pick<RaporAiAsistan, 'alintiSayisi' | 'anilmaSayisi' | 'olculenSoru' | 'soruSayisi' | 'alintiSoru' | 'anilmaSoru'>,
+  tekrar: number,
+): { ana: string; ek: string | null } {
+  // Eski paylasim kaydi: soru bazli sayilar yok — yalniz yanit sayilari, dogru adla
+  if (a.soruSayisi === undefined) {
+    return { ana: `${a.alintiSayisi} kaynak · ${a.anilmaSayisi} anılma · ${a.olculenSoru} yanıt`, ek: null };
+  }
+  const alinti = a.alintiSoru ?? 0;
+  const anilma = a.anilmaSoru ?? 0;
+  if (alinti === 0 && anilma === 0) return { ana: `${a.soruSayisi} sorunun hiçbirinde görünmedi`, ek: null };
+  const parcalar = (kaynak: number, ad: number, toplam: number, birim: string) => [
+    kaynak > 0 ? `${kaynak}/${toplam} ${birim} kaynak` : null,
+    ad > 0 ? `${ad}/${toplam} ${birim} yalnız marka adı` : null,
+  ].filter(Boolean).join(', ');
+  return {
+    ana: parcalar(alinti, anilma, a.soruSayisi, 'soruda'),
+    ek: tekrar > 1 ? parcalar(a.alintiSayisi, a.anilmaSayisi, a.olculenSoru, 'yanıtta') : null,
+  };
 }
 
 // ─── Paylasim ───────────────────────────────────────────────────────

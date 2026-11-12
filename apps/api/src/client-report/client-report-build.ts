@@ -11,21 +11,27 @@
  *  - soru bazli sonuc (alinti/anilma/yok/hata): citation-run-compare outcomeOf
  *  - skora giren havuz: brand-in-query unbrandedOnly + citation-score isErrorProbe
  *  - duzeltme yolu (otomatik mi): fix-routes fixRouteFor / fixRouteForIssue
+ *
+ * DIL: taramanin `description` metinleri panel icin yazilmistir ("sen", ic
+ * notlar). Rapora HIC basilmaz; her sorunun rapor cumlesi
+ * client-report-texts.ts bulguMetni'nden gelir (yalniz sayilar taramadan).
  */
 import { isUnverifiedCheck } from '../audit/audit-checks.service.js';
 import { aiCitationsOlculdu } from '../audit/audit.service.js';
-import { headlineOfProviders, outcomeOf, type QueryOutcome, type RunProvider } from '../audit/citation-run-compare.js';
+import { headlineOfProviders, outcomeOf, type RunProbe, type RunProvider } from '../audit/citation-run-compare.js';
 import { isErrorProbe } from '../audit/citation-score.js';
 import { unbrandedOnly } from '../audit/brand-in-query.js';
-import { fixRouteFor } from '../audit/fix-routes.js';
+import { fixRouteFor, fixRouteForIssue } from '../audit/fix-routes.js';
 import {
-  AI_DUSUK_ESIGI, AI_SKOR_YONTEMI, AKSIYON_METINLERI, aiGorunurlukAksiyonAciklamasi, GEO_SINYAL_ADI, OLCULMEDI, SAYFA_SORUNU_METINLERI, kontrolMetni,
+  AI_DUSUK_ESIGI, AI_SKOR_YONTEMI, AKSIYON_TIP_METINLERI, BILGI_NOTLARI, GEO_SINYAL_ADI, OLCULMEDI, RAPOR_DISI_TIPLER, RAPOR_ONEM_DUZELTMESI,
+  SAYFA_SORUNU_METINLERI, TIP_NEDENI, TIP_ONCELIGI, TIP_ONERISI, aiGorunurlukAksiyonAciklamasi, aksiyonMetni, bulguMetni, hizAksiyonAciklamasi, kapsamCumlesi, kontrolMetni,
+  type BulguBaglami,
 } from './client-report-texts.js';
 import {
   MUSTERI_RAPORU_SURUM,
   type AiSonuc, type Efor, type Etki, type KontrolDurumu, type MusteriRaporu, type Olculemedi, type Onem,
-  type RaporAi, type RaporAiAsistan, type RaporAiSorgu, type RaporAksiyon, type RaporGeo, type RaporKontrol,
-  type RaporKpi, type RaporSayfaSorunu, type RaporSeo,
+  type RaporAi, type RaporAiAsistan, type RaporAiSorgu, type RaporAksiyon, type RaporBilgiKontrolu, type RaporGeo,
+  type RaporKontrol, type RaporKpi, type RaporSayfaSorunu, type RaporSeo,
 } from './client-report.types.js';
 
 // ─── Girdi ──────────────────────────────────────────────────────────
@@ -118,6 +124,10 @@ function ilkSayi(metin: unknown): number | null {
   return m ? Number(m[1]) : null;
 }
 
+function metinOf(v: unknown): string {
+  return typeof v === 'string' ? v : '';
+}
+
 function hostOf(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
@@ -132,8 +142,52 @@ function nesne(v: unknown): Record<string, any> {
 
 type Issue = { severity?: string; type?: string; description?: string; checkId?: string; fixRoute?: string };
 
+/**
+ * Kayitli sorunlar — rapor onemiyle. Eski taramalarin "critical" yazdigi
+ * robots.txt / site haritasi yoklugu burada "uyari"ya cekilir
+ * (RAPOR_ONEM_DUZELTMESI); kontrol durumu, bulgu sayaci, sayfa sorunlari ve
+ * aksiyonlar AYNI listeyi okur ki raporun bir bolumu "kritik" derken digeri
+ * "uyari" demesin.
+ */
 function issuesOf(v: unknown): Issue[] {
-  return Array.isArray(v) ? (v.filter((i) => i && typeof i === 'object') as Issue[]) : [];
+  if (!Array.isArray(v)) return [];
+  return (v.filter((i) => i && typeof i === 'object') as Issue[])
+    // Bugunku olcuyle bulgu olmayan eski tipler rapora hic girmez (RAPOR_DISI_TIPLER)
+    .filter((i) => !(typeof i.type === 'string' && RAPOR_DISI_TIPLER.has(i.type)))
+    .map((i) => {
+      const duzeltme = typeof i.type === 'string' ? RAPOR_ONEM_DUZELTMESI[i.type] : undefined;
+      return duzeltme && i.severity === 'critical' ? { ...i, severity: duzeltme } : i;
+    });
+}
+
+const SEVERITY_SIRA: Record<string, number> = { critical: 0, warning: 1 };
+const TIP_SIRA_VARSAYILAN = 50;
+
+/**
+ * En agir sorun once; ayni onemde tipin onceligi (TIP_ONCELIGI — ör. bot engeli,
+ * eksik site haritasi satirindan once), sonra tarama sirasi (stabil).
+ */
+function onemSirali(issues: Issue[]): Issue[] {
+  const onem = (i: Issue) => SEVERITY_SIRA[String(i.severity)] ?? 2;
+  const tipSirasi = (i: Issue) => TIP_ONCELIGI[String(i.type)] ?? TIP_SIRA_VARSAYILAN;
+  // Tip onceligi yalniz AYNI kontrolun sorunlari arasinda gecerlidir: kontroller
+  // kendi aralarinda tarama sirasini korur (ayni onemde ilk gorulen kontrol once).
+  const grup = (i: Issue) => `${onem(i)}|${String(i.checkId ?? '')}`;
+  const grupSirasi = new Map<string, number>();
+  issues.forEach((i, idx) => { if (!grupSirasi.has(grup(i))) grupSirasi.set(grup(i), idx); });
+  return issues
+    .map((i, idx) => ({ i, idx }))
+    .sort((a, b) =>
+      onem(a.i) - onem(b.i)
+      || grupSirasi.get(grup(a.i))! - grupSirasi.get(grup(b.i))!
+      || tipSirasi(a.i) - tipSirasi(b.i)
+      || a.idx - b.idx)
+    .map(({ i }) => i);
+}
+
+/** Kritik ya da uyari duzeyinde sorun mu (bilgi duzeyi sorun durum ve aksiyon uretmez) */
+function ciddi(i: Issue): boolean {
+  return i.severity === 'critical' || i.severity === 'warning';
 }
 
 function onemOf(severity: unknown): Onem {
@@ -146,14 +200,20 @@ const DURUM_SIRA: Record<KontrolDurumu, number> = { kritik: 0, uyari: 1, dogrula
 // ─── SEO ────────────────────────────────────────────────────────────
 
 /**
- * Kontrol satirinin durumu. Panel (site-flow-stepper) ile ayni kural:
- * dogrulanamayan → dogrulanamadi; found && valid → gecti; aksi halde en agir
- * sorunun onemi (yalniz bilgi duzeyi sorunu olan basarisiz kontrol uyari).
+ * Kontrol satirinin durumu. Panel (site-flow-stepper) kuralinin bir fazlasi:
+ * dogrulanamayan → dogrulanamadi; found && valid VE kritik/uyari sorunu yok →
+ * gecti; aksi halde en agir sorunun onemi (yalniz bilgi duzeyi sorunu olan
+ * basarisiz kontrol uyari).
+ *
+ * "Sorunu varken gecti olmaz": robots.txt iki AI arama botunu engellerken 70
+ * puanla gecerli sayilir; panel bunu yesil gosterir, ama musteri raporunda
+ * "Geçen kontroller" arasinda durup aksiyon listesinde "bot engelini gozden
+ * gecirin" yazmasi celiskiydi.
  */
 export function kontrolDurumu(entry: Record<string, any>): KontrolDurumu {
   if (isUnverifiedCheck(entry)) return 'dogrulanamadi';
-  if (entry.found && entry.valid) return 'gecti';
   const sorunlar = issuesOf(entry.issues);
+  if (entry.found && entry.valid && !sorunlar.some(ciddi)) return 'gecti';
   if (sorunlar.some((i) => i.severity === 'critical')) return 'kritik';
   return 'uyari';
 }
@@ -165,31 +225,104 @@ function kontrolSatirlari(checks: unknown): Array<[string, Record<string, any>]>
   ) as Array<[string, Record<string, any>]>;
 }
 
-function kontrolleriDerle(checks: unknown): RaporKontrol[] {
-  const satirlar = kontrolSatirlari(checks).map(([id, v]): RaporKontrol => {
+/**
+ * Bilgi amacli kontrol mu? Boyle bir satir "gecti" ya da "sorunlu" sayilmaz;
+ * raporda ayri listelenir (RaporSeo.bilgiKontrolleri), sayaca girmez.
+ *
+ *  - llms.txt: istege bagli dosya. Yontem v3'te (details.informational) genel
+ *    skora girmez; eskiden dosyasi olmayan site raporda "Uyarı · 30/100"
+ *    satiri aliyordu. v3 ONCESI taramada dosya o taramanin skoruna girmisti:
+ *    not "skora girmez" DEMEZ (BILGI_NOTLARI.llmsEski*).
+ *  - hreflang, sitede hic etiket yokken: kontrol bir sey OLCMEDI. Yeni tarama
+ *    dil surumu arar (details.applicable === false: gorulmedi); eski tarama hic
+ *    aramadi (alan yok) ve iki dilli siteye de "gecti" yazdi. Ikisinde de
+ *    "Hreflang: geçti" denmez.
+ */
+function bilgiKontrolu(id: string, v: Record<string, any>): RaporBilgiKontrolu | null {
+  const d = nesne(v.details);
+  if (id === 'llms_txt') {
+    const durum = isUnverifiedCheck(v) ? 'Dogrulanamadi' : v.found ? 'Var' : 'Yok';
+    const not = BILGI_NOTLARI[`${d.informational === true ? 'llms' : 'llmsEski'}${durum}` as keyof typeof BILGI_NOTLARI];
+    return { id, ad: kontrolMetni(id, v.name).ad, not };
+  }
+  if (id === 'hreflang' && v.found && v.valid && !isUnverifiedCheck(v)) {
+    const etiketli = sayi(d.pagesWithHreflang) ?? 0;
+    if (d.applicable === false) return { id, ad: kontrolMetni(id, v.name).ad, not: BILGI_NOTLARI.hreflangTekDil };
+    if (d.applicable === undefined && etiketli === 0) return { id, ad: kontrolMetni(id, v.name).ad, not: BILGI_NOTLARI.hreflangBilinmiyor };
+  }
+  return null;
+}
+
+/** Sorunu olmayan ama gecemeyen kontrol icin durum cumlesi (ör. yapisal veri kapsami %50-69) */
+function sorunsuzBulgu(id: string, details: Record<string, any>): string | null {
+  if (id === 'schema_markup') {
+    const s = sayi(details.pagesWithSchema);
+    const t = sayi(details.total);
+    if (s !== null && t !== null) return kapsamCumlesi('Yapısal veri (JSON-LD)', s, t);
+  }
+  // Yalniz cok uzun aciklama: tarama bunun icin sorun yazmaz ama kontrol gecemez
+  if (id === 'meta_description') {
+    const uzun = sayi(details.tooLong);
+    if (uzun !== null && uzun > 0) return `${uzun} sayfanın meta açıklaması 160 karakterden uzun; arama sonucunda kesilebilir.`;
+  }
+  return null;
+}
+
+function kontrolleriDerle(checks: unknown): { kontroller: RaporKontrol[]; bilgiKontrolleri: RaporBilgiKontrolu[] } {
+  const bilgiKontrolleri: RaporBilgiKontrolu[] = [];
+  const satirlar: RaporKontrol[] = [];
+  for (const [id, v] of kontrolSatirlari(checks)) {
+    const bilgi = bilgiKontrolu(id, v);
+    if (bilgi) {
+      bilgiKontrolleri.push(bilgi);
+      continue;
+    }
     const durum = kontrolDurumu(v);
     const metin = kontrolMetni(id, v.name);
-    const ilkSorun = issuesOf(v.issues)[0];
-    const bulgu = durum === 'dogrulanamadi'
-      ? [v.details?.unverifiedReason, v.details?.unverifiedHint].filter((s) => typeof s === 'string' && s).join(' ') || null
-      : (typeof ilkSorun?.description === 'string' ? ilkSorun.description : null);
-    return {
+    const sorunlar = onemSirali(issuesOf(v.issues));
+    const baglam = (i: Issue): BulguBaglami => ({ details: nesne(v.details), description: metinOf(i.description) });
+    const ilk = sorunlar[0];
+    let bulgu: string | null;
+    if (durum === 'dogrulanamadi') {
+      bulgu = [v.details?.unverifiedReason, v.details?.unverifiedHint].filter((s) => typeof s === 'string' && s).join(' ') || null;
+    } else if (durum === 'gecti') {
+      bulgu = null;
+    } else {
+      // Rapor cumleleri (ham tarama metni DEGIL); kontrolun butun sorunlari, en agiri once
+      const cumleler = sorunlar.map((i) => bulguMetni(i.type, baglam(i))).filter((c): c is string => !!c);
+      bulgu = [...new Set(cumleler)].join(' ') || sorunsuzBulgu(id, nesne(v.details));
+    }
+    const sorunlu = durum === 'kritik' || durum === 'uyari';
+    const tip = sorunlu ? String(ilk?.type ?? '') : '';
+    // Oneri kontrolun BUTUN ciddi sorunlarindan: yalniz ilk sorunun onerisi yazilinca
+    // bot engeli olan robots.txt'te satir yalniz "Sitemap satırı ekleyin" diyebiliyordu.
+    const ciddiSorunlar = sorunlar.filter(ciddi);
+    const oneriler = sorunlu
+      ? [...new Set(ciddiSorunlar.map((i) => TIP_ONERISI[String(i.type)]?.(baglam(i))).filter((o): o is string => !!o))]
+      : [];
+    // "RanksUp düzeltebilir": ciddi sorunlarin HEPSI otomatik yolda olmali (rota sorun tipinden —
+    // robots.txt'teki bot engeli elle duzeltilir). Sorunu olmayan basarisiz kontrolde kontrolun rotasi.
+    const otomatik = sorunlu && (ciddiSorunlar.length > 0
+      ? ciddiSorunlar.every((i) => fixRouteForIssue({ checkId: id, type: i.type }) === 'auto_fix')
+      : fixRouteFor(id) === 'auto_fix');
+    satirlar.push({
       id,
       ad: metin.ad,
       durum,
       skor: durum === 'dogrulanamadi' ? null : sayi(v.score),
       bulgu,
-      neden: metin.neden,
-      oneri: metin.oneri,
+      neden: TIP_NEDENI[tip] ?? metin.neden,
+      oneri: oneriler.length > 0 ? oneriler.join(' ') : metin.oneri,
       // Dogrulanamayan dosyaya otomatik duzeltme onerilmez (fix-routes / audit-checks gerekcesi)
-      otomatik: durum !== 'gecti' && durum !== 'dogrulanamadi' && fixRouteFor(id) === 'auto_fix',
-    };
-  });
+      otomatik,
+    });
+  }
   // Stabil siralama: kritik → uyari → dogrulanamadi → gecti; ayni durumda tarama sirasi
-  return satirlar
+  const kontroller = satirlar
     .map((k, i) => ({ k, i }))
     .sort((a, b) => DURUM_SIRA[a.k.durum] - DURUM_SIRA[b.k.durum] || a.i - b.i)
     .map(({ k }) => k);
+  return { kontroller, bilgiKontrolleri };
 }
 
 /** Sayfa sorunu tipi → details'ten sayi ve ornek adres alanlari */
@@ -223,13 +356,11 @@ function sayfaSorunlariniDerle(checks: unknown, issues: Issue[]): RaporSayfaSoru
     const adet = sayiDetay ?? ilkSayi(issue.description);
     const tumOrnekler = [...new Set(alan.ornek ? dizgeler(details[alan.ornek]) : [])];
     const ornekler = tumOrnekler.slice(0, ORNEK_SINIRI);
-    let ornekNotu: string | null = alan.not ?? null;
-    if (!alan.ornek) {
-      ornekNotu = 'Tarama bu sorun için sayfa adresi kaydetmiyor; sayı taramanın kendi sayımıdır.';
-    } else if (ornekler.length === 0) {
-      ornekNotu = tur === 'h1_missing'
-        ? 'Bu tarama örnek adres kaydetmedi; bir sonraki taramada listelenir.'
-        : 'Bu tarama örnek adres kaydetmedi.';
+    // Ornek adres tutulmayan tipte (kisa/uzun baslik, tekrarlanan H1) not YOK:
+    // "tarama adres kaydetmiyor" bir ic nottu, musteriye bir sey soylemiyordu.
+    let ornekNotu: string | null = alan.ornek ? alan.not ?? null : null;
+    if (alan.ornek && ornekler.length === 0) {
+      ornekNotu = tur === 'h1_missing' ? 'Örnek sayfa adresleri bir sonraki taramadan sonra listelenir.' : null;
     }
     out.push({
       tur,
@@ -239,7 +370,8 @@ function sayfaSorunlariniDerle(checks: unknown, issues: Issue[]): RaporSayfaSoru
       birim: metin.birim,
       ornekler,
       ornekNotu,
-      aciklama: typeof issue.description === 'string' ? issue.description : '',
+      // Rapor cumlesi — ham tarama metni govdeye girmez (govde herkese acik baglantida da doner)
+      aciklama: bulguMetni(tur, { details, description: metinOf(issue.description) }) ?? '',
     });
   }
   return out
@@ -277,7 +409,7 @@ function seoDerle(g: RaporGirdisi): MusteriRaporu['seo'] {
       : 'Site henüz taranmadı.');
   }
   const issues = issuesOf(a.issues);
-  const kontroller = kontrolleriDerle(a.checks);
+  const { kontroller, bilgiKontrolleri } = kontrolleriDerle(a.checks);
   const engel = a.accessBlocked;
   const guncelDegil = engel
     ? `Bu skordan sonraki tarama denemesi siteye erişemedi${engel.at ? ` (${trTarih(engel.at)})` : ''}: ${[engel.reason, engel.hint].filter(Boolean).join(' ')}`.trim()
@@ -298,6 +430,7 @@ function seoDerle(g: RaporGirdisi): MusteriRaporu['seo'] {
       bilgi: issues.filter((i) => i.severity !== 'critical' && i.severity !== 'warning').length,
     },
     kontroller,
+    bilgiKontrolleri,
     sayfaSorunlari: sayfaSorunlariniDerle(a.checks, issues),
     gorseller: gorselleriDerle(a.checks, g.gorselDuzeltilen),
     taranamayanSayfa: sayi(nesne(nesne(a.checks).crawlCoverage).blockedCount) ?? 0,
@@ -382,8 +515,6 @@ function geoDerle(g: RaporGirdisi): MusteriRaporu['geo'] {
 
 // ─── AI ─────────────────────────────────────────────────────────────
 
-const SONUC_ESLEME: Record<QueryOutcome, AiSonuc> = { cited: 'alinti', mentioned: 'anilma', none: 'yok', 'n/a': 'olculemedi' };
-
 function saglayicilar(v: unknown): RunProvider[] {
   return (Array.isArray(v) ? v : [])
     .filter((p) => p && typeof p === 'object' && typeof (p as any).provider === 'string')
@@ -395,13 +526,45 @@ function saglayicilar(v: unknown): RunProvider[] {
  * (anahtar/model yapilandirilmamis) asistan listelenmez: musteriye
  * "olculemedi" diye yuzlerce bos satir gostermek bilgi degil gurultu.
  */
-function aiMatrisi(providers: RunProvider[]): { asistanlar: RaporAiAsistan[]; sorgular: RaporAiSorgu[] } {
+interface SoruOzeti { yanit: number; alinti: number; anilma: number }
+
+/**
+ * Bir asistanin bir soruya verdigi TUM yanitlarin ozeti. Site olcumu her
+ * soruyu her asistana birden cok kez sorar (yontem v6, citation-repeat.ts);
+ * hata veren yanit sayilmaz (outcomeOf 'n/a').
+ */
+function soruOzeti(probes: RunProbe[], soru: string): SoruOzeti {
+  const o: SoruOzeti = { yanit: 0, alinti: 0, anilma: 0 };
+  for (const pr of probes) {
+    if (pr.query?.trim() !== soru) continue;
+    const sonuc = outcomeOf(pr);
+    if (sonuc === 'n/a') continue;
+    o.yanit++;
+    if (sonuc === 'cited') o.alinti++;
+    else if (sonuc === 'mentioned') o.anilma++;
+  }
+  return o;
+}
+
+/** Hucre sonucu: yanitlardan en az birinde kaynak → alinti; yoksa en az birinde ad → anilma */
+function ozetSonucu(o: SoruOzeti): AiSonuc {
+  if (o.yanit === 0) return 'olculemedi';
+  return o.alinti > 0 ? 'alinti' : o.anilma > 0 ? 'anilma' : 'yok';
+}
+
+function aiMatrisi(providers: RunProvider[]): { asistanlar: RaporAiAsistan[]; sorgular: RaporAiSorgu[]; tekrar: number } {
   const denenen = providers.filter((p) => p.available || p.probes.length > 0);
+  let tekrar = 1;
   const asistanlar = denenen.map((p): RaporAiAsistan => {
     const havuz = unbrandedOnly(p.probes.filter((pr) => !isErrorProbe(pr)));
     const alinti = havuz.filter((pr) => pr.cited).length;
     const anilma = havuz.filter((pr) => pr.brandMentioned && !pr.cited).length;
     const olculemez = !p.available || havuz.length === 0;
+    // Soru bazinda: "15 soru" degil "5 soru × 3 yanit". Eskiden yanit sayisi
+    // "soru" diye yaziliyordu ve soru tablosundaki 5 satirla celisiyordu.
+    const sorular = [...new Set(havuz.map((pr) => pr.query?.trim()).filter((q): q is string => !!q))];
+    const ozetler = sorular.map((q) => soruOzeti(havuz, q));
+    for (const o of ozetler) tekrar = Math.max(tekrar, o.yanit);
     return {
       saglayici: p.provider,
       ad: typeof p.label === 'string' && p.label ? p.label : p.provider,
@@ -410,6 +573,9 @@ function aiMatrisi(providers: RunProvider[]): { asistanlar: RaporAiAsistan[]; so
       alintiSayisi: alinti,
       anilmaSayisi: anilma,
       olculenSoru: havuz.length,
+      soruSayisi: sorular.length,
+      alintiSoru: ozetler.filter((o) => o.alinti > 0).length,
+      anilmaSoru: ozetler.filter((o) => o.alinti === 0 && o.anilma > 0).length,
       // Ham saglayici hatasi (anahtar, kota metni) musteri raporuna yazilmaz
       neden: olculemez ? 'Bu ölçümde bu asistandan geçerli yanıt alınamadı.' : null,
     };
@@ -425,12 +591,19 @@ function aiMatrisi(providers: RunProvider[]): { asistanlar: RaporAiAsistan[]; so
       markali.set(q, (markali.get(q) ?? false) || pr.brandInQuery === true);
     }
   }
-  const sorgular = sorular.map((soru): RaporAiSorgu => ({
-    soru,
-    markali: markali.get(soru) ?? false,
-    sonuclar: denenen.map((p) => SONUC_ESLEME[outcomeOf(p.probes.find((pr) => pr.query?.trim() === soru))]),
-  }));
-  return { asistanlar, sorgular };
+  const sorgular = sorular.map((soru): RaporAiSorgu => {
+    // Hucre TUM tekrarlarin ozeti. Eskiden yalniz ILK yanita bakiliyordu:
+    // asistan satiri "7 kaynak" derken soru tablosunda 2 isaret gorunuyordu.
+    const ayrinti = denenen.map((p) => soruOzeti(p.probes, soru));
+    for (const o of ayrinti) tekrar = Math.max(tekrar, o.yanit);
+    return {
+      soru,
+      markali: markali.get(soru) ?? false,
+      sonuclar: ayrinti.map(ozetSonucu),
+      ayrinti,
+    };
+  });
+  return { asistanlar, sorgular, tekrar };
 }
 
 function aiDerle(g: RaporGirdisi): RaporAi {
@@ -449,7 +622,7 @@ function aiDerle(g: RaporGirdisi): RaporAi {
     const atlama = nesne(auditAi.skipped);
     olcum = olculemedi(typeof atlama.message === 'string' && atlama.message ? `${OLCULMEDI}. ${atlama.message}` : OLCULMEDI);
   } else {
-    const { asistanlar, sorgular } = aiMatrisi(kaynak.providers);
+    const { asistanlar, sorgular, tekrar } = aiMatrisi(kaynak.providers);
     // Manset sayisi panelle AYNI kaynaktan (KpiRow: headline ?? olculen tarama skoru)
     let skor: number | null = null;
     let skorTuru: 'rolling' | 'first-run' | 'son-olcum' = 'son-olcum';
@@ -461,7 +634,7 @@ function aiDerle(g: RaporGirdisi): RaporAi {
     } else {
       skor = headlineOfProviders(kaynak.providers);
     }
-    olcum = { olculemedi: false, tarih: kaynak.tarih, skor, skorTuru, asistanlar, sorgular };
+    olcum = { olculemedi: false, tarih: kaynak.tarih, skor, skorTuru, asistanlar, sorgular, tekrar };
   }
 
   const k = g.kpi;
@@ -500,21 +673,44 @@ function eforOf(v: string): Efor | null {
   return v === 'easy' ? 'kolay' : v === 'hard' ? 'zor' : v === 'medium' ? 'orta' : null;
 }
 
-/** Sorunun aksiyon anahtari: pagespeed_* tek "sayfa hizi" aksiyonunda toplanir */
+/** Sorunun ait oldugu aksiyon ailesi (kontrol): pagespeed_* tek "sayfa hizi" ailesinde toplanir */
 function aksiyonAnahtari(issue: Issue): string | null {
   const id = String(issue.checkId ?? '');
   if (id === 'pagespeed' || String(issue.type ?? '').startsWith('pagespeed_')) return 'pagespeed';
-  return AKSIYON_METINLERI[id] ? id : null;
+  return aksiyonMetni(id, issue.type) ? id : null;
+}
+
+/**
+ * Aksiyon satirinin tekillestirme anahtari. Kontrol basina TEK aksiyon; yalniz
+ * "ayri is" diye isaretli tipler (AKSIYON_TIP_METINLERI.ayri — ör. robots.txt'te
+ * bot engeli ile eksik site haritasi satiri) kendi satirini alir.
+ */
+function aksiyonSatiri(anahtar: string, issue: Issue): string {
+  const tip = String(issue.type ?? '');
+  return AKSIYON_TIP_METINLERI[tip]?.ayri ? `${anahtar}#${tip}` : anahtar;
 }
 
 export const AKSIYON_SINIRI = 10;
+
+/** GEO sorununun checkId'si → checks.geo.methods kimligi (sinyal skoru icin) */
+const GEO_SINYALI: Record<string, string> = {
+  geo_faq: 'faq_qa',
+  geo_definition: 'definition',
+  geo_citation_format: 'citation_format',
+  geo_freshness: 'freshness',
+  geo_evidence: 'evidence',
+  geo_depth: 'depth',
+};
 
 function aksiyonlariDerle(g: RaporGirdisi, ai: RaporAi): RaporAksiyon[] {
   const plan: RaporAksiyon[] = g.aksiyonPlani
     .filter((i) => i.status === 'todo' || i.status === 'in_progress')
     .map((i) => ({
       baslik: i.title,
-      aciklama: i.description ?? null,
+      // Aciklama yalniz ELLE yazilan maddede basilir. Sistemin urettigi maddelerin
+      // (ajan hazirligi, haftalik plan, sohbet…) aciklamasi panel dilindedir ("sen",
+      // "ekle", "karar senin") ve musteri raporuna girmez; baslik kalir.
+      aciklama: i.source === 'manual' ? i.description ?? null : null,
       etki: etkiOf(i.impact),
       efor: eforOf(i.effort),
       kaynak: 'plan' as const,
@@ -523,25 +719,40 @@ function aksiyonlariDerle(g: RaporGirdisi, ai: RaporAi): RaporAksiyon[] {
   // Plana zaten alinmis tarama bulgusu ikinci kez turetilmez
   const plandakiler = new Set(g.aksiyonPlani.filter((i) => i.source === 'audit' && i.sourceRef).map((i) => String(i.sourceRef)));
 
+  const checks = nesne(g.audit?.checks);
+  const geoSinyalleri = Array.isArray(nesne(checks.geo).methods) ? (nesne(checks.geo).methods as any[]) : [];
+  const tumSorunlar = issuesOf(g.audit?.issues);
+  const hizMetinleri = tumSorunlar.filter((i) => aksiyonAnahtari(i) === 'pagespeed').map((i) => metinOf(i.description));
+
   const turetilen: RaporAksiyon[] = [];
   const gorulen = new Set<string>();
   // Kritik once, sonra uyari; bilgi duzeyi bulgu aksiyona donusmez
-  const sirali = issuesOf(g.audit?.issues)
-    .filter((i) => i.severity === 'critical' || i.severity === 'warning')
-    .sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1));
+  const sirali = onemSirali(tumSorunlar.filter(ciddi));
   for (const issue of sirali) {
     const anahtar = aksiyonAnahtari(issue);
-    if (!anahtar || gorulen.has(anahtar) || plandakiler.has(anahtar)) continue;
-    gorulen.add(anahtar);
-    let aciklama = typeof issue.description === 'string' ? issue.description : null;
+    if (!anahtar || plandakiler.has(anahtar)) continue;
+    const satir = aksiyonSatiri(anahtar, issue);
+    if (gorulen.has(satir)) continue;
+    gorulen.add(satir);
+    // Aciklama rapor cumlesidir; ham tarama metni ("sen" dili, ic notlar) basilmaz
+    let aciklama: string | null;
     if (anahtar === 'ai_citation') {
       // AI sayisi yalniz raporun AI olcumunden: bulgu metnindeki tarama skoru
       // mansetten farkli olabilir. Manset artik dusuk degilse bulgu eskimistir.
       const manset = ai.olcum.olculemedi ? null : ai.olcum.skor;
       if (typeof manset === 'number' && manset >= AI_DUSUK_ESIGI) continue;
       aciklama = aiGorunurlukAksiyonAciklamasi(manset);
+    } else if (anahtar === 'pagespeed') {
+      aciklama = hizAksiyonAciklamasi(hizMetinleri);
+    } else {
+      const sinyal = geoSinyalleri.find((m) => m?.id === GEO_SINYALI[anahtar]);
+      aciklama = bulguMetni(issue.type, {
+        details: nesne(nesne(checks[anahtar]).details),
+        description: metinOf(issue.description),
+        sinyalSkoru: sayi(sinyal?.score),
+      });
     }
-    const metin = AKSIYON_METINLERI[anahtar];
+    const metin = aksiyonMetni(anahtar, issue.type)!;
     turetilen.push({
       baslik: metin.baslik,
       aciklama,
@@ -654,9 +865,12 @@ export function ozetMetni(r: Omit<MusteriRaporu, 'ozet'>): string[] {
   // 3-5 cumle sozlesmesi: veri azsa (yeni site) icerik ve bot durumu eklenir;
   // fazlaysa aksiyon cumlesi yer bulsun diye ilk dort cekirdek cumle tutulur
   if (out.length < 3) {
+    // "N içerik takvimde" tek basina, musterinin istemedigi bir plan varmis gibi
+    // okunuyordu: takvimin RanksUp'in icerik takvimi oldugu acik yazilir.
+    const takvim = r.icerik.takvimde > 0 ? `RanksUp içerik takviminde ${r.icerik.takvimde} planlı içerik var` : null;
     out.push(r.icerik.yayinda > 0
-      ? `RanksUp ile ${r.icerik.yayinda} içerik yayında${r.icerik.takvimde > 0 ? `, ${r.icerik.takvimde} içerik takvimde` : ''}.`
-      : r.icerik.takvimde > 0 ? `Henüz yayınlanmış içerik yok; ${r.icerik.takvimde} içerik takvimde.` : 'Henüz yayınlanmış ya da takvime alınmış içerik yok.');
+      ? `RanksUp ile ${r.icerik.yayinda} içerik yayınlandı${takvim ? `; ${takvim}` : ''}.`
+      : takvim ? `RanksUp ile henüz içerik yayınlanmadı; ${takvim}.` : 'RanksUp ile henüz içerik yayınlanmadı.');
   }
   const cekirdek = out.slice(0, 4);
   if (r.aksiyonlar.length > 0) cekirdek.push(`Öncelikli ilk adım: ${noktasiz(r.aksiyonlar[0].baslik)}.`);
@@ -704,10 +918,11 @@ function kpileriDerle(r: Omit<MusteriRaporu, 'ozet'>): RaporKpi[] {
     },
     {
       anahtar: 'yayinda',
-      etiket: 'Yayında',
+      etiket: 'Yayınlanan içerik',
       deger: r.icerik.yayinda,
       sonek: null,
-      ipucu: `${r.icerik.takvimde} içerik takvimde`,
+      // Takvim sayisi ozet seridinde yok (GEO bolumunde "RanksUp içerik takvimi" diye durur)
+      ipucu: 'RanksUp ile',
     },
   ];
 }
@@ -732,9 +947,17 @@ export function buildClientReport(g: RaporGirdisi, now: Date): MusteriRaporu {
     AI_SKOR_YONTEMI,
     'AI asistanlarının yanıtları ölçümden ölçüme değişebilir; tek bir ölçüm kesin bir sıralama değildir.',
     'Anılma oranı ve ses payı, son 7 günde marka adı geçmeyen sorularla yapılan takip ölçümlerinden hesaplanır.',
-    'Taramadan türetilen aksiyonların etki ve efor etiketleri kural tabanlıdır: etki bulgunun önem düzeyinden, efor düzeltme yolundan gelir (RanksUp’ın otomatik düzeltebildiği dosyalar “kolay”).',
+    'Taramadan türetilen aksiyonların etki ve efor etiketleri kural tabanlıdır: etki çoğunlukla bulgunun önem düzeyinden gelir, görünürlüğe etkisi sınırlı adımlar (ör. robots.txt dosyasının yokluğu) “düşük etki” olarak işaretlenir; efor düzeltme yolundan gelir (RanksUp’ın otomatik düzeltebildiği dosyalar “kolay”).',
     '“Henüz ölçülmedi” yazan alanlarda veri yoktur; bu alanlar sıfır olarak yorumlanmamalıdır.',
   ];
+  if (!ai.olcum.olculemedi && (ai.olcum.tekrar ?? 1) > 1) {
+    // AI_SKOR_YONTEMI'nden hemen sonra: "15 yanıt" sayisinin nereden geldigi
+    // "en fazla": gunluk butce payi dar kalan asistan daha az tekrarla sorulabilir (citation-repeat.ts)
+    yontem.splice(3, 0, `AI görünürlük ölçümünde her soru bir asistana birden çok kez (en fazla ${ai.olcum.tekrar}) soruldu. AI yanıtları her seferinde değişebildiği için asistan skoru bütün yanıtların ortalamasıdır; soru tablosundaki sayılar, yanıtların kaçında sitenin kaynak gösterildiğini ya da marka adının geçtiğini gösterir.`);
+  }
+  if (!seo.olculemedi && seo.bilgiKontrolleri && seo.bilgiKontrolleri.length > 0) {
+    yontem.push('Bilgi amaçlı kontroller “geçti” ya da “sorunlu” sayılmaz ve kontrol sayısına dahil edilmez.');
+  }
   if (!seo.olculemedi && seo.taranamayanSayfa > 0) {
     yontem.push(`${seo.taranamayanSayfa} sayfa erişim engeli nedeniyle taranamadı ve skora dahil edilmedi.`);
   }

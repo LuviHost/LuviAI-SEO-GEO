@@ -5,7 +5,9 @@ import {
   clearCrawlAccess, CrawlAccessError, crawlAccessNewerThanAudit, readCrawlAccess, recordCrawlAccess,
 } from '../sites/crawl-access.js';
 import { WEEKLY_MEASUREMENT_LIMIT_CODE } from '../billing/measurement-allowance.js';
-import { AuditChecksService, feedsOverallScoreAt, isUnverifiedCheck, OVERALL_SCORE_RETIRED, OVERALL_SCORE_WEIGHTS } from './audit-checks.service.js';
+import {
+  AuditChecksService, feedsOverallScoreAt, isUnverifiedCheck, methodVerdictUnchanged, OVERALL_SCORE_RETIRED, OVERALL_SCORE_WEIGHTS,
+} from './audit-checks.service.js';
 import { PageSpeedService } from './pagespeed.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
 import { AiCitationService } from './ai-citation.service.js';
@@ -342,6 +344,9 @@ const KAPSAM_NOTU_CHECK_ID = 'crawl_access';
 const SAYFA_KONTROLLERI = new Set([
   'meta_title', 'meta_description', 'open_graph', 'twitter_card', 'canonical',
   'h1_uniqueness', 'image_alt', 'internal_linking', 'schema_markup',
+  // Yontem v2: dil surumu taranan sayfalardan tespit edilir (language-versions.ts).
+  // "/EN" sayfasi bu kez taranamadiysa site tek dilli gorunur; hreflang sorunu "cozuldu" sayilmaz.
+  'hreflang',
 ]);
 
 /** Kontrol bu taramada olculmedi mi? (sorunun yoklugu hukum degildir) */
@@ -359,9 +364,13 @@ function kontrolOlculmedi(checks: Record<string, unknown>, key: string): boolean
  * degil kapsam farkidir (genelSkorKiyasi kapsamiFarkli).
  */
 export function olcumYontemiDegisti(id: string, fromEntry: unknown, toEntry: unknown): boolean {
-  return checkScore(id, fromEntry) !== null
-    && checkScore(id, toEntry) !== null
-    && checkMethodVersion(fromEntry) !== checkMethodVersion(toEntry);
+  if (checkScore(id, fromEntry) === null || checkScore(id, toEntry) === null) return false;
+  const from = checkMethodVersion(fromEntry);
+  const to = checkMethodVersion(toEntry);
+  if (from === to) return false;
+  // Surum farkli ama yeni yontem eskisiyle AYNI hukmu veriyorsa (hreflang / HTTPS v2,
+  // yeni baktigi durumu bulmadi) fark yontemden degildir (audit-checks methodVerdictUnchanged)
+  return !methodVerdictUnchanged(id, Math.min(from, to), Math.max(from, to), from > to ? fromEntry : toEntry);
 }
 
 /** Iki taramanin GENEL skoru ayni olcuyle mi hesaplandi — farklilastiran kontroller */

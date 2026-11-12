@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { safeFetchText, type SafeTextOptions, type SafeTextResult } from '../common/safe-fetch.js';
+import { tlsChainCompletedFor } from '../common/tls-chain.js';
 import { detectBlock } from '../common/block-detect.js';
 import { extractImages, type ExtractedImage, type ImageAltStats } from './image-extract.js';
 import { isJsShell } from './js-shell.js';
@@ -11,6 +12,12 @@ import {
 
 export interface CrawledPage {
   url: string;
+  /**
+   * Yonlendirme sonrasi varilan adres — yalniz istenen adresten FARKLIYSA dolu.
+   * Dil surumu tespiti (audit/language-versions.ts) bunu kullanir: anasayfasi
+   * "/" → "/tr/" yonlendiren tek dilli site "kodsuz + kodlu sayfa" gibi gorunmesin.
+   */
+  finalUrl?: string;
   title: string;
   metaDescription: string;
   h1: string;
@@ -80,6 +87,13 @@ export interface CrawlResult {
   /** Bot korumasi devreye girdigi icin tarama erken durdurulduysa nedeni */
   stoppedEarly?: string | null;
   resources?: { robots: CrawlResourceStatus; sitemap: CrawlResourceStatus; llms: CrawlResourceStatus };
+  /**
+   * Sunucu HTTPS sertifika zincirini EKSIK gonderiyor: baglanti ancak eksik ara
+   * sertifikalari biz tamamlayinca kuruldu (common/tls-chain.ts). Site bize
+   * acik; tarayicilar da cogunlukla tamamlar, ama tamamlamayan programlar
+   * baglanamaz. HTTPS kontrolu bunu bulgu olarak yazar.
+   */
+  tlsChainIncomplete?: boolean;
 }
 
 export type TextFetcher = (url: string, opts?: SafeTextOptions) => Promise<SafeTextResult>;
@@ -117,6 +131,16 @@ function stripCacheBust(raw: string): string {
     return u.toString();
   } catch {
     return raw;
+  }
+}
+
+/** Sayfa baska bir YOLA mi yonlendi? (www, http→https ve sondaki "/" farki yonlendirme sayilmaz) */
+function yonlendi(requested: string, final: string): boolean {
+  try {
+    const yol = (u: string) => new URL(u).pathname.replace(/\/+$/, '');
+    return yol(requested) !== yol(final);
+  } catch {
+    return false;
   }
 }
 
@@ -212,6 +236,11 @@ export class SiteCrawlerService {
     }
 
     const emptyResource = (reason: string): CrawlResourceStatus => ({ state: 'error', url: null, status: null, reason });
+
+    // Zincir kaydi surec icinde 10 dk tutulur ve normal yoldan basarili baglanti
+    // onu siler; uzun taramada kaybolmasin diye anasayfadan hemen sonra da okunur.
+    const zincirEksik = () => [start.hostname, siteOrigin.hostname].some((h) => tlsChainCompletedFor(h));
+    const zincirEksikBasta = zincirEksik();
 
     if (homeAccess) {
       if (homeAccess.state === 'blocked') blockedPages.push(homeAccess);
@@ -335,6 +364,7 @@ export class SiteCrawlerService {
       ranksUpBotGroup: !!policy,
       stoppedEarly,
       resources: { robots: robotsStatus, sitemap: sitemap.status, llms: llmsStatus },
+      tlsChainIncomplete: zincirEksikBasta || zincirEksik(),
     };
   }
 
@@ -652,6 +682,7 @@ export class SiteCrawlerService {
 
     return {
       url,
+      ...(yonlendi(url, baseHref) ? { finalUrl: baseHref } : {}),
       // SADECE head'deki <title> — $('title').text() SVG ikon <title>'larını da
       // birleştirip uzunluğu yanlış şişiriyordu (yanlış "title 60+ karakter").
       title: ($('head title').first().text() || $('title').first().text()).trim() || $('h1').first().text().trim(),

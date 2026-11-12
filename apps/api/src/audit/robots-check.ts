@@ -106,7 +106,13 @@ export function computeRobotsCheck(robotsTxt: string | null): CheckResult {
   const issues: AuditIssue[] = [];
   if (!found) {
     issues.push({
-      severity: 'critical',
+      // UYARI, kritik degil (12.11.2026): dosya yokken botlar siteyi kisitsiz
+      // tarar — Google 4xx donen robots.txt'i "tarama kisiti yok" sayar
+      // (developers.google.com/search/docs/crawling-indexing/robots/robots_txt),
+      // RFC 9309 2.3.1.3 ayni seyi soyler. Eksik olan gorunurluk degil, site
+      // haritasi satiri ve tarama denetimidir. "Kritik" etiketi musteri
+      // raporunda ilk oncelik diye gorunuyordu. Puan degismedi.
+      severity: 'warning',
       type: 'robots_missing',
       description: 'robots.txt yok — crawler kontrolü yapamıyorsun',
       fixable: true,

@@ -7,11 +7,17 @@ import { cn } from '@/lib/utils';
  * Sitenin kendi favicon'u (dogrudan sitenin /favicon.ico'su — ucuncu taraf
  * favicon servisine alan adi gonderilmez). Yuklenemezse ad bas harfleri.
  */
-export function SiteFavicon({ url, name, size = 'md', className }: {
+export function SiteFavicon({ url, name, size = 'md', className, eager = false }: {
   url?: string | null;
   name?: string | null;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  /**
+   * Gorseli hemen iste (tembel yukleme yok). Ekranda gizli duran ama
+   * yazdirilan yerlerde gerekli: tembel gorsel gizli kutuda hic istenmez,
+   * onError da calismaz — kagitta ne ikon ne bas harf, BOS kutu cikar.
+   */
+  eager?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   let origin: string | null = null;
@@ -25,7 +31,7 @@ export function SiteFavicon({ url, name, size = 'md', className }: {
     >
       {origin && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`${origin}/favicon.ico`} alt="" className={cn(img, 'object-contain')} onError={() => setFailed(true)} loading="lazy" decoding="async" />
+        <img src={`${origin}/favicon.ico`} alt="" className={cn(img, 'object-contain')} onError={() => setFailed(true)} loading={eager ? 'eager' : 'lazy'} decoding="async" />
       ) : (
         (name ?? '??').slice(0, 2).toLocaleUpperCase('tr-TR')
       )}

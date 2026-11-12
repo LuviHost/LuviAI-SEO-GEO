@@ -92,16 +92,23 @@ describe('buildClientReport — veri yokken uydurma yok', () => {
 
   it('dogrulanamayan kontrol skora/sayaca "gecti" ya da "yok" diye girmez', () => {
     const g = mukellefGirdisi();
+    (g.audit!.checks as any).robots_txt = {
+      id: 'robots_txt', name: 'Robots.txt', found: false, valid: false, score: 0, issues: [],
+      details: { unverified: true, unverifiedReason: 'robots.txt doğrulanamadı: sunucu 503 döndü.', unverifiedHint: null },
+    };
     (g.audit!.checks as any).llms_txt = {
       id: 'llms_txt', name: 'LLMs.txt (AI search)', found: false, valid: false, score: 0, issues: [],
-      details: { unverified: true, unverifiedReason: 'llms.txt doğrulanamadı: sunucu 503 döndü.', unverifiedHint: null },
+      details: { unverified: true, unverifiedReason: 'llms.txt doğrulanamadı: sunucu 503 döndü.', unverifiedHint: null, informational: true },
     };
     const r = build(g);
     if (r.seo.olculemedi || r.geo.olculemedi) throw new Error('olculmeli');
-    const k = r.seo.kontroller.find((x) => x.id === 'llms_txt')!;
+    const k = r.seo.kontroller.find((x) => x.id === 'robots_txt')!;
     expect(k).toMatchObject({ durum: 'dogrulanamadi', skor: null, otomatik: false });
     expect(k.bulgu).toContain('503');
     expect(r.seo.sayac.dogrulanamadi).toBe(1);
+    expect(r.geo.robots).toEqual({ olculemedi: true, neden: expect.stringContaining('503') });
+    // llms.txt bilgi kontroludur; dogrulanamadiysa "yok" denmez
+    expect(r.seo.bilgiKontrolleri!.find((b) => b.id === 'llms_txt')!.not).toContain('doğrulanamadı');
     expect(r.geo.llmsTxt).toBe('dogrulanamadi');
   });
 });
@@ -113,19 +120,30 @@ describe('buildClientReport — musteri paneli bicimindeki site', () => {
   const geo = r.geo;
   const olcum = r.ai.olcum;
 
-  it('KPI seridi panel ile ayni sayilar: 76/100, 15 sorun, AI 17 ilk olcum, anilma/ses payi olculmedi, bot 0, yayinda 0 + 5 takvimde', () => {
+  it('KPI seridi panel ile ayni sayilar: 76/100, 15 sorun, AI 17 ilk olcum, anilma/ses payi olculmedi, bot 0, yayinlanan 0 (takvim sayisi ozet seridinde yok)', () => {
     expect(r.ozet.kpiler).toEqual([
       { anahtar: 'siteSkoru', etiket: 'Site skoru', deger: 76, sonek: '/100', ipucu: '15 sorun' },
       { anahtar: 'aiGorunurluk', etiket: 'AI görünürlük', deger: 17, sonek: '/100', ipucu: 'İlk ölçüm' },
       { anahtar: 'anilmaOrani', etiket: 'Anılma oranı (markasız)', deger: null, sonek: null, ipucu: 'Henüz ölçülmedi' },
       { anahtar: 'sesPayi', etiket: 'Ses payı', deger: null, sonek: null, ipucu: 'Henüz ölçülmedi' },
       { anahtar: 'aiBot', etiket: 'AI bot ziyareti', deger: 0, sonek: null, ipucu: 'Son 7 gün' },
-      { anahtar: 'yayinda', etiket: 'Yayında', deger: 0, sonek: null, ipucu: '5 içerik takvimde' },
+      { anahtar: 'yayinda', etiket: 'Yayınlanan içerik', deger: 0, sonek: null, ipucu: 'RanksUp ile' },
     ]);
+    // "5 içerik takvimde" ozet seridinde yazmaz: musterinin istemedigi bir plan gibi okunuyordu
+    expect(JSON.stringify(r.ozet)).not.toContain('takvimde');
   });
 
-  it('kontroller: kritik once, her birinde Turkce ad + neden + oneri; sayac 14 kontrol', () => {
-    expect(seo.sayac).toEqual({ gecti: 4, kritik: 2, uyari: 8, dogrulanamadi: 0, toplam: 14 });
+  it('kontroller: kritik once, her birinde Turkce ad + neden + oneri; hreflang (etiket yok) sayaca "gecti" diye girmez', () => {
+    // 14 kontrolden ikisi bilgi kontrolu: istege bagli llms.txt ve bu taramada etiketi bulunmayan hreflang
+    // (kontrol bir sey olcmedi)
+    expect(seo.sayac).toEqual({ gecti: 3, kritik: 2, uyari: 7, dogrulanamadi: 0, toplam: 12 });
+    expect(seo.kontroller.map((k) => k.id)).not.toContain('hreflang');
+    expect(seo.kontroller.map((k) => k.id)).not.toContain('llms_txt');
+    expect(seo.bilgiKontrolleri).toEqual([
+      // Bu fikstur llms yontem v3 ONCESI: dosya o taramanin skoruna girmisti — not "skora girmez" demez
+      { id: 'llms_txt', ad: 'llms.txt', not: 'Dosya yok. İsteğe bağlı bir dosyadır.' },
+      { id: 'hreflang', ad: 'Hreflang', not: expect.stringContaining('yalnız birden çok dil sürümü olan sitelerde gerekir') },
+    ]);
     expect(seo.kontroller.slice(0, 2).map((k) => k.id).sort()).toEqual(['h1_uniqueness', 'meta_description']);
     expect(seo.kontroller.at(-1)!.durum).toBe('gecti');
     for (const k of seo.kontroller) {
@@ -133,8 +151,7 @@ describe('buildClientReport — musteri paneli bicimindeki site', () => {
       expect(k.neden.length).toBeGreaterThan(20);
       expect(k.oneri.length).toBeGreaterThan(10);
     }
-    // llms.txt yalniz kok dosya: RanksUp otomatik yazabilir; meta aciklama yazamaz
-    expect(seo.kontroller.find((k) => k.id === 'llms_txt')!.otomatik).toBe(true);
+    // Meta aciklamayi RanksUp otomatik yazamaz (kok dosyalar icin bkz. client-report-dil.spec)
     expect(seo.kontroller.find((k) => k.id === 'meta_description')!.otomatik).toBe(false);
     expect(seo.bulgu).toEqual({ toplam: 15, kritik: 2, uyari: 10, bilgi: 3 });
   });
@@ -144,13 +161,14 @@ describe('buildClientReport — musteri paneli bicimindeki site', () => {
     expect(byTur.meta_desc_missing).toMatchObject({ sayi: 9, birim: 'sayfa', onem: 'kritik', ornekNotu: null });
     expect(byTur.meta_desc_missing.ornekler).toHaveLength(9);
     expect(byTur.h1_missing).toMatchObject({ sayi: 24, ornekler: [] });
-    expect(byTur.h1_missing.ornekNotu).toContain('bir sonraki taramada');
+    expect(byTur.h1_missing.ornekNotu).toContain('bir sonraki taramadan sonra');
     expect(byTur.image_alt_missing).toMatchObject({ sayi: 772, birim: 'görsel' });
     expect(byTur.image_alt_missing.ornekler).toHaveLength(10);
     // details sayiyi tutmuyor: taramanin kendi aciklamasindaki sayi, 5 ornek
     expect(byTur.orphan_pages).toMatchObject({ sayi: 7 });
     expect(byTur.orphan_pages.ornekler).toHaveLength(5);
-    expect(byTur.meta_desc_short.ornekNotu).toContain('adresi kaydetmiyor');
+    // Ornek adres tutulmayan tipte ic not yok ("tarama adres kaydetmiyor" musteriye bir sey soylemiyordu)
+    expect(byTur.meta_desc_short).toMatchObject({ sayi: 14, ornekler: [], ornekNotu: null });
     // Kritikler en ustte
     expect(seo.sayfaSorunlari.slice(0, 2).map((s) => s.onem)).toEqual(['kritik', 'kritik']);
   });
@@ -180,13 +198,16 @@ describe('buildClientReport — musteri paneli bicimindeki site', () => {
 
   it('AI: yapilandirilmamis asistan listelenmez; markali soru isaretli; sonuclar outcomeOf ile', () => {
     expect(olcum.asistanlar.map((a) => a.saglayici)).toEqual(['openai', 'gemini', 'anthropic', 'perplexity', 'xai', 'deepseek']);
-    expect(olcum.asistanlar[0]).toMatchObject({ skor: 50, sonuc: 'alinti', alintiSayisi: 1, anilmaSayisi: 1, olculenSoru: 3 });
+    expect(olcum.asistanlar[0]).toMatchObject({ skor: 50, sonuc: 'alinti', alintiSayisi: 1, anilmaSayisi: 1, olculenSoru: 3, soruSayisi: 3, alintiSoru: 1, anilmaSoru: 1 });
     expect(olcum.asistanlar[1]).toMatchObject({ skor: 50, sonuc: 'anilma', alintiSayisi: 0, anilmaSayisi: 3 });
     expect(olcum.asistanlar[2]).toMatchObject({ skor: 0, sonuc: 'yok' });
     expect(olcum.sorgular).toHaveLength(4);
     const markali = olcum.sorgular.find((q) => q.markali)!;
     expect(markali.soru).toContain('Mükellef');
     expect(olcum.sorgular[0].sonuclar).toEqual(['alinti', 'anilma', 'yok', 'yok', 'yok', 'yok']);
+    // Tek turluk olcum: her hucre tek yanit
+    expect(olcum.tekrar).toBe(1);
+    expect(olcum.sorgular[0].ayrinti![0]).toEqual({ yanit: 1, alinti: 1, anilma: 0 });
     expect(olcum).toMatchObject({ skor: 17, skorTuru: 'first-run', tarih: '2026-10-21T09:14:00.000Z' });
   });
 
@@ -242,7 +263,7 @@ describe('ozet metni — deterministik sablon', () => {
 
   it('beklenen cumleler (3-5 cumle, olculmeyen "olculmedi" diye)', () => {
     expect(build().ozet.metin).toEqual([
-      'Mükellef için 21 Ekim 2026 tarihli taramada site skoru 76/100 (geliştirilmeye açık). 14 kontrolün 4 tanesi geçti; 2 kontrolde kritik, 8 kontrolde uyarı düzeyinde sorun var.',
+      'Mükellef için 21 Ekim 2026 tarihli taramada site skoru 76/100 (geliştirilmeye açık). 12 kontrolün 3 tanesi geçti; 2 kontrolde kritik, 7 kontrolde uyarı düzeyinde sorun var.',
       'Öne çıkan sayfa sorunları: 24 sayfada H1 başlığı yok, 9 sayfada meta açıklama yok, 772 görselde alt metni yok.',
       'AI hazırlığı: llms.txt yok; robots.txt arama botlarına açık; yapısal veri kapsamı %25.',
       'AI görünürlük skoru 17/100 (ilk ölçüm): 21 Ekim 2026 ölçümünde 6 AI asistanının 2 tanesinde site kaynak gösterildi ya da marka adı geçti. Anılma oranı ve ses payı henüz ölçülmedi.',
@@ -354,5 +375,10 @@ describe('kucuk yardimcilar', () => {
     expect(kontrolDurumu({ found: true, valid: true, issues: [] })).toBe('gecti');
     expect(kontrolDurumu({ found: false, valid: false, issues: [{ severity: 'critical' }] })).toBe('kritik');
     expect(kontrolDurumu({ found: false, valid: false, issues: [{ severity: 'info' }] })).toBe('uyari');
+    // Sorunu varken "gecti" olmaz: 70 puanla gecerli sayilan robots.txt iki AI botunu engelliyor olabilir
+    expect(kontrolDurumu({ found: true, valid: true, issues: [{ severity: 'warning' }] })).toBe('uyari');
+    expect(kontrolDurumu({ found: true, valid: true, issues: [{ severity: 'critical' }] })).toBe('kritik');
+    // Bilgi duzeyi not gecmeyi bozmaz (ör. egitim botu engeli)
+    expect(kontrolDurumu({ found: true, valid: true, issues: [{ severity: 'info' }] })).toBe('gecti');
   });
 });
