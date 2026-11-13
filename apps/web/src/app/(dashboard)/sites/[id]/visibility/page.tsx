@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
-import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
 import { CitedSourcesCard } from '@/components/cited-sources-card';
 import { Sparkles, Compass, Loader2, FileText, Search, Star, Target } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -267,8 +266,7 @@ export default function VisibilityPage() {
           </div>
         )}
       </Card>
-
-      <CrawlerHitsPanel siteId={site.id} />
+      {/* AI Crawler Trafigi paneli 13.11.2026'da Bot Takibi sayfasina tasindi (tek yerde dursun) */}
     </div>
   );
 }

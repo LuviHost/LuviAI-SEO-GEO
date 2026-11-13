@@ -8,7 +8,7 @@ import { Check, ChevronDown, ChevronsUpDown, LayoutGrid, Lock, Plus } from 'luci
 import { SiteFavicon } from '@/components/site-favicon';
 import { api } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
-import { GLOBAL_NAV, isNavActive, siteNavGroups, type ResolvedNavItem } from '@/lib/site-nav';
+import { GLOBAL_NAV, isItemActive, isNavActive, siteNavGroups, type ResolvedNavItem } from '@/lib/site-nav';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -124,7 +124,7 @@ function SiteNav({ siteId, path, onClose }: { siteId: string; path: string; onCl
 
       <nav aria-label="Site menüsü" className="space-y-5 px-3 pb-6">
         {groups.map((group) => {
-          const hasActive = group.items.some((item) => isNavActive(path, item.href, item.exact));
+          const hasActive = group.items.some((item) => isItemActive(path, item));
           // Aktif sayfa bu gruptaysa grup daraltilmis olsa bile acik kalir
           const expanded = !group.label || !collapsed[group.id] || hasActive;
           const listId = `nav-group-${group.id}`;
@@ -169,7 +169,8 @@ function NavLink({
   locked: boolean;
   onClose?: () => void;
 }) {
-  const active = isNavActive(path, item.href, item.exact);
+  // Cati ogesi (Bot Takibi, Icerikler, Ayarlar) catisindaki her sayfada aktif gorunur
+  const active = isItemActive(path, item);
   const Icon = item.icon;
   return (
     <Link

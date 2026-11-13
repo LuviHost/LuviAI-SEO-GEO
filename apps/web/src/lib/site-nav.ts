@@ -21,13 +21,10 @@ import {
   FileText,
   Home,
   Image as ImageIcon,
-  Lightbulb,
   LineChart,
-  MapPin,
   MessageSquare,
   MessagesSquare,
   Network,
-  Plug,
   Radar,
   ScanSearch,
   Send,
@@ -39,13 +36,56 @@ import {
   TrendingUp,
   Users,
   Wrench,
-  Zap,
   PenLine,
 } from 'lucide-react';
 import type { PlanFeature } from '@/lib/entitlements';
-import { siteHref, type SiteRoute } from '@/lib/site-routes';
+// Goreli yol: lib testleri (site-nav.spec.mts) '@/' takma adini cozmez
+import { siteHref, type SiteRoute } from './site-routes';
 
 export type SiteNavGroupId = 'main' | 'health' | 'ai' | 'content' | 'growth' | 'mobile' | 'admin';
+
+export type SiteRoofId = 'bots' | 'content' | 'settings';
+
+export type SiteRoofTab = {
+  route: SiteRoute;
+  /** Sayfanin ustundeki sekme seridinde gorunen ad */
+  label: string;
+  /** Komut paletindeki ad: sekme kenar cubugunda gorunmedigi icin aramada kendi adiyla bulunur */
+  paletteLabel: string;
+  hint?: string;
+  keywords?: string[];
+};
+
+/**
+ * "Cati" — ayni isin sayfalari TEK menu ogesi altinda (13.11.2026, sahip: "tek menude
+ * birlestirelim, farkli yerlerde kalmis gibi oldu"). Kenar cubugunda yalniz catinin ILK
+ * rotasi gorunur; uyeler sayfanin ustunde sekme seridi olur (components/site-subnav.tsx,
+ * sites/[id]/layout.tsx). Rotalar DEGISMEDI: eski baglantilar ve bildirimler calisir.
+ */
+export const SITE_ROOFS: Record<SiteRoofId, { label: string; tabs: SiteRoofTab[] }> = {
+  bots: {
+    label: 'Bot takibi sayfaları',
+    tabs: [
+      { route: 'botTakibi', label: 'Tek satır kod', paletteLabel: 'Bot Takibi', hint: 'AI’dan gelen ziyaretçiler ve kodu indiren botlar', keywords: ['bot', 'takip', 'tracker', 'izleme kodu', 'ziyaretçi', 'referrer', 'chatgpt'] },
+      { route: 'crawler', label: 'Canlı tarayıcı', paletteLabel: 'Canlı Tarayıcı', hint: 'Anlık AI bot ziyaretleri', keywords: ['crawler', 'live', 'canlı', 'bot', 'gptbot', 'cite', 'tarayıcı'] },
+    ],
+  },
+  content: {
+    label: 'İçerik sayfaları',
+    tabs: [
+      { route: 'articles', label: 'İçerikler', paletteLabel: 'İçerikler', hint: 'Önerilen konular + üretilen yazılar', keywords: ['article', 'makale', 'yazı', 'topic', 'konu', 'takvim', 'içerik'] },
+      { route: 'opportunities', label: 'Fırsatlar', paletteLabel: 'İçerik Fırsatları', hint: 'Kaybedilen sorgu → içerik → yeniden ölçüm', keywords: ['fırsat', 'opportunity', 'kayıp', 'lost', 'içerik'] },
+    ],
+  },
+  settings: {
+    label: 'Ayar sayfaları',
+    tabs: [
+      { route: 'settings', label: 'Site ayarları', paletteLabel: 'Ayarlar', hint: 'Site ayarları', keywords: ['settings', 'ayar'] },
+      { route: 'connections', label: 'Bağlantılar', paletteLabel: 'Bağlantılar', hint: 'Search Console, GA4, AI anahtarları', keywords: ['connection', 'bağlantı', 'gsc', 'ga4', 'entegrasyon'] },
+      { route: 'autopilot', label: 'Otomatik akış', paletteLabel: 'Otomatik Akış', hint: 'Yarı / tam otomatik yayın', keywords: ['autopilot', 'otomatik', 'akış'] },
+    ],
+  },
+};
 
 export type SiteNavItem = {
   route: SiteRoute;
@@ -64,6 +104,8 @@ export type SiteNavItem = {
   feature?: PlanFeature;
   /** Yalniz tam eslesmede aktif (Genel Bakis alt rotalarda yanmasin) */
   exact?: boolean;
+  /** Bu oge bir catinin (SITE_ROOFS) kenar cubugundaki TEK girisi: catinin butun sayfalarinda aktif gorunur */
+  roof?: SiteRoofId;
 };
 
 export const SITE_NAV_GROUPS: Array<{ id: SiteNavGroupId; label?: string }> = [
@@ -93,13 +135,12 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   // ── AI gorunurluk ──
   { route: 'visibility', label: 'AI Görünürlük', icon: Sparkles, group: 'ai', hint: 'AI asistanlarda atıf takibi', keywords: ['ai', 'citation', 'atıf', 'görünürlük', 'chatgpt', 'gemini'] },
   { route: 'geoLab', label: 'GEO Lab', icon: Award, group: 'ai', hint: '6 sütunlu AI arama optimizasyonu', keywords: ['geo', 'pillar', 'optimization', 'lab'] },
-  { route: 'crawler', label: 'Canlı Tarayıcı', icon: Activity, group: 'ai', hint: 'Anlık AI bot ziyaretleri', keywords: ['crawler', 'live', 'canlı', 'bot', 'gptbot', 'cite', 'tarayıcı'] },
+  { route: 'botTakibi', label: 'Bot Takibi', icon: Activity, group: 'ai', roof: 'bots', hint: 'AI botları ve AI’dan gelen ziyaretçiler', keywords: ['bot', 'takip', 'tracker', 'izleme kodu', 'ziyaretçi', 'referrer', 'chatgpt'] },
   { route: 'agentReadiness', label: 'Ajan Hazırlığı', icon: Bot, group: 'ai', feature: 'agentReadiness', hint: 'Alan adın AI ajanlarına hazır mı', keywords: ['axo', 'agent', 'ajan', 'readiness', 'robots', 'mcp', 'a2a'] },
   { route: 'productRadar', label: 'Ürün Radarı', icon: Radar, group: 'ai', feature: 'productRadar', hint: 'AI asistanlar kategoride kimi öneriyor', keywords: ['radar', 'product', 'ürün', 'öneri', 'rakip'] },
 
   // ── Icerik ──
-  { route: 'opportunities', label: 'İçerik Fırsatları', icon: Lightbulb, group: 'content', feature: 'contentOpportunities', hint: 'Kaybedilen sorgu → içerik → yeniden ölçüm', keywords: ['fırsat', 'opportunity', 'kayıp', 'lost', 'içerik'] },
-  { route: 'articles', label: 'İçerikler', icon: FileText, group: 'content', hint: 'Önerilen konular + üretilen yazılar', keywords: ['article', 'makale', 'yazı', 'topic', 'konu', 'takvim', 'içerik'] },
+  { route: 'articles', label: 'İçerikler', icon: FileText, group: 'content', roof: 'content', hint: 'Önerilen konular + üretilen yazılar', keywords: ['article', 'makale', 'yazı', 'topic', 'konu', 'takvim', 'içerik'] },
   { route: 'videos', label: 'Videolar', icon: Clapperboard, group: 'content', feature: 'articleVideo', hint: 'RanksUp Video — makale, site ve ürün tanıtım videoları', keywords: ['video', 'reels', 'shorts', 'tiktok', 'dikey', 'yatay', 'ranksup video', 'kısa video', 'tanıtım videosu', 'site tanıtımı', 'ürün tanıtımı'] },
   { route: 'communities', label: 'Topluluk Ajanı', icon: MessagesSquare, group: 'content', hint: 'Reddit fırsatları + AI taslaklar', keywords: ['reddit', 'quora', 'topluluk', 'community', 'forum'] },
   { route: 'publishTargets', label: 'Yayın Hedefleri', icon: Send, group: 'content', hint: 'WordPress, FTP, SFTP', keywords: ['wordpress', 'ftp', 'sftp', 'wp', 'publish', 'yayın', 'hedef'] },
@@ -107,7 +148,6 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   // ── Buyume ──
   { route: 'analytics', label: 'Analitik', icon: BarChart3, group: 'growth', hint: 'Search Console + GA4', keywords: ['analytics', 'analitik', 'gsc', 'ga4', 'trafik'] },
   { route: 'ads', label: 'Reklam', icon: TrendingUp, group: 'growth', hint: 'Google + Meta reklam yönetimi', keywords: ['ads', 'reklam', 'google', 'meta', 'roas'] },
-  { route: 'googleIsletme', label: 'Google İşletme', icon: MapPin, group: 'growth', hint: 'Haritalar profili denetimi; yorum ve gönderi yönetimi Google onayından sonra', keywords: ['google maps', 'harita', 'haritalar', 'yorum', 'işletme profili', 'gbp', 'google business', 'yerel', 'local'] },
   { route: 'adsHealth', label: 'Kampanya Skoru', icon: Target, group: 'growth', hint: 'Reklam hesabı sağlık kontrolü', keywords: ['ads', 'health', 'kampanya', 'skor', 'reklam'] },
   { route: 'report', label: 'Rapor', icon: FileBarChart, group: 'growth', hint: 'Performans özeti ve müşteri raporu', keywords: ['report', 'rapor', 'pdf', 'müşteri raporu', 'site raporu', 'paylaş'] },
 
@@ -115,24 +155,70 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   { route: 'aso', label: 'ASO', icon: Smartphone, group: 'mobile', hint: 'App Store optimizasyonu', keywords: ['aso', 'app', 'uygulama', 'mobil', 'app store', 'play'] },
 
   // ── Yonetim ──
-  { route: 'autopilot', label: 'Otomatik Akış', icon: Zap, group: 'admin', hint: 'Yarı / tam otomatik yayın', keywords: ['autopilot', 'otomatik', 'akış'] },
-  { route: 'connections', label: 'Bağlantılar', icon: Plug, group: 'admin', hint: 'Search Console, GA4, AI anahtarları', keywords: ['connection', 'bağlantı', 'gsc', 'ga4', 'entegrasyon'] },
-  { route: 'settings', label: 'Ayarlar', icon: Settings, group: 'admin', hint: 'Site ayarları', keywords: ['settings', 'ayar'] },
+  { route: 'settings', label: 'Ayarlar', icon: Settings, group: 'admin', roof: 'settings', hint: 'Site ayarları, bağlantılar ve otomatik akış', keywords: ['settings', 'ayar'] },
 ];
 
-export type ResolvedNavItem = SiteNavItem & { href: string };
+export type ResolvedNavItem = SiteNavItem & {
+  href: string;
+  /** Ayni catidaki diger sayfalar: oge bu yollarda da aktif gorunur */
+  alsoHrefs: string[];
+};
 
 /** Kenar cubugu icin: gruplar sirasinda, href'leri cozulmus */
 export function siteNavGroups(siteId: string): Array<{ id: SiteNavGroupId; label?: string; items: ResolvedNavItem[] }> {
   return SITE_NAV_GROUPS.map((g) => ({
     ...g,
-    items: SITE_NAV_ITEMS.filter((i) => i.group === g.id).map((i) => ({ ...i, href: siteHref(siteId, i.route) })),
+    items: SITE_NAV_ITEMS.filter((i) => i.group === g.id).map((i) => ({
+      ...i,
+      href: siteHref(siteId, i.route),
+      alsoHrefs: i.roof
+        ? SITE_ROOFS[i.roof].tabs.filter((t) => t.route !== i.route).map((t) => siteHref(siteId, t.route))
+        : [],
+    })),
   }));
 }
 
 /** Bir oge gecerli yolda aktif mi (exact: yalniz tam esleme) */
 export function isNavActive(path: string, href: string, exact?: boolean): boolean {
   return exact ? path === href : path === href || path.startsWith(href + '/');
+}
+
+/** Kenar cubugu ogesi aktif mi: kendi yolu ya da catisindaki bir sayfa */
+export function isItemActive(path: string, item: Pick<ResolvedNavItem, 'href' | 'alsoHrefs' | 'exact'>): boolean {
+  return isNavActive(path, item.href, item.exact) || item.alsoHrefs.some((h) => isNavActive(path, h));
+}
+
+/**
+ * Gecerli yol bir catinin sayfasiysa o catinin sekmeleri; degilse null. Yalniz TAM eslesme:
+ * alt sayfalarda (makale ayrintisi gibi) sekme seridi cikmaz.
+ */
+export function roofTabsForPath(
+  path: string,
+  siteId: string,
+): { label: string; tabs: Array<{ href: string; label: string; active: boolean }> } | null {
+  for (const roof of Object.values(SITE_ROOFS)) {
+    const tabs = roof.tabs.map((t) => ({ href: siteHref(siteId, t.route), label: t.label }));
+    if (!tabs.some((t) => t.href === path)) continue;
+    return { label: roof.label, tabs: tabs.map((t) => ({ ...t, active: t.href === path })) };
+  }
+  return null;
+}
+
+export type SitePaletteItem = Pick<SiteNavItem, 'route' | 'label' | 'icon' | 'group' | 'hint' | 'keywords'>;
+
+/** Komut paleti girisleri: menu ogeleri + catilarin kenar cubugunda gorunmeyen sayfalari */
+export function sitePaletteItems(): SitePaletteItem[] {
+  const out: SitePaletteItem[] = [];
+  for (const item of SITE_NAV_ITEMS) {
+    if (!item.roof) {
+      out.push(item);
+      continue;
+    }
+    for (const tab of SITE_ROOFS[item.roof].tabs) {
+      out.push({ route: tab.route, label: tab.paletteLabel, icon: item.icon, group: item.group, hint: tab.hint, keywords: tab.keywords });
+    }
+  }
+  return out;
 }
 
 /** Site disi (hesap) navigasyonu */

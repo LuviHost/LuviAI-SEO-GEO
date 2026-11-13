@@ -4,13 +4,11 @@ import { EngineLogo } from '@/components/engine-logo';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, Mail, BarChart3, Bot,
+  Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, Link2, Download, Code, Mail, Bot,
   Gauge, Award, Wrench, Send, BookOpen, Target, Lightbulb, Package, FileText, Search, Trophy, CheckCircle2, XCircle, AlertTriangle, Tags,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SectionHeader } from '@/components/ui/section-header';
-import { Skeleton } from '@/components/ui/skeleton';
-import { formatNum } from '@/lib/format';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
@@ -18,7 +16,6 @@ import { displayProbeText } from '@/lib/probe-error-text';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FilterChip } from '@/components/ui/filter-chip';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -52,7 +49,10 @@ function LogoKaro({ provider }: { provider: string }) {
  *  2. Wikidata draft (Knowledge Graph icin)
  *  3. Wikipedia article draft
  */
-type ToolId = 'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker' | 'sitemap-ai' | 'haro' | 'ai-console' | 'chat-widget';
+// "Bot izleyici" ve "AI trafik konsolu" 13.11.2026'da Bot Takibi sayfasina tasindi
+// (sites/[id]/bot-takibi; sahip: "tek menude birlestirelim"). "Reddit" sekmesi ayni gun kalkti:
+// Topluluk Ajani sayfasinin (sites/[id]/communities — kalici liste, taslak duzenleme) kopyasiydi.
+type ToolId = 'heatmap' | 'wikidata' | 'wikipedia' | 'cross-link' | 'training' | 'schema-validate' | 'sitemap-ai' | 'haro' | 'chat-widget';
 
 type Tool = { id: ToolId; label: string; icon: React.ComponentType<{ className?: string }> };
 
@@ -63,22 +63,19 @@ const CATEGORIES: Array<{ id: string; label: string; icon: React.ComponentType<{
     id: 'olc',
     label: 'Ölç',
     icon: Gauge,
-    description: 'AI cevaplarında nerede alıntılandığını ve AI kaynaklı trafiği ölç.',
+    description: 'AI cevaplarında nerede alıntılandığını ölç.',
     tools: [
       { id: 'heatmap', label: 'Isı haritası', icon: Network },
-      { id: 'ai-console', label: 'AI trafik konsolu', icon: BarChart3 },
-      { id: 'tracker', label: 'Bot izleyici', icon: Activity },
     ],
   },
   {
     id: 'otorite',
     label: 'Otorite',
     icon: Award,
-    description: 'Bilgi grafiği, ansiklopedi ve topluluk sinyalleriyle güven kazan.',
+    description: 'Bilgi grafiği, ansiklopedi ve basın kaynaklarıyla güven kazan.',
     tools: [
       { id: 'wikidata', label: 'Wikidata', icon: Globe },
       { id: 'wikipedia', label: 'Wikipedia', icon: BookOpen },
-      { id: 'community', label: 'Reddit', icon: MessageSquare },
       { id: 'haro', label: 'HARO', icon: Mail },
       { id: 'cross-link', label: 'Çapraz bağlantı', icon: Link2 },
     ],
@@ -110,14 +107,11 @@ function ToolBody({ id, siteId }: { id: ToolId; siteId: string }) {
     case 'heatmap': return <HeatmapTab siteId={siteId} />;
     case 'wikidata': return <WikidataTab siteId={siteId} />;
     case 'wikipedia': return <WikipediaTab siteId={siteId} />;
-    case 'community': return <CommunityTab siteId={siteId} />;
     case 'cross-link': return <CrossLinkTab siteId={siteId} />;
     case 'training': return <TrainingDataTab siteId={siteId} />;
     case 'schema-validate': return <SchemaValidateTab siteId={siteId} />;
-    case 'tracker': return <TrackerEmbedTab siteId={siteId} />;
     case 'sitemap-ai': return <AiSitemapTab siteId={siteId} />;
     case 'haro': return <HaroTab siteId={siteId} />;
-    case 'ai-console': return <AiSearchConsoleTab siteId={siteId} />;
     case 'chat-widget': return <ChatWidgetTab siteId={siteId} />;
   }
 }
@@ -191,90 +185,6 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
         </Tabs>
       </CardContent>
     </Card>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// AI Search Console (ChatGPT/Perplexity'den gelen kullanici trafigi)
-// ──────────────────────────────────────────────────────────────────
-function AiSearchConsoleTab({ siteId }: { siteId: string }) {
-  const [data, setData] = useState<any>(null);
-  const [days, setDays] = useState(30);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const res = await api.getAiReferrerHistory(siteId, days);
-      setData(res);
-    } catch (err: any) { toast.error(err.message); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, [days, siteId]);
-
-  if (loading || !data) {
-    return (
-      <div className="space-y-2" aria-busy="true" aria-label="Yükleniyor">
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-14 w-full" />
-        <Skeleton className="h-14 w-full" />
-      </div>
-    );
-  }
-
-  const sortedReferrers = Object.entries(data.byReferrer ?? {}).sort((a, b) => (b[1] as number) - (a[1] as number));
-
-  return (
-    <div className="space-y-3">
-      {/*
-        Eski metin "gercek satin alma niyetli ziyaretci", "cogu site icin %1'in altinda" ve
-        "ChatGPT trafiginin buyuk bolumu Direct gorunur" diyordu — olculmemis niyet ve
-        kaynaksiz oranlar. Dogrulanan: Ahrefs, Mart 2026, 74.752 site — AI sohbet botlari
-        toplam web trafiginin %0,28'i; bazi asistanlar yonlendiren adresi iletmedigi icin
-        AI ziyaretleri eksik sayilabiliyor. https://ahrefs.com/blog/ai-chatbot-traffic/
-      */}
-      <p className="text-xs text-muted-foreground">
-        Bu sayfa <strong>AI cevaplarındaki bağlantılardan gelen kullanıcı trafiği</strong>ni gösterir. ChatGPT/Perplexity/Claude cevabında sitenizin bağlantısı yer alıp kullanıcı tıkladığında kaynak, tarayıcının gönderdiği yönlendiren adresten (referrer) ya da bağlantıdaki utm etiketinden (ör. ChatGPT&apos;nin eklediği <code>utm_source=chatgpt.com</code>) anlaşılır; aynı oturumdaki ziyaret bir kez sayılır. <strong>Bot trafiği değil — AI cevabındaki bağlantıya tıklayan gerçek ziyaretçi.</strong>
-      </p>
-      <p className="text-label text-muted-foreground">
-        Bağlam: bağımsız ölçümler AI asistanlarından gelen ziyaretin toplam web trafiğinin küçük bir bölümü olduğunu gösteriyor (Ahrefs, Mart 2026: %0,28). Bu ziyaretçi soruyu sormuş, cevabı okumuş ve sonra tıklamıştır. Bazı AI uygulamaları yönlendiren adresi iletmediği ve bağlantıya utm etiketi eklemediği için bu ziyaretlerin bir kısmı analitikte &quot;Direct&quot; görünür; bu sayfa <strong>ölçülebilen alt küme</strong>dir, tamamı değil.
-      </p>
-
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="inline-flex gap-1.5">
-          {[7, 30, 90].map((d) => (
-            <FilterChip key={d} selected={days === d} onClick={() => setDays(d)}>{d}g</FilterChip>
-          ))}
-        </div>
-        <span className="text-xs text-muted-foreground">Toplam: <strong className="font-medium tabular-nums text-foreground">{formatNum(data.totalHits)}</strong> tıklama</span>
-      </div>
-
-      {data.totalHits === 0 ? (
-        <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Henüz AI referrer trafiği yok. Tracker.js sitenize embed edildikten sonra (Bot Tracker sekmesi) kullanıcılar AI&apos;dan tıklayınca buradan görürsün. Sıfır olması olağandır: AI asistanlarından gelen ziyaret çoğu sitede toplam trafiğin küçük bir bölümüdür ve tıklama için önce cevapta kaynak (bağlantı) olarak yer almak gerekir.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {sortedReferrers.map(([key, hits]) => {
-            const reg = (data.registry ?? []).find((r: any) => r.key === key);
-            const label = reg?.label ?? key;
-            const pct = (data.totalHits > 0 ? (hits as number) / data.totalHits * 100 : 0);
-            return (
-              <div key={key} className="rounded-md border p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">{label}</span>
-                  <span className="font-mono text-xs text-muted-foreground">{formatNum(hits as number)} (%{pct.toFixed(1)})</span>
-                </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full rounded-full bg-foreground/70" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -555,138 +465,6 @@ function SchemaValidateTab({ siteId }: { siteId: string }) {
               </ul>
             </div>
           )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// Tracker Embed
-// ──────────────────────────────────────────────────────────────────
-function TrackerEmbedTab({ siteId }: { siteId: string }) {
-  const url = api.getTrackerEmbedUrl(siteId);
-  const snippet = `<script async src="${url}"></script>`;
-
-  return (
-    <div className="space-y-3">
-      {/*
-        Eski metin "GPTBot/ClaudeBot/PerplexityBot ziyaret ettiginde otomatik yakalanir, manuel log
-        gerekmez" diyordu. Mekanizma (tracker.controller.ts + crawler-tracking.middleware.ts): bot
-        betik dosyasini indirirse istek bot kimligiyle gelir ve kaydedilir; beacon yalniz betigi
-        CALISTIRAN ziyaretcide atilir. Vercel, 17.12.2024: "none of the major AI crawlers currently
-        render JavaScript"; ChatGPT ve Claude tarayicilari JS dosyasi indiriyor ama calistirmiyor —
-        https://vercel.com/blog/the-rise-of-the-ai-crawler (haber: https://www.searchenginejournal.com/ai-crawlers)
-      */}
-      <p className="text-xs text-muted-foreground">
-        Sitenizdeki <strong>her sayfaya</strong> bu script tag&apos;ini ekleyin. Bir bot betik dosyasını indirdiğinde ya da betiği çalıştırdığında kaydedilir; AI cevaplarından gelen ziyaretçiler de yakalanır. JavaScript çalıştırmayan ve betik dosyasını indirmeyen tarayıcılar bu yöntemle görünmez — Vercel&apos;in Aralık 2024 analizine göre büyük AI tarayıcıları JavaScript çalıştırmıyor; bu yüzden bu yöntem bot ziyaretlerinin yalnızca bir kısmını gösterebilir. Eksiksiz ölçüm sunucu ya da CDN kayıtlarıyla mümkündür.
-      </p>
-
-      <div className="rounded-md border">
-        <div className={KUTU_BASLIK}>
-          <p className={KUTU_ETIKET}>Embed Script</p>
-          <button
-            onClick={() => { navigator.clipboard.writeText(snippet); toast.success('Kopyalandı'); }}
-            className={KOPYALA}
-          >
-            <Copy className="h-3 w-3" /> Kopyala
-          </button>
-        </div>
-        <pre className="p-3 text-label font-mono whitespace-pre-wrap break-all">{snippet}</pre>
-      </div>
-
-      <div className="rounded-md border bg-muted/40 p-3">
-        <p className="text-xs font-medium mb-2">Nereye yapıştır?</p>
-        <ul className="space-y-1 text-xs text-muted-foreground">
-          <li>• <strong>WordPress:</strong> Tema &gt; Theme File Editor &gt; header.php (&lt;/head&gt; tag'inden hemen önce)</li>
-          <li>• <strong>Webflow:</strong> Project Settings &gt; Custom Code &gt; Head Code</li>
-          <li>• <strong>cPanel/HTML:</strong> Her sayfanın &lt;head&gt; bölümüne ekleyin</li>
-          <li>• <strong>Otopilot ON:</strong> RanksUp'ın yayınladığı yeni makalelere <strong>otomatik</strong> eklenir</li>
-        </ul>
-      </div>
-
-      <div className="rounded-md border border-info/30 bg-info/5 p-3">
-        <p className="text-xs">
-          <BarChart3 className="inline h-3.5 w-3.5 mr-1 align-[-2px]" aria-hidden /><strong>Veri akışı:</strong> Tarayıcı tracker.js dosyasını indirdiğinde istek botun kimliğiyle (User-Agent) API&apos;ye gelir ve kaydedilir; betiği çalıştıran ziyaretçide ayrıca beacon.gif isteği atılır. Kayıtlar 60 saniyede bir veritabanına yazılır; <strong>AI Crawler Trafiği</strong> paneli bu verilerle dolar.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// Reddit / Community Outreach
-// ──────────────────────────────────────────────────────────────────
-function CommunityTab({ siteId }: { siteId: string }) {
-  const [opportunities, setOpportunities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const find = async () => {
-    setLoading(true);
-    try {
-      const res = await api.findCommunity(siteId, 10);
-      setOpportunities(res);
-      toast.success(`${res.length} fırsat bulundu`);
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const copy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Taslak panoya kopyalandı');
-  };
-
-  return (
-    <div className="space-y-3">
-      {/*
-        Eski metin "AI'lar (ozellikle ChatGPT ve Perplexity) Reddit'i birinci kaynak olarak
-        kullaniyor" diyordu; iki bagimsiz kaynak bu kesinligi desteklemiyor (ChatGPT'de bazi
-        veri setlerinde Wikipedia onde). Desteklenen ifade: Reddit en sik kaynak gosterilen
-        alan adlari arasinda, oran platforma ve doneme gore degisiyor.
-        - Peec AI, Mart 2026, ~30 milyon atif (ChatGPT, AI Mode, Gemini, Perplexity, AI Overviews):
-          Reddit 1. — https://docs.peec.ai/research/most-cited-domains-in-ai-search
-        - Evertune, Subat 2026, 200M+ istem: Perplexity atiflarinin bazi donemlerde ~1/5'i Reddit;
-          ChatGPT'de incelenen dort alan arasinda Wikipedia onde —
-          https://www.evertune.ai/resources/insights-on-ai/perplexity-loves-reddit-exploring-llms-top-sources
-      */}
-      <p className="text-xs text-muted-foreground">
-        Bağımsız atıf analizleri Reddit&apos;i AI cevaplarında en sık kaynak gösterilen alan adları arasında buluyor; oran platforma ve döneme göre değişiyor. RanksUp sektör sorularınızla ilgili Reddit gönderilerini tarayıp marka sesinizde taslak yanıt önerir. Yanıtı yalnızca soruya gerçekten katkı sağlıyorsa ve topluluk kurallarına uyuyorsa paylaşın.
-        <strong className="text-warning"> Manuel onay zorunlu</strong>, otomatik gönderi YOK.
-      </p>
-      <Button size="sm" onClick={find} disabled={loading}>
-        {loading ? 'Reddit taranıyor (~30 sn)…' : <><Search className="h-3.5 w-3.5 mr-1.5" aria-hidden />Fırsat bul</>}
-      </Button>
-      {opportunities.length > 0 && (
-        <div className="space-y-2">
-          {opportunities.map((op, i) => (
-            <div key={i} className="rounded-md border p-3 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{op.title}</p>
-                  <p className="text-label text-muted-foreground mt-0.5">
-                    r/{op.subreddit ?? 'unknown'} · {op.publishedAt ? new Date(op.publishedAt).toLocaleDateString('tr-TR') : ''}
-                  </p>
-                </div>
-                <Badge variant={op.brandFitScore >= 70 ? 'success' : 'outline'}>{op.brandFitScore}/100 fit</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-2">{op.snippet}</p>
-              <div className="rounded-md border bg-muted/40 p-2">
-                <p className="v-rail mb-1">AI taslak yanıt:</p>
-                <p className="text-xs whitespace-pre-wrap">{op.draftReply}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => copy(op.draftReply)}>
-                  <Copy className="h-3 w-3 mr-1" /> Kopyala
-                </Button>
-                <a href={op.url} target="_blank" rel="noopener" className="text-xs text-brand hover:underline inline-flex items-center gap-1">
-                  Reddit'te aç <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            </div>
-          ))}
         </div>
       )}
     </div>

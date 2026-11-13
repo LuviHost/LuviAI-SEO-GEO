@@ -216,13 +216,13 @@ export function GbpKarne() {
         <div className="space-y-6">
           <DenetimKarti
             sonuc={sonuc}
-            not="Bu karne Google Haritalar’daki herkese açık bilgilerden anlık hesaplanır ve saklanmaz. Sitenizdeki adres ve telefonla karşılaştırma RanksUp panelinde yapılır."
+            not="Bu karne Google Haritalar’daki herkese açık bilgilerden anlık hesaplanır ve saklanmaz."
           />
           <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-5 rounded-lg border border-border bg-card p-6">
             <div className="min-w-0 flex-1 basis-72">
-              <p className="text-base font-medium">Profilinizi RanksUp’ta takip edin — 14 gün ücretsiz</p>
+              <p className="text-base font-medium">AI asistanlarındaki görünürlüğünüzü RanksUp’ta ölçün — 14 gün ücretsiz</p>
               <p className="mt-1.5 text-sm leading-[1.8] text-muted-foreground">
-                Sitenizle tutarlılık denetimi, yerel AI soruları ve AI asistanlarında görünürlük ölçümü tek panelde. Kart gerekmez.
+                Yerel AI soruları ve AI asistanlarında görünürlük ölçümü tek panelde. Kart gerekmez.
               </p>
             </div>
             <Link

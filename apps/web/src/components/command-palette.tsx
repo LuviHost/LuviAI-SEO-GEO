@@ -5,7 +5,7 @@ import { useRouter, useParams, usePathname } from 'next/navigation';
 import { CornerDownLeft, Globe, Plus, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { GLOBAL_NAV, SITE_NAV_GROUPS, SITE_NAV_ITEMS } from '@/lib/site-nav';
+import { GLOBAL_NAV, SITE_NAV_GROUPS, sitePaletteItems } from '@/lib/site-nav';
 import { siteHref } from '@/lib/site-routes';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
@@ -75,11 +75,13 @@ export function CommandPalette() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Site ici komutlar — kenar cubuguyla AYNI kaynak (lib/site-nav)
+  // Site ici komutlar — kenar cubuguyla AYNI kaynak (lib/site-nav). Cati altinda toplanan
+  // sayfalar (Baglantilar, Otomatik Akis, Icerik Firsatlari, Canli Tarayici) kenar cubugunda
+  // tek ogedir ama burada kendi adlariyla aranir.
   const siteCmds: Cmd[] = useMemo(() => {
     if (!siteId) return [];
     const sectionOf = Object.fromEntries(SITE_NAV_GROUPS.map((g) => [g.id, g.label]));
-    return SITE_NAV_ITEMS.map((item) => ({
+    return sitePaletteItems().map((item) => ({
       id: `site:${item.route}`,
       label: item.label,
       hint: item.hint,

@@ -10,6 +10,7 @@ import { SiteContext } from './site-context';
 import { PageHeader } from '@/components/ui/page-header';
 import { SiteFavicon } from '@/components/site-favicon';
 import { Button } from '@/components/ui/button';
+import { SiteSubnav } from '@/components/site-subnav';
 import { siteHref } from '@/lib/site-routes';
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
@@ -126,6 +127,9 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
             </a>
           }
         />
+
+        {/* Ayni cati altindaki sayfalar (Bot Takibi, Icerikler, Ayarlar) arasi sekme seridi */}
+        <SiteSubnav siteId={site.id} path={pathname ?? ''} />
 
         {children}
       </div>

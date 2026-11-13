@@ -231,7 +231,7 @@ function BotRatioSection({ bots, siteId }: { bots: AiBotRatio; siteId: string })
       )}
       <p className="text-label font-normal text-muted-foreground">
         Bot başına ayrıntı:{' '}
-        <Link href={siteHref(siteId, 'visibility') as any} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Görünürlük</Link>
+        <Link href={siteHref(siteId, 'botTakibi') as any} className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground">Bot Takibi</Link>
         {' '}sayfasındaki AI Crawler Trafiği.
       </p>
     </div>

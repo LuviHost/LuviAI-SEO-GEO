@@ -33,7 +33,6 @@ import { RanksUpImpactCard } from '@/components/ranksup-impact-card';
 import { aralikAciklamasi, kararMetni, kararYonu, olcumOf, plusMinus, type CitationOlcum } from '@/lib/visibility-interval';
 import { TestimonialWidget } from '@/components/testimonial-widget';
 import { QuotaMonitor } from '@/components/quota-monitor';
-import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
 import { AiCostStrip } from '@/components/ai-cost-strip';
 import { RecentActivity } from '@/components/recent-activity';
 
@@ -737,7 +736,8 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
             hint={sov === null ? 'Henüz ölçülmedi' : 'Rakiplere göre · 7 gün'}
           />
         </KpiTile>
-        <KpiTile href={href('crawler')} loading={kpisLoading}>
+        {/* Ayrinti Bot Takibi'nde (AI Crawler Trafiği paneli orada); Canli Tarayici ayni catinin sekmesi */}
+        <KpiTile href={href('botTakibi')} loading={kpisLoading}>
           <MetricCard
             className="h-full"
             icon={Activity}
@@ -772,10 +772,12 @@ const TEXT_LINK =
   'inline-flex items-center gap-1 text-label text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/40';
 
 const TAB_KEY = 'ranksup_overview_tab';
+// "AI tarayıcılar" sekmesi (AI Crawler Trafiği paneli) 13.11.2026'da kalkti: panel uc sayfada
+// birden duruyordu, artik yalniz Bot Takibi sayfasinda (sites/[id]/bot-takibi). Kayitli eski
+// sekme secimi ('crawler') asagidaki TABS.some kontroluyle Trendler'e duser.
 const TABS = [
   { id: 'trends', label: 'Trendler' },
   { id: 'issues', label: 'Sorunlar' },
-  { id: 'crawler', label: 'AI tarayıcılar' },
   { id: 'cost', label: 'Maliyet ve kota' },
   { id: 'activity', label: 'Aktivite' },
 ] as const;
@@ -810,10 +812,6 @@ function OverviewTabs({ site, audit, articles }: { site: any; audit: any; articl
 
       <TabsContent value="issues" className="mt-4">
         <AuditSummary site={site} audit={audit} />
-      </TabsContent>
-
-      <TabsContent value="crawler" className="mt-4">
-        <CrawlerHitsPanel siteId={site.id} />
       </TabsContent>
 
       <TabsContent value="cost" className="mt-4 space-y-4">
