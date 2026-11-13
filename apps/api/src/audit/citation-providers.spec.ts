@@ -7,6 +7,8 @@ import {
 import { CITATION_TEKRAR_VARSAYILAN } from './citation-repeat.js';
 import { FANOUT_DEFAULT_PROVIDERS, MAX_RUN_ALL } from './prompt-lab.service.js';
 import { PURCHASABLE_PLAN_IDS, findPlan, planEngines, planModelTier, type PlanId } from '../billing/plans.js';
+import { MEASUREMENT_WINDOW_MS } from '../billing/measurement-allowance.js';
+import { QuotaService } from '../billing/quota.service.js';
 import type { Provider } from './ai-citation.service.js';
 
 /**
@@ -15,6 +17,25 @@ import type { Provider } from './ai-citation.service.js';
  * 2026'dan beri Muse (Meta Model API); Llama/Groq'taki ek model kosulu yok —
  * tek kosul havuz anahtari.
  */
+
+/**
+ * 11.11.2026 canli denemeler (kobipratik.com; ~/Desktop/model-denemesi-sonuc.txt ve -3-sonuc.txt):
+ * soru basina olculen EN YUKSEK maliyet (USD). Iki kural bu tablodan okur: probe tavanlari
+ * olculenin altinda olamaz; planin en pahali ayi gelirin icinde kalir. Model ya da fiyat
+ * degisince yeniden olc ve BURAYI guncelle.
+ */
+const OLCULEN_EN_YUKSEK: Array<[Provider, 'standard' | 'premium', number, string]> = [
+  ['openai', 'premium', 0.1875, 'gpt-6-astra (15 cagri)'],
+  ['openai', 'standard', 0.0321, 'gpt-6-luna'],
+  ['anthropic', 'premium', 0.1690, 'claude-opus-5-5'],
+  ['anthropic', 'standard', 0.0236, 'claude-haiku-5-5'],
+  ['gemini', 'premium', 0.0293, 'gemini-3.5-flash-lite'],
+  ['perplexity', 'premium', 0.0052, 'sonar'],
+  ['xai', 'premium', 0.3177, 'grok-4.7 (132K girdi, 8 arama)'],
+  ['deepseek', 'premium', 0.0844, 'deepseek-v4-pro'],
+  ['meta', 'premium', 0.1412, 'muse-spark-1.3 (13 arama)'],
+];
+
 describe('isUnconfiguredProvider — olcum oncesi (saglayici adi)', () => {
   it('anahtar yoksa yapilandirilmamis; anahtar varsa yapilandirilmis', () => {
     expect(isUnconfiguredProvider('openai', {})).toBe(true);
@@ -104,22 +125,10 @@ describe('costPerProbe — kademeye gore probe tavani', () => {
     expect(Object.keys(COST_PER_PROBE_USD_STANDARD).sort()).toEqual(['anthropic', 'openai']);
   });
 
-  // 11.11.2026 canli denemeler (kobipratik.com; ~/Desktop/model-denemesi-sonuc.txt ve -3-sonuc.txt):
-  // soru basina olculen EN YUKSEK maliyetler. Tavan olculenin ALTINDA olamaz — eski Grok (0.10),
-  // DeepSeek (0.05), Muse (0.08) ve Perplexity (0.0006) tavanlari olculen ORTALAMANIN bile altindaydi.
+  // Tavan olculenin (OLCULEN_EN_YUKSEK) ALTINDA olamaz — eski Grok (0.10), DeepSeek (0.05),
+  // Muse (0.08) ve Perplexity (0.0006) tavanlari olculen ORTALAMANIN bile altindaydi.
   it('tavanlar canli denemede olculen en yuksek maliyetin en az 1.25 kati (her asistan, iki kademe)', () => {
-    const EN_YUKSEK: Array<[Parameters<typeof costPerProbe>[0], 'standard' | 'premium', number, string]> = [
-      ['openai', 'premium', 0.1875, 'gpt-6-astra (15 cagri)'],
-      ['openai', 'standard', 0.0321, 'gpt-6-luna'],
-      ['anthropic', 'premium', 0.1690, 'claude-opus-5-5'],
-      ['anthropic', 'standard', 0.0236, 'claude-haiku-5-5'],
-      ['gemini', 'premium', 0.0293, 'gemini-3.5-flash-lite'],
-      ['perplexity', 'premium', 0.0052, 'sonar'],
-      ['xai', 'premium', 0.3177, 'grok-4.7 (132K girdi, 8 arama)'],
-      ['deepseek', 'premium', 0.0844, 'deepseek-v4-pro'],
-      ['meta', 'premium', 0.1412, 'muse-spark-1.3 (13 arama)'],
-    ];
-    for (const [p, kademe, olculen, model] of EN_YUKSEK) {
+    for (const [p, kademe, olculen, model] of OLCULEN_EN_YUKSEK) {
       expect(costPerProbe(p, kademe), `${model}: tavan ${costPerProbe(p, kademe)} / olculen ${olculen}`).toBeGreaterThanOrEqual(olculen * 1.25);
     }
     // ChatGPT amiral: 3 arama ve 40K girdi (10 / 50 USD per 1M, max_output_tokens 1500, arama 0.01)
@@ -209,5 +218,103 @@ describe('gunluk havuz tavani — kiraci payi satistaki planin bir gunluk hakkin
     const metin = servis.slice(servis.indexOf('poolBudgetReason(_provider: Provider): string {'));
     expect(metin.slice(0, 200)).toContain("return 'Bu asistan için bugünkü ölçüm sınırına ulaşıldı; yarın yeniden ölçülebilir.';");
     expect(servis).not.toMatch(/BYOK ekleyebilir/);
+  });
+});
+
+// 13.11.2026 (sahip: "kullanici 100 soru ekleyip her hafta olcerse zarar yazar, bunun onune
+// gecmeliyiz"). Soru EKLEMEK maliyet dogurmaz (site basina 200'e kadar); maliyeti OLCMEK dogurur
+// ve kullanicinin olcumu iki kapidan gecer:
+//   1) haftalik olcum hakki — hesap basina 7 gunde 1 eylem (billing/measurement-allowance.ts);
+//      31 gunluk ayda en cok 5 eylem. Bir eylem ya site olcumudur (5 soru x 3 tekrar, 1
+//      calistirma) ya da "Tümünü çalıştır"dir (en cok MAX_RUN_ALL soru, her soru 1 calistirma).
+//   2) aylik calistirma hakki — plans.ts aiRunsPerMonth (QuotaService citationTests).
+// Yani Profesyonel hesap ayda en cok 75 soru olcebilir; "100 soru, her hafta" hakka sigmaz.
+// Bu kural o iki kapiyi GELIRE baglar: calistirma hakki, MAX_RUN_ALL, tekrar sayisi ya da asistan
+// kapsami buyutulurse, olculen maliyet artarsa ya da fiyat dusurulurse test kirilir — degisikligi
+// yapan, fiyat / limit kararini sahiple birlikte yeniden verir.
+// (5 site x 20 soru x her hafta ≈ 443 soru / ay, olculen maliyetle ≈ 414 USD; Profesyonel'in aylik
+// net geliri ≈ 282 USD. Cok markali haftalik olcum bu fiyata SIGMAZ; teklifle ayri fiyatlanir.)
+describe('aylik en kotu maliyet — satistaki planin geliri en pahali ayi tasir', () => {
+  const GUN_MS = 86_400_000;
+  const AY_GUN = 31;
+  /** KDV fiyata dahil (%20); odeme komisyonu %3 VARSAYIM (maliyet modeli, 11.11.2026) */
+  const KDV = 0.2;
+  const ODEME_KOMISYONU = 0.03;
+  /** Site olcumu: runForSite maxProbes (yukaridaki describe servis metninden dogrular) */
+  const SITE_SORU = 5;
+  const kota = new QuotaService({} as any);
+
+  /** Ayda en cok kac olcum eylemi — kayan 7 gunluk pencere: 0, 7, 14, 21 ve 28. gun */
+  const eylem = Math.ceil(AY_GUN / (MEASUREMENT_WINDOW_MS / GUN_MS));
+
+  /** Bir sorunun planin butun asistanlarina sorulmasinin OLCULEN en yuksek maliyeti (USD) */
+  const soruMaliyeti = (planId: PlanId): number => {
+    const kademe = planModelTier(planId);
+    let toplam = 0;
+    for (const saglayici of planEngines(planId) as Provider[]) {
+      const satir = OLCULEN_EN_YUKSEK.find(([p, k]) => p === saglayici && k === kademe)
+        ?? OLCULEN_EN_YUKSEK.find(([p, k]) => p === saglayici && k === 'premium');
+      if (!satir) throw new Error(`${planId} / ${saglayici}: olculmus maliyet yok — OLCULEN_EN_YUKSEK'e ekle`);
+      toplam += satir[2];
+    }
+    return toplam;
+  };
+
+  /**
+   * Bir ayin en pahali olcum karisimi, sorulan soru adedi olarak: x eylem "Tümünü çalıştır",
+   * kalan eylemler site olcumu. Site olcumu 1 calistirmayla 15 soru sordurdugu icin calistirma
+   * hakki once ona ayrilir. Dal (fan-out) calistirmasi yalniz uc asistana gider, ana sorudan ucuzdur.
+   */
+  const enKotuSoru = (planId: PlanId): number => {
+    const hak = findPlan(planId)!.aiRunsPerMonth;
+    const siteOlcumu = SITE_SORU * CITATION_TEKRAR_VARSAYILAN;
+    let enCok = 0;
+    for (let x = 0; x <= eylem; x++) {
+      const site = Math.min(eylem - x, hak);
+      const soru = Math.min(MAX_RUN_ALL * x, hak - site);
+      enCok = Math.max(enCok, soru + siteOlcumu * site);
+    }
+    return enCok;
+  };
+
+  /** Yillik odeyen hesabin bir aylik net geliri (USD) — en dusuk gelir */
+  const netGelir = (planId: PlanId): number => (findPlan(planId)!.annual_usd / 12 / (1 + KDV)) * (1 - ODEME_KOMISYONU);
+
+  it('varsayimlar koddan: 7 gunde 1 eylem → ayda 5; Profesyonel 75, Baslangic 20 calistirma; istek basina 50 soru', () => {
+    expect(MEASUREMENT_WINDOW_MS).toBe(7 * GUN_MS);
+    expect(eylem).toBe(5);
+    expect(findPlan('pro')!.aiRunsPerMonth).toBe(75);
+    expect(findPlan('starter')!.aiRunsPerMonth).toBe(20);
+    expect(MAX_RUN_ALL).toBe(50);
+    expect(PURCHASABLE_PLAN_IDS).toEqual(['starter', 'pro']);
+  });
+
+  it('Profesyonel ayda en cok 75 Prompt Lab sorusu olcer: "100 soru, her hafta" hakka sigmaz', () => {
+    expect(findPlan('pro')!.aiRunsPerMonth).toBeLessThan(100);
+    // en pahali ay: 2 "Tümünü çalıştır" (72 soru) + 3 site olcumu (3 calistirma, 3 x 15 soru)
+    expect(enKotuSoru('pro')).toBe(72 + 3 * 15);
+    // Baslangic: 1 "Tümünü çalıştır" (16 soru) + 4 site olcumu
+    expect(enKotuSoru('starter')).toBe(16 + 4 * 15);
+  });
+
+  it('satistaki her plan: en pahali olcum ayi + aylik AI butce tavani, yillik planin aylik net gelirinin icinde', () => {
+    for (const planId of PURCHASABLE_PLAN_IDS) {
+      const olcum = enKotuSoru(planId) * soruMaliyeti(planId);
+      // makale + ceviri + sohbetin aylik tavani (QuotaService.SPEND_CAP_USD; olcum bu sayaca yazilmaz)
+      const aiTavan = (kota as any).SPEND_CAP_USD[planId.toUpperCase()] as number;
+      expect(aiTavan, planId).toBeGreaterThan(0);
+      const gelir = netGelir(planId);
+      expect(gelir, `${planId}: olcum ${olcum.toFixed(2)} + AI butcesi ${aiTavan} = ${(olcum + aiTavan).toFixed(2)} USD, net gelir ${gelir.toFixed(2)} USD`)
+        .toBeGreaterThanOrEqual(olcum + aiTavan);
+    }
+  });
+
+  it('sayilar: Profesyonel soru basina ~0.93 USD ve en pahali olcum ayi ~109 USD; Baslangic ~0.09 ve ~7 USD', () => {
+    expect(soruMaliyeti('pro')).toBeCloseTo(0.9343, 3);
+    expect(enKotuSoru('pro') * soruMaliyeti('pro')).toBeCloseTo(109.3, 0);
+    expect(soruMaliyeti('starter')).toBeCloseTo(0.0902, 3);
+    expect(enKotuSoru('starter') * soruMaliyeti('starter')).toBeCloseTo(6.9, 0);
+    // Yillik Profesyonel hesabin en kotu ayinda kalan pay dar (≈ 6 USD): hak buyutulmeden once fiyat konusulur
+    expect(netGelir('pro') - (enKotuSoru('pro') * soruMaliyeti('pro') + 120)).toBeGreaterThan(0);
   });
 });

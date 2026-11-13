@@ -53,7 +53,7 @@ export default function ErrorPage({
         </h1>
         <p className="text-muted-foreground mb-2 leading-relaxed">
           {yeniSurum
-            ? 'Bu sekme eski sürümü açık tutuyordu. "Yeniden Dene" ile güncel sürüme geçebilirsin — verilerin etkilenmedi.'
+            ? 'Bu sekme eski sürümü açık tutuyordu. "Güncel sürüme geç" ile devam edebilirsin; verilerin etkilenmedi.'
             : 'Beklenmedik bir hata oluştu. Sayfayı yeniden yükleyebilir ya da ana sayfaya dönebilirsin.'}
         </p>
         {error.digest && (

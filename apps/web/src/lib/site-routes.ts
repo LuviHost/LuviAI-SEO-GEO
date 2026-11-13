@@ -30,7 +30,8 @@ export const SITE_ROUTES = {
   analytics: '/analytics',
   ads: '/ads',
   adsHealth: '/ads-health',
-  googleIsletme: '/google-isletme',
+  // Bot Takibi catisi: tek satir kod (bu sayfa) + Canli Tarayici (crawler)
+  botTakibi: '/bot-takibi',
   report: '/report',
   // Musteri raporu Rapor'un alt sayfasi: kenar cubugunda "Rapor" etkin kalir
   clientReport: '/report/musteri',

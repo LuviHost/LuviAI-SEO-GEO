@@ -22,10 +22,12 @@ import {
  * TrackerInstall — site sahibine snippet'i kopyalat + 5 platform için talimat.
  *
  * Snippet'i HTML <head>'e yapıştırınca:
- *   - GPTBot, ClaudeBot, PerplexityBot vb. AI crawler ziyaretleri yakalanır
  *   - chatgpt.com, perplexity.ai, claude.ai gibi AI referrer'lardan gelen kullanıcılar tespit edilir
+ *   - betik dosyasını İNDİREN AI botları kaydedilir (botlar JavaScript çalıştırmaz: sayı eksik çıkar;
+ *     eksiksiz akış Canlı Tarayıcı'da — crawler-tracking.middleware.ts, live-crawler.service.ts)
  *
- * Tracking sonuçları Genel Bakış'taki "AI Crawler Trafiği" panelinde görünür.
+ * Kart ve sonuçları (AI Crawler Trafiği, AI'dan gelen ziyaretçiler) Bot Takibi sayfasında durur
+ * (sites/[id]/bot-takibi; 13.11.2026'da Bağlantılar'dan taşındı).
  */
 
 const PLATFORMS = [
@@ -118,8 +120,8 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
             <h3 className="text-panel-3">AI bot takibi</h3>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               Sitenin <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">&lt;head&gt;</code> bölümüne aşağıdaki tek satırı yapıştır.
-              GPTBot, ClaudeBot, PerplexityBot gibi AI botlarının ziyaretleri ve chatgpt.com, perplexity.ai gibi
-              AI asistanlarından gelen ziyaretçiler otomatik kaydedilir.
+              chatgpt.com, perplexity.ai gibi AI asistanlarından gelen ziyaretçiler kaydedilir. AI botları JavaScript
+              çalıştırmadığı için yalnız kod dosyasını indiren botlar görünür; bot sayıları eksik çıkar.
             </p>
           </div>
         </div>
@@ -163,8 +165,8 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
                 >
                   {siteUrl.replace(/^https?:\/\//, '')}<ExternalLink className="h-3 w-3" />
                 </a>{' '}
-                adresini aç ve sayfa kaynağında kodu ara. İlk AI bot ziyareti genelde 1–7 gün içinde gelir
-                ve Genel Bakış'ta görünür.
+                adresini aç ve sayfa kaynağında kodu ara. Kayıtlar bu sayfadaki AI Crawler Trafiği ve
+                AI’dan gelen ziyaretçiler bölümlerinde görünür.
               </span>
             </div>
           </div>
