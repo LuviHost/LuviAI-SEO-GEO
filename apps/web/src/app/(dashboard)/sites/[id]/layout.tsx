@@ -128,7 +128,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           }
         />
 
-        {/* Ayni cati altindaki sayfalar (Bot Takibi, Icerikler, Ayarlar) arasi sekme seridi */}
+        {/* Ayni cati altindaki sayfalar (Sayfa SEO, Bot Takibi, Icerikler, Ayarlar) arasi sekme seridi */}
         <SiteSubnav siteId={site.id} path={pathname ?? ''} />
 
         {children}

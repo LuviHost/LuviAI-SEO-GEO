@@ -1,7 +1,8 @@
 /**
  * Kenar cubugu catilari (13.11.2026, sahip: "tek menude birlestirelim, farkli yerlerde kalmis
  * gibi oldu"): Bot Takibi (tek satir kod + Canli Tarayici), Icerikler (+ Firsatlar),
- * Ayarlar (+ Baglantilar + Otomatik Akis). Ayni gun Google Isletme panelden kaldirildi.
+ * Ayarlar (+ Baglantilar + Otomatik Akis). Ayni gun Google Isletme panelden kaldirildi;
+ * aksam Gorsel Alt Metinleri "Sayfa SEO Iyilestir"e sekme oldu, Olcum Altyapisi kaldirildi.
  * Calistirma: cd apps/web && ../api/node_modules/.bin/vitest run --root . src/lib
  */
 import { describe, expect, it } from 'vitest';
@@ -13,15 +14,26 @@ const ogeler = () => siteNavGroups(S).flatMap((g) => g.items);
 const oge = (route: string) => ogeler().find((i) => i.route === route)!;
 
 describe('kenar cubugu — tek menude toplanan sayfalar', () => {
-  it('Firsatlar, Baglantilar, Otomatik Akis ve Canli Tarayici ayri menu ogesi degil', () => {
+  it('Firsatlar, Baglantilar, Otomatik Akis, Canli Tarayici ve Gorsel Alt Metinleri ayri menu ogesi degil', () => {
     const rotalar = SITE_NAV_ITEMS.map((i) => i.route as string);
-    for (const r of ['opportunities', 'connections', 'autopilot', 'crawler']) expect(rotalar, r).not.toContain(r);
-    expect(rotalar).toEqual(expect.arrayContaining(['botTakibi', 'articles', 'settings']));
+    for (const r of ['opportunities', 'connections', 'autopilot', 'crawler', 'images']) expect(rotalar, r).not.toContain(r);
+    expect(rotalar).toEqual(expect.arrayContaining(['botTakibi', 'articles', 'settings', 'snippet']));
   });
 
   it('Google Isletme panelde yok (sahip: "bunu istemiyoruz")', () => {
     expect(SITE_NAV_ITEMS.map((i) => i.label).join(' ')).not.toMatch(/Google İşletme/);
     expect(Object.keys(SITE_ROUTES)).not.toContain('googleIsletme');
+  });
+
+  it('Olcum Altyapisi panelde yok (sahip: "cok da onemli degil"): menu, palet ve rota', () => {
+    expect(SITE_NAV_ITEMS.map((i) => i.label).join(' ')).not.toMatch(/Ölçüm Altyapısı/);
+    expect(sitePaletteItems().map((i) => i.label).join(' ')).not.toMatch(/Ölçüm Altyapısı/);
+    expect(Object.keys(SITE_ROUTES)).not.toContain('olcum');
+  });
+
+  it('Saglik grubu sade: Site Skoru, Siralama Takibi, Sayfa SEO Iyilestir, Takili Sayfalar, Rakipler', () => {
+    const saglik = siteNavGroups(S).find((g) => g.id === 'health')!.items.map((i) => i.label);
+    expect(saglik).toEqual(['Site Skoru', 'Sıralama Takibi', 'Sayfa SEO İyileştir', 'Takılı Sayfalar', 'Rakipler']);
   });
 
   it('cati ogesi catisindaki her sayfada (ve alt sayfalarinda) aktif; ayni anda yalniz bir oge aktif', () => {
@@ -31,7 +43,10 @@ describe('kenar cubugu — tek menude toplanan sayfalar', () => {
     expect(isItemActive(`/sites/${S}/connections`, oge('settings'))).toBe(true);
     expect(isItemActive(`/sites/${S}/autopilot`, oge('settings'))).toBe(true);
     expect(isItemActive(`/sites/${S}/connections`, oge('articles'))).toBe(false);
-    for (const yol of ['/opportunities', '/articles', '/crawler-live', '/bot-takibi', '/autopilot', '/connections', '/settings']) {
+    expect(isItemActive(`/sites/${S}/images`, oge('snippet'))).toBe(true);
+    expect(isItemActive(`/sites/${S}/snippet`, oge('snippet'))).toBe(true);
+    expect(isItemActive(`/sites/${S}/images`, oge('audit'))).toBe(false);
+    for (const yol of ['/opportunities', '/articles', '/crawler-live', '/bot-takibi', '/autopilot', '/connections', '/settings', '/snippet', '/images']) {
       expect(ogeler().filter((i) => isItemActive(`/sites/${S}${yol}`, i)).map((i) => i.label), yol).toHaveLength(1);
     }
   });
@@ -57,6 +72,15 @@ describe('sekme seridi — roofTabsForPath', () => {
     expect(roofTabsForPath(`/sites/${S}/opportunities`, S)!.tabs.map((t) => t.label)).toEqual(['İçerikler', 'Fırsatlar']);
   });
 
+  it('Sayfa SEO catisi: iki sekme, iki sayfada da gorunur; Site Skoru\'ndaki "Alt metinlerini duzelt" adresi ayni', () => {
+    const alt = roofTabsForPath(`/sites/${S}/images`, S)!;
+    expect(alt.tabs.map((t) => t.label)).toEqual(['Başlık ve açıklama', 'Görsel alt metinleri']);
+    expect(alt.tabs.filter((t) => t.active).map((t) => t.label)).toEqual(['Görsel alt metinleri']);
+    expect(roofTabsForPath(`/sites/${S}/snippet`, S)!.tabs.filter((t) => t.active).map((t) => t.label)).toEqual(['Başlık ve açıklama']);
+    expect(SITE_ROUTES.images).toBe('/images');
+    expect(SITE_ROUTES.snippet).toBe('/snippet');
+  });
+
   it('cati disi sayfada ve alt sayfada (makale ayrintisi) serit yok', () => {
     expect(roofTabsForPath(`/sites/${S}/audit`, S)).toBeNull();
     expect(roofTabsForPath(`/sites/${S}/articles/abc`, S)).toBeNull();
@@ -67,7 +91,7 @@ describe('sekme seridi — roofTabsForPath', () => {
 describe('komut paleti — toplanan sayfalar kendi adiyla aranir', () => {
   it('Baglantilar, Otomatik Akis, Icerik Firsatlari ve Canli Tarayici palette duruyor; her rota bir kez', () => {
     const adlar = sitePaletteItems().map((i) => i.label);
-    for (const ad of ['Bağlantılar', 'Otomatik Akış', 'İçerik Fırsatları', 'Canlı Tarayıcı', 'Bot Takibi', 'İçerikler', 'Ayarlar']) {
+    for (const ad of ['Bağlantılar', 'Otomatik Akış', 'İçerik Fırsatları', 'Canlı Tarayıcı', 'Bot Takibi', 'İçerikler', 'Ayarlar', 'Sayfa SEO İyileştir', 'Görsel Alt Metinleri']) {
       expect(adlar, ad).toContain(ad);
     }
     const rotalar = sitePaletteItems().map((i) => i.route);

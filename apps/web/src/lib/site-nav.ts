@@ -20,13 +20,11 @@ import {
   FileBarChart,
   FileText,
   Home,
-  Image as ImageIcon,
   LineChart,
   MessageSquare,
   MessagesSquare,
   Network,
   Radar,
-  ScanSearch,
   Send,
   Settings,
   ShieldCheck,
@@ -44,7 +42,7 @@ import { siteHref, type SiteRoute } from './site-routes';
 
 export type SiteNavGroupId = 'main' | 'health' | 'ai' | 'content' | 'growth' | 'mobile' | 'admin';
 
-export type SiteRoofId = 'bots' | 'content' | 'settings';
+export type SiteRoofId = 'pageSeo' | 'bots' | 'content' | 'settings';
 
 export type SiteRoofTab = {
   route: SiteRoute;
@@ -63,6 +61,15 @@ export type SiteRoofTab = {
  * sites/[id]/layout.tsx). Rotalar DEGISMEDI: eski baglantilar ve bildirimler calisir.
  */
 export const SITE_ROOFS: Record<SiteRoofId, { label: string; tabs: SiteRoofTab[] }> = {
+  // 13.11.2026, sahip: "gorsel alt metinleri icin ek bir sayfaya ihtiyacimiz var mi?" — ikisi de
+  // sayfadaki eksigi AI onerisiyle duzeltir. Teshis Site Skoru'nda kalir ("Alt metinlerini duzelt").
+  pageSeo: {
+    label: 'Sayfa SEO sayfaları',
+    tabs: [
+      { route: 'snippet', label: 'Başlık ve açıklama', paletteLabel: 'Sayfa SEO İyileştir', hint: 'Başlık, meta ve SSS üret + uygula', keywords: ['snippet', 'meta', 'title', 'on-page', 'seo', 'sayfa', 'faq', 'şema'] },
+      { route: 'images', label: 'Görsel alt metinleri', paletteLabel: 'Görsel Alt Metinleri', hint: 'Eksik alt metne görerek öneri + onay', keywords: ['alt', 'görsel', 'resim', 'image', 'erişilebilirlik', 'google görseller'] },
+    ],
+  },
   bots: {
     label: 'Bot takibi sayfaları',
     tabs: [
@@ -126,11 +133,9 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   // ── Saglik ──
   { route: 'audit', label: 'Site Skoru', icon: ShieldCheck, group: 'health', hint: 'SEO + GEO 14 kontrol', keywords: ['seo', 'audit', 'skor', 'tarama', 'denetim'] },
   { route: 'rankTracking', label: 'Sıralama Takibi', icon: LineChart, group: 'health', hint: 'Anahtar kelime pozisyonları', keywords: ['rank', 'tracking', 'sıralama', 'pozisyon', 'anahtar kelime', 'keyword'] },
-  { route: 'snippet', label: 'Sayfa SEO İyileştir', icon: PenLine, group: 'health', hint: 'Başlık, meta ve SSS üret + uygula', keywords: ['snippet', 'meta', 'title', 'on-page', 'seo', 'sayfa', 'faq', 'şema'] },
-  { route: 'images', label: 'Görsel Alt Metinleri', icon: ImageIcon, group: 'health', hint: 'Eksik alt metne görerek öneri + onay', keywords: ['alt', 'görsel', 'resim', 'image', 'erişilebilirlik', 'google görseller'] },
+  { route: 'snippet', label: 'Sayfa SEO İyileştir', icon: PenLine, group: 'health', roof: 'pageSeo', hint: 'Başlık, meta, SSS ve görsel alt metinleri', keywords: ['snippet', 'meta', 'title', 'on-page', 'seo', 'sayfa', 'faq', 'şema'] },
   { route: 'stuckPages', label: 'Takılı Sayfalar', icon: Wrench, group: 'health', feature: 'stuckPages', hint: 'İlk sayfada olup ilk 3’e giremeyenler', keywords: ['stuck', 'takılı', 'sayfa', 'pozisyon', 'kurtar'] },
   { route: 'competitors', label: 'Rakipler', icon: Network, group: 'health', hint: 'Rakip karşılaştırması', keywords: ['competitor', 'rakip'] },
-  { route: 'olcum', label: 'Ölçüm Altyapısı', icon: ScanSearch, group: 'health', hint: 'Analitik, reklam pikselleri ve dönüşümler — siz ve rakipler', keywords: ['ölçüm', 'analitik', 'piksel', 'pixel', 'gtm', 'ga4', 'dönüşüm', 'reklam', 'meta', 'google ads', 'rakip'] },
 
   // ── AI gorunurluk ──
   { route: 'visibility', label: 'AI Görünürlük', icon: Sparkles, group: 'ai', hint: 'AI asistanlarda atıf takibi', keywords: ['ai', 'citation', 'atıf', 'görünürlük', 'chatgpt', 'gemini'] },
