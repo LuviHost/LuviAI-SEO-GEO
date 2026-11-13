@@ -18,7 +18,7 @@ export const SITE_ROUTES = {
   agentReadiness: '/agent-readiness',
   productRadar: '/product-radar',
   competitors: '/competitors',
-  olcum: '/olcum',
+  // Sayfa SEO catisi: baslik/aciklama (snippet) + gorsel alt metinleri (images)
   snippet: '/snippet',
   images: '/images',
   stuckPages: '/stuck-pages',
