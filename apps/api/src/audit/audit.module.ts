@@ -33,6 +33,7 @@ import { AuthorProfileService } from './author-profile.service.js';
 import { HaroParserService } from './haro-parser.service.js';
 import { AiReferrerService } from './ai-referrer.service.js';
 import { CitedSourcesService } from './cited-sources.service.js';
+import { CompetitorVisibilityService } from './competitor-visibility.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
 import { SnippetOptimizerService } from './snippet-optimizer.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
@@ -99,6 +100,7 @@ import { AuditCron } from './audit.cron.js';
     HaroParserService,
     AiReferrerService,
     CitedSourcesService,
+    CompetitorVisibilityService,
     PersonaChatService,
     SnippetOptimizerService,
     WebhookNotifierService,
@@ -151,6 +153,7 @@ import { AuditCron } from './audit.cron.js';
     HaroParserService,
     AiReferrerService,
     CitedSourcesService,
+    CompetitorVisibilityService,
     PersonaChatService,
     SnippetOptimizerService,
     WebhookNotifierService,

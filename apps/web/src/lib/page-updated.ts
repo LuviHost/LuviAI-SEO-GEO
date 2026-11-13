@@ -67,8 +67,6 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/rehber/ai-bakisi-gorunurluk',             updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/mobil-uygulama-geo',               updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
-  // Ucretsiz arac — form + metin app/(marketing)/google-isletme-karnesi ve components/landing/gbp-karne.tsx
-  { path: '/google-isletme-karnesi', updated: '2026-10-27', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/help',                  updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.5 },
   // Help center alt sayfalari — SEO + AI alintisi icin kritik (her biri modul rehberi)
   { path: '/help/getting-started',  updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },

@@ -28,7 +28,6 @@ const COLS: Array<{ title: Key; rows: Row[] }> = [
       { k: 'nav.guides', href: '/rehber' },
       { k: 'land.footer.ai_visibility', href: '/rehber/yapay-zeka-gorunurlugu' },
       { k: 'land.footer.chatgpt_guide', href: '/rehber/chatgpt-markam-gorunuyor-mu' },
-      { k: 'land.footer.gbp', href: '/google-isletme-karnesi' },
       { k: 'land.footer.help', href: '/help' },
     ],
   },

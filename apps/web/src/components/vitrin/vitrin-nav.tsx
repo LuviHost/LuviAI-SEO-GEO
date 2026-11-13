@@ -45,7 +45,6 @@ const GROUPS: Array<{ id: GroupId; label: Key; items: Item[] }> = [
     label: 'vnav.resources',
     items: [
       { k: 'vnav.r.test', href: '/#test' },
-      { k: 'land.footer.gbp', href: '/google-isletme-karnesi' },
       { k: 'nav.guides', href: '/rehber' },
       { k: 'land.footer.ai_visibility', href: '/rehber/yapay-zeka-gorunurlugu' },
       { k: 'land.footer.chatgpt_guide', href: '/rehber/chatgpt-markam-gorunuyor-mu' },
