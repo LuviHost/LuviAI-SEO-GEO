@@ -186,6 +186,7 @@ export default function OpportunitiesPage() {
   return (
     <div className="space-y-5">
       <SectionHeader
+        titleInTab
         icon={Lightbulb}
         title="İçerik Fırsatları"
         description={<>AI aramalarında <strong className="font-medium text-foreground">kaybettiğin</strong> sorgular fırsata dönüşür: makale üret → yayınla → yeniden ölç → kanıtı gör.</>}

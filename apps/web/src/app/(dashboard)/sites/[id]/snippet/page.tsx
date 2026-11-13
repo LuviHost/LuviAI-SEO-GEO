@@ -24,7 +24,7 @@ export default function SnippetPage() {
 
   return (
     <div className="space-y-5">
-      <SectionHeader icon={FileText} title="Sayfa SEO İyileştir" description="Önce sitenin sayfalarını toplu tara ve başlığı, açıklaması ya da şeması eksik olanları gör. Sonra seçtiğin sayfa için AI önerisi üretip tek tıkla uygula." />
+      <SectionHeader titleInTab icon={FileText} title="Sayfa SEO İyileştir" description="Önce sitenin sayfalarını toplu tara ve başlığı, açıklaması ya da şeması eksik olanları gör. Sonra seçtiğin sayfa için AI önerisi üretip tek tıkla uygula." />
 
       {/* Toplu tarama */}
       <BulkSnippetScan

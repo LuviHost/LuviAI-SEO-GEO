@@ -11,7 +11,6 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SiteFavicon } from '@/components/site-favicon';
 import { Button } from '@/components/ui/button';
 import { SiteSubnav } from '@/components/site-subnav';
-import { roofTabsForPath } from '@/lib/site-nav';
 import { siteHref } from '@/lib/site-routes';
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
@@ -87,8 +86,6 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  const catiSayfasi = roofTabsForPath(pathname ?? '', site.id) !== null;
-
   return (
     <SiteContext.Provider
       value={{
@@ -103,12 +100,8 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       }}
     >
       <div className="space-y-6">
-        {/* Baslik + sekme seridi TEK blok: cati sayfalarinda basligin alt cizgisi seride tasinir
-            (iki cizgi ust uste binmesin), secili sekmenin kalin cizgisi o cizgiye oturur. */}
-        <div className="space-y-5">
         {/* Tek h1 sozlesmesi: PageHeader (eski text-3xl font-bold cift basligin cozumu) */}
         <PageHeader
-          className={catiSayfasi ? 'border-b-0 pb-0' : undefined}
           backHref="/dashboard"
           backLabel="Dashboard"
           title={site.name}
@@ -135,9 +128,8 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           }
         />
 
-        {/* Ayni cati altindaki sayfalar (Sayfa SEO, Bot Takibi, Icerikler, Ayarlar) arasi sekme seridi */}
+        {/* Ayni cati altindaki sayfalar (Sayfa SEO, Bot Takibi, Icerikler, Ayarlar) arasi gecis kartlari */}
         <SiteSubnav siteId={site.id} path={pathname ?? ''} />
-        </div>
 
         {children}
       </div>

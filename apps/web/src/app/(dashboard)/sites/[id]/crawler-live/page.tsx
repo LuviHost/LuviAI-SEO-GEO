@@ -143,18 +143,20 @@ export default function CrawlerLivePage() {
     <div className="space-y-5">
       {/* Başlık */}
       <div className="flex items-start justify-between flex-wrap gap-3">
+        {/* Baslik sekme kartinda; canli/bekliyor rozeti gorunur kalsin diye aciklamanin basinda */}
         <SectionHeader
+          titleInTab
           icon={Activity}
-          title={
-            <span className="inline-flex items-center gap-2">
-              Canlı Tarayıcı
+          title="Canlı Tarayıcı"
+          description={
+            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <Badge variant={connected ? 'success' : 'secondary'} className="gap-1.5">
                 {connected && <span className="h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse" aria-hidden />}
                 {connected ? 'Canlı' : 'Bekliyor'}
               </Badge>
+              <span>AI botlarının sitene son {data?.windowMinutes ?? 10} dakikadaki ziyaretleri. JavaScript gerekmez; GPTBot ve ClaudeBot dahil her bot görünür.</span>
             </span>
           }
-          description={<>AI botlarının sitene son {data?.windowMinutes ?? 10} dakikadaki ziyaretleri. JavaScript gerekmez; GPTBot ve ClaudeBot dahil her bot görünür.</>}
         />
         <Button variant="outline" size="sm" onClick={() => setPaused((v) => !v)}>
           {paused ? <Play className="h-3.5 w-3.5 mr-1.5" /> : <Pause className="h-3.5 w-3.5 mr-1.5" />}
