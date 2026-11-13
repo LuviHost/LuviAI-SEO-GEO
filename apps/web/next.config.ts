@@ -45,6 +45,9 @@ const config: NextConfig = {
         destination: 'https://ranksup.ai/:path*',
         permanent: true,
       },
+      // Ucretsiz Google Isletme karnesi 13.11.2026'da kaldirildi (sahip karari). Dizine girmis
+      // adres ve dis baglantilar 404 vermesin diye ana sayfaya kalici yonlenir.
+      { source: '/google-isletme-karnesi', destination: '/', permanent: true },
     ];
   },
   async headers() {

@@ -9,6 +9,7 @@ import type {
 import type { ArticleVideo, VideoBrandPreview, VideoQuota, VideoRequestBody } from './article-video';
 import type { MusteriRaporu, PaylasilanRapor, PaylasimOzeti } from './musteri-raporu';
 import type { CitedSourcesResponse, SourceType } from './cited-sources';
+import type { RakipGorunurlugu } from './rakip-gorunurlugu';
 import type { AiTrafficResponse } from './ai-traffic';
 import type { OlcumSonucu } from './olcum';
 import type { GeoScoreCardData } from './geo-score-card';
@@ -1705,6 +1706,10 @@ export const api = {
   /** AI cevaplarinin alintiladigi dis kaynaklar (alan adi bazinda, tur etiketli) — 30 ya da 90 gun */
   getCitedSources: (siteId: string, days: 30 | 90 = 30) =>
     request<CitedSourcesResponse>(`/sites/${siteId}/audit/cited-sources?days=${days}`),
+
+  /** Prompt Lab sorularinin son olcumunde marka ve rakipler (kac cevapta, hangi asistanda) — 30 ya da 90 gun */
+  getCompetitorVisibility: (siteId: string, days: 30 | 90 = 30) =>
+    request<RakipGorunurlugu>(`/sites/${siteId}/audit/competitor-visibility?days=${days}`),
 
   /** AI asistanlarindan gelen trafik: GA4 (bagliysa) + RanksUp izleme kodu — 28 ya da 90 gun */
   getAiTraffic: (siteId: string, days: 28 | 90 | 'ay' = 28) =>

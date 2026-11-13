@@ -48,7 +48,7 @@ import {
  *    basliklar, cerezler, url ve govde varsayilan olarak dahildi → beforeSend sentryOlayTemizle (28.10)
  *    cerez/govde/kimlik basliklari/sorgu dizesini siler; tracesSampleRate 0.1.
  *    sentry.client.config.ts (replay) yuklenmiyor: withSentryConfig / instrumentation-client yok.
- *  - Turnstile: landing ai-visibility-checker.tsx, gbp-karne.tsx; siteverify'a remoteip gider.
+ *  - Turnstile: landing ai-visibility-checker.tsx; siteverify'a remoteip gider.
  *  - IndexNow: audit/ai-indexing-pinger.service.ts (yalniz anahtar dosyasi sitede varsa);
  *    Bing anonim ping'i ve Google Indexing API kullanilmaz. PageSpeed: audit/pagespeed.service.ts.
  *  - PayTR: billing/paytr.service.ts (email, user_name, user_ip, varsa adres/telefon).

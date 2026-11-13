@@ -21,7 +21,6 @@ const EXACT: ReadonlySet<string> = new Set([
   '/compare',
   '/use-cases',
   '/bot',
-  '/google-isletme-karnesi',
   '/privacy',
   '/terms',
   '/kvkk',

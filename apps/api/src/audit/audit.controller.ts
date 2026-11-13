@@ -26,6 +26,7 @@ import { AuthorProfileService } from './author-profile.service.js';
 import { HaroParserService } from './haro-parser.service.js';
 import { AiReferrerService } from './ai-referrer.service.js';
 import { CitedSourcesService } from './cited-sources.service.js';
+import { CompetitorVisibilityService } from './competitor-visibility.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
 import { SnippetOptimizerService } from './snippet-optimizer.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
@@ -174,6 +175,7 @@ export class AuditController {
     private readonly prisma: PrismaService,
     private readonly citedSources: CitedSourcesService,
     private readonly runAllJobs: PromptLabRunAllJobs,
+    private readonly competitorVisibility: CompetitorVisibilityService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -889,6 +891,17 @@ export class AuditController {
   @Get('cited-sources')
   citedSourcesReport(@Param('siteId') siteId: string, @Query('days') days?: string) {
     return this.citedSources.get(siteId, days);
+  }
+
+  /**
+   * GET /sites/:siteId/audit/competitor-visibility?days=30|90 — Prompt Lab sorularinin SON
+   * olcumunde marka ve rakipler: kac cevapta adi gecti, kac soruda, hangi asistanda, sitesi
+   * kac cevapta kaynak gosterildi, onceki olcume gore degisim + listede olmayan sik kaynaklar.
+   * Yeni olcum yapmaz (kayitli satirlari okur). Plan kapisi YOK: cited-sources ile ayni.
+   */
+  @Get('competitor-visibility')
+  competitorVisibilityReport(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.competitorVisibility.get(siteId, days);
   }
 
   /** GET /sites/:siteId/audit/citation-runs?limit=30 — test gecmisi (her kosum kalici) */
