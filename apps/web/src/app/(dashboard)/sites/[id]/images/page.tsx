@@ -162,6 +162,7 @@ export default function SiteImagesPage() {
   return (
     <div className="space-y-5">
       <SectionHeader
+        titleInTab
         className="[&>div:last-child]:max-w-full"
         icon={ImageIcon}
         title="Görsel alt metinleri"

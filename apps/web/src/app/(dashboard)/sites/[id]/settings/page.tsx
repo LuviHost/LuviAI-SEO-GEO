@@ -132,7 +132,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <SectionHeader icon={SettingsIcon} title="Ayarlar" description="Site adını, sektörünü ve dilini düzenle; gerekirse marka beynini yeniden üret." />
+      <SectionHeader titleInTab icon={SettingsIcon} title="Ayarlar" description="Site adını, sektörünü ve dilini düzenle; gerekirse marka beynini yeniden üret." />
 
       {/* Form */}
       <div className="rounded-lg border bg-card p-6 space-y-5">

@@ -61,6 +61,19 @@ describe('kenar cubugu — tek menude toplanan sayfalar', () => {
     const hepsi = Object.values(SITE_ROOFS).flatMap((c) => c.tabs.map((t) => t.route));
     expect(new Set(hepsi).size).toBe(hepsi.length);
   });
+
+  it('her sekme kartinin ikonu ve tek satirlik aciklamasi var (kart dar: en fazla 44 karakter)', () => {
+    for (const cati of Object.values(SITE_ROOFS)) {
+      for (const t of cati.tabs) {
+        expect(t.icon, t.route).toBeTruthy();
+        expect(t.desc.length, t.route).toBeGreaterThan(8);
+        expect(t.desc.length, t.route).toBeLessThanOrEqual(44);
+      }
+    }
+    const r = roofTabsForPath(`/sites/${S}/images`, S)!;
+    expect(r.tabs.map((t) => t.desc)).toEqual(['Başlık, açıklama ve şema eksikleri', 'Eksik alt metnine öneri ve onay']);
+    expect(r.tabs.every((t) => !!t.icon)).toBe(true);
+  });
 });
 
 describe('sekme seridi — roofTabsForPath', () => {

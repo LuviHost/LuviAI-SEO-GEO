@@ -76,6 +76,7 @@ export default function ArticlesPage() {
   return (
     <div className="space-y-5">
       <SectionHeader
+        titleInTab
         icon={FileText}
         title="İçerikler"
         description="AI önerileri, üretimdeki ve yayındaki makaleler tek listede. Önerileri takvime al ya da hemen üret."

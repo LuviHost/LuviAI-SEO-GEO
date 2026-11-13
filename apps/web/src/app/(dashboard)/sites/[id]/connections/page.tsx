@@ -10,7 +10,7 @@ export default function ConnectionsPage() {
   return (
     <div className="space-y-5">
       {/* AI bot takibi kodu 13.11.2026'da Bot Takibi sayfasina tasindi (tek yerde dursun) */}
-      <SectionHeader icon={Plug} title="Bağlantılar" description="Search Console, Analytics, reklam hesapları ve kendi AI anahtarların." />
+      <SectionHeader titleInTab icon={Plug} title="Bağlantılar" description="Search Console, Analytics, reklam hesapları ve kendi AI anahtarların." />
       <McpSetupCard />
       <SettingsTab siteId={site.id} onRefresh={refresh} />
     </div>

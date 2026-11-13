@@ -20,6 +20,7 @@ export default function BotTakibiPage() {
   return (
     <div className="space-y-5">
       <SectionHeader
+        titleInTab
         icon={Activity}
         title="Bot Takibi"
         description="Sitene eklediğin tek satır kod, AI asistanlarından gelen ziyaretçileri ve kodu indiren AI botlarını kaydeder. Botların tamamını anlık görmek için Canlı tarayıcı sekmesindeki sunucu kurulumunu kullan."

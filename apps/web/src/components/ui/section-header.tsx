@@ -12,6 +12,7 @@ export function SectionHeader({
   description,
   actions,
   as: Tag = 'h2',
+  titleInTab = false,
   className,
 }: {
   icon?: React.ComponentType<{ className?: string }>;
@@ -19,8 +20,25 @@ export function SectionHeader({
   description?: React.ReactNode;
   actions?: React.ReactNode;
   as?: 'h2' | 'h3';
+  /**
+   * Sekmeli (cati) sayfalar: sayfanin adi ve ikonu ustteki sekme kartinda yaziyor
+   * (components/site-subnav.tsx). Ayni adi hemen altinda tekrar yazmamak icin baslik yalniz
+   * ekran okuyucuya kalir, ikon cizilmez; aciklama ve eylemler yerinde durur.
+   */
+  titleInTab?: boolean;
   className?: string;
 }) {
+  if (titleInTab) {
+    return (
+      <div className={cn('flex flex-wrap items-start justify-between gap-3', className)}>
+        <div className="min-w-0">
+          <Tag className="sr-only">{title}</Tag>
+          {description && <div className="max-w-3xl text-sm text-muted-foreground">{description}</div>}
+        </div>
+        {actions && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      </div>
+    );
+  }
   return (
     <div className={cn('flex flex-wrap items-start justify-between gap-3', className)}>
       <div className="flex min-w-0 items-start gap-3">

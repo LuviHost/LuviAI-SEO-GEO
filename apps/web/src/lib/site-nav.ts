@@ -16,15 +16,20 @@ import {
   BarChart3,
   Bot,
   Clapperboard,
+  Code2,
   CreditCard,
   FileBarChart,
   FileText,
   Home,
+  Image as ImageIcon,
+  Lightbulb,
   LineChart,
   MessageSquare,
   MessagesSquare,
   Network,
+  Plug,
   Radar,
+  Radio,
   Send,
   Settings,
   ShieldCheck,
@@ -32,9 +37,11 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Type,
   Users,
   Wrench,
   PenLine,
+  Zap,
 } from 'lucide-react';
 import type { PlanFeature } from '@/lib/entitlements';
 // Goreli yol: lib testleri (site-nav.spec.mts) '@/' takma adini cozmez
@@ -46,8 +53,12 @@ export type SiteRoofId = 'pageSeo' | 'bots' | 'content' | 'settings';
 
 export type SiteRoofTab = {
   route: SiteRoute;
-  /** Sayfanin ustundeki sekme seridinde gorunen ad */
+  /** Sayfanin ustundeki sekme kartinda gorunen ad */
   label: string;
+  /** Sekme kartinin ikonu */
+  icon: LucideIcon;
+  /** Sekme kartinda adin altindaki tek satir: sayfa ne ise yarar (kisa tut, kart dar) */
+  desc: string;
   /** Komut paletindeki ad: sekme kenar cubugunda gorunmedigi icin aramada kendi adiyla bulunur */
   paletteLabel: string;
   hint?: string;
@@ -66,30 +77,30 @@ export const SITE_ROOFS: Record<SiteRoofId, { label: string; tabs: SiteRoofTab[]
   pageSeo: {
     label: 'Sayfa SEO sayfaları',
     tabs: [
-      { route: 'snippet', label: 'Başlık ve açıklama', paletteLabel: 'Sayfa SEO İyileştir', hint: 'Başlık, meta ve SSS üret + uygula', keywords: ['snippet', 'meta', 'title', 'on-page', 'seo', 'sayfa', 'faq', 'şema'] },
-      { route: 'images', label: 'Görsel alt metinleri', paletteLabel: 'Görsel Alt Metinleri', hint: 'Eksik alt metne görerek öneri + onay', keywords: ['alt', 'görsel', 'resim', 'image', 'erişilebilirlik', 'google görseller'] },
+      { route: 'snippet', label: 'Başlık ve açıklama', icon: Type, desc: 'Başlık, açıklama ve şema eksikleri', paletteLabel: 'Sayfa SEO İyileştir', hint: 'Başlık, meta ve SSS üret + uygula', keywords: ['snippet', 'meta', 'title', 'on-page', 'seo', 'sayfa', 'faq', 'şema'] },
+      { route: 'images', label: 'Görsel alt metinleri', icon: ImageIcon, desc: 'Eksik alt metnine öneri ve onay', paletteLabel: 'Görsel Alt Metinleri', hint: 'Eksik alt metne görerek öneri + onay', keywords: ['alt', 'görsel', 'resim', 'image', 'erişilebilirlik', 'google görseller'] },
     ],
   },
   bots: {
     label: 'Bot takibi sayfaları',
     tabs: [
-      { route: 'botTakibi', label: 'Tek satır kod', paletteLabel: 'Bot Takibi', hint: 'AI’dan gelen ziyaretçiler ve kodu indiren botlar', keywords: ['bot', 'takip', 'tracker', 'izleme kodu', 'ziyaretçi', 'referrer', 'chatgpt'] },
-      { route: 'crawler', label: 'Canlı tarayıcı', paletteLabel: 'Canlı Tarayıcı', hint: 'Anlık AI bot ziyaretleri', keywords: ['crawler', 'live', 'canlı', 'bot', 'gptbot', 'cite', 'tarayıcı'] },
+      { route: 'botTakibi', label: 'Tek satır kod', icon: Code2, desc: 'AI’dan gelen ziyaretçiler ve botlar', paletteLabel: 'Bot Takibi', hint: 'AI’dan gelen ziyaretçiler ve kodu indiren botlar', keywords: ['bot', 'takip', 'tracker', 'izleme kodu', 'ziyaretçi', 'referrer', 'chatgpt'] },
+      { route: 'crawler', label: 'Canlı tarayıcı', icon: Radio, desc: 'Sunucudan anlık AI bot ziyaretleri', paletteLabel: 'Canlı Tarayıcı', hint: 'Anlık AI bot ziyaretleri', keywords: ['crawler', 'live', 'canlı', 'bot', 'gptbot', 'cite', 'tarayıcı'] },
     ],
   },
   content: {
     label: 'İçerik sayfaları',
     tabs: [
-      { route: 'articles', label: 'İçerikler', paletteLabel: 'İçerikler', hint: 'Önerilen konular + üretilen yazılar', keywords: ['article', 'makale', 'yazı', 'topic', 'konu', 'takvim', 'içerik'] },
-      { route: 'opportunities', label: 'Fırsatlar', paletteLabel: 'İçerik Fırsatları', hint: 'Kaybedilen sorgu → içerik → yeniden ölçüm', keywords: ['fırsat', 'opportunity', 'kayıp', 'lost', 'içerik'] },
+      { route: 'articles', label: 'İçerikler', icon: FileText, desc: 'Önerilen konular ve yazılar', paletteLabel: 'İçerikler', hint: 'Önerilen konular + üretilen yazılar', keywords: ['article', 'makale', 'yazı', 'topic', 'konu', 'takvim', 'içerik'] },
+      { route: 'opportunities', label: 'Fırsatlar', icon: Lightbulb, desc: 'Kaybedilen sorgulardan içerik fikri', paletteLabel: 'İçerik Fırsatları', hint: 'Kaybedilen sorgu → içerik → yeniden ölçüm', keywords: ['fırsat', 'opportunity', 'kayıp', 'lost', 'içerik'] },
     ],
   },
   settings: {
     label: 'Ayar sayfaları',
     tabs: [
-      { route: 'settings', label: 'Site ayarları', paletteLabel: 'Ayarlar', hint: 'Site ayarları', keywords: ['settings', 'ayar'] },
-      { route: 'connections', label: 'Bağlantılar', paletteLabel: 'Bağlantılar', hint: 'Search Console, GA4, AI anahtarları', keywords: ['connection', 'bağlantı', 'gsc', 'ga4', 'entegrasyon'] },
-      { route: 'autopilot', label: 'Otomatik akış', paletteLabel: 'Otomatik Akış', hint: 'Yarı / tam otomatik yayın', keywords: ['autopilot', 'otomatik', 'akış'] },
+      { route: 'settings', label: 'Site ayarları', icon: Settings, desc: 'Site adı, sektör ve dil', paletteLabel: 'Ayarlar', hint: 'Site ayarları', keywords: ['settings', 'ayar'] },
+      { route: 'connections', label: 'Bağlantılar', icon: Plug, desc: 'Search Console, Analytics, AI anahtarları', paletteLabel: 'Bağlantılar', hint: 'Search Console, GA4, AI anahtarları', keywords: ['connection', 'bağlantı', 'gsc', 'ga4', 'entegrasyon'] },
+      { route: 'autopilot', label: 'Otomatik akış', icon: Zap, desc: 'Yarı ya da tam otomatik yayın', paletteLabel: 'Otomatik Akış', hint: 'Yarı / tam otomatik yayın', keywords: ['autopilot', 'otomatik', 'akış'] },
     ],
   },
 };
@@ -200,9 +211,9 @@ export function isItemActive(path: string, item: Pick<ResolvedNavItem, 'href' | 
 export function roofTabsForPath(
   path: string,
   siteId: string,
-): { label: string; tabs: Array<{ href: string; label: string; active: boolean }> } | null {
+): { label: string; tabs: Array<{ href: string; label: string; icon: LucideIcon; desc: string; active: boolean }> } | null {
   for (const roof of Object.values(SITE_ROOFS)) {
-    const tabs = roof.tabs.map((t) => ({ href: siteHref(siteId, t.route), label: t.label }));
+    const tabs = roof.tabs.map((t) => ({ href: siteHref(siteId, t.route), label: t.label, icon: t.icon, desc: t.desc }));
     if (!tabs.some((t) => t.href === path)) continue;
     return { label: roof.label, tabs: tabs.map((t) => ({ ...t, active: t.href === path })) };
   }
