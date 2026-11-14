@@ -1945,8 +1945,19 @@ export const api = {
         id: string; domain: string; brand: string; niche: string | null;
         source: string; ip: string | null; totalCalls: number; costUsd: number;
         createdAt: string; citedScore: number; maxScore: number; queriesCount: number; totalProviders: number;
+        /** Bu alan adını sitesi olarak ekleyen üye (alan adıyla eşleşir) — eski sunucuda yok */
+        member?: { name: string | null; email: string | null; plan: string | null; status: string | null; siteAddedAt: string } | null;
       }>;
       total: number; today: number; uniqueDomains: number;
+      /** Her deneme (kayıtlı sonucu gören, sınıra takılan, tamamlanamayan dahil) — eski sunucuda yok */
+      attempts?: Array<{
+        id: string; domain: string; outcome: string; checkId: string | null;
+        detail: string | null; notifiedAt: string | null; createdAt: string;
+        member?: { name: string | null; email: string | null; plan: string | null; status: string | null; siteAddedAt: string } | null;
+      }>;
+      attemptsToday?: number;
+      /** Deneme tablosu okunamadı (göç uygulanmamış olabilir) */
+      attemptsError?: boolean;
     }>(`/admin/citation-leads${q ? `?${q}` : ''}`);
   },
 

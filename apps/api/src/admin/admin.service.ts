@@ -5,6 +5,31 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { articleQuotaView, resetAwareArticleLimit } from '../billing/article-quota-view.js';
 
+/** /admin/leads "Denemeler" listesinde donen en yeni kayit sayisi */
+const ADMIN_ATTEMPT_LIMIT = 100;
+/** "Uye oldu" eslesmesi icin okunan en fazla uye sitesi (bugun onlarca; tavan emniyet icin) */
+const MEMBER_SITE_LIMIT = 5000;
+
+/** Test edilen alan adini sitesi olarak ekleyen uye (admin listesi icin) */
+export interface LeadMember {
+  name: string | null;
+  email: string | null;
+  plan: string | null;
+  status: string | null;
+  siteAddedAt: Date;
+}
+
+/** Alan adi anahtari: adres ya da host → www'siz, kucuk harf host; cozulemezse '' */
+export function hostKey(input: string | null | undefined): string {
+  const raw = (input ?? '').trim().toLowerCase();
+  if (!raw) return '';
+  try {
+    return new URL(raw.includes('://') ? raw : `https://${raw}`).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -128,7 +153,13 @@ export class AdminService {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const [rows, total, today, uniqueDomains] = await Promise.all([
+    // Denemeler (14.11.2026): olcum listesi yalniz TAZE olcumu gosterir; kayitli sonucu goren,
+    // sinira takilan ve tamamlanamayan denemeler ayri tablodan gelir (public_check_attempts).
+    // Arama alan adina uygulanir; marka o tabloda yok. IP ozeti listeye VERILMEZ: gizlilik metni
+    // ozeti yalniz kotuye kullanim ve test siniri icin ayiriyor; denemeleri ziyaretciye gore
+    // gruplamak o amacin disinda kalir (web lib/test-denemeleri notu).
+    const attemptWhere: any = search ? { domain: { contains: search } } : {};
+    const [rows, total, today, uniqueDomains, attempts, attemptsToday] = await Promise.all([
       this.prisma.publicCitationCheck.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -142,7 +173,24 @@ export class AdminService {
       this.prisma.publicCitationCheck.count({ where }),
       this.prisma.publicCitationCheck.count({ where: { createdAt: { gte: startOfToday } } }),
       this.prisma.publicCitationCheck.groupBy({ by: ['domain'] }).then((g) => g.length),
+      // Deneme tablosu okunamazsa (ornek: goc henuz uygulanmadi) olcum listesi yine doner;
+      // yoksa butun uc 500 verir ve sayfa "kayit yok" gibi gorunurdu. `attemptsError` sayfaya
+      // durumu soyletir.
+      this.prisma.publicCheckAttempt.findMany({
+        where: attemptWhere,
+        orderBy: { createdAt: 'desc' },
+        take: ADMIN_ATTEMPT_LIMIT,
+        select: { id: true, domain: true, outcome: true, checkId: true, detail: true, notifiedAt: true, createdAt: true },
+      }).catch(() => null),
+      this.prisma.publicCheckAttempt.count({ where: { createdAt: { gte: startOfToday } } }).catch(() => null),
     ]);
+
+    // "Uye oldu" (14.11.2026, sahip: "kimler taramis gorelim"): test edilen alan adini sonradan
+    // sitesi olarak ekleyen uye varsa listede gorunur. Eslesme ALAN ADIYLA yapilir, IP ile degil
+    // (gizlilik metni IP ozetini yalniz kotuye kullanim ve sinir icin ayiriyor). Yoneticinin kendi
+    // eklediği siteler (demo, aday incelemesi) uye sayilmaz.
+    const members = await this.memberSitesByHost().catch(() => new Map<string, LeadMember>());
+    const memberOf = (domain: string) => members.get(hostKey(domain)) ?? null;
 
     const items = rows.map((r) => {
       // Payda yalniz OLCULEN cevaplar (public getHistory ile ayni normalizasyon):
@@ -192,10 +240,46 @@ export class AdminService {
         /** Skora girmeyen sorular — kilitli (teaser'da sorulmadi) ve markali (anilma totolojik) */
         lockedQueries: locked.length,
         brandedQueries: open.length - counted.length,
+        member: memberOf(r.domain),
       };
     });
 
-    return { items, total, today, uniqueDomains };
+    return {
+      items, total, today, uniqueDomains,
+      attempts: (attempts ?? []).map((a) => ({ ...a, member: memberOf(a.domain) })),
+      attemptsToday: attemptsToday ?? 0,
+      /** Deneme tablosu okunamadi (goc uygulanmamis olabilir) — sayfa "kayit yok" demesin */
+      attemptsError: attempts === null,
+    };
+  }
+
+  /**
+   * Uye siteleri, alan adina gore (www'siz, kucuk harf). Ayni alan adini birden cok uye
+   * eklediyse ILK ekleyen doner. Yonetici hesaplarinin siteleri haric.
+   */
+  private async memberSitesByHost(): Promise<Map<string, LeadMember>> {
+    const sites = await this.prisma.site.findMany({
+      where: { user: { role: { not: 'ADMIN' } } },
+      orderBy: { createdAt: 'asc' },
+      take: MEMBER_SITE_LIMIT,
+      select: {
+        url: true, createdAt: true,
+        user: { select: { name: true, email: true, plan: true, subscriptionStatus: true } },
+      },
+    });
+    const out = new Map<string, LeadMember>();
+    for (const s of sites) {
+      const k = hostKey(s.url);
+      if (!k || out.has(k)) continue;
+      out.set(k, {
+        name: s.user?.name ?? null,
+        email: s.user?.email ?? null,
+        plan: s.user?.plan ?? null,
+        status: s.user?.subscriptionStatus ?? null,
+        siteAddedAt: s.createdAt,
+      });
+    }
+    return out;
   }
 
   /** /api/me — kullanıcının dashboard özeti */
