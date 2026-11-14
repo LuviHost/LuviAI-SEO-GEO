@@ -19,6 +19,10 @@ export interface RakipSatiri {
   providers: string[];
   /** Sitesinin kaynak gosterildigi cevap sayisi; adres tanimli degilse null */
   citedAnswers: number | null;
+  /** Adinin gectigi cevaplardan kacinda takip edilen adlar arasinda ILK anildi (eski sunucuda yok) */
+  firstAnswers?: number;
+  /** Adinin gectigi ama siranin kayitli olmadigi cevap sayisi (eski olcum; paydaya girmez) */
+  firstUnknown?: number;
   change: RakipDegisim | null;
   byQuestion: Array<{ promptId: string; text: string; providers: string[] }>;
 }
@@ -69,6 +73,34 @@ export function ozetMetni(t: RakipGorunurlugu['totals']): string {
 /** Cevap payi (0–100, tam sayi); toplam yoksa 0 */
 export function payYuzdesi(answers: number, total: number): number {
   return total > 0 ? Math.round((answers / total) * 100) : 0;
+}
+
+/**
+ * "İlk anılan" hucresi: adinin gectigi ve sirasi KAYITLI cevaplardan kacinda ilk bu ad gecti.
+ * Payda, sirasi bilinmeyen cevaplari (marka ile rakibin birlikte gectigi eski olcumler)
+ * icermez: bilinmeyeni "ilk degildi" saymak rakibi oldugundan geride gosterirdi.
+ * `payda` null ise hucrede yalniz cizgi basilir.
+ *
+ * `bilinmeyen` hucrede GORUNUR basilir (14.11.2026 bagimsiz inceleme): yayin gunu butun
+ * kayitlar eskidir; markanin sirasi bilinen cevaplari yalniz tek basina gectigi cevaplardir,
+ * yani marka satiri "4 / 4" cikar. Yanindaki "6 bilinmiyor" olmadan bu "hep ilk" diye okunur.
+ * Yalniz `title`'a yazmak yetmez — telefonda gorunmez.
+ */
+export function ilkAnilanMetni(row: Pick<RakipSatiri, 'answers' | 'firstAnswers' | 'firstUnknown'>): { text: string; payda: number | null; bilinmeyen: number; title: string } {
+  if (typeof row.firstAnswers !== 'number') return { text: '—', payda: null, bilinmeyen: 0, title: '' };
+  if (row.answers <= 0) return { text: '—', payda: null, bilinmeyen: 0, title: 'Adı hiçbir cevapta geçmedi.' };
+  const bilinmeyen = Math.min(row.answers, Math.max(0, row.firstUnknown ?? 0));
+  const bilinen = row.answers - bilinmeyen;
+  if (bilinen <= 0) {
+    return { text: '—', payda: null, bilinmeyen, title: `Adının geçtiği ${row.answers} cevapta sıra kayıtlı değil (eski ölçüm).` };
+  }
+  const ek = bilinmeyen > 0 ? ` ${bilinmeyen} cevapta sıra kayıtlı değil (eski ölçüm); bunlar sayılmadı.` : '';
+  return {
+    text: String(row.firstAnswers),
+    payda: bilinen,
+    bilinmeyen,
+    title: `Sırası kayıtlı ${bilinen} cevaptan ${row.firstAnswers} tanesinde, markan ve rakiplerin arasında ilk bu ad geçti (tek başına geçtiği cevaplar dahil).${ek}`,
+  };
 }
 
 /**

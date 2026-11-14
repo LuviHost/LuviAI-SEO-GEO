@@ -58,9 +58,11 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/about',                 updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   // Rehber (GEO icerik merkezi) — icerik content/rehber/*.ts; kaynaklar yeniden kontrol
   // edilince ya da metin degisince ilgili satirin tarihi ayni committe guncellenir.
-  { path: '/rehber',                                  updated: '2026-11-11', changeFrequency: 'weekly',  priority: 0.8 },
+  // 14.11.2026: ChatGPT isletme profili rehberi eklendi (dizin listesi de degisti).
+  { path: '/rehber',                                  updated: '2026-11-14', changeFrequency: 'weekly',  priority: 0.8 },
   { path: '/rehber/yapay-zeka-gorunurlugu',           updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/rehber/chatgpt-markam-gorunuyor-mu',      updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/chatgpt-isletme-profili',          updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/geo-nedir',                        updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/yapay-zeka-botlari-robots-txt',    updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/llms-txt-nedir',                   updated: '2026-11-08', changeFrequency: 'monthly', priority: 0.7 },

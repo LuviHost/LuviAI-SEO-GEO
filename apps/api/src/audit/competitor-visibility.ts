@@ -20,6 +20,15 @@
  * GUNCEL KUME: her (soru, asistan) cifti icin penceredeki EN YENI cevap. Onceki olcum:
  * ayni ciftin daha eski bir GUNE ait bir onceki cevabi. Degisim yalniz ikisi de olan
  * ciftlerde hesaplanir (karsilastirilabilir cevap) — yeni eklenen soru "artis" sayilmaz.
+ *
+ * ILK ANILAN (14.11.2026, sahip: "ekle"; ICM'in "hangileri on planda" sorusunun ikinci yarisi):
+ * bir cevapta takip edilen adlar (marka + olcum anindaki rakipler) arasinda metinde ilk gecen.
+ * Rakibin konumu (positionFirst) hep saklaniyordu; markanin konumu saklanmiyordu. Bu yuzden:
+ *  - marka anilmadiysa sira rakiplerin kendi konumundan cikar → ESKI olcumlerde de bilinir;
+ *  - yalniz marka anildiysa ilk anilan markadir → eski olcumlerde de bilinir;
+ *  - marka ve rakip BIRLIKTE anildiysa sira ancak olcumun yazdigi `beforeBrand` ile bilinir
+ *    (ai-citation.service buildProbe). O alan yoksa cevap "bilinmiyor" sayilir, UYDURULMAZ:
+ *    markanin sakli `position` degeri satir numarasi, rakibinki karakter konumu; kiyaslanamaz.
  */
 import { foldForMatch } from '../common/text-normalize.js';
 import { hostOf, hostWithin, isPlatformHost } from './source-domain-types.js';
@@ -30,6 +39,23 @@ export const PREVIOUS_LOOKBACK_DAYS = 180;
 export const MAX_SUGGESTIONS = 8;
 /** Oneri icin en az bu kadar cevapta kaynak gosterilmis olmali (tek cevap gurultu) */
 export const SUGGESTION_MIN_ANSWERS = 2;
+
+/** GeoPromptRun.competitors satirinin siralama icin gereken alanlari */
+export interface StoredCompetitor {
+  name: string;
+  /** Cevap metninde ilk gectigi konum; eski / bozuk kayitta null */
+  positionFirst: number | null;
+  /** Markadan once mi gecti; marka anilmadiysa ya da eski kayitta null */
+  beforeBrand: boolean | null;
+}
+
+/** Bir cevapta takip edilen adlar arasinda ilk anilan; kimse anilmadiysa null */
+export type FirstMention =
+  | { kind: 'brand' }
+  | { kind: 'competitor'; name: string }
+  /** Birden cok ad anildi ama sira kaydi yok (eski olcum) */
+  | { kind: 'unknown' }
+  | null;
 
 export interface VisibilityRun {
   promptId: string;
@@ -45,6 +71,8 @@ export interface VisibilityRun {
   competitors: string[];
   /** Cevabin alintiladigi alan adlari (www'siz host) */
   sourceHosts: string[];
+  /** Bu cevapta ilk anilan (firstMentionOf); verilmezse "kimse" sayilir */
+  first?: FirstMention;
 }
 
 export interface ListedCompetitor {
@@ -74,6 +102,10 @@ export interface VisibilityRow {
   providers: string[];
   /** Sitesinin kaynak gosterildigi cevap sayisi; adres tanimli degilse null */
   citedAnswers: number | null;
+  /** Adinin gectigi cevaplardan kacinda takip edilen adlar arasinda ILK anildi */
+  firstAnswers: number;
+  /** Adinin gectigi ama siranin bilinmedigi cevap sayisi (eski olcum; paydaya girmez) */
+  firstUnknown: number;
   change: VisibilityChange | null;
   /** Adinin gectigi sorular (cevap sayisina gore azalan) */
   byQuestion: Array<{ promptId: string; text: string; providers: string[] }>;
@@ -111,6 +143,39 @@ export function competitorVisibilityDays(raw: unknown): number {
 }
 
 const key = (name: string) => foldForMatch(name).trim();
+
+/**
+ * Bir cevapta ilk anilan ad. `entries`: o cevapta bulunan rakipler (GeoPromptRun.competitors).
+ * Esit konumda UZUN ad kazanir: "Trendyol" ve "Trendyol Milla" ayni yerde eslestiyse metinde
+ * yazan uzun olandir (kisa ad onun icinde eslesmistir); uzunluk da esitse listede once gelen.
+ * Marka ile ayni yerde baslayan rakip icin ayni kural buildProbe'da uygulanir (`beforeBrand`).
+ * Sira cikarilamiyorsa 'unknown' — tahmin yok.
+ */
+export function firstMentionOf(brandMentioned: boolean, entries: StoredCompetitor[], brand = ''): FirstMention {
+  // Marka adiyla ayni yazilmis rakip kaydi tabloda da satir olmaz (aggregate brandKey suzgeci)
+  const brandKey = key(brand);
+  const tekil = new Map<string, StoredCompetitor>();
+  for (const e of entries) {
+    const k = key(e.name ?? '');
+    if (k && k !== brandKey && !tekil.has(k)) tekil.set(k, e);
+  }
+  const list = [...tekil.values()];
+  if (list.length === 0) return brandMentioned ? { kind: 'brand' } : null;
+
+  const enErken = (xs: StoredCompetitor[]): FirstMention => {
+    if (xs.length === 1) return { kind: 'competitor', name: xs[0].name };
+    if (xs.some((x) => typeof x.positionFirst !== 'number')) return { kind: 'unknown' };
+    const once = (b: StoredCompetitor, a: StoredCompetitor) =>
+      b.positionFirst! < a.positionFirst! || (b.positionFirst === a.positionFirst && key(b.name).length > key(a.name).length);
+    return { kind: 'competitor', name: xs.reduce((a, b) => (once(b, a) ? b : a)).name };
+  };
+
+  if (!brandMentioned) return enErken(list);
+  if (list.some((x) => typeof x.beforeBrand !== 'boolean')) return { kind: 'unknown' };
+  const once = list.filter((x) => x.beforeBrand);
+  return once.length === 0 ? { kind: 'brand' } : enErken(once);
+}
+
 const pairKey = (r: Pick<VisibilityRun, 'promptId' | 'provider'>) => `${r.promptId}\u0000${r.provider}`;
 const newerFirst = (a: VisibilityRun, b: VisibilityRun) =>
   a.date === b.date ? (b.createdAt ?? 0) - (a.createdAt ?? 0) : a.date < b.date ? 1 : -1;
@@ -122,6 +187,8 @@ interface Entity {
   /** Kaynak eslesmesi icin host (platformdaki rakip adresi host'la eslenmez) */
   host: string | null;
   mentioned: (r: VisibilityRun) => boolean;
+  /** Bu cevapta ilk anilan bu varlik mi */
+  isFirst: (r: VisibilityRun) => boolean;
 }
 
 export interface VisibilityInput {
@@ -157,6 +224,7 @@ export function aggregateCompetitorVisibility(input: VisibilityInput): Visibilit
   // ── Varliklar: marka + bugunku liste + gecmiste anilmis (listeden cikarilmis) adlar
   const entities = new Map<string, Entity>();
   const brandKey = key(input.brand);
+  const rakipIlk = (k: string) => (r: VisibilityRun) => r.first?.kind === 'competitor' && key(r.first.name) === k;
   for (const c of input.listed) {
     const k = key(c.name ?? '');
     if (!k || k === brandKey || entities.has(k)) continue;
@@ -167,13 +235,18 @@ export function aggregateCompetitorVisibility(input: VisibilityInput): Visibilit
       listed: true,
       host: host && !isPlatformHost(host) && host !== input.ownHost ? host : null,
       mentioned: (r) => r.competitors.some((n) => key(n) === k),
+      isFirst: rakipIlk(k),
     });
   }
   for (const r of current) {
     for (const n of r.competitors) {
       const k = key(n);
       if (!k || k === brandKey || entities.has(k)) continue;
-      entities.set(k, { name: n.trim(), isBrand: false, listed: false, host: null, mentioned: (x) => x.competitors.some((m) => key(m) === k) });
+      entities.set(k, {
+        name: n.trim(), isBrand: false, listed: false, host: null,
+        mentioned: (x) => x.competitors.some((m) => key(m) === k),
+        isFirst: rakipIlk(k),
+      });
     }
   }
   const brand: Entity = {
@@ -182,6 +255,7 @@ export function aggregateCompetitorVisibility(input: VisibilityInput): Visibilit
     listed: true,
     host: input.ownHost,
     mentioned: (r) => r.brandMentioned,
+    isFirst: (r) => r.first?.kind === 'brand',
   };
 
   const citedBy = (e: Entity, r: VisibilityRun): boolean =>
@@ -211,6 +285,8 @@ export function aggregateCompetitorVisibility(input: VisibilityInput): Visibilit
       questions: questions.size,
       providers: [...new Set(hits.map((r) => r.provider))].sort(),
       citedAnswers: e.isBrand || e.host ? current.filter((r) => citedBy(e, r)).length : null,
+      firstAnswers: hits.filter((r) => e.isFirst(r)).length,
+      firstUnknown: hits.filter((r) => r.first?.kind === 'unknown').length,
       change: pairs > 0 ? { pairs, before, now } : null,
       byQuestion: [...questions.values()]
         .map((q) => ({ promptId: q.promptId, text: q.text, providers: [...q.providers].sort() }))

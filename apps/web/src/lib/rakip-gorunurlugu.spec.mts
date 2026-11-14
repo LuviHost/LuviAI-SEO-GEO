@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  alanAdindanAd, degisimMetni, gunMetni, kaynakMetni, listedeVar, olcumVar, oneridenRakip, ozetMetni, payYuzdesi,
+  alanAdindanAd, degisimMetni, gunMetni, ilkAnilanMetni, kaynakMetni, listedeVar, olcumVar, oneridenRakip, ozetMetni, payYuzdesi,
 } from './rakip-gorunurlugu';
 
 const toplam = { answers: 120, questions: 20, providers: ['openai', 'xai', 'gemini'], firstMeasuredAt: '2026-11-10', lastMeasuredAt: '2026-11-11', comparablePairs: 48 };
@@ -31,6 +31,34 @@ describe('ozet ve pay', () => {
     expect(olcumVar({ totals: toplam })).toBe(true);
     expect(olcumVar({ totals: { ...toplam, answers: 0 } })).toBe(false);
     expect(olcumVar(null)).toBe(false);
+  });
+});
+
+describe('ilk anilan — payda yalniz sirasi kayitli cevaplar (14.11.2026)', () => {
+  it('sayi / sirasi kayitli cevap; aciklama ne sayildigini soyler', () => {
+    expect(ilkAnilanMetni({ answers: 12, firstAnswers: 5, firstUnknown: 0 })).toEqual({
+      text: '5', payda: 12, bilinmeyen: 0,
+      title: 'Sırası kayıtlı 12 cevaptan 5 tanesinde, markan ve rakiplerin arasında ilk bu ad geçti (tek başına geçtiği cevaplar dahil).',
+    });
+    expect(ilkAnilanMetni({ answers: 4, firstAnswers: 0, firstUnknown: 0 })).toMatchObject({ text: '0', payda: 4, bilinmeyen: 0 });
+  });
+
+  it('sirasi bilinmeyen cevap paydadan duser; sayisi hucrede gorunsun diye ayrica doner', () => {
+    const m = ilkAnilanMetni({ answers: 12, firstAnswers: 3, firstUnknown: 4 });
+    expect(m).toMatchObject({ text: '3', payda: 8, bilinmeyen: 4 });
+    expect(m.title).toContain('4 cevapta sıra kayıtlı değil (eski ölçüm); bunlar sayılmadı.');
+  });
+
+  it('yayin gunu marka satiri: yalniz tek basina gectigi cevaplar bilinir → "4 / 4" yaninda 6 bilinmeyen', () => {
+    expect(ilkAnilanMetni({ answers: 10, firstAnswers: 4, firstUnknown: 6 })).toMatchObject({ text: '4', payda: 4, bilinmeyen: 6 });
+  });
+
+  it('adi gecmeyen, sirasi hic kayitli olmayan ve eski sunucu: cizgi', () => {
+    expect(ilkAnilanMetni({ answers: 0, firstAnswers: 0, firstUnknown: 0 })).toMatchObject({ text: '—', payda: null, bilinmeyen: 0 });
+    expect(ilkAnilanMetni({ answers: 3, firstAnswers: 0, firstUnknown: 3 })).toEqual({
+      text: '—', payda: null, bilinmeyen: 3, title: 'Adının geçtiği 3 cevapta sıra kayıtlı değil (eski ölçüm).',
+    });
+    expect(ilkAnilanMetni({ answers: 3 })).toEqual({ text: '—', payda: null, bilinmeyen: 0, title: '' });
   });
 });
 

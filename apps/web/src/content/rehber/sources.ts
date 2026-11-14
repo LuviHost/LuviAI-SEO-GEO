@@ -10,6 +10,8 @@ import type { RehberSource } from './types';
 const ERISIM = '2026-10-24';
 /** 11.11.2026'da yeniden okunan / yeni eklenen kaynaklar (yapay-zeka-gorunurlugu, ai-bakisi-gorunurluk) */
 const ERISIM_KASIM = '2026-11-11';
+/** 14.11.2026'da eklenen kaynaklar (chatgpt-isletme-profili) */
+const ERISIM_ISLETME = '2026-11-14';
 
 export const SRC = {
   openaiBots: {
@@ -219,6 +221,55 @@ export const SRC = {
   ahrefs: {
     id: 'ahrefs', title: 'Brand Radar', publisher: 'Ahrefs',
     url: 'https://ahrefs.com/brand-radar', accessed: ERISIM,
+  },
+  // ── ChatGPT isletme profili (Businesses in ChatGPT, beta 10.11.2026) ──
+  //  help.openai.com otomatik istekleri 403 ile reddediyor: metin 14.11.2026'da arama sonucundaki
+  //  sayfa ozetinden okundu, tarayicidan DEGIL. Okunanlar: "You don't need an Ads account or a ChatGPT
+  //  Enterprise agreement to claim an eligible business" · sahiplenme "initially available to eligible
+  //  businesses with a website" · dogrulama: phone, business email, website domain (TXT record), Shopify ·
+  //  "You'll need to complete identity verification with Persona before you can publish changes to your
+  //  business information, view insights, or create an eligible business agent" · rozet Persona onayindan
+  //  sonra · "Insights show aggregate activity over the past 28 days" · cevrimici islemede anilma = siteye
+  //  atif · "claiming doesn't guarantee increased visibility or give you direct control over ChatGPT's
+  //  independent recommendations". Sayfa yeniden okununca bu not ve tarih birlikte guncellenir.
+  openaiBusinessHelp: {
+    id: 'openai-business-help', title: 'Setting up your business on ChatGPT', publisher: 'OpenAI Help Center',
+    url: 'https://help.openai.com/en/articles/20001635-setting-up-your-business-on-chatgpt', accessed: ERISIM_ISLETME,
+  },
+  //  OpenAI duyurusu (dogrudan okundu): "Available to eligible ecommerce and online service businesses in
+  //  the U.S." (isletme asistani) · eligible businesses "located wherever ChatGPT is available can get started
+  //  by claiming their business in Business Hub" · "aggregated insights on mentions, website clicks, and common
+  //  topics in conversations where your business is cited" · "We don't share people's conversations or Business
+  //  Agent chats with businesses." Ayni baslikta kullanicilarin dogrulama sorunlari da yaziyor (resmi degil).
+  openaiBusinessAnnounce: {
+    id: 'openai-business-announce', title: 'Introducing Businesses in ChatGPT in beta (10 Kasım 2026)', publisher: 'OpenAI Developer Community',
+    url: 'https://community.openai.com/t/introducing-businesses-in-chatgpt-in-beta/1414865', accessed: ERISIM_ISLETME,
+  },
+  //  IT Brief UK, 11.11.2026: "Business Hub is launching globally for eligible businesses wherever ChatGPT is
+  //  available." · "Business Agents are available only to eligible eCommerce and online service businesses in
+  //  the United States." · "insights are available only when interaction volumes meet specified thresholds." ·
+  //  "It plans to widen access over time to more markets and categories"
+  itbriefBusinessHub: {
+    id: 'itbrief-business-hub', title: 'OpenAI launches ChatGPT Business Hub for companies (11 Kasım 2026)', publisher: 'IT Brief UK',
+    url: 'https://itbrief.co.uk/story/openai-launches-chatgpt-business-hub-for-companies', accessed: ERISIM_ISLETME,
+  },
+  //  VentureBeat, Carl Franzen, 10.11.2026: basvuru ChatGPT'nin calistigi ve OpenAI'in gereken dogrulamayi
+  //  destekledigi pazarlarda · "Depending on the business, OpenAI can verify a claim through a business phone
+  //  number" (+ e-posta, alan adi, Shopify) · "Local stores and restaurants can currently claim only an existing
+  //  U.S. listing." · "... for free at launch" (ileride ucret olasiligi acik) · "must complete a separate identity
+  //  check through Persona before publishing profile changes" · "claiming a profile carries no guarantee of
+  //  better placement or more sales".
+  venturebeatBusinessHub: {
+    id: 'venturebeat-business-hub', title: 'OpenAI lets you claim your business in ChatGPT and set up a custom agentic AI customer sales rep (10 Kasım 2026)', publisher: 'VentureBeat',
+    url: 'https://venturebeat.com/technology/openai-lets-you-claim-your-business-in-chatgpt-and-set-up-a-custom-agentic-ai-customer-sales-rep', accessed: ERISIM_ISLETME,
+  },
+  //  LLM Pulse derlemesi, 11.11.2026 (ucuncu taraf; OpenAI sayfalarina ve ilk gun denemelerine dayaniyor):
+  //  adimlarin sirasi, ulke listesi yayimlanmadigi, "Business Hub and Business Agents are free at launch.",
+  //  "local businesses can only claim an existing listing, and only in the US", rakamlarda tek tek soru ve rakip
+  //  bulunmadigi, "At least one claim made outside the US went to a waitlist on launch day, according to PPC Land."
+  llmpulseBusinessHub: {
+    id: 'llmpulse-business-hub', title: 'ChatGPT Business Hub explained: how to claim your business and what Insights shows (11 Kasım 2026)', publisher: 'LLM Pulse',
+    url: 'https://llmpulse.ai/blog/chatgpt-business-hub/', accessed: ERISIM_ISLETME,
   },
   // ── Birinci taraf: KobiPratik (kurucu ekibimizin ortagi oldugu site) ──
   kpCitation: {

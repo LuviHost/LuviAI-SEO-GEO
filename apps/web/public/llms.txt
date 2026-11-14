@@ -2,7 +2,7 @@
 
 > RanksUp; Türkiye'deki KOBİ'ler, e-ticaret siteleri, mobil uygulama sahipleri ve dijital ajanslar için SEO, GEO (ChatGPT, Claude, Gemini gibi yapay zekâ asistanlarında görünürlük) ve ASO (App Store / Google Play) platformudur. Site denetimi, AI görünürlük ölçümü, AI makale üretimi ve yayını, uygulama mağazası optimizasyonu ve Apple Search Ads tek panelde. Ödeme PayTR ile alınır.
 
-Son güncelleme: 11 Kasım 2026 · RanksUp Ekibi
+Son güncelleme: 14 Kasım 2026 · RanksUp Ekibi
 
 Tek sayfalık ürün özeti (planlar, sınırlar, deneme, ölçülen asistanlar, nasıl başlanır; plan verisinden üretilir): https://ranksup.ai/ranksup.md
 
@@ -75,6 +75,7 @@ Plana göre öne çıkanlar:
 - [SEO & GEO sözlüğü](https://ranksup.ai/help/glossary)
 - [Rehber: yapay zekâ görünürlüğü](https://ranksup.ai/rehber)
 - [ChatGPT’de markam görünüyor mu, nasıl anlarım?](https://ranksup.ai/rehber/chatgpt-markam-gorunuyor-mu)
+- [ChatGPT’de işletme profili nasıl sahiplenilir?](https://ranksup.ai/rehber/chatgpt-isletme-profili)
 - [GEO nedir, SEO’dan farkı ne?](https://ranksup.ai/rehber/geo-nedir)
 - [Hangi yapay zekâ botunu robots.txt’de engellemeliyim?](https://ranksup.ai/rehber/yapay-zeka-botlari-robots-txt)
 - [llms.txt gerçekte ne işe yarar?](https://ranksup.ai/rehber/llms-txt-nedir)
