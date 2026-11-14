@@ -72,15 +72,18 @@ function Satir({ row, sira, toplam, acik, onToggle }: { row: RakipSatiri; sira: 
             {acilabilir && <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', acik && 'rotate-180')} aria-hidden />}
           </button>
         </td>
-        <td className="py-2.5 pr-3">
-          <div className="flex items-center gap-2">
-            <span className="w-16 shrink-0 text-sm tabular-nums">
-              {row.answers}<span className="text-muted-foreground"> / {toplam}</span>
-            </span>
-            <span className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-muted sm:block" aria-hidden>
+        <td className="whitespace-nowrap py-2.5 pr-3 text-sm tabular-nums">
+          {row.answers}<span className="text-muted-foreground"> / {toplam}</span>
+          {/* Telefonda Pay sutunu yok (tablo yana kayar, sutun ekran disinda kalirdi): yuzde burada kalir */}
+          <span className="ml-2 text-xs text-muted-foreground sm:hidden">%{pay}</span>
+        </td>
+        {/* Pay kendi sutununda (14.11.2026): yuzde eskiden cevap sayisinin yaninda kucuk ve basliksizdi */}
+        <td className="hidden py-2.5 pr-3 sm:table-cell">
+          <div className="flex items-center gap-2.5">
+            <span className="w-10 shrink-0 text-sm font-medium tabular-nums">%{pay}</span>
+            <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted" aria-hidden>
               <span className="block h-full rounded-full bg-foreground/70" style={{ width: `${pay}%` }} />
             </span>
-            <span className="text-xs tabular-nums text-muted-foreground">%{pay}</span>
           </div>
         </td>
         <td className="py-2.5 pr-3 text-sm tabular-nums">{row.questions}</td>
@@ -91,7 +94,7 @@ function Satir({ row, sira, toplam, acik, onToggle }: { row: RakipSatiri; sira: 
       {acik && acilabilir && (
         <tr className={cn(row.isBrand && 'bg-muted/50')}>
           <td />
-          <td colSpan={6} className="pb-3 pr-3">
+          <td colSpan={7} className="pb-3 pr-3">
             <ul className="space-y-1.5 rounded-md border p-3">
               {row.byQuestion.map((q) => (
                 <li key={q.promptId} className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -189,12 +192,13 @@ export function RakipGorunurluguCard({ siteId, onListChanged }: { siteId: string
             <p className="v-rail">{ozetMetni(data.totals)}</p>
 
             <div className="-mx-5 overflow-x-auto px-5">
-              <table className="w-full min-w-[44rem] text-left">
+              <table className="w-full min-w-[48rem] text-left">
                 <thead>
                   <tr className="text-xs font-medium text-muted-foreground">
                     <th className="pb-2 pl-3 pr-2 font-medium">#</th>
                     <th className="pb-2 pr-3 font-medium">Ad</th>
                     <th className="pb-2 pr-3 font-medium">Adının geçtiği cevap</th>
+                    <th className="hidden pb-2 pr-3 font-medium sm:table-cell" title="Adının geçtiği cevapların, ölçülen bütün cevaplara oranı">Pay</th>
                     <th className="pb-2 pr-3 font-medium">Soru</th>
                     <th className="pb-2 pr-3 font-medium">Asistanlar</th>
                     <th className="pb-2 pr-3 font-medium" title="Sitesinin kaynak olarak gösterildiği cevap sayısı">Kaynak</th>
