@@ -2186,10 +2186,53 @@ describe('Rehber (/rehber) = ürün', () => {
   // planındaki" derse okuyani alamayacagi bir plana yollar (Canli Tarayici artik Kurumsal'da satilir).
   const planAdi = (f: keyof typeof FEATURE_MIN_PLAN) => featureOfferPlan(f).name_tr;
 
-  it('rehber veri modulleri bulunuyor (9 makale + kayit + kaynaklar + tipler)', () => {
+  it('rehber veri modulleri bulunuyor (13 makale + kayit + kaynaklar + tipler)', () => {
     // 11.11.2026: yapay-zeka-gorunurlugu eklendi (PR #68); sayi orada guncellenmemisti.
-    // 14.11.2026: chatgpt-isletme-profili eklendi.
-    expect(tum.length).toBe(12);
+    // 14.11.2026: chatgpt-isletme-profili eklendi; ayni gun Turkiye listesi, KOBI, e-ticaret ve ajans rehberleri.
+    expect(tum.length).toBe(16);
+  });
+
+  it('14.11.2026 rehberleri (KOBİ, e-ticaret, ajans, Türkiye) plan iddialarini plans.ts ile ayni yaziyor', () => {
+    const trial = findPlan('trial')!;
+    const starter = findPlan('starter')!;
+    const pro = findPlan('pro')!;
+    const ent = findPlan('enterprise')!;
+    const kobi = dosya('kobi-seo-ve-yapay-zeka-gorunurlugu');
+    const eticaret = dosya('e-ticaret-yapay-zeka-gorunurlugu');
+    const ajans = dosya('ajanslar-icin-yapay-zeka-gorunurluk-raporu');
+    const turkiye = dosya('turkiyede-yapay-zeka-gorunurluk-urunleri');
+
+    // KOBI: iki satistaki planin site sayisi, makale hakki ve deneme
+    expect(kobi).toContain(`**${starter.name_tr} $${starter.monthly_usd}/ay (KDV dahil):** ${starter.sites} site;`);
+    expect(kobi).toContain(`**${pro.name_tr} $${pro.monthly_usd}/ay (KDV dahil):** ${pro.sites} site;`);
+    expect(starter.articlesPerMonth).toBe(0);
+    expect(kobi).toContain('Bu planda makale üretimi yok.');
+    expect(kobi).toContain(`ayda ${pro.articlesPerMonth} makale üretimi`);
+    expect(kobi).toContain(`${TRIAL_DAYS} gün boyunca ${trial.sites} site, ${trial.articlesPerMonth} yapay zekâ makalesi ve ${trial.aiRunsPerMonth} görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
+
+    // Ajans: site sayilari; Kurumsal fiyati yazilmaz (teklifle); olcum hakki hesap basina ve siteler paylasir
+    expect(ent.contactSales).toBe(true);
+    expect(ajans).toContain(`${pro.name_tr} planda ${pro.sites} site, ${ent.name_tr} planda ${ent.sites} site`);
+    expect(ajans).toContain(`${pro.name_tr} $${pro.monthly_usd}/ay, KDV dahil; ${ent.name_tr} teklifle`);
+    expect(ajans).toContain('Ölçüm hesap başına 7 günde birdir ve tüm siteler bu hakkı paylaşır');
+    expect(turkiye).toContain(`${pro.name_tr} planda ${pro.sites} site`);
+
+    // E-ticaret: yayin hedefi sayisi katalogla ayni; Urun Radari'ni satan plan
+    const teslim = publishTargetCatalog().filter((e) => !e.adminOnly && !EXPORT_TARGET_TYPES.has(e.type));
+    expect(eticaret).toContain(`WordPress dahil ${teslim.length} yayın hedefine yayınlar`);
+    expect(eticaret).toContain(`${featureOfferPlan('productRadar').name_tr} planda Ürün Radarı`);
+    // Magaza altyapisi icin yayin hedefi yok: "Shopify'a yayinlar" iddiasi geri gelmesin
+    expect(publishTargetCatalog().some((e) => /shopify|ikas|ticimax/i.test(e.type))).toBe(false);
+    expect(eticaret).toContain('Shopify, ikas ya da Ticimax gibi mağaza altyapılarına doğrudan bağlanmaz');
+
+    // Dort rehber de RanksUp'in kendi urunumuz oldugunu ve olculmeyen yuzeyleri yaziyor
+    for (const [slug, metin] of [['kobi', kobi], ['e-ticaret', eticaret], ['ajans', ajans], ['turkiye', turkiye]] as const) {
+      expect(metin, slug).toContain('bizim ürünümüz');
+      expect(metin, slug).toContain('Google AI Bakışı, AI Modu ve Copilot doğrudan ölçül');
+      // Beyaz etiket satilmiyor (agency whitelabel ayarlari uygulanmiyor): RanksUp icin "var" denmez
+      expect(metin, slug).not.toMatch(/RanksUp[^.]{0,80}beyaz etiket[^.]{0,20}(?:sunar|sunuyor|var\b)/);
+    }
+    expect(ajans).toContain('kendi logonla rapor yok');
   });
 
   it('RanksUp plan fiyatlari plans.ts ile ayni; elle yazilmis bayat tutar yok', () => {

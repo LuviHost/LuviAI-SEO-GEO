@@ -40,7 +40,7 @@ export const article: RehberArticle = {
         { t: 'p', text: 'Sıralama kaliteye göre değil, “kime uygun?” sorusuna göre. Fiyatlar satıcının kendi sayfasında gösterildiği gibi; para birimi, vergi ve faturalama dönemi araçtan araca değişiyor, bu yüzden tabloda ayrıca yazdık.' },
         {
           t: 'table',
-          caption: 'Yapay zekâ görünürlük araçları (satıcı sayfaları, erişim 24.10.2026; RanksUp satırı 11.11.2026)',
+          caption: 'Yapay zekâ görünürlük araçları (satıcı sayfaları, erişim 24.10.2026; RanksUp satırı 11.11.2026, SEOYEN satırı 14.11.2026)',
           head: ['Araç', 'Kime uygun?', 'Başlangıç fiyatı (satıcı sayfası)', 'Ölçülen motorlar', 'Temel sınırlama'],
           rows: [
             ['RanksUp (bizim ürünümüz)', 'Türkçe, tek panelde SEO, GEO, ASO ve içerik isteyen KOBİ’ler, uygulama sahipleri, ajanslar', 'Başlangıç $99/ay, KDV dahil (TL tutarı ödeme günü kuruyla), makale üretimi yok; makale üretimi Profesyonel $349/ay’dan; 14 gün ücretsiz deneme, kart istemez', 'Başlangıç’ta ChatGPT, Gemini, Claude, Perplexity; Profesyonel ve üstünde ayrıca Grok, DeepSeek', 'Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmüyor; hesap başına 7 günde 1 ölçüm'],
@@ -74,6 +74,9 @@ export const article: RehberArticle = {
           ],
           kaynak: ['ranksup-pricing', 'geon', 'seoyen', 'otterly', 'peec', 'profound', 'ahrefs', 'semrush'],
         },
+        // 14.11.2026: bu tablo sekiz araci kapsiyor; Turkiye'de satilan diger urunler (rankzupAI, Geovium,
+        // Yanıt IO, AIWATCH, Visby) ayri rehberde, kendi kaynaklariyla.
+        { t: 'p', text: 'Türkiye’de satılan diğer ürünleri [Türkiye listesinde](/rehber/turkiyede-yapay-zeka-gorunurluk-urunleri) topladık. Duruma göre ayrı rehberler de var: [KOBİ’ler için](/rehber/kobi-seo-ve-yapay-zeka-gorunurlugu), [e-ticaret için](/rehber/e-ticaret-yapay-zeka-gorunurlugu) ve [ajanslar için](/rehber/ajanslar-icin-yapay-zeka-gorunurluk-raporu).' },
       ],
     },
     {
@@ -200,7 +203,7 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            'Her bilgi 24 Ekim 2026’da satıcının kendi sayfasından, tarayıcıda görünen haliyle okundu. Kaynaklar sayfanın sonunda, erişim tarihiyle.',
+            'Her bilgi 24 Ekim 2026’da satıcının kendi sayfasından, tarayıcıda görünen haliyle okundu. SEOYEN’in sayfaları 14 Kasım 2026’da yeniden okundu; bu rehberdeki bilgilerde değişiklik yoktu. Kaynaklar sayfanın sonunda, erişim tarihiyle.',
             'Fiyat yalnızca satıcı sayfasında gösteriliyorsa verildi; para birimi, vergi ve faturalama dönemi sayfada nasıl yazıyorsa öyle. Üçüncü taraf sitelerdeki fiyatları kullanmadık.',
             'Satıcı sayfasında doğrulayamadığımız bir özelliği “yok” diye yazmadık; “sayfada yer almıyor” dedik.',
             'Ölçütler: ölçülen asistanlar, Türkçe desteği, içerik üretimi, ASO, deneme koşulu, başlangıç fiyatı ve temel sınırlama.',
@@ -243,7 +246,7 @@ export const article: RehberArticle = {
     },
   ],
   sources: [SRC.ranksupPricing, SRC.ranksupTerms, SRC.ranksupAiVisibility, SRC.geon, SRC.seoyen, SRC.seoyenPricing, SRC.otterly, SRC.peec, SRC.peecHome, SRC.profound, SRC.semrush, SRC.ahrefs],
-  related: ['chatgpt-markam-gorunuyor-mu', 'geo-nedir', 'mobil-uygulama-geo'],
+  related: ['turkiyede-yapay-zeka-gorunurluk-urunleri', 'chatgpt-markam-gorunuyor-mu', 'geo-nedir', 'mobil-uygulama-geo'],
   published: '2026-10-24',
   schemaType: 'Article',
 };

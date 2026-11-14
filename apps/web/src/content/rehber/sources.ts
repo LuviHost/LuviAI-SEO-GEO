@@ -12,6 +12,17 @@ const ERISIM = '2026-10-24';
 const ERISIM_KASIM = '2026-11-11';
 /** 14.11.2026'da eklenen kaynaklar (chatgpt-isletme-profili) */
 const ERISIM_ISLETME = '2026-11-14';
+/**
+ * 14.11.2026'da eklenen kaynaklar (turkiyede-yapay-zeka-gorunurluk-urunleri, e-ticaret-yapay-zeka-gorunurlugu,
+ * ajanslar-icin-yapay-zeka-gorunurluk-raporu). Hepsi headless Chrome ile, JS calismis haliyle okundu.
+ * Ayni gun SEOYEN'in iki sayfasi bastan sona yeniden okundu (alintilarin hepsi yerinde) → `seoyen` ve
+ * `seoyenPricing` tarihi 14.11. GEON'da fiyat kartlari, prompt sayilari, alti platform, Turkce destek ve
+ * "Ajanslar & Çoklu marka" karti yeniden okundu ve ayniydi; ama kapali SSS cevaplari (Copilot yol haritasi,
+ * AI hazirlik analizi) tek tek yeniden okunmadigi icin `geon` tarihi 24.10 olarak BIRAKILDI.
+ * GEON'un tanimi: gorunen metinde "AI Görünürlük Platformu — Herkes için GEO"; statik <title> ise
+ * "GEON — AI Arama Görünürlük Platformu", meta aciklamada "Türkiye'nin ilk GEO platformu." (curl, 14.11).
+ */
+const ERISIM_TURKIYE = '2026-11-14';
 
 export const SRC = {
   openaiBots: {
@@ -114,8 +125,8 @@ export const SRC = {
     url: 'https://support.google.com/googleplay/android-developer/answer/9859152?hl=en', accessed: ERISIM,
   },
   // 11.11.2026 paket yapisi (api plans.ts, /pricing ayni kaynaktan basilir): Baslangic $99/ay
-  // (4 asistan, makale uretimi yok), Profesyonel $349/ay, Kurumsal teklifle. Bu kaynagi kullanan
-  // tek makale yapay-zeka-gorunurluk-araclari; tarihi ayni gun guncellendi.
+  // (4 asistan, makale uretimi yok), Profesyonel $349/ay, Kurumsal teklifle. 14.11.2026'dan beri bu
+  // kaynagi karsilastirmanin yaninda Turkiye listesi, KOBI, e-ticaret ve ajans rehberleri de kullaniyor.
   ranksupPricing: {
     id: 'ranksup-pricing', title: 'RanksUp fiyatlandırma', publisher: 'RanksUp',
     url: 'https://ranksup.ai/pricing', accessed: ERISIM_KASIM,
@@ -128,6 +139,16 @@ export const SRC = {
   ranksupAiVisibility: {
     id: 'ranksup-ai-visibility', title: 'AI Görünürlük rehberi (ölçüm yöntemi)', publisher: 'RanksUp',
     url: 'https://ranksup.ai/help/ai-visibility', accessed: ERISIM,
+  },
+  // Birinci taraf (URL yok): musteri raporu herkese acik bir sayfada anlatilmiyor, panelin icinde.
+  // Kod: web app/(dashboard)/sites/[id]/report/musteri, components/musteri-raporu/*, lib/musteri-raporu.ts
+  // (PAYLASIM_GUNLERI 7/30/90), api client-report.controller ("PLAN KAPISI YOK … deneme dahil tum planlarda
+  // acik"), karsilastirma raporu app/(dashboard)/sites/[id]/gorunurluk-raporu. Haftalik e-posta: api
+  // email/email.cron.ts weeklyReports — Search Console tiklama / gosterim / sira + yayinlanan makale; AI
+  // gorunurluk verisi YOK, hesap sahibine tek e-posta.
+  ranksupPanel: {
+    id: 'ranksup-panel', title: 'RanksUp paneli: Raporlar bölümü (müşteri raporu, karşılaştırma raporu, haftalık e-posta özeti)', publisher: 'RanksUp (ürün içi)',
+    note: '14 Kasım 2026 itibarıyla panelde; müşteri raporu deneme dahil tüm planlarda açık.',
   },
   // ── Rakipler: 24.10.2026'da (UTC; Turkiye saatiyle 25.10 gece yarisini gecerek) saticinin kendi sayfasi, JS ile render edilmis haliyle (headless Chrome)
   // okundu. Statik HTML'de fiyat gorunmeyen sayfalar (GEON, Peec) render edilince fiyat gosteriyor.
@@ -154,13 +175,17 @@ export const SRC = {
   //   Google AI Overview'da markanızın görünürlüğünü ölçün." · "100 AI görünürlük sorgusu/ay" (Bireysel)
   //   · "245 otomatik kontrolle teknik SEO sorunlarını tespit edin" · "WordPress'e tek tıkla yayınlama"
   //   · "Tüm veriler Türkiye'deki sunucularda saklanır."
+  //  14.11.2026: iki SEOYEN sayfasi da yeniden okundu; yukaridaki alintilarin hepsi yerinde (degisiklik yok),
+  //   tarih bu yuzden 14.11. Yeni okunanlar (/fiyatlar/): Bireysel "Takip edilen AI prompt	20" · Pro "3.799 ₺/ay"
+  //   "KDV dahil" "Profesyoneller ve ajanslar için" "20 proje / site" "1.000 AI görünürlük sorgusu/ay"
+  //   "Takip edilen AI prompt … 50" "2 kişilik takım" "White-label raporlar" "E-Ticaret analizi".
   seoyen: {
     id: 'seoyen', title: 'SEOYEN ana sayfa (özellikler)', publisher: 'SEOYEN',
-    url: 'https://seoyen.com/', accessed: ERISIM,
+    url: 'https://seoyen.com/', accessed: ERISIM_TURKIYE,
   },
   seoyenPricing: {
     id: 'seoyen-pricing', title: 'SEOYEN fiyatlar ve SSS', publisher: 'SEOYEN',
-    url: 'https://seoyen.com/fiyatlar/', accessed: ERISIM,
+    url: 'https://seoyen.com/fiyatlar/', accessed: ERISIM_TURKIYE,
   },
   //  Otterly (otterly.ai/pricing): "Monthly" "Annually" "15% off" · "Lite" "$" "29" "/month" "15 search
   //   prompts" · Standard "$189/month" "100 search prompts" · Premium "$489/month" "400 search prompts" ·
@@ -189,6 +214,8 @@ export const SRC = {
   //   ChatGPT, Perplexity, Google AI Mode, Gemini, Microsoft Copilot, DeepSeek, Anthropic Claude, Google AI
   //   Overviews, Exa Search · Agency Growth: "Full client workspaces as an add-on for $399/month" (Agency
   //   Growth taban fiyati JS degiskeni; dogrudan okunamadi, yazilmadi)
+  //  14.11.2026 (yalniz bu satir yeniden bakildi, tarih degismedi): plan karsilastirma tablosunda "ChatGPT
+  //   Shopping" satiri Trial "No", Enterprise "Yes" — e-ticaret rehberindeki Profound satirinin dayanagi.
   profound: {
     id: 'profound', title: 'Profound pricing', publisher: 'Profound',
     url: 'https://www.tryprofound.com/pricing', accessed: ERISIM,
@@ -270,6 +297,133 @@ export const SRC = {
   llmpulseBusinessHub: {
     id: 'llmpulse-business-hub', title: 'ChatGPT Business Hub explained: how to claim your business and what Insights shows (11 Kasım 2026)', publisher: 'LLM Pulse',
     url: 'https://llmpulse.ai/blog/chatgpt-business-hub/', accessed: ERISIM_ISLETME,
+  },
+  // ── Turkiye'de satilan AI gorunurluk urunleri (14.11.2026, saticinin kendi sayfasi, render edilmis) ──
+  //  rankzupAI (rankzup.ai/tr/fiyatlar): "Tüm paketlerde aynı motor seti (Google AI Overviews, ChatGPT, Gemini,
+  //   Perplexity)" · Starter "1.749 ₺" "/ay +KDV" "1 proje · 1 koltuk" "25 izlenen sorgu" "haftalık tarama" ·
+  //   Growth "3.269 ₺" · Scale "6.149 ₺" · Agency "13.699 ₺" "/ay +KDV" "10 proje · 10 koltuk" "250 izlenen sorgu"
+  //   "White-label rapor + çoklu proje" · "Bizdeki ek motorlar Claude, Grok ile Google AI Mode. Ücretleri plana
+  //   göre değişiyor." · "Arayüz ve sorgu dili	TR + EN" · "Haftalık PDF raporu (e-posta)" ve "Paylaşımlı canlı
+  //   rapor linki — Üyeliksiz açılan, müşteriyle paylaşılabilir sayfa." (dort pakette) · "REST API + MCP" ve
+  //   "Looker Studio ucu" (Scale, Agency) · "Beyaz-etiket müşteri raporu — Ajanslar için kendi logonla raporlama."
+  //   (yalniz Agency) · "Fiyatlara KDV dahil değildir." · "Kredi kartı gerekmez" · "7 gün ücretsiz dene"
+  rankzupPricing: {
+    id: 'rankzup-pricing', title: 'rankzupAI fiyatlar', publisher: 'rankzupAI',
+    url: 'https://rankzup.ai/tr/fiyatlar', accessed: ERISIM_TURKIYE,
+  },
+  //  rankzupAI (rankzup.ai/tr, ana sayfa): "7 AI motoruna kadar" · "Brief'ten yayına hazır makale" "GEO Brief'i
+  //   tek tıkla SSS ve iç link önerili, yayına hazır bir taslak makaleye dönüştür." · "E-ticaret İçin Yapay
+  //   Zeka Görünürlüğü" · "rankzupAI artık Shopify App Store'da: eklentiyi kur, ürün başlıklarından
+  //   müşterilerinin yapay zekaya sorduğu soruları otomatik üretsin" · "Ürün (SKU) bazında AI görünürlük
+  //   takibi" · "Ödeme Shopify faturana eklenir, ayrı kart gerekmez"
+  rankzupHome: {
+    id: 'rankzup', title: 'rankzupAI ana sayfa', publisher: 'rankzupAI',
+    url: 'https://rankzup.ai/tr', accessed: ERISIM_TURKIYE,
+  },
+  //  rankzupAI (rankzup.ai/tr/hakkimizda): "rankzupAI, markaların ChatGPT, Gemini, Perplexity, Claude, Grok ve
+  //   Google AI Overviews cevaplarında ne kadar göründüğünü ölçen bir yapay zeka görünürlük platformudur." ·
+  //   "Taha Yelkenci'nin Eylül 2012'de kurduğu İstanbul merkezli SEO ve GEO ajansı rankZup" · "rankzupAI 2026'da
+  //   bu boşluğu kapatmak için geliştirildi."
+  rankzupAbout: {
+    id: 'rankzup-about', title: 'rankzupAI hakkında', publisher: 'rankzupAI',
+    url: 'https://rankzup.ai/tr/hakkimizda', accessed: ERISIM_TURKIYE,
+  },
+  //  Geovium (geovium.com/tr; fiyat kartlari ana sayfada ve /tr/pricing'de ayni): "GEO platformu" · "Geovium,
+  //   müşterilerinizin sorduğu soruları ChatGPT, Gemini, Claude, Perplexity ve Grok'a sorar" · Starter "₺2.990"
+  //   "+ KDV" "/ay" "Tarama başına 25 takip edilen soru" "1 çalışma alanı" "2 kullanıcı" "Haftalık taramalar"
+  //   "Yanıtlarınızın CSV dışa aktarımı" · Pro "₺5.490" · Growth "₺13.990" · Ajans "₺29.990" "+ KDV" "10 çalışma
+  //   alanı" "10 kullanıcı" · "14 gün ücretsiz deneme. Kredi kartı gerekmez." · E-ticaret ekipleri: "Shopify ve
+  //   Google Merchant Center'ı bağlayın" · entegrasyonlar "isteğe bağlı … Taramalar bunlar olmadan da çalışır." ·
+  //   alt bilgi "KUTBU YAZILIM BİLİŞİM TEKNOLOJİLERİ SANAYİ VE TİCARET A.Ş." "Ataşehir, İstanbul"
+  geovium: {
+    id: 'geovium', title: 'Geovium ana sayfa (özellikler ve fiyat kartları)', publisher: 'Geovium',
+    url: 'https://geovium.com/tr', accessed: ERISIM_TURKIYE,
+  },
+  //  Visby (visby.ai/tr): baslik "Visby - ChatGPT, Claude ve Gemini için AI Görünürlük Platformu" · "Visby
+  //   ChatGPT, Claude, Gemini ve Google AI Overviews'u takip eder. Her plan seçeceğiniz üç motoru içerir"
+  visbyHome: {
+    id: 'visby', title: 'Visby ana sayfa', publisher: 'Visby',
+    url: 'https://visby.ai/tr', accessed: ERISIM_TURKIYE,
+  },
+  //  Visby (visby.ai/tr/pricing): Starter "$79" "/ay" "İSTEDİĞİNİZ 3 AI MOTORUNU SEÇİN" (ChatGPT, Claude, Gemini,
+  //   AI Overviews) "1 domain" "15 takip edilen prompt" "Google Search Console, Google Analytics, Bing and Shopify
+  //   entegrasyonları" · Growth "$199" "Google Merchant Center entegrasyonu" · Enterprise "Görüşelim" · "Evet -
+  //   Starter planının ücretsiz denemesini doğrudan kayıt sayfasından başlatabilirsiniz." (sure yazmiyor) ·
+  //   plan karsilastirma tablosu: "Aylık AI yanıtı analizi" 45 / 270 / 750+ · "Aylık makale üretimi" 5 / 15 / 25
+  //   (plan kartlarinda makale maddesi yalniz Enterprise'da: "Ayda 25 makale üretimi")
+  visbyPricing: {
+    id: 'visby-pricing', title: 'Visby fiyatlar', publisher: 'Visby',
+    url: 'https://visby.ai/tr/pricing', accessed: ERISIM_TURKIYE,
+  },
+  //  Yanıt IO (yanit.io): "Yanıt IO (yanit.io), markaların ChatGPT, Claude ve Gemini yanıtlarındaki görünürlüğünü
+  //   ölçen Türkiye merkezli bir yapay zekâ görünürlük (GEO) platformudur." · "Perplexity beta olarak ölçülür."
+  yanit: {
+    id: 'yanit', title: 'Yanıt IO ana sayfa', publisher: 'Yanıt IO',
+    url: 'https://yanit.io/', accessed: ERISIM_TURKIYE,
+  },
+  //  Yanıt IO (yanit.io/pricing, "Son güncelleme: 12 Kasım 2026"): "Yanıt IO aboneliği ₺2.499/ay (KDV dahil).
+  //   Ödeme yakında açılıyor; o zamana kadar ücretsiz başlayabilirsiniz, kart istenmez." · Erken erişim "₺0"
+  //   "10 izlenebilir soru · 10 rakip" · abonelik "200 izlenebilir soru · 50 rakip (adil kullanım)" "Mağaza
+  //   bağlantısı: 2 mağaza, 5.000 ürün" "haftalık rapor, paylaşılabilir rapor linki" "5 ekip üyesi"
+  yanitPricing: {
+    id: 'yanit-pricing', title: 'Yanıt IO fiyatlandırma', publisher: 'Yanıt IO',
+    url: 'https://yanit.io/pricing', accessed: ERISIM_TURKIYE,
+  },
+  //  AIWATCH (aiwatch.com.tr): "Türkiye pazarı için geliştirilen, kanıt odaklı AI görünürlük platformu." ·
+  //   "ChatGPT, Gemini ve kurulumunuzda açık diğer AI motorlarında" · "Fiyatlar marka sayınıza ve ihtiyaçlarınıza
+  //   göre özelleşir — size özel teklif için iletişime geçin." · "Siteniz yapay zekâya hazır mı? Ücretsiz ölçün."
+  //   · Kurumsal paket: "API erişimi" "White-label rapor" · "Bir FinHouse.ai ürünüdür" "İstanbul, Türkiye"
+  aiwatch: {
+    id: 'aiwatch', title: 'AIWATCH ana sayfa (paketler)', publisher: 'AIWATCH',
+    url: 'https://aiwatch.com.tr/', accessed: ERISIM_TURKIYE,
+  },
+  //  AIWATCH (aiwatch.com.tr/about): "ChatGPT, Claude, Gemini, Copilot, Perplexity, DeepSeek, Grok ve Google AI
+  //   Overviews gibi 12 yapay zeka motorundaki görünürlüğünü ölçen". Ana sayfa ile ayni liste DEGIL; rehberde
+  //   iki ifade de yazildi.
+  aiwatchAbout: {
+    id: 'aiwatch-about', title: 'AIWATCH hakkımızda', publisher: 'AIWATCH',
+    url: 'https://aiwatch.com.tr/about', accessed: ERISIM_TURKIYE,
+  },
+  //  Zekabi (zekabi.com/fiyat): "Zekabi aylık ya da yıllık abonelikle çalışır. Ücrete marka araştırması, size özel
+  //   Türkçe soru seti, her ay ChatGPT, Gemini ve Claude'da ölçüm ve aylık web raporu dahildir." · Hafif "5.000 TL
+  //   + KDV / ay" "4–24 soru" "aylık ölçüm" · KOBİ "15.000 TL + KDV / ay" · Kurumsal "40.000 TL + KDV / ay" ·
+  //   Ajanslar: "Müşterileriniz için ölçüm; ajans fiyatı, ay sonunda tek ödeme ve kendi adınızla rapor."
+  zekabiPricing: {
+    id: 'zekabi-pricing', title: 'Zekabi fiyat', publisher: 'Zekabi',
+    url: 'https://zekabi.com/fiyat', accessed: ERISIM_TURKIYE,
+  },
+  //  Sheltron (sheltron.com.tr/fiyatlandirma/): "AI Görünürlük (GEO) danışmanlığı için net rakamlar; SaaS
+  //   ürünlerimiz için ihtiyacınıza özel teklif." · Starter "₺35.000" "aylık · 12 hafta sprint (~3 ay)" · Growth
+  //   "₺125.000" "aylık · 24 hafta sprint (~6 ay)" · "Tüm fiyatlar aylık + KDV hariç" · "AiSEO, SME-Index, AI
+  //   Automation ve GEO Builder platformları — kullanıcı sayısı ve scope'a göre özel fiyatlandırma." Ana sayfadaki
+  //   "Türkiye'nin ilk …" iddiasi rehbere ALINMADI (GEON ve AIWATCH de ayni iddiayi yaziyor).
+  sheltronPricing: {
+    id: 'sheltron-pricing', title: 'Sheltron fiyatlandırma', publisher: 'Sheltron',
+    url: 'https://sheltron.com.tr/fiyatlandirma/', accessed: ERISIM_TURKIYE,
+  },
+  // ── ChatGPT'de alisveris sonuclari (14.11.2026, tarayicida dogrudan okundu) ──
+  //  OpenAI Help Center: "Product results are not ads" · "When determining which products to surface, ChatGPT
+  //   considers: Structured metadata from first-party and third-party providers (e.g., price, product
+  //   description) and other third-party content." · "These model-generated summaries are based on reviews from
+  //   public websites" · "Merchants are ranked based on factors like availability, price, quality, and whether
+  //   they are the maker or primary seller of that item." · "For merchants on Shopify, product data is already
+  //   integrated into ChatGPT through Shopify Catalog … No additional work is required from individual merchants."
+  //   · "Merchants interested in providing a direct product feed to OpenAI … can read the Product Feed
+  //   documentation on our developer site and apply for direct feeds access." · "Keep in mind that not all
+  //   available products will necessarily be shown"
+  openaiShoppingHelp: {
+    id: 'openai-shopping-help', title: 'Shopping with ChatGPT Search', publisher: 'OpenAI Help Center',
+    url: 'https://help.openai.com/en/articles/11128490-shopping-with-chatgpt-search', accessed: ERISIM_TURKIYE,
+  },
+  //  OpenAI Developers, "Product feed schema" (developers.openai.com/commerce/specs/feed bu adrese yonleniyor):
+  //   "Submit product data for discovery in ChatGPT, with separate requirements for Ads and checkout." · "The
+  //   standard OpenAI-format upload currently targets the US. … Use additional markets only after OpenAI confirms
+  //   the integration and its allowed countries and currencies." · "Eligibility does not guarantee display." ·
+  //   target_countries: "the shared format currently represents US, CA, and MX. Standard uploads use ["US"]
+  //   regardless of this column." Belgede Turkiye'nin adi gecmiyor.
+  openaiProductFeed: {
+    id: 'openai-product-feed', title: 'Product feed schema', publisher: 'OpenAI Developers',
+    url: 'https://developers.openai.com/commerce/specs/file-upload/products', accessed: ERISIM_TURKIYE,
   },
   // ── Birinci taraf: KobiPratik (kurucu ekibimizin ortagi oldugu site) ──
   kpCitation: {
