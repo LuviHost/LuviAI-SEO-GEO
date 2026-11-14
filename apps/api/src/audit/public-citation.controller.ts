@@ -2,8 +2,10 @@ import { Body, Controller, Get, HttpException, HttpStatus, Logger, Post, Query, 
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator.js';
-import { PublicCitationService, type PublicCheckResult } from './public-citation.service.js';
+import { PUBLIC_BUDGET_MESSAGE, PublicCitationService, type PublicCheckResult } from './public-citation.service.js';
 import { PublicCitationSubscriberService } from './public-citation-subscriber.service.js';
+import { PublicCheckAttemptService } from './public-check-attempt.service.js';
+import { attemptDetail, attemptHost, outcomeOfError, outcomeOfResult, summaryOfResult } from './public-check-attempt.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
 import { clientIp } from '../common/client-ip.js';
@@ -122,6 +124,7 @@ export class PublicCitationController {
     private readonly subscribers: PublicCitationSubscriberService,
     private readonly quota: QuotaService,
     private readonly measurement: MeasurementAllowanceService,
+    private readonly attempts: PublicCheckAttemptService,
   ) {}
 
   /**
@@ -175,14 +178,44 @@ export class PublicCitationController {
       }
       this.mobileChecksInFlight.add(inFlightKey);
     }
+    // Deneme kaydi (14.11.2026, sahip: "uye olmadan tarayan herkesi kaydetmek istiyorum"): bu
+    // noktadan sonra — bot ve insan dogrulamasi GECILDIKTEN sonra — her deneme sonucuyla yazilir
+    // ve yoneticiye haber verilir. BEKLENMEZ: kayit / e-posta ziyaretcinin cevabini geciktirmez.
+    // Hicbir hatasi testi bozmaz: esZamanli hata try/catch'te, reddedilen soz .catch'te kalir.
+    // Alan adina cevrilemeyen girdi YAZILMAZ — ham metin saklanmaz (public-check-attempt.ts).
+    const denemeKaydi = (sonuc: PublicCheckResult | null, hata?: { status?: number; message?: string }) => {
+      try {
+        const domain = sonuc?.domain || attemptHost(body.domain, (d) => this.citation.hostOf(d));
+        if (!domain) return;
+        const girdi = {
+          domain,
+          outcome: sonuc ? outcomeOfResult(sonuc) : outcomeOfError(hata, PUBLIC_BUDGET_MESSAGE),
+          ipHash: this.citation.ipHash(ip),
+          checkId: sonuc && !sonuc.fromCache ? sonuc.checkId ?? null : null,
+          detail: sonuc ? null : attemptDetail(hata),
+          summary: sonuc ? summaryOfResult(sonuc) : undefined,
+        };
+        void Promise.resolve()
+          .then(() => this.attempts.record(girdi))
+          .catch((e: any) => this.log.warn(`Deneme kaydi yazilamadi: ${e?.message ?? e}`));
+      } catch (e: any) {
+        // Kayit hazirlanirken cikan hata da testi bozmaz (ornek: eksik bagimlilik)
+        this.log.warn(`Deneme kaydi baslatilamadi: ${e?.message ?? e}`);
+      }
+    };
+
     try {
-      return await this.citation.check(
+      const sonuc = await this.citation.check(
         body.domain,
         ip,
         'manual',
         mobileWithoutToken ? { ipDailyLimit: PUBLIC_CHECK_IP_LIMIT_STRICT } : {},
       );
+      denemeKaydi(sonuc);
+      return sonuc;
     } catch (err: any) {
+      // Ic hata (status yok) kayda "tamamlanamadi" diye girer; ic hata METNI girmez (attemptDetail)
+      denemeKaydi(null, err);
       // Alan adi hatalari (IP, port, ic ag, cozulemeyen ad) servisten Turkce
       // 400 olarak gelir ve oldugu gibi iletilir.
       if (err.status) throw err;

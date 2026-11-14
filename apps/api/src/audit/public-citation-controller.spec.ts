@@ -19,6 +19,9 @@ import {
  * Vitest dekorator metadata'si uretmedigi icin denetleyici elle kurulur.
  */
 
+/** Deneme kaydi bu dosyanin konusu degil (public-check-attempt.spec.ts): sessiz bir karsilik */
+const DENEME_YOK = { record: async () => undefined } as never;
+
 const ORJ_WEB_URL = process.env.WEB_URL;
 afterEach(() => {
   if (ORJ_WEB_URL === undefined) delete process.env.WEB_URL;
@@ -27,7 +30,7 @@ afterEach(() => {
 
 function kur(subscribers: Record<string, any>) {
   process.env.WEB_URL = 'https://ranksup.test';
-  const ctrl = new PublicCitationController({} as never, subscribers as never, {} as never, {} as never);
+  const ctrl = new PublicCitationController({} as never, subscribers as never, {} as never, {} as never, DENEME_YOK);
   const res = { redirect: vi.fn((url: string) => url) };
   return { ctrl, res };
 }
@@ -84,7 +87,7 @@ describe('POST citation-check/unlock — beklenmedik hata', () => {
     const citation = { check: vi.fn(check) };
     const quota = { enforceCitationQuota: vi.fn(async () => {}), incrementCitationUsage: vi.fn(async () => {}) };
     const measurement = { run: vi.fn(async (_user: unknown, fn: () => Promise<unknown>) => fn()) };
-    const ctrl = new PublicCitationController(citation as never, {} as never, quota as never, measurement as never);
+    const ctrl = new PublicCitationController(citation as never, {} as never, quota as never, measurement as never, DENEME_YOK);
     const warn = vi.spyOn((ctrl as any).log, 'warn').mockImplementation(() => undefined);
     const req = { user: { id: 'u1', subscriptionStatus: 'ACTIVE' }, headers: {}, socket: { remoteAddress: '1.2.3.4' } };
     return { ctrl, req, quota, warn };
@@ -132,7 +135,7 @@ describe('POST citation-check/unlock — plan kapsami', () => {
     const citation = { check: vi.fn(async (..._a: unknown[]) => ({ fromCache: false, queries: [] })) };
     const quota = { enforceCitationQuota: vi.fn(async () => {}), incrementCitationUsage: vi.fn(async () => {}) };
     const measurement = { run: vi.fn(async (_user: unknown, fn: () => Promise<unknown>) => fn()) };
-    const ctrl = new PublicCitationController(citation as never, {} as never, quota as never, measurement as never);
+    const ctrl = new PublicCitationController(citation as never, {} as never, quota as never, measurement as never, DENEME_YOK);
     const req = { user: { id: 'u1', subscriptionStatus: 'ACTIVE', ...user }, headers: {}, socket: { remoteAddress: '1.2.3.4' } };
     return { ctrl, req, citation };
   }
@@ -182,7 +185,7 @@ describe('POST citation-check/subscribe — kotuye kullanim katmanlari', () => {
     const fetchSahte = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       new Response(JSON.stringify({ success: o.turnstileBasarili ?? true }), { status: 200 }));
     const subscribers = { subscribe: vi.fn(async () => ({ ok: true as const, status: 'PENDING_OPTIN', alreadyActive: false })) };
-    const ctrl = new PublicCitationController({} as never, subscribers as never, {} as never, {} as never);
+    const ctrl = new PublicCitationController({} as never, subscribers as never, {} as never, {} as never, DENEME_YOK);
     const istek = (ua: string, headers: Record<string, string> = { 'cf-connecting-ip': '203.0.113.7' }) =>
       ({ headers: { 'user-agent': ua, ...headers }, socket: { remoteAddress: '127.0.0.1' } }) as never;
     const govde = (extra: Record<string, unknown> = {}) =>
@@ -288,7 +291,7 @@ describe('POST citation-check — servise giden IP istemcinin yazdigi adres degi
 
   function kurKontrol() {
     const citation = { check: vi.fn(async () => ({ fromCache: false, queries: [] })) };
-    const ctrl = new PublicCitationController(citation as never, {} as never, {} as never, {} as never);
+    const ctrl = new PublicCitationController(citation as never, {} as never, {} as never, {} as never, DENEME_YOK);
     const istek = (headers: Record<string, string>) =>
       ({ headers: { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) Firefox/140.0', ...headers }, socket: { remoteAddress: '127.0.0.1' } }) as never;
     return { ctrl, citation, istek };
@@ -334,7 +337,7 @@ describe('POST citation-check — mobil uygulama (Turnstile token gonderemiyor)'
       check: vi.fn(async () => ({ fromCache: false, queries: [] })),
       checkRateLimit: vi.fn(async () => ({ ok: true, remaining: 1 })),
     };
-    const ctrl = new PublicCitationController(citation as never, {} as never, {} as never, {} as never);
+    const ctrl = new PublicCitationController(citation as never, {} as never, {} as never, {} as never, DENEME_YOK);
     const istek = (ua: string) => ({ headers: { 'user-agent': ua, 'cf-connecting-ip': '203.0.113.7' }, socket: { remoteAddress: '127.0.0.1' } }) as never;
     return { ctrl, citation, fetchSahte, istek };
   }

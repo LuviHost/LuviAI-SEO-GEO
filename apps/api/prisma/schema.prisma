@@ -2118,6 +2118,40 @@ model PublicCitationCheck {
 }
 
 // ──────────────────────────────────────────────────────────
+// PUBLIC CHECK ATTEMPT — ucretsiz testin HER denemesi (14.11.2026)
+// Sahip: "uye olmadan tarayan herkesi kaydetmek istiyorum, kacirmak istemiyorum".
+// public_citation_checks yalniz TAZE olcumu tutar. Daha once test edilmis bir
+// alan adini deneyen ziyaretci kayitli sonucu gorur (anonim kademede onbellegin
+// suresi yok) ve iz birakmazdi; haftalik sinira ya da gunluk tavana takilan,
+// sitesine ulasilamayan deneme de oyle. Bu tablo her denemeyi sonucuyla yazar.
+//
+// YENI KISISEL VERI YOK: alan adi + IP ozeti (hash) + zaman; ucu de gizlilik
+// metninin ucretsiz test maddesinde zaten sayiliyor. Ulke, cihaz, tarayici
+// bilgisi BILEREK saklanmaz — eklenirse once gizlilik metni guncellenir.
+// ──────────────────────────────────────────────────────────
+model PublicCheckAttempt {
+  id         String    @id @default(cuid())
+  /// Normalize host; cozulemediyse ziyaretcinin yazdigi metnin basi
+  domain     String
+  /// measured | cached | rate_limited | budget | failed (audit/public-check-attempt.ts)
+  outcome    String
+  /// Taze olcumde yazilan public_citation_checks.id (digerlerinde null)
+  checkId    String?
+  /// IP ozeti (public_citation_checks.ip ile ayni tuzlama). YALNIZ kotuye kullanim incelemesi
+  /// icin; yonetim listesine verilmez, denemeler ziyaretciye gore gruplanmaz (gizlilik metni)
+  ip         String?
+  /// Sinir / hata durumunda ziyaretciye gosterilen mesajin basi
+  detail     String?
+  /// Yoneticiye bildirim yazildiysa zamani; null = bildirim kisildi ya da yazilamadi
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([domain, createdAt])
+  @@map("public_check_attempts")
+}
+
+// ──────────────────────────────────────────────────────────
 // PUBLIC CITATION SUBSCRIBER — email-based retest abonelik
 // Ziyaretci test sonucunda email birakir → cron'a alinir,
 // 15/30/60/90g otomatik retest + branded rapor email gonderilir.

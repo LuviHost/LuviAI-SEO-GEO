@@ -1219,6 +1219,20 @@ export class PublicCitationService {
     };
   }
 
+  /**
+   * Deneme kaydi (public-check-attempt.service) icin AYNI ozet. Amaci bu tablodakiyle ayni:
+   * kotuye kullanimi onlemek ve incelemek. Yonetim listesine verilmez, denemeler ziyaretciye
+   * gore gruplanmaz (gizlilik metni). Ham IP disari verilmez.
+   */
+  ipHash(ip: string): string {
+    return this.hashIp(ip);
+  }
+
+  /** Deneme kaydinda alan adi: gecersiz girdide firlatir (cagiran yakalar) */
+  hostOf(input: unknown): { host: string } {
+    return normalizePublicDomainInput(input);
+  }
+
   /** IP'yi audit/rate-limit icin saklarken privacy icin hash'le. */
   private hashIp(ip: string): string {
     if (!ip) return '';
