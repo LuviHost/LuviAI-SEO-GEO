@@ -1,10 +1,11 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 import { CitedSourcesCard } from '@/components/cited-sources-card';
-import { Sparkles, Compass, Loader2, FileText, Search, Star, Target } from 'lucide-react';
+import { Sparkles, Compass, Loader2, FileText, Search, Star, Store, Target } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SectionHeader } from '@/components/ui/section-header';
@@ -267,6 +268,31 @@ export default function VisibilityPage() {
         )}
       </Card>
       {/* AI Crawler Trafigi paneli 13.11.2026'da Bot Takibi sayfasina tasindi (tek yerde dursun) */}
+
+      {/* ChatGPT isletme profili (14.11.2026, sahip: "Yap") — bilgi notu, olcum degil. OpenAI'a gore
+          sahiplenmek gorunurlugu garanti etmez; Turkiye'den onay dogrulanmadi. Metin ikisini de soyler,
+          vaat vermez. Ayrintisi /rehber/chatgpt-isletme-profili (kaynaklar orada). Sahip kendi
+          basvurusunu yapinca son cumle guncellenir. */}
+      <div className="flex flex-wrap items-start gap-3 rounded-md border p-4">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border text-foreground/70" aria-hidden>
+          <Store className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1 basis-56">
+          <p className="text-sm font-medium">ChatGPT’de işletme profili</p>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+            OpenAI, işletmelerin ChatGPT’de görünen bilgilerini Business Hub sayfasından güncellemesine izin veriyor (beta).
+            Profili sahiplenmek cevaplarda daha çok anılmanı garanti etmez.
+            Türkiye’den yapılan bir başvurunun onaylandığını henüz doğrulayamadık.{' '}
+            <Link
+              href="/rehber/chatgpt-isletme-profili"
+              target="_blank"
+              className="text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground"
+            >
+              Nasıl sahiplenilir?
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

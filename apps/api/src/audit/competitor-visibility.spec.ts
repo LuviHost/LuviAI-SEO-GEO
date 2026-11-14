@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  MAX_SUGGESTIONS, aggregateCompetitorVisibility, competitorVisibilityDays,
-  type VisibilityInput, type VisibilityRun,
+  MAX_SUGGESTIONS, aggregateCompetitorVisibility, competitorVisibilityDays, firstMentionOf,
+  type StoredCompetitor, type VisibilityInput, type VisibilityRun,
 } from './competitor-visibility.js';
-import { competitorNamesFrom, listedCompetitorsFrom, sourceHostsFrom } from './competitor-visibility.service.js';
+import { competitorEntriesFrom, competitorNamesFrom, listedCompetitorsFrom, sourceHostsFrom } from './competitor-visibility.service.js';
 
 /**
  * AI cevaplarinda rakip gorunurlugu (13.11.2026, ICM Turkey: "AI'larda hangi rakiplerimiz
@@ -164,6 +164,101 @@ describe('onceki olcume gore degisim — yalniz karsilastirilabilir cevaplar', (
     }));
     expect(satir(r, 'ICM Turkey').change).toBeNull();
     expect(r.totals.comparablePairs).toBe(0);
+  });
+});
+
+/**
+ * Ilk anilan (14.11.2026). Rakibin konumu hep saklaniyordu, markaninki saklanmiyordu:
+ * marka + rakip birlikte gecen ESKI cevapta sira bilinmez ve uydurulmaz.
+ */
+describe('ilk anilan — bir cevapta takip edilen adlar arasinda metinde ilk gecen', () => {
+  const r = (name: string, positionFirst: number | null, beforeBrand: boolean | null = null): StoredCompetitor => ({ name, positionFirst, beforeBrand });
+
+  it('kimse anilmadiysa null; yalniz marka anildiysa marka', () => {
+    expect(firstMentionOf(false, [])).toBeNull();
+    expect(firstMentionOf(true, [])).toEqual({ kind: 'brand' });
+  });
+
+  it('marka anilmadi: en erken konumdaki rakip (eski olcumde de bilinir)', () => {
+    expect(firstMentionOf(false, [r('Creatorden', 120), r('Viralif', 40)])).toEqual({ kind: 'competitor', name: 'Viralif' });
+    // Tek rakipte konum gerekmez
+    expect(firstMentionOf(false, [r('Creatorden', null)])).toEqual({ kind: 'competitor', name: 'Creatorden' });
+    // Birden cok rakip + eksik konum: tahmin yok
+    expect(firstMentionOf(false, [r('Creatorden', null), r('Viralif', 40)])).toEqual({ kind: 'unknown' });
+    // Esit konumda UZUN ad: metinde yazan odur, kisa ad onun icinde eslesmistir
+    expect(firstMentionOf(false, [r('Trendyol', 10), r('Trendyol Milla', 10)])).toEqual({ kind: 'competitor', name: 'Trendyol Milla' });
+    expect(firstMentionOf(false, [r('Trendyol Milla', 10), r('Trendyol', 10)])).toEqual({ kind: 'competitor', name: 'Trendyol Milla' });
+    // Uzunluk da esitse listede once gelen
+    expect(firstMentionOf(false, [r('Share', 10), r('Shore', 10)])).toEqual({ kind: 'competitor', name: 'Share' });
+  });
+
+  it('marka + rakip, yeni olcum: hicbiri markadan once degilse marka; degilse once gecenlerin en erkeni', () => {
+    expect(firstMentionOf(true, [r('Creatorden', 300, false), r('Viralif', 500, false)])).toEqual({ kind: 'brand' });
+    expect(firstMentionOf(true, [r('Creatorden', 300, false), r('Viralif', 20, true)])).toEqual({ kind: 'competitor', name: 'Viralif' });
+    expect(firstMentionOf(true, [r('Creatorden', 5, true), r('Viralif', 20, true)])).toEqual({ kind: 'competitor', name: 'Creatorden' });
+  });
+
+  it('marka + rakip, ESKI olcum (beforeBrand yok): bilinmiyor', () => {
+    expect(firstMentionOf(true, [r('Creatorden', 300)])).toEqual({ kind: 'unknown' });
+    expect(firstMentionOf(true, [r('Creatorden', 300, false), r('Viralif', 20)])).toEqual({ kind: 'unknown' });
+  });
+
+  it('ayni ad iki kez yazilmissa bir kez sayilir; marka adiyla ayni rakip kaydi atlanir', () => {
+    expect(firstMentionOf(false, [r('creatorden', 10), r('Creatorden', 90)])).toEqual({ kind: 'competitor', name: 'creatorden' });
+    expect(firstMentionOf(true, [r('icm turkey', 3)], 'ICM Turkey')).toEqual({ kind: 'brand' });
+    expect(firstMentionOf(false, [r('ICM TURKEY', 3)], 'ICM Turkey')).toBeNull();
+  });
+
+  it('kayit okuyucu: konum ve beforeBrand; eski ad dizisinde ikisi de null', () => {
+    expect(competitorEntriesFrom([
+      { name: 'Creatorden', mentions: 2, positionFirst: 10, beforeBrand: true },
+      { name: 'Viralif', mentions: 1, positionFirst: 44 },
+      { name: 'Bozuk', positionFirst: 'x', beforeBrand: 'evet' },
+      'Share', { mentions: 1 }, null,
+    ])).toEqual([
+      { name: 'Creatorden', positionFirst: 10, beforeBrand: true },
+      { name: 'Viralif', positionFirst: 44, beforeBrand: null },
+      { name: 'Bozuk', positionFirst: null, beforeBrand: null },
+      { name: 'Share', positionFirst: null, beforeBrand: null },
+    ]);
+  });
+
+  it('tabloda: adinin gectigi cevaplardan kacinda ilk; bilinmeyenler ayri sayilir', () => {
+    const ilk = (brandMentioned: boolean, entries: StoredCompetitor[]) => ({
+      brandMentioned,
+      competitors: entries.map((e) => e.name),
+      first: firstMentionOf(brandMentioned, entries, 'ICM Turkey'),
+    });
+    const sonuc = aggregateCompetitorVisibility(girdi({
+      listed: [{ name: 'Creatorden' }, { name: 'Viralif' }],
+      runs: [
+        // marka yok: Viralif once
+        run({ promptId: 'p1', provider: 'openai', date: '2026-11-11', ...ilk(false, [r('Creatorden', 120), r('Viralif', 40)]) }),
+        // yalniz marka
+        run({ promptId: 'p1', provider: 'xai', date: '2026-11-11', ...ilk(true, []) }),
+        // marka + rakip, yeni olcum: Creatorden markadan once
+        run({ promptId: 'p2', provider: 'openai', date: '2026-11-11', ...ilk(true, [r('Creatorden', 5, true)]) }),
+        // marka + rakip, eski olcum: bilinmiyor
+        run({ promptId: 'p2', provider: 'xai', date: '2026-11-11', ...ilk(true, [r('Creatorden', 5)]) }),
+        // kimse yok
+        run({ promptId: 'p3', provider: 'openai', date: '2026-11-11' }),
+      ],
+    }));
+    expect(satir(sonuc, 'ICM Turkey')).toMatchObject({ answers: 3, firstAnswers: 1, firstUnknown: 1 });
+    expect(satir(sonuc, 'Creatorden')).toMatchObject({ answers: 3, firstAnswers: 1, firstUnknown: 1 });
+    expect(satir(sonuc, 'Viralif')).toMatchObject({ answers: 1, firstAnswers: 1, firstUnknown: 0 });
+    // Bir cevabin en cok bir ilk anilani olur
+    const toplamIlk = sonuc.rows.reduce((n, x) => n + x.firstAnswers, 0);
+    expect(toplamIlk).toBe(3);
+  });
+
+  it('`first` verilmeyen satir (eski cagiran) kimseye ilk yazmaz', () => {
+    const sonuc = aggregateCompetitorVisibility(girdi({
+      listed: [{ name: 'Creatorden' }],
+      runs: [run({ promptId: 'p1', provider: 'openai', date: '2026-11-11', brandMentioned: true, competitors: ['Creatorden'] })],
+    }));
+    expect(satir(sonuc, 'ICM Turkey')).toMatchObject({ firstAnswers: 0, firstUnknown: 0 });
+    expect(satir(sonuc, 'Creatorden')).toMatchObject({ firstAnswers: 0, firstUnknown: 0 });
   });
 });
 

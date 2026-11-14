@@ -53,8 +53,12 @@ export interface CitationProbe {
   position?: number | null;
   /** Marka mention'ının tonu (heuristic — anahtar kelime context'ine bakar) */
   sentiment?: 'positive' | 'neutral' | 'negative' | null;
-  /** Aynı response'ta hangi rakipler kaç defa anıldı */
-  competitors?: Array<{ name: string; mentions: number; positionFirst: number | null }>;
+  /**
+   * Aynı response'ta hangi rakipler kaç defa anıldı. `beforeBrand` yalniz marka da
+   * anildiysa yazilir: rakip metinde markadan once mi gecti ("ilk anilan" sutunu,
+   * competitor-visibility.ts). 14.11.2026 oncesi kayitlarda bu alan yok.
+   */
+  competitors?: Array<{ name: string; mentions: number; positionFirst: number | null; beforeBrand?: boolean }>;
   /** Per-page citation: AI cevabında hangi spesifik sayfa URL'leri alıntılandı (host'umuza ait) */
   citedPages?: string[];
   /**
@@ -1695,7 +1699,16 @@ export class AiCitationService {
     const mentionedDomains = this.extractDomains(baseText, host);
 
     // ── Competitor mentions: ASO modülünden gelen rakip listesini text'te ara
-    const competitorStats: Array<{ name: string; mentions: number; positionFirst: number | null }> = [];
+    const competitorStats: NonNullable<CitationProbe['competitors']> = [];
+    // "Ilk anilan" icin adlarin GERCEK baslangici. Eslesme indeksi kelime kuralinda sol sinir
+    // karakterini icerir (ad bir sonraki karakterde baslar), alan adi kuralinda icermez; iki
+    // kural ayni cetvelle kiyaslansin diye ad, indeksten itibaren ilk gecisinden olculur.
+    const startOf = (needle: string, idx: number) => {
+      const s = folded.indexOf(needle, idx);
+      return s === -1 ? idx : s;
+    };
+    const brandNeedle = matcher.mode === 'domain' ? matcher.host : brandFolded;
+    const brandStart = brandFirstIdx === null ? null : startOf(brandNeedle, brandFirstIdx);
     for (const compRaw of competitors) {
       // Rakip adlarinda da ayni İ hatasi vardi — orn. "İddaa.com" hicbir zaman
       // sayilmiyordu (ofsayt.com rakip listesinde gercek ornek).
@@ -1705,10 +1718,20 @@ export class AiCitationService {
       const re = new RegExp(`(?:^|[^a-z0-9à-ſğüşöç])${esc}(?:$|[^a-z0-9à-ſğüşöç])`, 'g');
       const matches = [...folded.matchAll(re)];
       if (matches.length > 0) {
+        const ilk = matches[0].index ?? null;
+        // "Ilk anilan" (competitor-visibility.ts): marka da anildiysa rakip ondan once mi.
+        // Iki ad AYNI yerde basliyorsa metinde yazan UZUN olandir: marka "Lavanta", rakip
+        // "Lavanta Kuaför", metin "Lavanta Kuaför" → anilan rakiptir (kisa ad onun icinde
+        // eslesmistir). Tersinde (rakip markanin on eki) rakip once sayilmaz.
+        // Marka anilmadiysa alan yazilmaz: o cevapta sira rakiplerin kendi konumundan cikar.
+        const compStart = ilk === null ? null : startOf(comp, ilk);
         competitorStats.push({
           name: compRaw,
           mentions: matches.length,
-          positionFirst: matches[0].index ?? null,
+          positionFirst: ilk,
+          ...(brandStart !== null && compStart !== null
+            ? { beforeBrand: compStart < brandStart || (compStart === brandStart && comp.length > brandNeedle.length) }
+            : {}),
         });
       }
     }

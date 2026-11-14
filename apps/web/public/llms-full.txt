@@ -4,7 +4,7 @@
 
 Bu dosya https://ranksup.ai/llms.txt dosyasının ayrıntılı sürümüdür. Yalnızca bugün üründe çalışan özellikleri anlatır; fiyat ve plan sınırları ürünün plan tanımıyla aynıdır.
 
-Son güncelleme: 11 Kasım 2026 · RanksUp Ekibi
+Son güncelleme: 14 Kasım 2026 · RanksUp Ekibi
 
 Tek sayfalık ürün özeti (plan verisinden üretilir): https://ranksup.ai/ranksup.md
 
@@ -168,6 +168,7 @@ C: Aylık plan istediğin zaman iptal edilir; ödenen dönemin sonuna kadar eri�
 - [SEO & GEO sözlüğü](https://ranksup.ai/help/glossary)
 - [Rehber: yapay zekâ görünürlüğü](https://ranksup.ai/rehber)
 - [ChatGPT’de markam görünüyor mu, nasıl anlarım?](https://ranksup.ai/rehber/chatgpt-markam-gorunuyor-mu)
+- [ChatGPT’de işletme profili nasıl sahiplenilir?](https://ranksup.ai/rehber/chatgpt-isletme-profili)
 - [GEO nedir, SEO’dan farkı ne?](https://ranksup.ai/rehber/geo-nedir)
 - [Hangi yapay zekâ botunu robots.txt’de engellemeliyim?](https://ranksup.ai/rehber/yapay-zeka-botlari-robots-txt)
 - [llms.txt gerçekte ne işe yarar?](https://ranksup.ai/rehber/llms-txt-nedir)

@@ -2186,9 +2186,10 @@ describe('Rehber (/rehber) = ürün', () => {
   // planındaki" derse okuyani alamayacagi bir plana yollar (Canli Tarayici artik Kurumsal'da satilir).
   const planAdi = (f: keyof typeof FEATURE_MIN_PLAN) => featureOfferPlan(f).name_tr;
 
-  it('rehber veri modulleri bulunuyor (8 makale + kayit + kaynaklar + tipler)', () => {
+  it('rehber veri modulleri bulunuyor (9 makale + kayit + kaynaklar + tipler)', () => {
     // 11.11.2026: yapay-zeka-gorunurlugu eklendi (PR #68); sayi orada guncellenmemisti.
-    expect(tum.length).toBe(11);
+    // 14.11.2026: chatgpt-isletme-profili eklendi.
+    expect(tum.length).toBe(12);
   });
 
   it('RanksUp plan fiyatlari plans.ts ile ayni; elle yazilmis bayat tutar yok', () => {

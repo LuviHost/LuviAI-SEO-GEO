@@ -12,9 +12,11 @@ import { article as aiBakisi } from './ai-bakisi-gorunurluk';
 import { article as mobil } from './mobil-uygulama-geo';
 import { article as araclar } from './yapay-zeka-gorunurluk-araclari';
 import { article as gorunurluk } from './yapay-zeka-gorunurlugu';
+import { article as isletmeProfili } from './chatgpt-isletme-profili';
 
 // Kapsayici makale (yapay zeka gorunurlugu nedir) basta: "ai gorunurlugu" sorgulari bunu hedefliyor.
-export const REHBER_ARTICLES: readonly RehberArticle[] = [gorunurluk, chatgpt, geo, botlar, llms, aiBakisi, mobil, araclar];
+// ChatGPT isletme profili (14.11.2026) iki ChatGPT yazisi yan yana dursun diye olcum rehberinin ardinda.
+export const REHBER_ARTICLES: readonly RehberArticle[] = [gorunurluk, chatgpt, isletmeProfili, geo, botlar, llms, aiBakisi, mobil, araclar];
 
 export function findRehber(slug: string): RehberArticle {
   const a = REHBER_ARTICLES.find((x) => x.slug === slug);

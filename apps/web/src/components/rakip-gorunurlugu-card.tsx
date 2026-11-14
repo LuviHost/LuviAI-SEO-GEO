@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { siteHref } from '@/lib/site-routes';
 import { PROVIDER_LABELS } from '@/lib/chart-colors';
 import {
-  degisimMetni, kaynakMetni, listedeVar, olcumVar, oneridenRakip, ozetMetni, payYuzdesi,
+  degisimMetni, ilkAnilanMetni, kaynakMetni, listedeVar, olcumVar, oneridenRakip, ozetMetni, payYuzdesi,
   type RakipGorunurlugu, type RakipOnerisi, type RakipSatiri,
 } from '@/lib/rakip-gorunurlugu';
 import { Card, CardContent } from '@/components/ui/card';
@@ -52,6 +52,7 @@ const DEGISIM_TON: Record<ReturnType<typeof degisimMetni>['yon'], string> = {
 
 function Satir({ row, sira, toplam, acik, onToggle }: { row: RakipSatiri; sira: number; toplam: number; acik: boolean; onToggle: () => void }) {
   const pay = payYuzdesi(row.answers, toplam);
+  const ilk = ilkAnilanMetni(row);
   const degisim = degisimMetni(row.change);
   const acilabilir = row.byQuestion.length > 0;
   return (
@@ -86,6 +87,14 @@ function Satir({ row, sira, toplam, acik, onToggle }: { row: RakipSatiri; sira: 
             </span>
           </div>
         </td>
+        {/* Ilk anilan (14.11.2026): payda yalniz sirasi kayitli cevaplar — lib/rakip-gorunurlugu ilkAnilanMetni.
+            Bilinmeyen sayisi hucrede GORUNUR: eski kayitlarda marka satiri "4 / 4" cikar, yanindaki
+            "6 bilinmiyor" olmadan "hep ilk" diye okunurdu (title telefonda gorunmez). */}
+        <td className={cn('whitespace-nowrap py-2.5 pr-3 text-sm tabular-nums', ilk.payda === null && 'text-muted-foreground')} title={ilk.title || undefined}>
+          {ilk.text}
+          {ilk.payda !== null && <span className="text-muted-foreground"> / {ilk.payda}</span>}
+          {ilk.bilinmeyen > 0 && <span className="block text-xs font-normal text-muted-foreground">{ilk.bilinmeyen} bilinmiyor</span>}
+        </td>
         <td className="py-2.5 pr-3 text-sm tabular-nums">{row.questions}</td>
         <td className="py-2.5 pr-3"><Asistanlar list={row.providers} /></td>
         <td className={cn('py-2.5 pr-3 text-sm tabular-nums', row.citedAnswers === null && 'text-xs text-muted-foreground')}>{kaynakMetni(row.citedAnswers)}</td>
@@ -94,7 +103,7 @@ function Satir({ row, sira, toplam, acik, onToggle }: { row: RakipSatiri; sira: 
       {acik && acilabilir && (
         <tr className={cn(row.isBrand && 'bg-muted/50')}>
           <td />
-          <td colSpan={7} className="pb-3 pr-3">
+          <td colSpan={8} className="pb-3 pr-3">
             <ul className="space-y-1.5 rounded-md border p-3">
               {row.byQuestion.map((q) => (
                 <li key={q.promptId} className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -192,13 +201,14 @@ export function RakipGorunurluguCard({ siteId, onListChanged }: { siteId: string
             <p className="v-rail">{ozetMetni(data.totals)}</p>
 
             <div className="-mx-5 overflow-x-auto px-5">
-              <table className="w-full min-w-[48rem] text-left">
+              <table className="w-full min-w-[54rem] text-left">
                 <thead>
                   <tr className="text-xs font-medium text-muted-foreground">
                     <th className="pb-2 pl-3 pr-2 font-medium">#</th>
                     <th className="pb-2 pr-3 font-medium">Ad</th>
                     <th className="pb-2 pr-3 font-medium">Adının geçtiği cevap</th>
                     <th className="hidden pb-2 pr-3 font-medium sm:table-cell" title="Adının geçtiği cevapların, ölçülen bütün cevaplara oranı">Pay</th>
+                    <th className="pb-2 pr-3 font-medium" title="Adının geçtiği cevaplardan kaçında, markan ve rakiplerin arasında metinde ilk bu ad geçti (tek başına geçtiği cevaplar dahil)">İlk anılan</th>
                     <th className="pb-2 pr-3 font-medium">Soru</th>
                     <th className="pb-2 pr-3 font-medium">Asistanlar</th>
                     <th className="pb-2 pr-3 font-medium" title="Sitesinin kaynak olarak gösterildiği cevap sayısı">Kaynak</th>
@@ -223,6 +233,8 @@ export function RakipGorunurluguCard({ siteId, onListChanged }: { siteId: string
             <p className="text-label font-normal text-muted-foreground">
               Rakip adları ölçüm sırasında listende olanlar arasında aranır: listeye yeni eklediğin rakip bir sonraki ölçümden itibaren sayılır.
               “Kaynak” sütunu rakibin sitesinin kaç cevapta kaynak gösterildiğidir; adresi tanımlıysa eski ölçümlerde de dolar.
+              “İlk anılan”, adın geçtiği cevaplardan kaçında markan ve rakiplerin arasında metinde ilk o adın geçtiğidir; bir cevapta tek başına geçen ad da ilk sayılır.
+              Markanla bir rakibin birlikte geçtiği eski ölçümlerde sıra kayıtlı değildir. Bu cevaplar sayılmaz ve hücrede “bilinmiyor” diye gösterilir; soru yeniden ölçülünce dolar.
               {data.truncated && ' Çok fazla kayıt olduğu için yalnız en yeni ölçümler okundu.'}
             </p>
 
