@@ -52,8 +52,9 @@ type Target = {
 };
 
 // ──────────────────────────────────────────────────────────────────────
-// PUBLISH TARGETS MANAGER — Ayarlar'dan çıkarıldı, İçerik tab'ında render ediliyor
-// (Yayın hedefleri ayar değil, içerik destinasyonudur)
+// PUBLISH TARGETS MANAGER — kendi sayfasinda (/publish-targets) cizilir; sayfa 14.11.2026'dan
+// beri Ayarlar catisinin bir sekmesi (lib/site-nav SITE_ROOFS.settings). Once Icerik grubunda
+// ayri menu ogesiydi; sahip "ayarlar kismina alalim" dedi.
 // ──────────────────────────────────────────────────────────────────────
 export function PublishTargetsManager({
   siteId,

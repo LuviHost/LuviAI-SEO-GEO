@@ -123,7 +123,7 @@ const FAQS_TR = [
   },
   {
     q: 'Kendi WordPress\'ime nasıl bağlarım?',
-    a: 'WordPress yönetim panelinde Kullanıcılar → Profil altındaki "Application Passwords" bölümünden bir uygulama parolası oluşturursun. RanksUp\'ta site menüsü → Yayın Hedefleri → WordPress (REST API) seçip site adresini, kendi WordPress kullanıcı adını ve uygulama parolasını girersin. Yayın durumunu "Taslak" seçersen makaleler WordPress\'e taslak olarak gider, sen inceleyip yayınlarsın; "Yayında" seçersen doğrudan yayına çıkar.',
+    a: 'WordPress yönetim panelinde Kullanıcılar → Profil altındaki "Application Passwords" bölümünden bir uygulama parolası oluşturursun. RanksUp\'ta site menüsü → Ayarlar → Yayın hedefleri → WordPress (REST API) seçip site adresini, kendi WordPress kullanıcı adını ve uygulama parolasını girersin. Yayın durumunu "Taslak" seçersen makaleler WordPress\'e taslak olarak gider, sen inceleyip yayınlarsın; "Yayında" seçersen doğrudan yayına çıkar.',
   },
   {
     q: 'Aboneliğimi istediğim zaman iptal edebilir miyim?',
@@ -218,7 +218,7 @@ const FAQS_EN = [
   },
   {
     q: 'How do I connect my own WordPress?',
-    a: 'In the WordPress admin under Users → Profile, create an application password in the "Application Passwords" section. In RanksUp go to the site menu → "Yayın Hedefleri" (publish targets) → WordPress (REST API) and enter your site address, your own WordPress username and the application password. If you set the publish status to "Taslak" (draft), articles arrive in WordPress as drafts for you to review; "Yayında" (published) sends them live directly.',
+    a: 'In the WordPress admin under Users → Profile, create an application password in the "Application Passwords" section. In RanksUp go to the site menu → "Ayarlar" (settings) → "Yayın hedefleri" (publish targets) → WordPress (REST API) and enter your site address, your own WordPress username and the application password. If you set the publish status to "Taslak" (draft), articles arrive in WordPress as drafts for you to review; "Yayında" (published) sends them live directly.',
   },
   {
     q: 'Can I cancel my subscription anytime?',
