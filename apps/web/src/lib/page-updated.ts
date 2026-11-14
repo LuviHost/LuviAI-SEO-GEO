@@ -68,7 +68,13 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/rehber/llms-txt-nedir',                   updated: '2026-11-08', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/ai-bakisi-gorunurluk',             updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/mobil-uygulama-geo',               updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
+  // 14.11.2026: karsilastirmaya Turkiye listesi, KOBI, e-ticaret ve ajans rehberlerine baglantilar eklendi.
+  { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.7 },
+  // 14.11.2026: "hangi urun" sorulari icin dort rehber (Turkiye'de satilan urunler, KOBI, e-ticaret, ajans).
+  { path: '/rehber/turkiyede-yapay-zeka-gorunurluk-urunleri',   updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/rehber/kobi-seo-ve-yapay-zeka-gorunurlugu',         updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/e-ticaret-yapay-zeka-gorunurlugu',           updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/ajanslar-icin-yapay-zeka-gorunurluk-raporu', updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/help',                  updated: '2026-10-30', changeFrequency: 'monthly', priority: 0.5 },
   // Help center alt sayfalari — SEO + AI alintisi icin kritik (her biri modul rehberi)
   { path: '/help/getting-started',  updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },

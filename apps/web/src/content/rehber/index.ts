@@ -13,10 +13,18 @@ import { article as mobil } from './mobil-uygulama-geo';
 import { article as araclar } from './yapay-zeka-gorunurluk-araclari';
 import { article as gorunurluk } from './yapay-zeka-gorunurlugu';
 import { article as isletmeProfili } from './chatgpt-isletme-profili';
+import { article as turkiye } from './turkiyede-yapay-zeka-gorunurluk-urunleri';
+import { article as kobi } from './kobi-seo-ve-yapay-zeka-gorunurlugu';
+import { article as eticaret } from './e-ticaret-yapay-zeka-gorunurlugu';
+import { article as ajans } from './ajanslar-icin-yapay-zeka-gorunurluk-raporu';
 
 // Kapsayici makale (yapay zeka gorunurlugu nedir) basta: "ai gorunurlugu" sorgulari bunu hedefliyor.
 // ChatGPT isletme profili (14.11.2026) iki ChatGPT yazisi yan yana dursun diye olcum rehberinin ardinda.
-export const REHBER_ARTICLES: readonly RehberArticle[] = [gorunurluk, chatgpt, isletmeProfili, geo, botlar, llms, aiBakisi, mobil, araclar];
+// 14.11.2026: "hangi urun" sorulari icin dort rehber (Turkiye listesi, KOBI, e-ticaret, ajans) karsilastirmanin
+// ardinda bir arada — hepsi urun secimine bakiyor.
+export const REHBER_ARTICLES: readonly RehberArticle[] = [
+  gorunurluk, chatgpt, isletmeProfili, geo, botlar, llms, aiBakisi, mobil, araclar, turkiye, kobi, eticaret, ajans,
+];
 
 export function findRehber(slug: string): RehberArticle {
   const a = REHBER_ARTICLES.find((x) => x.slug === slug);

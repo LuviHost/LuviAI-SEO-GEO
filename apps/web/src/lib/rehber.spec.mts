@@ -50,9 +50,10 @@ describe('yardimcilar', () => {
 describe('rehber kaydi = rotalar = sitemap', () => {
   const sluglar = REHBER_ARTICLES.map((a) => a.slug);
 
-  it('9 makale, slug tekrari yok', () => {
-    // 14.11.2026: chatgpt-isletme-profili eklendi.
-    expect(sluglar.length).toBe(9);
+  it('13 makale, slug tekrari yok', () => {
+    // 14.11.2026: chatgpt-isletme-profili eklendi; ayni gun "hangi urun" sorulari icin dort rehber
+    // (Turkiye listesi, KOBI, e-ticaret, ajans).
+    expect(sluglar.length).toBe(13);
     expect(new Set(sluglar).size).toBe(sluglar.length);
   });
 
