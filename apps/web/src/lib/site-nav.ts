@@ -99,7 +99,10 @@ export const SITE_ROOFS: Record<SiteRoofId, { label: string; tabs: SiteRoofTab[]
     label: 'Ayar sayfaları',
     tabs: [
       { route: 'settings', label: 'Site ayarları', icon: Settings, desc: 'Site adı, sektör ve dil', paletteLabel: 'Ayarlar', hint: 'Site ayarları', keywords: ['settings', 'ayar'] },
-      { route: 'connections', label: 'Bağlantılar', icon: Plug, desc: 'Search Console, Analytics, AI anahtarları', paletteLabel: 'Bağlantılar', hint: 'Search Console, GA4, AI anahtarları', keywords: ['connection', 'bağlantı', 'gsc', 'ga4', 'entegrasyon'] },
+      { route: 'connections', label: 'Bağlantılar', icon: Plug, desc: 'Google hesapları ve AI anahtarları', paletteLabel: 'Bağlantılar', hint: 'Search Console, GA4, AI anahtarları', keywords: ['connection', 'bağlantı', 'gsc', 'ga4', 'entegrasyon'] },
+      // 14.11.2026, sahip: "bu yayin hedefini ayarlar kismina mi alsak?" — bir kez kurulan bir
+      // baglanti; Icerik grubundan buraya tasindi. Adres ayni (/publish-targets).
+      { route: 'publishTargets', label: 'Yayın hedefleri', icon: Send, desc: 'İçeriklerin yayınlanacağı yerler', paletteLabel: 'Yayın Hedefleri', hint: 'WordPress, FTP, SFTP', keywords: ['wordpress', 'ftp', 'sftp', 'wp', 'publish', 'yayın', 'hedef'] },
       { route: 'autopilot', label: 'Otomatik akış', icon: Zap, desc: 'Yarı ya da tam otomatik yayın', paletteLabel: 'Otomatik Akış', hint: 'Yarı / tam otomatik yayın', keywords: ['autopilot', 'otomatik', 'akış'] },
     ],
   },
@@ -159,7 +162,6 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   { route: 'articles', label: 'İçerikler', icon: FileText, group: 'content', roof: 'content', hint: 'Önerilen konular + üretilen yazılar', keywords: ['article', 'makale', 'yazı', 'topic', 'konu', 'takvim', 'içerik'] },
   { route: 'videos', label: 'Videolar', icon: Clapperboard, group: 'content', feature: 'articleVideo', hint: 'RanksUp Video — makale, site ve ürün tanıtım videoları', keywords: ['video', 'reels', 'shorts', 'tiktok', 'dikey', 'yatay', 'ranksup video', 'kısa video', 'tanıtım videosu', 'site tanıtımı', 'ürün tanıtımı'] },
   { route: 'communities', label: 'Topluluk Ajanı', icon: MessagesSquare, group: 'content', hint: 'Reddit fırsatları + AI taslaklar', keywords: ['reddit', 'quora', 'topluluk', 'community', 'forum'] },
-  { route: 'publishTargets', label: 'Yayın Hedefleri', icon: Send, group: 'content', hint: 'WordPress, FTP, SFTP', keywords: ['wordpress', 'ftp', 'sftp', 'wp', 'publish', 'yayın', 'hedef'] },
 
   // ── Buyume ──
   { route: 'analytics', label: 'Analitik', icon: BarChart3, group: 'growth', hint: 'Search Console + GA4', keywords: ['analytics', 'analitik', 'gsc', 'ga4', 'trafik'] },
@@ -171,7 +173,7 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   { route: 'aso', label: 'ASO', icon: Smartphone, group: 'mobile', hint: 'App Store optimizasyonu', keywords: ['aso', 'app', 'uygulama', 'mobil', 'app store', 'play'] },
 
   // ── Yonetim ──
-  { route: 'settings', label: 'Ayarlar', icon: Settings, group: 'admin', roof: 'settings', hint: 'Site ayarları, bağlantılar ve otomatik akış', keywords: ['settings', 'ayar'] },
+  { route: 'settings', label: 'Ayarlar', icon: Settings, group: 'admin', roof: 'settings', hint: 'Site ayarları, bağlantılar, yayın hedefleri ve otomatik akış', keywords: ['settings', 'ayar'] },
 ];
 
 export type ResolvedNavItem = SiteNavItem & {
