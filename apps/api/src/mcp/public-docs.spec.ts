@@ -1671,14 +1671,17 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     const quota = read(path.resolve(HERE, '../billing/quota.service.ts'));
     const consume = quota.slice(quota.indexOf('async consumeArticleAllowance('), quota.indexOf('async refundArticleAllowance('));
     expect(consume).toContain('where: { id: userId, articlesUsedThisMonth: { lt: limit } }');
-    expect(consume).toContain('throw this.articleQuotaError(user.plan, limit);');
-    const hata = quota.slice(quota.indexOf('private articleQuotaError('), quota.indexOf('async consumeArticleAllowance('));
+    expect(consume).toContain('throw await this.articleQuotaError(userId, user.plan, limit);');
+    const hata = quota.slice(quota.indexOf('private async articleQuotaError('), quota.indexOf('async consumeArticleAllowance('));
     // Hata metinleri (11.11.2026): deneme "Profesyonel plana geç" ("plan seç" Baslangic'i da
-    // kapsardi), makale hakki olmayan plan "bu pakette yok", digerleri "Plan yükseltebilir"
+    // kapsardi), makale hakki olmayan plan "bu pakette yok", digerleri yenilenme + yola gore oneri
     // Plan adi koddan: makale ureten en dusuk satistaki plan (plans.ts articleOfferPlan)
     expect(articleOfferPlan().id).toBe(makalePlani.id);
     const PLAN = String.raw`(?:${makalePlani.name_tr}|\$\{articleOfferPlan\(\)\.name_tr\})`;
-    expect(hata).toMatch(new RegExp(String.raw`plan === 'TRIAL'[\s\S]*Makale üretimine devam etmek için ${PLAN} plana geç[\s\S]*limit === 0[\s\S]*Makale üretimi bu pakette yok\. Makale üretmek için ${PLAN} plana geç[\s\S]*Plan yükseltebilir`));
+    expect(hata).toMatch(new RegExp(String.raw`plan === 'TRIAL'[\s\S]*Makale üretimine devam etmek için ${PLAN} plana geç[\s\S]*limit === 0[\s\S]*Makale üretimi bu pakette yok\. Makale üretmek için ${PLAN} plana geç[\s\S]*Hak yeni ayda yenilenir\.`));
+    // 15.11.2026: son cumle yola gore (plan-limit.ts withUpgradePath); en ust plana yukseltme onerilmez
+    expect(hata).toContain('withUpgradePath(`Aylık ${limit} makale hakkın doldu. Hak yeni ayda yenilenir.`, upgrade)');
+    expect(hata).not.toMatch(/Plan yükseltebilir/);
     expect(hata).not.toMatch(/Devam etmek için plan seç/);
     expect(read(path.resolve(HERE, '../billing/quota.service.ts'))).toMatch(/STARTER:\s*\{ articles: 0,/);
     const ekle = scheduler.slice(scheduler.indexOf('async scheduleTopic('), scheduler.indexOf('const slug =', scheduler.indexOf('async scheduleTopic(')));
@@ -2384,8 +2387,16 @@ describe('konumlandirma: deneme slogani ve test ekranlari', () => {
     }
     const [bas, pro] = [findPlan('starter')!, findPlan('pro')!];
     expect(planEngines('starter')).toHaveLength(4);
-    expect(checker).toContain(`${bas.name_tr} planı ${bas.aiProviders}, ${pro.name_tr} ve üstü ${pro.aiProviders} AI motorunda ölçer`);
-    expect(checker).toContain(`${bas.name_en} measures ${bas.aiProviders} AI engines, ${pro.name_en} and up ${pro.aiProviders}`);
+    // 15.11.2026: sayilar metne sabit yazilmaz; sonuc katmani plan yanitindaki `engines`ten
+    // doldurur (Muse olculuyorsa Profesyonel 7), okunamazsa plans.ts'in tabani (4 / 6)
+    expect(checker).toContain(`${bas.name_tr} planı {starter}, ${pro.name_tr} ve üstü {pro} AI motorunda ölçer`);
+    expect(checker).toContain(`${bas.name_en} measures {starter} AI engines, ${pro.name_en} and up {pro}`);
+    const overlay = read(path.join(WEB_SRC, 'components/landing/checker-overlay.tsx'));
+    expect(overlay).toContain(`.replace('{starter}', String(planEngineCount(plans, 'starter') ?? ${bas.aiProviders}))`);
+    expect(overlay).toContain(`.replace('{pro}', String(planEngineCount(plans, 'pro') ?? ${pro.aiProviders}))`);
+    // Kilitli asistan listesi de sunucudan (web asistan / plan tablosu tutmaz)
+    expect(overlay).toContain('lockedEnginesFrom(plans, asked)');
+    expect(checker).toContain("lockedEngines: '{plan} planda ölçülür'");
     expect(unlock).toContain(`${bas.name_tr} planında ${bas.aiProviders} AI motorunda (ChatGPT, Gemini, Claude, Perplexity), ${pro.name_tr} ve üstünde ${pro.aiProviders} (ayrıca Grok, DeepSeek)`);
     expect(unlock).toContain('planındaki AI motorlarında ölçülüyor');
     // Ucretsiz testin "Soruluyor: X" satirlari yalniz testin sordugu asistanlari sayar

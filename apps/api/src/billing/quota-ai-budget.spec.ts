@@ -169,7 +169,7 @@ describe('kullanicinin baslattigi makale uretimi butce kapisindan gecer', () => 
   it('makale hakki da doluysa once o soylenir (butce metni degil)', async () => {
     const { quota } = db({ plan: 'PRO', articlesUsedThisMonth: 40, aiCostThisMonthUsd: 120 });
     const err = await forbidden(() => quota.consumeArticleAllowance('u1', 's1'));
-    expect(err.message).toContain('Aylık 40 makale kotan doldu');
+    expect(err.message).toContain('Aylık 40 makale hakkın doldu');
   });
 
   it('hakki onceden dusulmus yazinin "Simdi uret"i (assertGenerationSource) de butceye takilir', async () => {

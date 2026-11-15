@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { articleOfferPlan, planHasArticles } from '../billing/plans.js';
 import { AI_BUDGET_EXHAUSTED_CODE, QuotaService } from '../billing/quota.service.js';
+import { LAPSED_LEAD } from '../billing/plan-limit.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { anthropicCostUsd, anthropicUsage } from '../llm/anthropic.provider.js';
 import { TRANSLATION_LANGUAGES } from './articles.dto.js';
@@ -57,9 +58,19 @@ const TRANSLATED_FROM_PATH = '$.translated_from';
 export const NO_ARTICLE_PLAN_TRANSLATION_REFUSED =
   `Makale çevirisi bu pakette yok: çeviri yeni bir makale üretir, makale üretimi ${articleOfferPlan().name_tr} ve üzeri planlarda. ${articleOfferPlan().name_tr} plana geçtiğinde çeviri açılır.`;
 
-/** Deneme hesabinda ceviri reddi (kullaniciya gider) */
+/**
+ * Deneme hesabinda ceviri reddi (kullaniciya gider).
+ *
+ * 15.11.2026: eski metin "ücretli planlarda kullanılabilir … Planını yükselttiğinde çeviri
+ * açılır" diyordu; Baslangic da ucretli bir plan ve cevirisi yok (asagidaki ret). Metin
+ * ceviriyi GERCEKTEN acan plani soyler.
+ */
 export const TRIAL_TRANSLATION_REFUSED =
-  'Makale çevirisi ücretli planlarda kullanılabilir: ücretsiz denemede yapay zekâ toplam 2 makale üretir. Planını yükselttiğinde çeviri açılır.';
+  `Makale çevirisi ${articleOfferPlan().name_tr} ve üzeri planlarda kullanılabilir: ücretsiz denemede yapay zekâ toplam 2 makale üretir. ${articleOfferPlan().name_tr} plana geçtiğinde çeviri açılır.`;
+
+/** Plani biten eski musteride ceviri reddi: hesap deneme duzeyinde ama deneme hesabi degil */
+export const LAPSED_TRANSLATION_REFUSED =
+  `${LAPSED_LEAD} ve makale çevirisi kapalı. ${articleOfferPlan().name_tr} plana geçtiğinde çeviri açılır.`;
 
 /**
  * Translator — bir makaleyi farkli dile cevirir, yeni Article kaydi olusturur.
@@ -121,7 +132,8 @@ export class TranslatorService {
       select: { userId: true, user: { select: { plan: true } } },
     });
     if (String(owner?.user?.plan ?? '') === 'TRIAL') {
-      return { ok: false, fromLanguage, toLanguage, error: TRIAL_TRANSLATION_REFUSED };
+      const lapsed = owner?.userId ? await this.quota.isLapsed(owner.userId, 'TRIAL') : false;
+      return { ok: false, fromLanguage, toLanguage, error: lapsed ? LAPSED_TRANSLATION_REFUSED : TRIAL_TRANSLATION_REFUSED };
     }
     // Makale uretimi olmayan plan (Baslangic) ve tanimsiz plan: LLM'e gitmeden reddet
     if (!planHasArticles(owner?.user?.plan)) {

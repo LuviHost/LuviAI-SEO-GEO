@@ -61,7 +61,8 @@ describe('QuotaService.consumeArticleAllowance — deneme hesabi toplam 2', () =
     const q = new QuotaService(prisma);
     const err = await q.consumeArticleAllowance('u1', 's1').catch((e) => e);
     expect(err).toBeInstanceOf(ForbiddenException);
-    expect(err.message).toBe('Aylık 40 makale kotan doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsin.');
+    // Profesyonel'in ustu yalniz teklifle (Kurumsal): "Plan yükseltebilir" denmez, yol soylenir
+    expect(err.message).toBe('Aylık 40 makale hakkın doldu. Hak yeni ayda yenilenir. Daha fazlası için Kurumsal planı teklifle sunuluyor.');
     expect(prisma.row.articlesUsedThisMonth).toBe(40);
   });
 

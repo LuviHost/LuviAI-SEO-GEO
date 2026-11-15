@@ -7,7 +7,7 @@ import { automationPublishFields, type PublishApprovalSite } from './publish-app
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 import { automaticGenerationAllowed } from '../billing/trial-policy.js';
 import { NO_AUTO_ARTICLE_PLANS, articleOfferPlan } from '../billing/plans.js';
-import { planLimitError, upgradeOfferFor } from '../billing/plan-limit.js';
+import { planLimitError, upgradeOfferFor, withUpgradePath, type UpgradeOffer } from '../billing/plan-limit.js';
 import { explicitContentPlan, findRankerTopicHint, rankerPlanFromHint, rankerPlanFromTopic, withContentPlan } from './content-plan.js';
 import { sayacAnahtari, son7GunAnahtarlari, tavanAcikMi, trGunAnahtari } from './site-yayin-tavani.js';
 
@@ -36,14 +36,33 @@ export const ARTICLE_PLAN_NAME = articleOfferPlan().name_tr;
  * 11.11.2026 (uc paket): eski tek metin "planını yükseltebilirsin" diyordu. Deneme
  * hesabinda bu Baslangic'i da kapsar, orada makale uretimi yok; makale hakki OLMAYAN
  * planda ise "hakkın doldu (0 makale)" yanlisti. Metin QuotaService.articleQuotaError
- * ile ayni plani soyler; makalesi olan ucretli planda eski metin aynen kalir.
+ * ile ayni plani soyler.
+ *
+ * 15.11.2026 (sahip istegi): makalesi olan ucretli planda son cumle her hesaba "planını
+ * yükseltebilirsin" diyordu; en ust planda yukseltilecek plan yok, Profesyonel'in ustu
+ * yalniz teklifle. Yol artik dugmeyle ayni karardan yazilir (billing/plan-limit.ts).
  */
-export function scheduleQuotaFullMessage(plan: string | null | undefined, limit: number): string {
+export function scheduleQuotaFullMessage(plan: string | null | undefined, limit: number, upgrade?: UpgradeOffer): string {
   if (limit <= 0) return `Makale üretimi bu pakette yok. Makale üretmek için ${ARTICLE_PLAN_NAME} plana geç.`;
   if (plan === 'TRIAL') {
     return `Makale hakkın doldu (${limit} makale). Yeni yazıyı takvime eklemek için ${ARTICLE_PLAN_NAME} plana geçebilirsin.`;
   }
-  return `Makale hakkın doldu (${limit} makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.`;
+  return withUpgradePath(
+    `Makale hakkın doldu (${limit} makale); takvime yeni yazı eklenemiyor. Hak yeni ayda yenilenir.`,
+    upgrade ?? upgradeOfferFor(plan, (p) => p.articlesPerMonth > limit),
+  );
+}
+
+/**
+ * "Takvime ekle" ikinci reddi (scheduleTopic): hak var ama tamami takvimde bekleyen yazilara
+ * ayrili. Musterinin kendi cozumu takvimden yazi cikarmak; ust plan yola gore ayrica soylenir.
+ */
+export function scheduleReservedMessage(remaining: number, waiting: number, upgrade: UpgradeOffer): string {
+  return withUpgradePath(
+    `Kalan makale hakkın ${remaining}; hesabındaki tüm sitelerin takviminde üretime alınmayı bekleyen ${waiting} yazı var ve her biri üretime alınırken bu haktan düşecek. ` +
+    'Yeni yazı eklemek için takvimden yazı çıkarabilirsin.',
+    upgrade,
+  );
 }
 
 /**
@@ -1069,10 +1088,8 @@ export class ArticleSchedulerService {
       // Eski metin her planda "makale/ay" diyordu; deneme hesabinin hakki ay
       // basi sifirlanmaz (QuotaService.maybeResetMonthlyQuota)
       // Plan siniri: panel hatayi bildirim yerine plan penceresiyle karsilar (billing/plan-limit.ts)
-      throw planLimitError(
-        scheduleQuotaFullMessage(site.user?.plan, limit),
-        upgradeOfferFor(site.user?.plan, (p) => p.articlesPerMonth > limit),
-      );
+      const upgrade = upgradeOfferFor(site.user?.plan, (p) => p.articlesPerMonth > limit);
+      throw planLimitError(scheduleQuotaFullMessage(site.user?.plan, limit, upgrade), upgrade);
     }
     // Deneme hesabinda bekleyen ayirmasi YOK. NEDEN: ayirma, otomasyonun kalan haktan
     // fazlasini uretime almasini onler; denemede otomasyon hic makale uretmez
@@ -1083,9 +1100,10 @@ export class ArticleSchedulerService {
     const reservesAllowance = automaticGenerationAllowed(site.user?.plan);
     const waiting = reservesAllowance ? await this.countUnchargedPending(site.userId) : 0;
     if (reservesAllowance && waiting >= remaining) {
+      // Plan penceresi ACILMAZ (duz 403): musterinin kendi cozumu var (takvimden yazi cikarmak).
+      // Metnin yol cumlesi yine plana gore yazilir.
       throw new ForbiddenException(
-        `Kalan makale hakkın ${remaining}; hesabındaki tüm sitelerin takviminde üretime alınmayı bekleyen ${waiting} yazı var ve her biri üretime alınırken bu haktan düşecek. ` +
-        'Yeni yazı eklemek için takvimden yazı çıkarabilir ya da planını yükseltebilirsin.',
+        scheduleReservedMessage(remaining, waiting, upgradeOfferFor(site.user?.plan, (p) => p.articlesPerMonth > limit)),
       );
     }
 

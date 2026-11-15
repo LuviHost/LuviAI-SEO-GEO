@@ -90,9 +90,14 @@ describe('enforcePlanFeature', () => {
         if (planHasFeature(p, f)) continue;
         const err = await gate(p.toUpperCase()).enforcePlanFeature('u1', f).catch((e) => e);
         expect(err, `${p}/${f}`).toBeInstanceOf(ForbiddenException);
-        expect(err.message, `${p}/${f}`).toBe(
-          `${PLAN_FEATURE_LABELS[f]} ${featureOfferPlan(f).name_tr} planına dahildir. Planını yükselterek kullanabilirsin.`,
-        );
+        // Son cumle dugmeyle ayni yol: kartla alinan plan "geçerek kullanabilirsin",
+        // yalniz teklifle satilan "teklifle sunuluyor" (15.11.2026; eskiden hepsine "Planını yükselterek")
+        const ad = featureOfferPlan(f).name_tr;
+        const yol = PURCHASABLE_PLAN_IDS.includes(featureOfferPlan(f).id)
+          ? `${ad} plana geçerek kullanabilirsin.`
+          : `${ad} planı teklifle sunuluyor.`;
+        expect(err.message, `${p}/${f}`).toBe(`${PLAN_FEATURE_LABELS[f]} ${ad} planına dahildir. ${yol}`);
+        expect(err.message, `${p}/${f}`).not.toMatch(/Planını yükselterek/);
         for (const ad of kalkan) expect(err.message, `${p}/${f}`).not.toContain(ad);
       }
     }

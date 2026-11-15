@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { NO_ARTICLE_PLAN_TRANSLATION_REFUSED, TRIAL_TRANSLATION_REFUSED, TranslatorService } from './translator.service.js';
+import { LAPSED_TRANSLATION_REFUSED, NO_ARTICLE_PLAN_TRANSLATION_REFUSED, TRIAL_TRANSLATION_REFUSED, TranslatorService } from './translator.service.js';
 import { articleOfferPlan, findPlan, planHasArticles } from '../billing/plans.js';
 import { AI_BUDGET_EXHAUSTED_CODE } from '../billing/quota.service.js';
 import { anthropicPricing } from '../llm/anthropic.provider.js';
@@ -17,7 +17,7 @@ const ART = { id: 'a1', siteId: 's1', slug: 'sac-bakimi', language: 'tr', title:
 
 const BUDGET_FULL = 'Aylık AI kullanım bütçen doldu ($120.00 / $120). Bütçe yeni ayın başında sıfırlanır.';
 
-function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any; plan?: string; budgetFull?: boolean; articles?: any[] } = {}) {
+function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any; plan?: string; budgetFull?: boolean; articles?: any[]; lapsed?: boolean } = {}) {
   const prisma = {
     // Varsayilan: makale uretimi OLAN ucretli plan (11.11.2026 uc paket: Baslangic'ta yok).
     // userId: SITE SAHIBI — butce onun sayacindan okunur ve harcama ona yazilir.
@@ -36,7 +36,11 @@ function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any; p
     },
   };
   // Butce: QuotaService.aiBudgetBlock doluysa musteri metnini, degilse null doner
-  const quota = { aiBudgetBlock: vi.fn(async (_userId: string) => (opts.budgetFull ? BUDGET_FULL : null)) };
+  const quota = {
+    aiBudgetBlock: vi.fn(async (_userId: string) => (opts.budgetFull ? BUDGET_FULL : null)),
+    // Plani biten eski musteri mi (QuotaService.isLapsed: en az bir odenmis fatura)
+    isLapsed: vi.fn(async (_userId: string, _plan: string) => opts.lapsed === true),
+  };
   const llm = { recordDirectUsage: vi.fn(async (_args: any) => undefined) };
   const svc = new TranslatorService(prisma as any, quota as any, llm as any);
   const create = vi.fn(async () => ({
@@ -112,6 +116,22 @@ describe('TranslatorService — deneme hesabi (toplam 2 AI makale)', () => {
     const bulk = await svc.bulkTranslateSite('s1', ['en', 'de']);
     expect(bulk.scheduled).toBe(0);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  // 15.11.2026: eski metin "ücretli planlarda kullanılabilir" diyordu; Baslangic da ucretli
+  // ve cevirisi yok. Plani biten eski musteriye de "ücretsiz denemede" deniyordu.
+  it('ret metni ceviriyi GERCEKTEN acan plani soyler; plani biten eski musteriye deneme hitabi yok', async () => {
+    const pro = articleOfferPlan().name_tr;
+    expect(TRIAL_TRANSLATION_REFUSED).toContain(`${pro} ve üzeri planlarda kullanılabilir`);
+    expect(TRIAL_TRANSLATION_REFUSED).toContain(`${pro} plana geçtiğinde çeviri açılır`);
+    expect(TRIAL_TRANSLATION_REFUSED).not.toMatch(/ücretli planlarda|Planını yükselttiğinde/);
+    const eski = build({ plan: 'TRIAL', lapsed: true });
+    const r = await eski.svc.translate('a1', 'en', 's1');
+    expect(r).toMatchObject({ ok: false, error: LAPSED_TRANSLATION_REFUSED });
+    expect(eski.quota.isLapsed).toHaveBeenCalledWith('sahip-1', 'TRIAL');
+    expect(LAPSED_TRANSLATION_REFUSED).toBe(`Planın sona erdi; hesabın deneme düzeyinde ve makale çevirisi kapalı. ${pro} plana geçtiğinde çeviri açılır.`);
+    expect(LAPSED_TRANSLATION_REFUSED).not.toMatch(/ücretsiz deneme/i);
+    expect(eski.create).not.toHaveBeenCalled();
   });
 });
 

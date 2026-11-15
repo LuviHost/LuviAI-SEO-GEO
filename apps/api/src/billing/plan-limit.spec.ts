@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
-import { QuotaService, siteLimitMessage } from './quota.service.js';
-import { PLAN_LIMIT_CODE, upgradeOfferFor, type UpgradeOffer } from './plan-limit.js';
+import { QuotaService, siteLimitMessage, trackedAppLimitMessage } from './quota.service.js';
+import { PLAN_LIMIT_CODE, upgradeOfferFor, upgradePathSentence, withUpgradePath, type UpgradeOffer } from './plan-limit.js';
 import { BASE_PLANS, FEATURE_MIN_PLAN, PLAN_RANK, PURCHASABLE_PLAN_IDS, findPlan, planHasFeature, publicPlans, type BasePlan, type PlanFeature } from './plans.js';
 import { entitlementsFor } from './entitlements.js';
 
@@ -73,7 +73,10 @@ describe('upgradeOfferFor', () => {
 });
 
 /** Ayni ay icinde sifirlanmis sayac — maybeReset* update cagirmaz (quota-messages.spec ile ayni) */
-function fakePrisma(user: Record<string, unknown>, counts: { sites?: number; apps?: number } = {}) {
+function fakePrisma(
+  user: Record<string, unknown>,
+  counts: { sites?: number; apps?: number; chat?: number; everPaid?: boolean | 'hata' } = {},
+) {
   const row = {
     id: 'u1', role: 'USER', aiCitationQuotaResetAt: new Date(), articlesQuotaResetAt: new Date(),
     // checkSiteQuota site sayisini kullanici satirindaki _count'tan okur
@@ -87,6 +90,15 @@ function fakePrisma(user: Record<string, unknown>, counts: { sites?: number; app
       update: async () => row,
     },
     trackedApp: { count: async () => counts.apps ?? 0 },
+    // Odenmis fatura (ever-paid.ts): plani biten eski musteri ile gercek denemeyi ayirir
+    invoice: {
+      findFirst: async () => {
+        if (counts.everPaid === 'hata') throw new Error('db zaman asimi');
+        return counts.everPaid ? { id: 'inv1' } : null;
+      },
+    },
+    // Asistan mesaj sayaci (kv_store)
+    kvStore: { findUnique: async () => ({ value: String(counts.chat ?? 0) }) },
   } as never;
 }
 
@@ -259,5 +271,113 @@ describe('durustluk kurali: onerilen plan duvari GERCEKTEN kaldirir', () => {
 describe('siteLimitMessage', () => {
   it('kaldiran plan yoksa oneri yazilmaz', () => {
     expect(siteLimitMessage(50, 50, { kind: 'wait', planId: null, planName: null })).toBe('Planın 50 siteye kadar izin veriyor; şu an 50 siten var.');
+  });
+});
+
+/**
+ * Sahip istegi (15.11.2026): sinir CUMLESI dugmeyle ayni seyi soylemeli.
+ *  - En ust plandaki hesaba "planını yükseltebilirsin" denmez (yukseltilecek plan yok).
+ *  - Ust plan yalniz teklifle satiliyorsa "teklifle sunuluyor" denir, "yükselt" degil.
+ *  - Plani biten eski musteriye "Deneme hesabı" denmez (hesap deneme DUZEYINDE).
+ */
+describe('sinir cumlesi yola ve hesaba gore', () => {
+  const WAIT: UpgradeOffer = { kind: 'wait', planId: null, planName: null };
+  const BUY: UpgradeOffer = { kind: 'buy', planId: 'pro', planName: pro.name_tr };
+  const QUOTE: UpgradeOffer = { kind: 'quote', planId: 'enterprise', planName: enterprise.name_tr };
+  const YUKSELT = /yükselt|plana geç|teklif/i;
+
+  it('yol cumlesi: kartla "plana geçebilirsin", teklifle "teklifle sunuluyor", yoksa bos', () => {
+    expect(upgradePathSentence(BUY)).toBe(`Daha fazlası için ${pro.name_tr} plana geçebilirsin.`);
+    expect(upgradePathSentence(QUOTE)).toBe(`Daha fazlası için ${enterprise.name_tr} planı teklifle sunuluyor.`);
+    expect(upgradePathSentence(WAIT)).toBe('');
+    expect(withUpgradePath('Hak yeni ayda yenilenir.', WAIT)).toBe('Hak yeni ayda yenilenir.');
+    expect(withUpgradePath('Hak yeni ayda yenilenir.', QUOTE)).toBe(`Hak yeni ayda yenilenir. Daha fazlası için ${enterprise.name_tr} planı teklifle sunuluyor.`);
+  });
+
+  it('en ust plandaki hesaba yukseltme onerilmez: makale, video, aylik calistirma, uygulama', async () => {
+    const top = { plan: 'ENTERPRISE' };
+    const makale = await limitBody(() => new QuotaService(fakePrisma({ ...top, articlesUsedThisMonth: enterprise.articlesPerMonth })).enforceArticleQuota('u1'));
+    expect(makale.upgrade).toEqual(WAIT);
+    expect(makale.message).toBe(`Aylık ${enterprise.articlesPerMonth} makale hakkın doldu. Hak yeni ayda yenilenir.`);
+
+    const video = await limitBody(() => new QuotaService(fakePrisma({ ...top, videosUsedThisMonth: enterprise.videosPerMonth })).consumeVideoAllowance('u1'));
+    expect(video.upgrade).toEqual(WAIT);
+    expect(video.message).toBe(`Bu ayki ${enterprise.videosPerMonth} video hakkını kullandın. Hak yeni ayda yenilenir.`);
+
+    const olcum = await limitBody(() => new QuotaService(fakePrisma({ ...top, aiCitationTestsThisMonth: enterprise.aiRunsPerMonth })).enforceCitationQuota('u1'));
+    expect(olcum.upgrade).toEqual(WAIT);
+    expect(olcum.message).toContain('Hak yeni ayda yenilenir.');
+    // Kendi anahtar (BYOK) cumlesi bir yukseltme onerisi degil: ondan onceki kisim sinanir
+    expect(olcum.message.split('Hak yeni ayda yenilenir.')[0]).not.toMatch(YUKSELT);
+    expect(olcum.message).not.toMatch(/planını yükselt/);
+
+    const app = await limitBody(() => new QuotaService(fakePrisma(top, { apps: enterprise.trackedApps })).enforceTrackedAppQuota('u1'));
+    expect(app.upgrade).toEqual(WAIT);
+    expect(app.message).toBe(`Planın ${enterprise.trackedApps} uygulamaya kadar izin veriyor; şu an ${enterprise.trackedApps} uygulaman var.`);
+    for (const m of [makale.message, video.message, app.message]) expect(m).not.toMatch(YUKSELT);
+  });
+
+  it('ust plan yalniz teklifle: "teklifle sunuluyor" denir, "planını yükselt" denmez', async () => {
+    const makale = await limitBody(() => new QuotaService(fakePrisma({ plan: 'PRO', articlesUsedThisMonth: pro.articlesPerMonth })).enforceArticleQuota('u1'));
+    expect(makale.message).toBe(`Aylık ${pro.articlesPerMonth} makale hakkın doldu. Hak yeni ayda yenilenir. Daha fazlası için ${enterprise.name_tr} planı teklifle sunuluyor.`);
+    const video = await limitBody(() => new QuotaService(fakePrisma({ plan: 'PRO', videosUsedThisMonth: pro.videosPerMonth })).consumeVideoAllowance('u1'));
+    expect(video.message).toContain(`Daha fazlası için ${enterprise.name_tr} planı teklifle sunuluyor.`);
+    const olcum = await limitBody(() => new QuotaService(fakePrisma({ plan: 'PRO', aiCitationTestsThisMonth: pro.aiRunsPerMonth })).enforceCitationQuota('u1'));
+    expect(olcum.message).toContain(`Daha fazlası için ${enterprise.name_tr} planı teklifle sunuluyor.`);
+    const radar = await limitBody(() => new QuotaService(fakePrisma({})).assertPlanFeature('PRO', 'productRadar'));
+    expect(radar.message).toMatch(new RegExp(`${enterprise.name_tr} planına dahildir\\. ${enterprise.name_tr} planı teklifle sunuluyor\\.$`));
+    for (const m of [makale.message, video.message, olcum.message, radar.message]) expect(m).not.toMatch(/yükselt/i);
+  });
+
+  it('kartla alinan ust plan adiyla soylenir (Baslangic → Profesyonel)', async () => {
+    const olcum = await limitBody(() => new QuotaService(fakePrisma({ plan: 'STARTER', aiCitationTestsThisMonth: starter.aiRunsPerMonth })).enforceCitationQuota('u1'));
+    expect(olcum.message).toContain(`Hak yeni ayda yenilenir. Daha fazlası için ${pro.name_tr} plana geçebilirsin.`);
+    const stuck = await limitBody(() => new QuotaService(fakePrisma({})).assertPlanFeature('STARTER', 'stuckPages'));
+    expect(stuck.message).toMatch(new RegExp(`${pro.name_tr} planına dahildir\\. ${pro.name_tr} plana geçerek kullanabilirsin\\.$`));
+    expect(trackedAppLimitMessage(1, 1, BUY)).toBe(`Planın 1 uygulamaya kadar izin veriyor; şu an 1 uygulaman var. ${pro.name_tr} planında ${pro.trackedApps} uygulamaya kadar ekleyebilirsin.`);
+    expect(trackedAppLimitMessage(3, 3, QUOTE)).toBe(`Planın 3 uygulamaya kadar izin veriyor; şu an 3 uygulaman var. Daha fazla uygulama için ${enterprise.name_tr} planı teklifle sunuluyor.`);
+  });
+
+  it('plani biten eski musteriye "Deneme hesabı" denmez; gercek denemeye denir', async () => {
+    const dusen = (user: Record<string, unknown>, counts = {}) => new QuotaService(fakePrisma({ plan: 'TRIAL', ...user }, { everPaid: true, ...counts }));
+    const deneme = (user: Record<string, unknown>, counts = {}) => new QuotaService(fakePrisma({ plan: 'TRIAL', ...user }, { everPaid: false, ...counts }));
+    const GIRIS = 'Planın sona erdi; hesabın deneme düzeyinde';
+
+    const makale = await limitBody(() => dusen({ articlesUsedThisMonth: 12 }).enforceArticleQuota('u1'));
+    expect(makale.message).toBe(`${GIRIS} ve makale hakkın kalmadı. Yeni makale üretmek için ${pro.name_tr} plana geç.`);
+    expect(makale.upgrade).toMatchObject({ kind: 'buy', planId: 'pro' });
+    const olcum = await limitBody(() => dusen({ aiCitationTestsThisMonth: 9 }).enforceCitationQuota('u1'));
+    expect(olcum.message.startsWith(`${GIRIS} ve bu düzeydeki 3 AI görünürlük çalıştırması hakkını kullandın (9/3); bu hak yenilenmez.`)).toBe(true);
+    const butce = await limitBody(() => dusen({ aiCostThisMonthUsd: 30 }).enforceAiCostBudget('u1'));
+    expect(butce.message.startsWith(`${GIRIS} ve bu düzeyin AI kullanım bütçesi doldu ($30.00 / $8). Bu bütçe yenilenmez.`)).toBe(true);
+    expect((await dusen({ aiCostThisMonthUsd: 30 }).aiBudgetBlockDetail('u1'))?.message).toBe(butce.message);
+    const sohbet = await limitBody(() => dusen({}, { chat: 20 }).consumeChatMessageSlot({ id: 'u1', role: 'USER', plan: 'TRIAL' }));
+    expect(sohbet.message.startsWith(`${GIRIS} ve bu düzeydeki 20 Asistan mesajı hakkını kullandın; bu hak yenilenmez.`)).toBe(true);
+    for (const m of [makale.message, olcum.message, butce.message, sohbet.message]) expect(m).not.toMatch(/Deneme hesab|ücretsiz/i);
+
+    // Gercek deneme hesabi (odenmis fatura yok): eski hitap aynen
+    expect((await limitBody(() => deneme({ articlesUsedThisMonth: 2 }).enforceArticleQuota('u1'))).message)
+      .toBe(`Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Makale üretimine devam etmek için ${pro.name_tr} plana geç.`);
+    expect((await limitBody(() => deneme({ aiCitationTestsThisMonth: 3 }).enforceCitationQuota('u1'))).message).toContain('Deneme hesabındaki 3 AI görünürlük çalıştırması');
+    expect((await limitBody(() => deneme({}, { chat: 20 }).consumeChatMessageSlot({ id: 'u1', role: 'USER', plan: 'TRIAL' }))).message).toContain('Deneme hesabındaki 20 Asistan mesajı');
+  });
+
+  it('isLapsed: yalniz deneme duzeyindeki hesapta sorulur; odeme gecmisi okunamazsa deneme hitabina duser, 403 yine atilir', async () => {
+    expect(await new QuotaService(fakePrisma({ plan: 'TRIAL' }, { everPaid: true })).isLapsed('u1', 'TRIAL')).toBe(true);
+    expect(await new QuotaService(fakePrisma({ plan: 'TRIAL' }, { everPaid: false })).isLapsed('u1', 'TRIAL')).toBe(false);
+    // Ucretli planda fatura sorgusu yapilmaz ('hata' firlatirdi)
+    expect(await new QuotaService(fakePrisma({ plan: 'PRO' }, { everPaid: 'hata' })).isLapsed('u1', 'PRO')).toBe(false);
+    const bozuk = await limitBody(() => new QuotaService(fakePrisma({ plan: 'TRIAL', articlesUsedThisMonth: 2 }, { everPaid: 'hata' })).enforceArticleQuota('u1'));
+    expect(bozuk.code).toBe(PLAN_LIMIT_CODE);
+    expect(bozuk.message).toContain('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın.');
+  });
+
+  it('isi haritasi / uygulama soru laboratuvari: hak bitince plan siniri, kendi anahtar (BYOK) vaadi yok', async () => {
+    const err = await new QuotaService(fakePrisma({ plan: 'PRO' })).citationQuotaError('u1', { limit: 75, used: 75 }, { byokNote: false });
+    const body = err.getResponse() as { message: string; code: string; upgrade: UpgradeOffer };
+    expect(body.code).toBe(PLAN_LIMIT_CODE);
+    expect(body.upgrade).toMatchObject({ kind: 'quote', planId: 'enterprise' });
+    expect(body.message).toBe(`Aylık 75 AI görünürlük çalıştırması hakkın doldu (75/75). Hak yeni ayda yenilenir. Daha fazlası için ${enterprise.name_tr} planı teklifle sunuluyor.`);
+    expect(body.message).not.toMatch(/BYOK/);
   });
 });

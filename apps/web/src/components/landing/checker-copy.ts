@@ -8,6 +8,12 @@
  * rapor hesabin PLAN kapsamiyla olculur (Baslangic 4, Profesyonel ve ustu 6 + Muse; api
  * public-citation.controller unlock). Sonuc katmani saglayicilari API cevabindan listeler;
  * `loadingMessages` yalniz ucretsiz testin sordugu asistanlari sayar.
+ *
+ * KILITLI ASISTANLAR (15.11.2026, sahip istegi): ucretsiz testin sormadigi asistanlar soru
+ * kartinda kilitli durur ve altinda `lockedEngines` yazar ("Profesyonel planda ölçülür").
+ * Hangi asistanlar ve hangi plan: GET /billing/plans → plans[].engines (lib/locked-engines.ts).
+ * `unlockBody`deki {starter} / {pro} sayilari da ayni yanittan; okunamazsa plans.ts'in her
+ * kurulumda gecerli tabani (4 / 6) yazilir (checker-overlay).
  */
 export const CHECKER_COPY = {
   tr: {
@@ -38,7 +44,10 @@ export const CHECKER_COPY = {
     truncated: '… (kısaltıldı)',
     lockedHint: 'Bu soru henüz sorulmadı — kilidi açınca planındaki AI motorlarında ölçülür.',
     unlockTitle: '{n} soru daha kilitli',
-    unlockBody: 'Ücretsiz testte {open} soru ölçülüyor. Kalan {locked} soruyu ölçmek, AI cevaplarının tam metnini ve rakip payını görmek için bir plan seç (Başlangıç planı 4, Profesyonel ve üstü 6 AI motorunda ölçer).',
+    unlockBody: 'Ücretsiz testte {open} soru ölçülüyor. Kalan {locked} soruyu ölçmek, AI cevaplarının tam metnini ve rakip payını görmek için bir plan seç (Başlangıç planı {starter}, Profesyonel ve üstü {pro} AI motorunda ölçer).',
+    // Soru kartinda kilitli duran asistanlarin notu; {plan} sunucudan (o asistani olcen en dusuk plan)
+    lockedEngines: '{plan} planda ölçülür',
+    lockedEnginesAria: 'Ücretsiz testte sorulmayan asistanlar',
     unlockCta: 'Tüm raporu aç',
     unlockNote: 'Planlar aylık · İstediğin zaman iptal',
     optinHeader: '90 gün sonra kaç olacak?',
@@ -110,7 +119,9 @@ export const CHECKER_COPY = {
     truncated: '… (truncated)',
     lockedHint: 'Not asked yet — unlock to measure it across the AI engines in your plan.',
     unlockTitle: '{n} more prompts locked',
-    unlockBody: 'The free test measures {open} prompts. Choose a plan to run the remaining {locked} and see full answer text plus competitor share (Starter measures 4 AI engines, Professional and up 6).',
+    unlockBody: 'The free test measures {open} prompts. Choose a plan to run the remaining {locked} and see full answer text plus competitor share (Starter measures {starter} AI engines, Professional and up {pro}).',
+    lockedEngines: 'Measured on the {plan} plan',
+    lockedEnginesAria: 'Assistants the free test does not ask',
     unlockCta: 'Unlock full report',
     unlockNote: 'Monthly plans · Cancel anytime',
     optinHeader: 'Where will you be in 90 days?',

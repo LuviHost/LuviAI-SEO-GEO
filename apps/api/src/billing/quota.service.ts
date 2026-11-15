@@ -7,7 +7,8 @@ import {
   type BasePlan, type PlanFeature, type PlanId,
 } from './plans.js';
 import { acquireCronLock } from '../common/cron-lock.js';
-import { planLimitError, upgradeOfferFor, type UpgradeOffer } from './plan-limit.js';
+import { LAPSED_LEAD, planLimitError, upgradeOfferFor, withUpgradePath, type UpgradeOffer } from './plan-limit.js';
+import { hasEverPaid } from './ever-paid.js';
 import { periodEndFromInvoice, shouldDowngrade } from './subscription-period.js';
 import {
   hasGenerationSource, requiresGenerationSource, TRIAL_SOURCE_REQUIRED_CODE, TRIAL_SOURCE_REQUIRED_MESSAGE, type GenerationReadiness,
@@ -86,6 +87,20 @@ export function siteLimitMessage(limit: number, current: number, upgrade: Upgrad
     return `${durum} ${upgrade.planName} planında ${sites} siteye kadar ekleyebilirsin.`;
   }
   if (upgrade.kind === 'quote') return `${durum} Daha fazla site için ${upgrade.planName} planı teklifle sunuluyor.`;
+  return durum;
+}
+
+/**
+ * Uygulama siniri dolu metni — site siniriyla ayni kural (siteLimitMessage). Eski metin her
+ * hesaba "Daha fazlası için plan yükselt" diyordu: en ust plandaki hesaba da.
+ */
+export function trackedAppLimitMessage(limit: number, current: number, upgrade: UpgradeOffer): string {
+  const durum = `Planın ${limit} uygulamaya kadar izin veriyor; şu an ${current} uygulaman var.`;
+  if (upgrade.kind === 'buy' && upgrade.planId) {
+    const apps = findPlan(upgrade.planId)?.trackedApps;
+    return `${durum} ${upgrade.planName} planında ${apps} uygulamaya kadar ekleyebilirsin.`;
+  }
+  if (upgrade.kind === 'quote') return `${durum} Daha fazla uygulama için ${upgrade.planName} planı teklifle sunuluyor.`;
   return durum;
 }
 
@@ -189,26 +204,48 @@ export class QuotaService {
   async enforceArticleQuota(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
     const { allowed, remaining, limit } = await this.checkArticleQuota(userId);
-    if (!allowed) throw this.articleQuotaError(user.plan, limit);
+    if (!allowed) throw await this.articleQuotaError(userId, user.plan, limit);
     return { remaining };
   }
 
   /**
    * Makale hakki dolu 403'u — deneme "Profesyonel'e gec", makale hakki OLMAYAN plan
-   * (Baslangic, 11.11.2026) "bu pakette yok", digerleri "plan yukselt".
+   * (Baslangic, 11.11.2026) "bu pakette yok", digerleri yenilenme + YOLA GORE oneri.
+   *
+   * 15.11.2026 (sahip istegi): eski son cumle "Plan yükseltebilir veya ayın sonunu
+   * bekleyebilirsin" en ust plandaki hesaba da yukseltme oneriyordu; plani biten eski
+   * musteriye de "Deneme hesabındaki ücretsiz hakkını kullandın" deniyordu.
    */
-  private articleQuotaError(plan: string, limit: number): ForbiddenException {
+  private async articleQuotaError(userId: string, plan: string, limit: number): Promise<ForbiddenException> {
     // Siniri kaldiran plan (plan-limit.ts): deneme ve Baslangic → Profesyonel (kartla),
     // Profesyonel → Kurumsal (teklifle). Panel dugmeyi buna gore yazar.
     const upgrade = upgradeOfferFor(plan, (p) => p.articlesPerMonth > limit);
     if (plan === 'TRIAL') {
+      if (await this.isLapsed(userId, plan)) {
+        return planLimitError(`${LAPSED_LEAD} ve makale hakkın kalmadı. Yeni makale üretmek için ${articleOfferPlan().name_tr} plana geç.`, upgrade);
+      }
       // Makale uretimi yalniz Profesyonel ve ustunde: "plan sec" Baslangic'i da kapsardi ve yanlis olurdu
       return planLimitError(`Deneme hesabındaki ${limit} ücretsiz makale hakkını kullandın. Makale üretimine devam etmek için ${articleOfferPlan().name_tr} plana geç.`, upgrade);
     }
     if (limit === 0) {
       return planLimitError(`Makale üretimi bu pakette yok. Makale üretmek için ${articleOfferPlan().name_tr} plana geç.`, upgrade);
     }
-    return planLimitError(`Aylık ${limit} makale kotan doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsin.`, upgrade);
+    return planLimitError(withUpgradePath(`Aylık ${limit} makale hakkın doldu. Hak yeni ayda yenilenir.`, upgrade), upgrade);
+  }
+
+  /**
+   * Plani deneme duzeyine dusmus ESKI musteri mi (en az bir odenmis fatura; ever-paid.ts,
+   * panelin 'lapsed' evresiyle ayni tanim). Yalniz hata yolunda sorulur (sinira carpan
+   * istek). Okunamazsa false: metin deneme hitabina duser, 403'un kendisi etkilenmez.
+   */
+  async isLapsed(userId: string, plan: string | null | undefined): Promise<boolean> {
+    if (plan !== 'TRIAL') return false;
+    try {
+      return await hasEverPaid(this.prisma as any, userId);
+    } catch (err: any) {
+      this.log.warn(`[${userId}] Odeme gecmisi okunamadi, sinir metni deneme hitabiyla yazildi: ${err?.message ?? err}`);
+      return false;
+    }
   }
 
   /**
@@ -229,7 +266,7 @@ export class QuotaService {
     // Ay basi sifirlamasi + plan hakki: enforceArticleQuota ile ayni okuma
     const { allowed, remaining, limit } = await this.checkArticleQuota(userId);
     // Hak bittiyse once o soylenir: kaynak baglamak bitmis hakki geri getirmez
-    if (!allowed) throw this.articleQuotaError(user.plan, limit);
+    if (!allowed) throw await this.articleQuotaError(userId, user.plan, limit);
     // Deneme: uretim yalniz sitede kaynak (yayin hedefi) bagliyken (trial-policy.ts).
     // siteId ZORUNLU parametre: yeni bir uretim yolu bu kapiyi atlayamasin.
     const readiness = await this.generationReadinessFor(user.plan, siteId);
@@ -246,7 +283,7 @@ export class QuotaService {
       data: { articlesUsedThisMonth: { increment: 1 } },
     });
     // Hak dolu ya da okuma ile yazma arasinda son hakki baska bir istek aldi
-    if (r.count !== 1) throw this.articleQuotaError(user.plan, limit);
+    if (r.count !== 1) throw await this.articleQuotaError(userId, user.plan, limit);
     return { remaining: Math.max(0, remaining - 1) };
   }
 
@@ -347,10 +384,8 @@ export class QuotaService {
     if (q.limit <= 0) {
       this.assertPlanFeature((await this.planOf(userId)), 'articleVideo');
       // Plan ozelligi acik ama hak 0 (ileride boyle bir plan olursa): yine net bir 403
-      throw planLimitError(
-        'Planında RanksUp Video hakkı yok. Planını yükselterek kullanabilirsin.',
-        upgradeOfferFor(await this.planOf(userId), (p) => p.videosPerMonth > 0),
-      );
+      const noVideoUpgrade = upgradeOfferFor(await this.planOf(userId), (p) => p.videosPerMonth > 0);
+      throw planLimitError(withUpgradePath('Planında RanksUp Video hakkı yok.', noVideoUpgrade, 'Video üretmek için'), noVideoUpgrade);
     }
     const r = q.remaining > 0
       ? await this.prisma.user.updateMany({
@@ -359,9 +394,11 @@ export class QuotaService {
       })
       : { count: 0 };
     if (r.count !== 1) {
+      // Yol dugmeyle ayni karardan: en ust planda "planını yükseltebilirsin" denmez (15.11.2026)
+      const videoUpgrade = upgradeOfferFor(await this.planOf(userId), (p) => p.videosPerMonth > q.limit);
       throw planLimitError(
-        `Bu ayki ${q.limit} video hakkını kullandın. Hak yeni ayda yenilenir; daha fazlası için planını yükseltebilirsin.`,
-        upgradeOfferFor(await this.planOf(userId), (p) => p.videosPerMonth > q.limit),
+        withUpgradePath(`Bu ayki ${q.limit} video hakkını kullandın. Hak yeni ayda yenilenir.`, videoUpgrade),
+        videoUpgrade,
       );
     }
     return { charged: true, remaining: Math.max(0, q.remaining - 1), limit: q.limit };
@@ -499,7 +536,7 @@ export class QuotaService {
     const plan = await this.planOf(userId);
     throw new ForbiddenException({
       statusCode: 403,
-      message: this.aiBudgetMessage(plan, used, cap),
+      message: this.aiBudgetMessage(plan, used, cap, await this.isLapsed(userId, plan)),
       code: AI_BUDGET_EXHAUSTED_CODE,
       upgrade: this.aiBudgetUpgrade(plan, cap),
     });
@@ -527,7 +564,7 @@ export class QuotaService {
       const { hardBlock, used, cap } = await this.checkAiCostBudget(userId);
       if (!hardBlock) return null;
       const plan = await this.planOf(userId);
-      return { message: this.aiBudgetMessage(plan, used, cap), upgrade: this.aiBudgetUpgrade(plan, cap) };
+      return { message: this.aiBudgetMessage(plan, used, cap, await this.isLapsed(userId, plan)), upgrade: this.aiBudgetUpgrade(plan, cap) };
     } catch (err: any) {
       this.log.warn(`[${userId}] AI butcesi okunamadi, islem engellenmedi: ${err?.message ?? err}`);
       return null;
@@ -541,11 +578,14 @@ export class QuotaService {
    *  - Ust satin alinabilir planin tavani daha yuksekse (Baslangic → Profesyonel) soylenir.
    *  - Profesyonel ve ustunde yukseltme VAAT EDILMEZ (Kurumsal teklifle): yalniz yenilenme.
    */
-  private aiBudgetMessage(plan: string, used: number, cap: number): string {
+  private aiBudgetMessage(plan: string, used: number, cap: number, lapsed = false): string {
     const tutar = `($${used.toFixed(2)} / $${cap})`;
     if (plan === 'TRIAL') {
-      return `Deneme hesabının AI kullanım bütçesi doldu ${tutar}. Deneme bütçesi yenilenmez. ` +
-        'Ücretli planlarda bütçe yeni ayda sıfırlanır; devam etmek için ücretli bir plana geçebilirsin.';
+      // Plani biten eski musteri deneme DUZEYINDEDIR, deneme hesabi degildir (15.11.2026)
+      const durum = lapsed
+        ? `${LAPSED_LEAD} ve bu düzeyin AI kullanım bütçesi doldu ${tutar}. Bu bütçe yenilenmez. `
+        : `Deneme hesabının AI kullanım bütçesi doldu ${tutar}. Deneme bütçesi yenilenmez. `;
+      return durum + 'Ücretli planlarda bütçe yeni ayda sıfırlanır; devam etmek için ücretli bir plana geçebilirsin.';
     }
     const ust = this.upgradeOffers(plan).find((p) => (this.SPEND_CAP_USD[p.id.toUpperCase()] ?? 0) > cap);
     return `Aylık AI kullanım bütçen doldu ${tutar}. Bütçe yeni ayın başında sıfırlanır` +
@@ -649,7 +689,7 @@ export class QuotaService {
     }
     throw new ForbiddenException({
       statusCode: 403,
-      message: this.chatLimitMessage(plan, limit),
+      message: this.chatLimitMessage(plan, limit, await this.isLapsed(user.id, plan)),
       code: CHAT_MESSAGE_LIMIT_CODE,
       // chatLimitMessage ile ayni kural: yalniz kartla alinabilen ust plan onerilir
       upgrade: upgradeOfferFor(plan, (p) => p.chatMessagesPerMonth > limit, { purchasableOnly: true }),
@@ -704,12 +744,15 @@ export class QuotaService {
    * Deneme hakki yenilenmez; Baslangic → Profesyonel soylenir; Profesyonel ve ustunde
    * yukseltme VAAT EDILMEZ (Kurumsal teklifle), yalniz yenilenme.
    */
-  private chatLimitMessage(plan: string, limit: number): string {
+  private chatLimitMessage(plan: string, limit: number, lapsed = false): string {
     const ust = this.upgradeOffers(plan).filter((p) => p.chatMessagesPerMonth > limit);
     const teklif = ust.map((p) => `${p.name_tr} planında ayda ${fmtCount(p.chatMessagesPerMonth)}`).join(', ');
     if (plan === 'TRIAL') {
-      return `Deneme hesabındaki ${fmtCount(limit)} Asistan mesajı hakkını kullandın; deneme hakkı yenilenmez.` +
-        (teklif ? ` ${teklif} mesaj gönderebilirsin.` : '');
+      // Plani biten eski musteri deneme DUZEYINDEDIR, deneme hesabi degildir (15.11.2026)
+      const durum = lapsed
+        ? `${LAPSED_LEAD} ve bu düzeydeki ${fmtCount(limit)} Asistan mesajı hakkını kullandın; bu hak yenilenmez.`
+        : `Deneme hesabındaki ${fmtCount(limit)} Asistan mesajı hakkını kullandın; deneme hakkı yenilenmez.`;
+      return durum + (teklif ? ` ${teklif} mesaj gönderebilirsin.` : '');
     }
     return `Bu ayki ${fmtCount(limit)} Asistan mesajı hakkını kullandın. Hak gelecek ayın başında yenilenir` +
       (teklif ? `; ${teklif} mesaj gönderebilirsin.` : '.');
@@ -742,10 +785,13 @@ export class QuotaService {
 
     // Ozelligi iceren en dusuk SATISTAKI plan (Ajans satistan kalkti → Kurumsal)
     const needed = featureOfferPlan(feature).name_tr;
-    throw planLimitError(
-      `${PLAN_FEATURE_LABELS[feature]} ${needed} planına dahildir. Planını yükselterek kullanabilirsin.`,
-      upgradeOfferFor(plan, (p) => planHasFeature(p.id, feature)),
-    );
+    const upgrade = upgradeOfferFor(plan, (p) => planHasFeature(p.id, feature));
+    // Son cumle dugmeyle ayni yolu soyler: kartla alinan plana "geçerek kullanabilirsin",
+    // yalniz teklifle satilana "teklifle sunuluyor" (eskiden hepsine "Planını yükselterek")
+    const yol = upgrade.kind === 'buy' ? ` ${upgrade.planName} plana geçerek kullanabilirsin.`
+      : upgrade.kind === 'quote' ? ` ${upgrade.planName} planı teklifle sunuluyor.`
+      : '';
+    throw planLimitError(`${PLAN_FEATURE_LABELS[feature]} ${needed} planına dahildir.${yol}`, upgrade);
   }
 
   /** ASO: takip edilen uygulama sayisi kotasi */
@@ -773,11 +819,9 @@ export class QuotaService {
     // owner kendi hesabina dogfood/demo uygulamasi ekleyebilmeli. Onceden site
     // kotasinda muaf olup burada takiliyordu (PRO = 3 uygulama, 4. reddediliyordu).
     if (role === 'ADMIN') return;
-    throw planLimitError(
-      `Plan limiti: ${limit} uygulama. Şu an ${current} uygulaman var. Daha fazlası için plan yükselt.`,
-      // Kullanima gore (site siniriyla ayni gerekce: dusen hesap uygulamalarini korur)
-      upgradeOfferFor(plan, (p) => p.trackedApps > current),
-    );
+    // Kullanima gore (site siniriyla ayni gerekce: dusen hesap uygulamalarini korur)
+    const upgrade = upgradeOfferFor(plan, (p) => p.trackedApps > current);
+    throw planLimitError(trackedAppLimitMessage(limit, current, upgrade), upgrade);
   }
 
   // ────────────────────────────────────────────
@@ -893,28 +937,58 @@ export class QuotaService {
 
   async enforceCitationQuota(userId: string): Promise<{ remaining: number; limit: number }> {
     const { allowed, remaining, limit, used } = await this.checkCitationQuota(userId);
-    if (!allowed) {
-      const plan = await this.planOf(userId);
-      // Eski metin "BYOK ile sinirsiz" diyordu; iki yanlis: BYOK yalniz Kurumsal
-      // planda (plans.ts FEATURE_MIN_PLAN.byok) ve kendi anahtarla olcum de
-      // haftalik olcum hakkina tabi (billing/measurement-allowance.ts). Kota
-      // dolunca BYOK saglayicilari kosmaya devam eder (ai-citation.service.ts),
-      // sinirsiz olmaz. Hak her takvim ayinda sifirlanir (maybeResetCitationQuota).
-      const byokPlan = findPlan(FEATURE_MIN_PLAN.byok)?.name_tr ?? 'Kurumsal';
-      // Denemenin hakki TOPLAMDIR, ay donumunde sifirlanmaz (maybeResetCitationQuota):
-      // "yeni ayda yenilenir" denemede yanlisti ve bu cumle artik plan penceresinin
-      // basliginin altinda gorunuyor (inceleme 15.11.2026). Ucretli plana gecince ilk
-      // kontrol sayaci sifirlar; yol bu yuzden limite gore.
-      const hak = plan === 'TRIAL'
-        ? `Deneme hesabındaki ${limit} AI görünürlük çalıştırması hakkını kullandın (${used}/${limit}); deneme hakkı yenilenmez. Devam etmek için bir plan seçebilirsin. `
-        : `Aylık ${limit} AI görünürlük çalıştırması hakkın doldu (${used}/${limit}). Hak yeni ayda yenilenir; daha fazlası için planını yükseltebilirsin. `;
-      throw planLimitError(
-        hak +
-        `${byokPlan} planda kendi API anahtarlarını (BYOK) bağlarsan havuz kotası dolduğunda da ölçüm bu anahtarlarla sürer; haftalık ölçüm hakkı yine geçerlidir.`,
-        upgradeOfferFor(plan, (p) => p.aiRunsPerMonth > limit),
-      );
-    }
+    if (!allowed) throw await this.citationQuotaError(userId, { limit, used }, { byokNote: true });
     return { remaining, limit };
+  }
+
+  /**
+   * Aylik calistirma hakki DOLU 403'u (plan siniri: kod + yukseltme yolu).
+   *
+   * byokNote: AI testi kota dolunca kendi anahtarla (BYOK) surebilir, cumlesi eklenir. Isi
+   * haritasi ve uygulama soru laboratuvari kendi anahtari KULLANMAZ (ai-citation.service
+   * assertCitationRuns): onlarda bu cumle bos vaat olur, eklenmez.
+   */
+  async citationQuotaError(
+    userId: string,
+    q: { limit: number; used: number },
+    opts: { byokNote: boolean },
+  ): Promise<ForbiddenException> {
+    const { limit, used } = q;
+    const plan = await this.planOf(userId);
+    // Denemenin hakki TOPLAMDIR, ay donumunde sifirlanmaz (maybeResetCitationQuota):
+    // "yeni ayda yenilenir" denemede yanlisti ve bu cumle artik plan penceresinin
+    // basliginin altinda gorunuyor (inceleme 15.11.2026). Ucretli plana gecince ilk
+    // kontrol sayaci sifirlar; yol bu yuzden limite gore.
+    const upgrade = this.citationUpgrade(plan, limit);
+    // Ucretli planda yol dugmeyle ayni karardan (en ust planda yukseltme onerilmez);
+    // plani biten eski musteriye "Deneme hesabı" denmez (15.11.2026)
+    const hak = plan !== 'TRIAL'
+      ? withUpgradePath(`Aylık ${limit} AI görünürlük çalıştırması hakkın doldu (${used}/${limit}). Hak yeni ayda yenilenir.`, upgrade)
+      : (await this.isLapsed(userId, plan))
+        ? `${LAPSED_LEAD} ve bu düzeydeki ${limit} AI görünürlük çalıştırması hakkını kullandın (${used}/${limit}); bu hak yenilenmez. Devam etmek için bir plan seçebilirsin.`
+        : `Deneme hesabındaki ${limit} AI görünürlük çalıştırması hakkını kullandın (${used}/${limit}); deneme hakkı yenilenmez. Devam etmek için bir plan seçebilirsin.`;
+    if (!opts.byokNote) return planLimitError(hak, upgrade);
+    // Eski metin "BYOK ile sinirsiz" diyordu; iki yanlis: BYOK yalniz Kurumsal
+    // planda (plans.ts FEATURE_MIN_PLAN.byok) ve kendi anahtarla olcum de
+    // haftalik olcum hakkina tabi (billing/measurement-allowance.ts). Kota
+    // dolunca BYOK saglayicilari kosmaya devam eder (ai-citation.service.ts),
+    // sinirsiz olmaz. Hak her takvim ayinda sifirlanir (maybeResetCitationQuota).
+    const byokPlan = findPlan(FEATURE_MIN_PLAN.byok)?.name_tr ?? 'Kurumsal';
+    return planLimitError(
+      `${hak} ` +
+      `${byokPlan} planda kendi API anahtarlarını (BYOK) bağlarsan havuz kotası dolduğunda da ölçüm bu anahtarlarla sürer; haftalık ölçüm hakkı yine geçerlidir.`,
+      upgrade,
+    );
+  }
+
+  /** Aylik calistirma tavanini kaldiran plan (plan-limit.ts); metin ve dugme ayni karari okur */
+  citationUpgrade(plan: string | null | undefined, limit: number): UpgradeOffer {
+    return upgradeOfferFor(plan, (p) => p.aiRunsPerMonth > limit);
+  }
+
+  /** Hesabin planina gore ayni yol (audit/ai-citation.service assertCitationRuns icin) */
+  async citationUpgradeFor(userId: string, limit: number): Promise<UpgradeOffer> {
+    return this.citationUpgrade(await this.planOf(userId), limit);
   }
 
   async incrementCitationUsage(userId: string): Promise<void> {

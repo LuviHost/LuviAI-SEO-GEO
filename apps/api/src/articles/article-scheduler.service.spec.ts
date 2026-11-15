@@ -944,8 +944,13 @@ describe('scheduleTopic — hak mesaji ve tarih dogrulamasi', () => {
     const starter = await refuse('STARTER', 0);
     expect(starter).toBe('Makale üretimi bu pakette yok. Makale üretmek için Profesyonel plana geç.');
     expect(starter).not.toMatch(/0 makale/);
-    // Makalesi olan ucretli plan: eski metin aynen
-    expect(await refuse('PRO', 40)).toBe('Makale hakkın doldu (40 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
+    // Makalesi olan ucretli plan (15.11.2026): yol dugmeyle ayni karardan. Profesyonel'in
+    // ustu yalniz teklifle; en ust planda yukseltme ONERILMEZ (eskiden ikisine de
+    // "planını yükseltebilirsin" deniyordu)
+    expect(await refuse('PRO', 40)).toBe('Makale hakkın doldu (40 makale); takvime yeni yazı eklenemiyor. Hak yeni ayda yenilenir. Daha fazlası için Kurumsal planı teklifle sunuluyor.');
+    const top = await refuse('ENTERPRISE', 350);
+    expect(top).toBe('Makale hakkın doldu (350 makale); takvime yeni yazı eklenemiyor. Hak yeni ayda yenilenir.');
+    expect(top).not.toMatch(/yükselt|teklif|plana geç/);
     // Saf fonksiyon ayni metinleri uretir
     expect(scheduleQuotaFullMessage('TRIAL', 2)).toBe(trial);
     expect(scheduleQuotaFullMessage('STARTER', 0)).toBe(starter);
@@ -959,8 +964,12 @@ describe('scheduleTopic — hak mesaji ve tarih dogrulamasi', () => {
     expect(err).toBeInstanceOf(ForbiddenException);
     expect(err.message).toBe(
       'Kalan makale hakkın 2; hesabındaki tüm sitelerin takviminde üretime alınmayı bekleyen 2 yazı var ve her biri üretime alınırken bu haktan düşecek. '
-      + 'Yeni yazı eklemek için takvimden yazı çıkarabilir ya da planını yükseltebilirsin.',
+      + 'Yeni yazı eklemek için takvimden yazı çıkarabilirsin. Daha fazlası için Profesyonel plana geçebilirsin.',
     );
+    // Yol plana gore yazilir (15.11.2026); "planını yükseltebilirsin" kalibi kalkti
+    expect(err.message).not.toMatch(/planını yükselt/);
+    // Plan penceresi acilmaz: musterinin kendi cozumu var (duz 403, PLAN_LIMIT kodu yok)
+    expect((err.getResponse() as any).code).toBeUndefined();
     expect(err.message).not.toMatch(/yayınla/);
     expect(ctx.prisma.article.create).not.toHaveBeenCalled();
   });
@@ -1169,7 +1178,7 @@ describe('rv18 F5 — daha once yayinlanmis yazi kalan hakki tuketmez ve takvimd
     expect(err).toBeInstanceOf(ForbiddenException);
     expect(err.message).toBe(
       'Kalan makale hakkın 2; hesabındaki tüm sitelerin takviminde üretime alınmayı bekleyen 2 yazı var ve her biri üretime alınırken bu haktan düşecek. '
-      + 'Yeni yazı eklemek için takvimden yazı çıkarabilir ya da planını yükseltebilirsin.',
+      + 'Yeni yazı eklemek için takvimden yazı çıkarabilirsin. Daha fazlası için Profesyonel plana geçebilirsin.',
     );
     expect(t.prisma.article.create).not.toHaveBeenCalled();
     // Bir hak daha kalsaydi ekleme olurdu (eskiden 4 bekleyen sayilip 403 verilirdi)
@@ -1298,7 +1307,8 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
 
   const waitingText = (remaining: number, waiting: number) =>
     `Kalan makale hakkın ${remaining}; hesabındaki tüm sitelerin takviminde üretime alınmayı bekleyen ${waiting} yazı var ve her biri üretime alınırken bu haktan düşecek. `
-    + 'Yeni yazı eklemek için takvimden yazı çıkarabilir ya da planını yükseltebilirsin.';
+    // Profesyonel hesap: ust plan yalniz teklifle (billing/plan-limit.ts)
+    + 'Yeni yazı eklemek için takvimden yazı çıkarabilirsin. Daha fazlası için Kurumsal planı teklifle sunuluyor.';
 
   it('kullanicinin baslattigi, henuz yayinlanmamis uretim bir kez sayilir: kapasite = hak - dusulen (eskiden bekleyen de sayilip iki kez kuculuyordu)', async () => {
     // Ay icinde hakkin 15'i kalmis Profesyonel hesabi (takvim listesi 30 satir doner; sayilar onun altinda)
@@ -1350,7 +1360,7 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     expect(w.generationJobs()).toBe(HAK);
     expect(w.users.u1.articlesUsedThisMonth).toBe(HAK);
     expect(w.rows.filter((r) => r.status === 'PUBLISHED')).toHaveLength(HAK);
-    expect((await w.schedule()).message).toBe(`Makale hakkın doldu (${HAK} makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.`);
+    expect((await w.schedule()).message).toBe(`Makale hakkın doldu (${HAK} makale); takvime yeni yazı eklenemiyor. Hak yeni ayda yenilenir. Daha fazlası için Kurumsal planı teklifle sunuluyor.`);
   });
 
   /** Onboarding: akis acikken 8 konu (worker ONBOARDING_CHAIN) */
