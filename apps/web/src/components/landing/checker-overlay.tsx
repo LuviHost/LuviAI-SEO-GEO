@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import dynamic from 'next/dynamic';
-import { Loader2, Mail, Check, PlayCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, Check, X, PlayCircle, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { trackCta } from '@/lib/landing-track';
 import type { Locale } from '@/lib/i18n';
@@ -17,34 +16,31 @@ import type { CheckerCopy } from './checker-copy';
 /**
  * AI gorunurluk testinin yukleme + sonuc katmani.
  *
- * NEDEN AYRI DOSYA: bu katman (sorgu kartlari, rakip listesi, e-posta takibi, Remotion
- * oynatici) landing'in en agir parcasi; ilk yuklemede gerekmiyor. ai-visibility-checker
- * bunu next/dynamic ile yalniz test baslayinca yukler.
+ * NEDEN AYRI DOSYA: bu katman (ozet, sorgu kartlari, rakip listesi, e-posta takibi)
+ * landing'in en agir parcasi; ilk yuklemede gerekmiyor. ai-visibility-checker bunu
+ * next/dynamic ile yalniz test baslayinca yukler.
  *
  * GORUNUM (15.11.2026): vitrin dili — duz kart (rounded-lg + ince cizgi), mono cumle
  * duzeni etiket (.v-rail; CSS `uppercase` YOK, EN'de "i"yi "İ" yapiyordu), golge ve
  * degrade yok, secili satir notr. Bu katman koyu vitrine gecerken (11.11.2026)
  * atlanmisti: turuncu degrade kartlar ve lacivert animasyon siyah sayfada kalmisti.
- * Turuncu yalniz kilit acma dugmesinde (UnlockCta); e-posta takibi beyaz dolu,
- * uyelik cerceveli dugme.
+ * Turuncu yalniz kilit acma dugmesinde (UnlockCta) ve cevap metninde markanin
+ * ustundeki fosforlu kalemde (ana sayfadaki ornek cevap kartiyla ayni isaret);
+ * e-posta takibi beyaz dolu, uyelik cerceveli dugme.
+ *
+ * OZET (15.11.2026, sahip secimi): en ustte asistanlarin CEVAPLARI yan yana durur
+ * (rakam degil kanit: ne dendi, kimin adi gecti). Eski yorunge animasyonu
+ * (@remotion/player + apps/video AiScan) bu katmandan kalkti. Takip karti, bugunku
+ * skoru 90 gunluk cizginin ilk noktasi olarak gosterir; gelecek gunler bos kalir
+ * (uydurma rakam yok).
  */
 
 type CheckResult = Awaited<ReturnType<typeof api.publicCitationCheck>>;
-
-// @remotion/player yalniz sonuc geldiginde, ayri bir parca olarak yuklenir.
-// Yer tutucu, kompozisyonun en-boy oraniyla ayni (1280 / 520) — yuklenince ziplamasin.
-const AiScanPlayer = dynamic(() => import('./ai-scan-player'), {
-  ssr: false,
-  loading: () => <div className="aspect-[1280/520] w-full" />,
-});
 
 // Ucretsiz (anonim) testin SORDUGU dort asistan (api billing/plan-engines
 // FREE_TEST_ENGINES; checker-copy.ts `loadingMessages` ile ayni liste). Eskiden
 // burada Grok ve DeepSeek logolari da donuyordu; ucretsiz test onlara sormuyor.
 const LOADING_ENGINES: VendorName[] = ['chatgpt', 'claude-ai', 'gemini', 'perplexity'];
-
-/** Animasyon bu genisligin altinda okunmaz (1280px'lik sahne kucultuluyor) → duragan ozet */
-const WIDE_QUERY = '(min-width: 768px)';
 
 export interface CheckerOverlayProps {
   phase: 'loading' | 'result';
@@ -82,9 +78,6 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
 
   const summary = useMemo(() => (result ? summarize(result) : null), [result]);
   const loading = phase === 'loading';
-  // Katman ssr:false ile yuklenir → matchMedia ilk render'da okunabilir. Animasyon
-  // parcasi (remotion) dar ekranda hic indirilmez.
-  const [wide] = useState(() => window.matchMedia?.(WIDE_QUERY).matches ?? true);
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !loading) onReset(); }}>
@@ -92,6 +85,10 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
         size="xl"
         hideClose={loading}
         className="max-w-7xl bg-background"
+        // <html lang> sunucuda "tr" basilir ve dil tarayicidan algilandiginda degismez;
+        // katmanin dili burada bildirilir (ekran okuyucu, buyuk/kucuk harf kurallari).
+        // Belge genelinde degistirmek Turkce-yalniz sayfalari (rehber, panel) "en" yapardi.
+        lang={locale}
         onEscapeKeyDown={(e) => { if (loading) e.preventDefault(); }}
         onInteractOutside={(e) => { if (loading) e.preventDefault(); }}
       >
@@ -110,9 +107,10 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
                 </div>
               ))}
             </div>
-            <p className="v-rail mt-6 inline-flex h-4 items-center gap-2" key={loadingIdx}>
+            <p className="v-rail mt-6 inline-flex h-4 items-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden />
-              {c.loadingMessages[loadingIdx]}
+              {/* key yalniz metinde: ikonun donusu her mesajda bastan baslamasin */}
+              <span key={loadingIdx}>{c.loadingMessages[loadingIdx]}</span>
             </p>
           </div>
         )}
@@ -122,7 +120,8 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
             <div className="flex items-center gap-4 pr-12">
               <DomainFavicon domain={result.domain} brand={result.brand} />
               <div className="min-w-0">
-                <DialogTitle className="text-panel-1 truncate">{result.brand}</DialogTitle>
+                {/* pb-1: truncate tasmayi kirpar; siki satir yuksekliginde g/ş/y kuyruklari kesilmesin */}
+                <DialogTitle className="truncate pb-1 text-panel-1">{result.brand}</DialogTitle>
                 <DialogDescription className="mt-1 flex flex-wrap items-center gap-2">
                   <span>{result.domain}</span>
                   {result.niche && (
@@ -136,18 +135,8 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
 
             {result.fromCache && <ReusedResultNotice result={result} locale={locale} c={c} onNavigate={onReset} />}
 
-            {/* Kisisel ozet — gercek sonuctan (skor + motor bazinda anilma). Genis
-                ekranda animasyon, dar ekranda ayni bilginin duragan hali. */}
-            {summary && summary.engines.length > 0 && (
-              <div className="overflow-hidden rounded-lg border bg-card">
-                <p className="v-rail px-4 pt-3 sm:px-5">{c.replayTitle}</p>
-                {wide ? (
-                  <AiScanPlayer domain={result.domain} score={summary.score} engines={summary.engines} locale={locale} />
-                ) : (
-                  <StaticSummary summary={summary} c={c} />
-                )}
-              </div>
-            )}
+            {/* Ozet — gercek sonuctan: skor, cumle ve secili sorunun cevaplari */}
+            {summary && summary.engines.length > 0 && <SummaryBlock summary={summary} brand={result.brand} c={c} />}
 
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-4">
@@ -202,7 +191,7 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
                   )}
                 </div>
 
-                <OptinCard result={result} locale={locale} c={c} getTurnstileToken={getTurnstileToken} />
+                <OptinCard result={result} locale={locale} c={c} score={summary && summary.engines.length > 0 ? summary.score : null} getTurnstileToken={getTurnstileToken} />
 
                 <div className="space-y-2">
                   <Link href="/signin?signup=1" onClick={onReset} className="v-btn-line w-full">
@@ -280,11 +269,14 @@ function OptinCard({
   result,
   locale,
   c,
+  score,
   getTurnstileToken,
 }: {
   result: CheckResult;
   locale: Locale;
   c: CheckerCopy;
+  /** Bugunku skor — cizginin ilk noktasi; ozet yoksa null (nokta rakamsiz kalir) */
+  score: number | null;
   getTurnstileToken?: () => Promise<string | null>;
 }) {
   const [email, setEmail] = useState('');
@@ -329,10 +321,21 @@ function OptinCard({
 
   return (
     <div className="rounded-lg border bg-card p-5">
-      <h5 className="text-panel-3 mb-2 flex items-start gap-2">
-        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /> {c.optinHeader}
-      </h5>
-      <p className="text-xs text-muted-foreground mb-4 leading-relaxed">{c.optinBody}</p>
+      <h5 className="text-panel-3">{c.optinHeader}</h5>
+      <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{c.optinBody}</p>
+      {/* Bugunun skoru cizginin ilk noktasi; sonraki gunler olculmedigi icin bos (uydurma rakam yok) */}
+      <div className="relative mb-5 mt-5">
+        <div className="absolute inset-x-2 top-[6px] border-t border-dashed border-border" aria-hidden />
+        <ol className="relative flex justify-between">
+          {c.optinSteps.map((step, i) => (
+            <li key={step} className={`flex flex-col ${i === 0 ? 'items-start' : i === c.optinSteps.length - 1 ? 'items-end' : 'items-center'}`}>
+              <span className={`h-[13px] w-[13px] rounded-full ${i === 0 ? 'bg-foreground' : 'border border-dashed border-muted-foreground/60 bg-card'}`} aria-hidden />
+              <span className={`mt-2.5 font-mono text-vitrin-rail ${i === 0 ? 'text-foreground' : 'text-muted-foreground'}`}>{step}</span>
+              <span className={`mt-0.5 text-sm tabular-nums ${i === 0 ? '' : 'text-muted-foreground/50'}`}>{i === 0 && score !== null ? score : '—'}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
       {status === 'sent' ? (
         <div className="rounded-md border border-success/40 bg-success/10 p-4 text-center text-success">
           <p className="inline-flex items-center gap-2 text-sm font-medium"><Check className="h-4 w-4" aria-hidden /> {c.optinSuccess}</p>
@@ -367,11 +370,8 @@ function OptinCard({
           {status === 'error' && error && (
             <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 p-2 text-xs text-danger">{error}</p>
           )}
-          <ul className="space-y-0.5 text-label text-muted-foreground">
-            {[c.optinSubBenefit1, c.optinSubBenefit2, c.optinSubBenefit3].map((b) => (
-              <li key={b} className="flex items-center gap-1.5"><Check className="h-3 w-3" aria-hidden /> {b}</li>
-            ))}
-          </ul>
+          {/* Ilk rapor tarihi ve rapor sayisi cizgide gorunuyor; burada yalniz iptal notu */}
+          <p className="text-label text-muted-foreground">{c.optinSubBenefit3}</p>
         </form>
       )}
     </div>
@@ -384,45 +384,141 @@ const SOLID_BTN =
 
 type Summary = ReturnType<typeof summarize>;
 
+/** Fosforlu kalem: ana sayfadaki ornek cevap kartiyla ayni isaret (marka cevapta nerede) */
+function markBrand(text: string, brand: string) {
+  const re = brandRegex(brand, 'gi');
+  if (!re) return text;
+  // split + yakalama grubu: tek indeksli parcalar eslesmelerdir
+  return text.split(re).map((part, i) =>
+    i % 2 === 1 ? (
+      <mark key={i} className="rounded-sm bg-brand-vivid px-1 text-black">{part}</mark>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
+
+function brandRegex(brand: string, flags: string): RegExp | null {
+  if (!brand || brand.length < 3) return null;
+  return new RegExp(`(${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, flags);
+}
+
 /**
- * Dar ekranda animasyonun yerine gecen duragan ozet: ayni skor, ayni cumle,
- * ayni asistan durumlari (soru kartlarindaki kutucuklarla ayni renk kurali).
+ * Ozet: skor + cumle, altinda secili sorunun cevaplari yan yana (anan asistanlar
+ * once). Dar ekranda cevap metinleri yerine durum kutucuklari gosterilir; metinler
+ * soru kartlarindaki "Yanitlari gor" altinda zaten var.
+ *
+ * ALINTI SINIRI: sunucu cevabin ilk 220 karakterini yollar (ai-citation.service
+ * `excerpt`). Marka daha sonra geciyorsa alintida gorunmez; kutu bunu acikca soyler,
+ * "andi" deyip isaret gostermemek kafa karistirirdi.
  */
-function StaticSummary({ summary, c }: { summary: Summary; c: CheckerCopy }) {
-  const cited = summary.engines.filter((e) => e.cited).length;
+function SummaryBlock({ summary, brand, c }: { summary: Summary; brand: string; c: CheckerCopy }) {
+  const [qi, setQi] = useState(0);
+  const total = summary.questions.length;
+  const q = total > 0 ? summary.questions[Math.min(qi, total - 1)] : null;
+  const citedCount = summary.engines.filter((e) => e.cited).length;
+  const rank = (p: ProviderRow) => (!isMeasuredRow(p) ? 2 : p.cited || p.brandMentioned ? 0 : 1);
+  const panes = q ? [...(q.providers as ProviderRow[])].sort((a, b) => rank(a) - rank(b)) : [];
+  const pagerBtn = 'grid h-7 w-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:border-foreground hover:text-foreground';
   return (
-    <div className="px-4 pb-5 pt-3">
-      <div className="flex items-end gap-2">
-        <span className="text-vitrin-2 tabular-nums">{summary.score}</span>
-        <span className="v-rail pb-1.5">{c.scoreLabel}</span>
+    <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-4 pt-4 sm:px-6 sm:pt-5">
+        <div className="min-w-0">
+          <p className="v-rail">{c.replayTitle}</p>
+          <p className="mt-2 text-vitrin-3">
+            {c.summaryLine.replace('{n}', String(summary.engines.length)).replace('{k}', String(citedCount))}
+          </p>
+        </div>
+        <div className="flex items-end gap-2">
+          <span className="text-vitrin-2 tabular-nums">{summary.score}</span>
+          <span className="v-rail pb-2">{c.scoreLabel}</span>
+        </div>
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {c.summaryLine.replace('{n}', String(summary.engines.length)).replace('{k}', String(cited))}
-      </p>
-      <ul className="mt-4 flex flex-wrap gap-2">
+
+      <ul className="flex flex-wrap gap-2 px-4 pb-5 pt-4 sm:hidden">
         {summary.engines.map((e) => (
           <li
             key={e.provider}
             className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs ring-1 ${e.cited ? 'bg-success/10 text-success ring-success/50' : 'bg-muted/60 text-muted-foreground ring-border'}`}
           >
-            {PROVIDER_LOGOS[e.provider] && <VendorLogo name={PROVIDER_LOGOS[e.provider]} size={14} />}
+            {/* Durum yalniz renkle anlatilmaz: ikon + ekran okuyucu metni. Logo susleme
+                (alt bos), ad zaten yaninda yaziyor. */}
+            {PROVIDER_LOGOS[e.provider] && <VendorLogo name={PROVIDER_LOGOS[e.provider]} size={14} alt="" />}
             {e.label}
+            {e.cited ? <Check className="h-3 w-3" strokeWidth={3} aria-hidden /> : <X className="h-3 w-3" strokeWidth={3} aria-hidden />}
+            <span className="sr-only">{e.cited ? c.citedLabel : c.notCitedLabel}</span>
           </li>
         ))}
       </ul>
+
+      {q && (
+        <div className="hidden sm:block">
+          <div className="mx-6 mt-5 flex items-center gap-3 rounded-md border border-border bg-background px-4 py-2.5">
+            <span className="v-rail shrink-0">{c.askedLabel}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium" title={q.query}>{q.query}</span>
+            <span className="v-rail shrink-0 tabular-nums">
+              {c.questionCounter.replace('{i}', String(Math.min(qi, total - 1) + 1)).replace('{n}', String(total))}
+            </span>
+            {total > 1 && (
+              <span className="flex shrink-0 gap-1">
+                <button type="button" onClick={() => setQi((i) => (i - 1 + total) % total)} aria-label={c.prevQuestion} className={pagerBtn}>
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
+                </button>
+                <button type="button" onClick={() => setQi((i) => (i + 1) % total)} aria-label={c.nextQuestion} className={pagerBtn}>
+                  <ChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+              </span>
+            )}
+          </div>
+          {/* Hucre cizgileri: son sutun/satirin cizgisi -1px ile disari tasar ve kirpilir
+              (asistan sayisi 4'e bolunmese de bos hucre cizgisi kalmaz) */}
+          <div className="mt-5 overflow-hidden border-t border-border">
+            <div className="-mb-px -mr-px grid sm:grid-cols-2 lg:grid-cols-4">
+              {panes.map((p) => <AnswerPane key={p.provider} p={p} brand={brand} c={c} />)}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnswerPane({ p, brand, c }: { p: ProviderRow; brand: string; c: CheckerCopy }) {
+  const logo = PROVIDER_LOGOS[p.provider];
+  const measured = isMeasuredRow(p);
+  const ok = measured && (p.cited || p.brandMentioned);
+  const text = measured && p.excerpt && !p.excerpt.startsWith('HATA:') ? p.excerpt : '';
+  const inText = !!text && !!brandRegex(brand, 'i')?.test(text);
+  const status = !measured ? c.paneNoAnswer : p.brandMentioned ? c.paneMentioned : p.cited ? c.paneCited : c.paneAbsent;
+  return (
+    <div className="flex min-h-[11rem] flex-col border-b border-r border-border p-5">
+      <div className="flex items-center gap-2">
+        {logo && <VendorLogo name={logo} size={18} alt="" />}
+        <span className="text-sm font-medium">{PROVIDER_SHORT[p.provider] || p.label}</span>
+      </div>
+      <p className={`mt-3 flex-1 text-sm leading-relaxed ${ok ? 'text-foreground/90' : 'text-muted-foreground'}`}>
+        {text && markBrand(text, brand)}
+        {text.length >= 210 && <span className="text-muted-foreground/60">{c.truncated}</span>}
+      </p>
+      {ok && text && !inText && (
+        <p className="mt-2 text-xs text-muted-foreground">{p.brandMentioned ? c.paneLater : c.paneSourceOnly}</p>
+      )}
+      <p className={`mt-4 inline-flex items-center gap-2 font-mono text-vitrin-rail ${ok ? 'text-success' : 'text-muted-foreground'}`}>
+        <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden /> {status}
+      </p>
     </div>
   );
 }
 
 /**
- * Gercek sonuctan video ozeti: skor = olculen (kilitsiz, marka adi gecmeyen)
+ * Gercek sonuctan ozet: skor = olculen (kilitsiz, marka adi gecmeyen)
  * sorularda motor cevaplarinin yuzde kaci markayi andi; motor "anildi" = bu
  * sorulardan en az birinde anildi ya da kaynak gosterdi (skordaki citedCount ile
  * ayni birim; eskiden yalniz alan adi atfi sayiliyordu ve markayi anan motor
- * videoda "Anılmadı" gorunuyordu).
+ * ozette "Anılmadı" gorunuyordu). `questions`: ozetin sayfaladigi ayni sorular.
  *
  * Payda sunucudan: totalProviders yalniz o soruda gercekten olculen asistanlar.
- * Hata veren saglayici (measured=false) motor listesine girmez — videodaki
+ * Hata veren saglayici (measured=false) motor listesine girmez — ozetteki
  * "N motor" sayisi olculen motorlardir.
  */
 function summarize(result: CheckResult) {
@@ -435,14 +531,14 @@ function summarize(result: CheckResult) {
   for (const q of base) {
     for (const p of q.providers as ProviderRow[]) {
       if (!isMeasuredRow(p)) continue;
-      // Kisa ad: API etiketi ("Anthropic Claude", "OpenAI ChatGPT") animasyondaki
-      // kutuya sigmiyordu; soru kartlari da ayni kisa adi kullaniyor.
+      // Kisa ad: API etiketi ("Anthropic Claude", "OpenAI ChatGPT") dar kutulara
+      // sigmiyor; soru kartlari da ayni kisa adi kullaniyor.
       const e = engines.get(p.provider) ?? { provider: p.provider, label: PROVIDER_SHORT[p.provider] || p.label, cited: false };
       e.cited = e.cited || p.cited || p.brandMentioned;
       engines.set(p.provider, e);
     }
   }
-  return { score: total > 0 ? Math.round((cited / total) * 100) : 0, engines: [...engines.values()] };
+  return { score: total > 0 ? Math.round((cited / total) * 100) : 0, engines: [...engines.values()], questions: base };
 }
 
 function DomainFavicon({ domain, brand }: { domain: string; brand: string }) {

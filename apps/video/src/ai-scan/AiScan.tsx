@@ -171,7 +171,7 @@ export const AiScan: React.FC<AiScanProps> = ({ domain, score, engines, theme: t
           const hx = sx + (x - sx) * beam;
           const hy = sy + (y - sy) * beam;
           return (
-            <g key={e.label}>
+            <g key={i}>
               <line
                 x1={sx}
                 y1={sy}
@@ -251,7 +251,7 @@ export const AiScan: React.FC<AiScanProps> = ({ domain, score, engines, theme: t
         const ok = settled && e.cited;
         return (
           <div
-            key={e.label}
+            key={i}
             style={{
               position: 'absolute',
               left: x,
@@ -260,7 +260,8 @@ export const AiScan: React.FC<AiScanProps> = ({ domain, score, engines, theme: t
               minWidth: 136,
               padding: '10px 18px',
               borderRadius: 8,
-              background: ok ? mix(theme.success, theme.background, 0.1) : theme.muted,
+              // Opak zemin (arkasindan gecen isin gorunmesin): zemin rengi + ustune %10 durum tonu
+              background: ok ? `linear-gradient(${alpha(theme.success, 0.1)}, ${alpha(theme.success, 0.1)}), ${theme.background}` : theme.muted,
               border: `1px solid ${ok ? alpha(theme.success, 0.5) : theme.border}`,
               display: 'flex',
               flexDirection: 'column',
@@ -313,27 +314,4 @@ export const AiScan: React.FC<AiScanProps> = ({ domain, score, engines, theme: t
 function pos(i: number, n: number) {
   const angle = ((-90 + (360 / n) * i) * Math.PI) / 180;
   return { x: CX + RX * Math.cos(angle), y: CY + RY * Math.sin(angle) };
-}
-
-/**
- * Iki hsl(...) rengini OPAK karistirir (a'dan `t` kadar, b'den 1-t). Kutunun
- * zemini opak olmali: yari saydam zemin, arkasindan gecen isin cizgisini gosterir.
- */
-function mix(a: string, b: string, t: number): string {
-  const pa = parseHsl(a);
-  const pb = parseHsl(b);
-  if (!pa || !pb) return b;
-  // Notr zeminle karisim: ton durum renginden, doygunluk ve aciklik agirlikli
-  const s = pa.s * t + pb.s * (1 - t);
-  const l = pa.l * t + pb.l * (1 - t);
-  return `hsl(${pa.h} ${round(s)}% ${round(l)}%)`;
-}
-
-function parseHsl(c: string): { h: number; s: number; l: number } | null {
-  const m = /^hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\s*\)$/.exec(c);
-  return m ? { h: Number(m[1]), s: Number(m[2]), l: Number(m[3]) } : null;
-}
-
-function round(n: number) {
-  return Math.round(n * 10) / 10;
 }
