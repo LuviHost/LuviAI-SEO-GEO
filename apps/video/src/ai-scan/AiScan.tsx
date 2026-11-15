@@ -1,13 +1,13 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig, Easing } from 'remotion';
-import { alpha, brand, fontSans, themes, type ThemeName } from '../tokens';
+import { AbsoluteFill, interpolate, useCurrentFrame, Easing } from 'remotion';
+import { alpha, fontMono, fontSans, type ThemeName } from '../tokens';
 
 /**
- * AiScan — 10 sn, parametrik "markan AI motorlarinda" ozeti.
+ * AiScan — ~7 sn, parametrik "markan AI motorlarinda" ozeti.
  *
  * inputProps:
- *   domain  — test edilen alan adi (merkezde)
- *   score   — 0-100 gorunurluk skoru (gosterge buna sayar)
+ *   domain  — test edilen alan adi (erisilebilirlik etiketi)
+ *   score   — 0-100 gorunurluk skoru (rakam buna sayar)
  *   engines — (istege bagli) motor bazinda gercek sonuc. Verilmezse 7 varsayilan
  *             etiket kullanilir ve "anildi" sayisi skordan turetilir.
  *   theme   — 'light' | 'dark'
@@ -16,6 +16,19 @@ import { alpha, brand, fontSans, themes, type ThemeName } from '../tokens';
  * Landing'de @remotion/player ile, kullanici alan adi testini GONDERDIKTEN sonra
  * gercek sonucla oynatilir (ilk yukleme paketine girmez). Logo kullanilmaz —
  * yalniz metin etiketler.
+ *
+ * GORUNUM (15.11.2026): sitenin vitrin dili — notr zemin, ince cizgi, golge ve
+ * degrade YOK, buyuk ince rakam, mono etiket; renk yalniz durum bildirir (anildi
+ * = yesil). Eski hali lacivert zemin + turuncu degrade kure + golgeydi; koyu
+ * vitrine gecince (11.11.2026) siyah sayfanin icinde yabanci duruyordu.
+ *
+ * PALET: apps/web/src/app/globals.css'teki :root / .dark degerleriyle AYNI
+ * tutulur (zemin = kart rengi; oynatici bir kartin icinde durur). tokens.ts'teki
+ * `themes` musteri videolarinin paletidir, bu kompozisyon ONU KULLANMAZ.
+ *
+ * ETIKET UZUNLUGU: kutular icerige gore genisler ve satir kirmaz. Eskiden sabit
+ * 172px kutuya "Anthropic Claude" gibi iki kelimelik ad sigmiyor, yazi kutunun
+ * disina tasiyordu.
  */
 
 export type AiScanEngine = { label: string; cited: boolean };
@@ -28,15 +41,51 @@ export type AiScanProps = {
   locale?: 'tr' | 'en';
 };
 
+type ScanTheme = {
+  background: string;
+  foreground: string;
+  muted: string;
+  mutedForeground: string;
+  border: string;
+  success: string;
+  warning: string;
+  danger: string;
+};
+
+/** globals.css :root ve .dark (zemin = --card) */
+const SCAN_THEMES: Record<ThemeName, ScanTheme> = {
+  light: {
+    background: 'hsl(0 0% 100%)',
+    foreground: 'hsl(0 0% 7%)',
+    muted: 'hsl(0 0% 96%)',
+    mutedForeground: 'hsl(0 0% 40%)',
+    border: 'hsl(0 0% 89%)',
+    success: 'hsl(152 61% 34%)',
+    warning: 'hsl(32 95% 40%)',
+    danger: 'hsl(0 72% 48%)',
+  },
+  dark: {
+    background: 'hsl(0 0% 6.5%)',
+    foreground: 'hsl(0 0% 97%)',
+    muted: 'hsl(0 0% 11%)',
+    mutedForeground: 'hsl(30 4% 64%)',
+    border: 'hsl(0 0% 17%)',
+    success: 'hsl(152 55% 52%)',
+    warning: 'hsl(38 92% 58%)',
+    danger: 'hsl(0 84% 66%)',
+  },
+};
+
+// Cumle duzeni: CSS/JS buyuk harf yok (EN'de "i" → "İ" hatasi, globals.css .v-rail notu)
 const LABELS = {
-  tr: { cited: 'Anıldı', notCited: 'Anılmadı', score: 'SKOR / 100', summary: (n: number, k: number) => [`${n} AI motorunun `, `${k}`, ' tanesinde anıldın'] },
-  en: { cited: 'Cited', notCited: 'Not cited', score: 'SCORE / 100', summary: (n: number, k: number) => [`Cited by `, `${k}`, ` of ${n} AI engines`] },
+  tr: { cited: 'Anıldı', notCited: 'Anılmadı', score: 'skor / 100', summary: (n: number, k: number) => [`${n} AI motorunun `, `${k}`, ' tanesinde anıldın'] },
+  en: { cited: 'Cited', notCited: 'Not cited', score: 'score / 100', summary: (n: number, k: number) => [`Cited by `, `${k}`, ` of ${n} AI engines`] },
 } as const;
 
 export const AI_SCAN_FPS = 30;
-export const AI_SCAN_DURATION = 300;
+export const AI_SCAN_DURATION = 200;
 export const AI_SCAN_WIDTH = 1280;
-export const AI_SCAN_HEIGHT = 720;
+export const AI_SCAN_HEIGHT = 520;
 
 export const DEFAULT_ENGINES = ['ChatGPT', 'Gemini', 'Claude', 'Perplexity', 'Copilot', 'Grok', 'DeepSeek'];
 
@@ -51,170 +100,182 @@ function clampScore(s: number) {
 }
 
 const CX = AI_SCAN_WIDTH / 2;
-const CY = AI_SCAN_HEIGHT / 2 - 10;
-const ORBIT = 250;
-/** Yatayda genis elips: 16:9 kareye daha iyi oturur */
-const STRETCH = 1.55;
+const CY = 232;
+/** Yatayda genis elips: genis ve alcak kareye oturur */
+const RX = 452;
+const RY = 166;
+/** Merkez halkasi */
+const R = 102;
+
+/** Isinlarin baslangici ve suresi (kare) */
+const BEAM_START = 14;
+const BEAM_GAP = 9;
+const BEAM_LEN = 16;
+/** Rakam bu karede saymaya baslar (en fazla 8 motorun isini bittikten sonra) */
+const COUNT_FROM = 100;
+const COUNT_TO = 150;
+
+const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 
 export const AiScan: React.FC<AiScanProps> = ({ domain, score, engines, theme: themeName = 'light', locale = 'tr' }) => {
-  const theme = themes[themeName];
+  const theme = SCAN_THEMES[themeName];
   const L = LABELS[locale];
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
   const list = resolveEngines(score, engines);
   const target = clampScore(score);
   const citedTotal = list.filter((e) => e.cited).length;
 
-  const centerIn = spring({ frame, fps, config: { damping: 14 } });
-  const gaugeP = interpolate(frame, [150, 235], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-    easing: Easing.out(Easing.cubic),
-  });
+  const gaugeP = interpolate(frame, [COUNT_FROM, COUNT_TO], [0, 1], { ...clamp, easing: Easing.out(Easing.cubic) });
   const shown = Math.round(target * gaugeP);
-  const summaryP = interpolate(frame, [240, 262], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const R = 92;
+  const numberIn = interpolate(frame, [COUNT_FROM - 6, COUNT_FROM + 4], [0, 1], clamp);
+  const summaryP = interpolate(frame, [COUNT_TO, COUNT_TO + 16], [0, 1], clamp);
   const circ = 2 * Math.PI * R;
   const gaugeColor = target >= 60 ? theme.success : target >= 30 ? theme.warning : theme.danger;
+  const [pre, count, post] = L.summary(list.length, citedTotal);
 
   return (
-    <AbsoluteFill style={{ background: theme.background, fontFamily: fontSans, color: theme.foreground, overflow: 'hidden' }}>
-      <AbsoluteFill
-        style={{ background: `radial-gradient(520px 520px at 50% 48%, ${alpha(brand[500], theme.name === 'dark' ? 0.16 : 0.09)}, transparent 70%)` }}
-      />
+    <AbsoluteFill
+      aria-label={`${domain}: ${pre}${count}${post}`}
+      style={{
+        background: theme.background,
+        // Tarayicida sitenin kendi fontu (next/font degiskeni); render ortaminda yedek yigin
+        fontFamily: `var(--font-sans, ${fontSans})`,
+        color: theme.foreground,
+        overflow: 'hidden',
+      }}
+    >
       <svg width={AI_SCAN_WIDTH} height={AI_SCAN_HEIGHT} style={{ position: 'absolute', inset: 0 }}>
-        {/* Yorunge halkasi — yavas doner */}
+        {/* Yorunge — ince kesik cizgi, yavas doner */}
         <ellipse
           cx={CX}
           cy={CY}
-          rx={ORBIT * STRETCH}
-          ry={ORBIT}
+          rx={RX}
+          ry={RY}
           fill="none"
-          stroke={alpha(brand[500], 0.25)}
-          strokeWidth={1.5}
-          strokeDasharray="5 9"
-          strokeDashoffset={-frame * 0.6}
+          stroke={theme.border}
+          strokeWidth={1}
+          strokeDasharray="3 9"
+          strokeDashoffset={-frame * 0.4}
         />
-        <ellipse cx={CX} cy={CY} rx={ORBIT * STRETCH * 0.62} ry={ORBIT * 0.62} fill="none" stroke={theme.border} strokeWidth={1.5} />
         {list.map((e, i) => {
           const { x, y } = pos(i, list.length);
-          const start = 30 + i * 12;
-          const beam = interpolate(frame, [start, start + 22], [0, 1], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp',
-            easing: Easing.inOut(Easing.quad),
-          });
-          const settled = frame > start + 22;
-          const color = settled ? (e.cited ? theme.success : theme.mutedForeground) : brand[500];
-          // Isin ucundaki parlak nokta
-          const hx = CX + (x - CX) * beam;
-          const hy = CY + (y - CY) * beam;
+          const start = BEAM_START + i * BEAM_GAP;
+          const beam = interpolate(frame, [start, start + BEAM_LEN], [0, 1], { ...clamp, easing: Easing.inOut(Easing.quad) });
+          const settled = frame > start + BEAM_LEN;
+          // Isin merkez halkasinin kenarindan baslar (rakamin ustunden gecmez)
+          const dx = x - CX;
+          const dy = y - CY;
+          const len = Math.hypot(dx, dy) || 1;
+          const sx = CX + (dx / len) * (R + 12);
+          const sy = CY + (dy / len) * (R + 12);
+          const hx = sx + (x - sx) * beam;
+          const hy = sy + (y - sy) * beam;
           return (
             <g key={e.label}>
               <line
-                x1={CX}
-                y1={CY}
+                x1={sx}
+                y1={sy}
                 x2={hx}
                 y2={hy}
-                stroke={color}
-                strokeOpacity={settled ? (e.cited ? 0.6 : 0.2) : 0.85}
-                strokeWidth={settled && e.cited ? 3 : 2}
-                strokeDasharray={settled && !e.cited ? '4 8' : undefined}
+                stroke={settled ? (e.cited ? theme.success : theme.border) : theme.foreground}
+                strokeOpacity={settled ? (e.cited ? 0.75 : 1) : 0.55}
+                strokeWidth={settled && e.cited ? 1.5 : 1}
+                strokeDasharray={settled && !e.cited ? '3 7' : undefined}
               />
-              {beam > 0 && beam < 1 && <circle cx={hx} cy={hy} r={6} fill={brand[500]} />}
+              {beam > 0 && beam < 1 && <circle cx={hx} cy={hy} r={3.5} fill={theme.foreground} />}
             </g>
           );
         })}
-        {/* Merkez gosterge */}
-        <circle cx={CX} cy={CY} r={R} fill="none" stroke={theme.muted} strokeWidth={14} />
+        {/* Merkez halkasi: ince iz + skor yayi */}
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke={theme.border} strokeWidth={1} />
         <circle
           cx={CX}
           cy={CY}
           r={R}
           fill="none"
-          stroke={frame < 150 ? brand[500] : gaugeColor}
-          strokeWidth={14}
+          stroke={gaugeColor}
+          strokeWidth={3}
           strokeLinecap="round"
           strokeDasharray={circ}
           strokeDashoffset={circ * (1 - (target / 100) * gaugeP)}
           transform={`rotate(-90 ${CX} ${CY})`}
-          opacity={centerIn}
+          opacity={gaugeP > 0 && target > 0 ? 1 : 0}
         />
       </svg>
 
-      {/* Merkez: alan adi + skor */}
+      {/* Merkez: buyuk ince rakam + mono etiket */}
       <div
         style={{
           position: 'absolute',
-          left: CX - 78,
-          top: CY - 78,
-          width: 156,
-          height: 156,
-          borderRadius: 999,
-          background: `linear-gradient(135deg, ${brand[500]}, ${brand[700]})`,
-          boxShadow: `0 18px 48px ${alpha(brand[500], 0.4)}`,
-          display: 'grid',
-          placeItems: 'center',
-          transform: `scale(${centerIn})`,
-          color: 'white',
+          left: CX - R,
+          top: CY - R,
+          width: R * 2,
+          height: R * 2,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
           textAlign: 'center',
         }}
       >
-        <div>
-          <div style={{ fontSize: 50, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-            {frame < 150 ? '…' : shown}
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.12em', opacity: 0.9, marginTop: 6 }}>{L.score}</div>
+        <div
+          style={{
+            fontSize: 84,
+            fontWeight: 450,
+            letterSpacing: '-0.06em',
+            lineHeight: 1,
+            fontVariantNumeric: 'tabular-nums',
+            opacity: numberIn,
+          }}
+        >
+          {shown}
+        </div>
+        <div
+          style={{
+            fontFamily: `var(--font-mono, ${fontMono})`,
+            fontSize: 14,
+            letterSpacing: '0.01em',
+            color: theme.mutedForeground,
+            marginTop: 8,
+          }}
+        >
+          {L.score}
         </div>
       </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: CY + 102,
-          textAlign: 'center',
-          fontSize: 24,
-          fontWeight: 700,
-          opacity: centerIn,
-        }}
-      >
-        {domain}
-      </div>
 
-      {/* Motor dugumleri */}
+      {/* Motor dugumleri — duz kutu, icerige gore genisler */}
       {list.map((e, i) => {
         const { x, y } = pos(i, list.length);
-        const start = 30 + i * 12;
-        const arrive = spring({ frame: frame - (start + 20), fps, config: { damping: 12 } });
-        const settled = frame > start + 22;
-        const ring = settled ? (e.cited ? theme.success : theme.border) : alpha(brand[500], 0.5);
+        const start = BEAM_START + i * BEAM_GAP;
+        const settled = frame > start + BEAM_LEN;
+        const ok = settled && e.cited;
         return (
           <div
             key={e.label}
             style={{
               position: 'absolute',
-              left: x - 86,
-              top: y - 34,
-              width: 172,
-              height: 68,
-              borderRadius: 18,
-              background: theme.card,
-              border: `2.5px solid ${ring}`,
-              boxShadow: settled && e.cited ? `0 8px 26px ${alpha(theme.success, 0.25)}` : '0 6px 18px rgba(15,23,42,0.08)',
+              left: x,
+              top: y,
+              transform: 'translate(-50%, -50%)',
+              minWidth: 136,
+              padding: '10px 18px',
+              borderRadius: 8,
+              background: ok ? mix(theme.success, theme.background, 0.1) : theme.muted,
+              border: `1px solid ${ok ? alpha(theme.success, 0.5) : theme.border}`,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              transform: `scale(${0.85 + 0.15 * Math.min(1, arrive)})`,
-              opacity: interpolate(frame, [i * 4, i * 4 + 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+              whiteSpace: 'nowrap',
+              opacity: interpolate(frame, [i * 3, i * 3 + 10], [0, 1], clamp),
             }}
           >
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{e.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1.25 }}>{e.label}</div>
             <div
               style={{
-                fontSize: 15,
-                fontWeight: 700,
+                fontFamily: `var(--font-mono, ${fontMono})`,
+                fontSize: 13,
+                lineHeight: 1.3,
                 color: e.cited ? theme.success : theme.mutedForeground,
                 opacity: settled ? 1 : 0,
                 marginTop: 2,
@@ -232,24 +293,18 @@ export const AiScan: React.FC<AiScanProps> = ({ domain, score, engines, theme: t
           position: 'absolute',
           left: 0,
           right: 0,
-          bottom: 26,
+          bottom: 30,
           textAlign: 'center',
-          fontSize: 26,
-          fontWeight: 600,
+          fontSize: 20,
+          fontWeight: 450,
+          letterSpacing: '-0.02em',
+          color: theme.mutedForeground,
           opacity: summaryP,
-          transform: `translateY(${(1 - summaryP) * 10}px)`,
         }}
       >
-        {(() => {
-          const [pre, count, post] = L.summary(list.length, citedTotal);
-          return (
-            <>
-              {pre}
-              <span style={{ color: brand[600], fontWeight: 800 }}>{count}</span>
-              {post}
-            </>
-          );
-        })()}
+        {pre}
+        <span style={{ color: theme.foreground, fontWeight: 500 }}>{count}</span>
+        {post}
       </div>
     </AbsoluteFill>
   );
@@ -257,6 +312,28 @@ export const AiScan: React.FC<AiScanProps> = ({ domain, score, engines, theme: t
 
 function pos(i: number, n: number) {
   const angle = ((-90 + (360 / n) * i) * Math.PI) / 180;
-  return { x: CX + ORBIT * STRETCH * Math.cos(angle), y: CY + ORBIT * Math.sin(angle) };
+  return { x: CX + RX * Math.cos(angle), y: CY + RY * Math.sin(angle) };
 }
 
+/**
+ * Iki hsl(...) rengini OPAK karistirir (a'dan `t` kadar, b'den 1-t). Kutunun
+ * zemini opak olmali: yari saydam zemin, arkasindan gecen isin cizgisini gosterir.
+ */
+function mix(a: string, b: string, t: number): string {
+  const pa = parseHsl(a);
+  const pb = parseHsl(b);
+  if (!pa || !pb) return b;
+  // Notr zeminle karisim: ton durum renginden, doygunluk ve aciklik agirlikli
+  const s = pa.s * t + pb.s * (1 - t);
+  const l = pa.l * t + pb.l * (1 - t);
+  return `hsl(${pa.h} ${round(s)}% ${round(l)}%)`;
+}
+
+function parseHsl(c: string): { h: number; s: number; l: number } | null {
+  const m = /^hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\s*\)$/.exec(c);
+  return m ? { h: Number(m[1]), s: Number(m[2]), l: Number(m[3]) } : null;
+}
+
+function round(n: number) {
+  return Math.round(n * 10) / 10;
+}

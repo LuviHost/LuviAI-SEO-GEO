@@ -55,6 +55,10 @@ export const CHECKER_COPY = {
     optinSubBenefit2: 'Otomatik 4 rapor (15/30/60/90. gün)',
     optinSubBenefit3: 'Tek tıkla iptal',
     replayTitle: 'Sonucun bir bakışta',
+    // Dar ekrandaki duragan ozet (animasyon yerine). Cumleler apps/video AiScan
+    // LABELS ile ayni; biri degisirse digeri de degismeli.
+    scoreLabel: 'skor / 100',
+    summaryLine: '{n} AI motorunun {k} tanesinde anıldın',
     loadingMessages: [
       'Soruluyor: ChatGPT',
       'Soruluyor: Claude',
@@ -109,6 +113,8 @@ export const CHECKER_COPY = {
     optinSubBenefit2: 'Auto 4 reports (15/30/60/90d)',
     optinSubBenefit3: 'One-click unsubscribe',
     replayTitle: 'Your result at a glance',
+    scoreLabel: 'score / 100',
+    summaryLine: 'Cited by {k} of {n} AI engines',
     loadingMessages: [
       'Asking: ChatGPT',
       'Asking: Claude',

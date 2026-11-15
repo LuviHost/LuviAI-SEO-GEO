@@ -669,13 +669,30 @@ export function setLocale(locale: Locale) {
   window.dispatchEvent(new CustomEvent(LOCALE_EVENT, { detail: locale }));
 }
 
+/**
+ * <html lang> sunucuda her zaman "tr" basilir (layout.tsx). Dil kayitli tercihten ya da
+ * tarayici dilinden "en" cikinca da guncellenmeli: eskiden yalniz setLocale yaziyordu,
+ * Ingilizce tarayiciyla gelen ziyaretcide lang "tr" kaliyor ve CSS `uppercase` Turkce
+ * kuralla calisiyordu ("DİD YOUR BRAND APPEAR İN…"). Ekran okuyucu da metni Turkce okurdu.
+ */
+function syncHtmlLang() {
+  if (typeof document === 'undefined') return;
+  const locale = readLocale();
+  if (document.documentElement.lang !== locale) document.documentElement.lang = locale;
+}
+
 function subscribe(callback: () => void) {
   if (typeof window === 'undefined') return () => {};
-  window.addEventListener(LOCALE_EVENT, callback);
-  window.addEventListener('storage', callback);
+  syncHtmlLang();
+  const onChange = () => {
+    syncHtmlLang();
+    callback();
+  };
+  window.addEventListener(LOCALE_EVENT, onChange);
+  window.addEventListener('storage', onChange);
   return () => {
-    window.removeEventListener(LOCALE_EVENT, callback);
-    window.removeEventListener('storage', callback);
+    window.removeEventListener(LOCALE_EVENT, onChange);
+    window.removeEventListener('storage', onChange);
   };
 }
 
