@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { QuotaService } from '../billing/quota.service.js';
 import { PLAN_LIMIT_CODE, type UpgradeOffer } from '../billing/plan-limit.js';
-import { BASE_PLANS, findPlan, publicPlans, PLAN_RANK } from '../billing/plans.js';
+import { BASE_PLANS, articleOfferPlan, findPlan, publicPlans, PLAN_RANK } from '../billing/plans.js';
 import { publishTargetCatalog } from './publish-target-catalog.js';
-import { allowedTargetLabels, lockCatalog, publishTargetLockedMessage } from './publish-target-plan-lock.js';
+import { allowedTargetLabels, articleProductionNote, lockCatalog, publishTargetLockedMessage } from './publish-target-plan-lock.js';
 import { PublishTargetsService } from './publish-targets.service.js';
 
 /**
@@ -82,7 +82,7 @@ describe('lockCatalog / publishTargetLockedMessage', () => {
     const webflow = out.find((c) => c.type === 'WEBFLOW')!;
     expect(webflow.upgrade).toEqual(BUY);
     expect(webflow.lockedReason).toBe(
-      `Ücretsiz denemede yalnız WordPress (REST API) ve Markdown ZIP yayın hedefi eklenebilir. Webflow CMS için ${starter.name_tr} plana geçebilirsin.`,
+      `Ücretsiz denemede yalnız WordPress (REST API) ve Markdown ZIP yayın hedefi eklenebilir. Webflow CMS için ${starter.name_tr} plana geçebilirsin. Makale üretimi Profesyonel ve üzeri planlarda.`,
     );
     // Form alanlari kilitli turde de durur (yanit bicimi degismedi)
     expect(webflow.fields.length).toBeGreaterThan(0);
@@ -100,8 +100,20 @@ describe('lockCatalog / publishTargetLockedMessage', () => {
 
   it('plani biten musteriye "Ücretsiz denemede" denmez', () => {
     const m = publishTargetLockedMessage('Ghost', allowedTargetLabels(katalog, deneme), { upgrade: BUY, lapsed: true });
-    expect(m).toBe(`Planın sona erdi; hesabın deneme düzeyinde; bu düzeyde yalnız WordPress (REST API) ve Markdown ZIP yayın hedefi eklenebilir. Ghost için ${starter.name_tr} plana geçebilirsin.`);
+    expect(m).toBe(`Planın sona erdi; hesabın deneme düzeyinde; bu düzeyde yalnız WordPress (REST API) ve Markdown ZIP yayın hedefi eklenebilir. Ghost için ${starter.name_tr} plana geçebilirsin. Makale üretimi Profesyonel ve üzeri planlarda.`);
     expect(m).not.toMatch(/ücretsiz/i);
+  });
+
+  it('onerilen plan makale uretmiyorsa bunu soyler; ureten planda ya da yol yokken not yok (sahip onayi 16.11.2026)', () => {
+    // Dayanak: turleri acan en dusuk plan Baslangic ve orada makale uretimi yok
+    expect(starter.articlesPerMonth).toBe(0);
+    expect(articleOfferPlan().name_tr).toBe('Profesyonel');
+    expect(articleProductionNote(BUY)).toBe('Makale üretimi Profesyonel ve üzeri planlarda.');
+    const pro = findPlan('pro')!;
+    expect(pro.articlesPerMonth).toBeGreaterThan(0);
+    expect(articleProductionNote({ kind: 'buy', planId: 'pro', planName: pro.name_tr })).toBe('');
+    expect(articleProductionNote({ kind: 'quote', planId: 'enterprise', planName: 'Kurumsal' })).toBe('');
+    expect(articleProductionNote(WAIT)).toBe('');
   });
 
   it('yol teklifle ya da yoksa cumle ona gore', () => {

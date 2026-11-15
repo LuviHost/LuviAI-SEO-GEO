@@ -333,6 +333,51 @@ export interface DuzenSecenekleri {
   altBaglantilar?: Array<{ metin: string; href: string }>;
   /** Belgenin dili (ekran okuyucu); varsayilan 'tr' */
   dil?: 'tr' | 'en';
+  /** Logonun altindaki hareketli ust gorselin isareti (ustGorsel); verilmezse gorsel yok */
+  gorsel?: EpostaMotifi;
+}
+
+/**
+ * Hareketli ust gorsel — "Nokta işaretler" (sahip secimi 16.11.2026: dort alternatiften 1).
+ *
+ * Siyah zeminde nokta izgarasi; her e-posta turunun kendi isareti turuncu noktalardan cizilir ve
+ * uzerinden bir isik dalgasi gecer. Tur → isaret eslemesi cagiran tarafta (email.service
+ * SABLON_MOTIFI ve dogrudan `duzen` cagiranlar).
+ *
+ * GORSEL KURALI: e-postalarda baska dis gorsel YOK (istemciler varsayilan olarak engeller, veri
+ * kartlari bu yuzden tabloyla cizilir). Bu gorsel SUSTUR: `alt=""`, e-posta onsuz da eksiksiz
+ * okunur. Yukseklik verilmez; gorseli engelleyen istemcilerin cogu yerinde bosluk birakmaz
+ * (Windows Outlook genisligi kadar bos bir cerceve cizer). Hareketi gostermeyen istemci (eski
+ * Outlook) ilk kareyi gosterir; ilk karede isaret gorunur.
+ *
+ * DOSYALAR: apps/web/public/email/v1/isaret-<motif>.gif (700x280, ~285 KB). Dosya degisirse
+ * klasor adi (v2) degisir: istemciler ve onbellek eski adresi saklar.
+ */
+export const EPOSTA_MOTIFLERI = ['ok', 'cubuk', 'belge', 'kumsaati', 'kart', 'kilit', 'hedef', 'zil'] as const;
+export type EpostaMotifi = (typeof EPOSTA_MOTIFLERI)[number];
+export const UST_GORSEL_YOLU = '/email/v1';
+/** Govdede gorunen genislik (px); dosya 700 px (1,25x) */
+export const UST_GORSEL_GENISLIK = 560;
+
+export function ustGorsel(motif: EpostaMotifi, baseUrl: string): string {
+  // Bilinmeyen deger adrese girmez (cagiran veri gecirirse)
+  if (!EPOSTA_MOTIFLERI.includes(motif)) return '';
+  // Sondaki egik cizgi atilir: "https://ranksup.ai//email/…" bazi sunucularda bulunamaz
+  return `<img src="${kacisla(baseUrl.replace(/\/+$/, ''))}${UST_GORSEL_YOLU}/isaret-${motif}.gif" width="${UST_GORSEL_GENISLIK}" alt="" style="display:block;width:100%;max-width:${UST_GORSEL_GENISLIK}px;height:auto;margin:0 auto;border:0;border-radius:14px;" />`;
+}
+
+/**
+ * Ust gorselin tablo satiri (logo satiri ile govde satiri arasina girer). Alttaki bosluk HUCRE
+ * dolgusuyla verilir: Windows Outlook (Word motoru) gorseldeki `margin` ve `display:block`u
+ * guvenilir uygulamaz; gorsel basliga ya da veri kartina yapisirdi.
+ */
+function ustGorselSatiri(motif: EpostaMotifi, baseUrl: string): string {
+  const gorsel = ustGorsel(motif, baseUrl);
+  return gorsel
+    ? `<tr>
+          <td class="ped" align="center" style="padding:0 20px 30px;">${gorsel}</td>
+        </tr>`
+    : '';
 }
 
 /**
@@ -342,7 +387,9 @@ export interface DuzenSecenekleri {
  * soyluyoruz. Zemin rengi hem attribute (bgcolor) hem style ile verilir.
  */
 export function duzen(baslik: string, govde: string, s: DuzenSecenekleri = {}): string {
-  const baseUrl = s.baseUrl ?? process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
+  // `||` (`??` degil): ortam degiskeni BOS tanimliysa (`WEB_BASE_URL=`) baglantilar ve ust gorsel
+  // goreli adrese donerdi ("/email/v1/…"); e-posta istemcisinde goreli adres calismaz.
+  const baseUrl = s.baseUrl || process.env.WEB_BASE_URL || 'https://ranksup.ai';
   const yil = new Date().getFullYear();
   const altBaglanti = (metin: string, href: string) =>
     `<a href="${href}" style="color:${MARKA.silik};text-decoration:underline;">${metin}</a>`;
@@ -394,6 +441,8 @@ export function duzen(baslik: string, govde: string, s: DuzenSecenekleri = {}): 
             </a>
           </td>
         </tr>
+
+        ${s.gorsel ? ustGorselSatiri(s.gorsel, baseUrl) : ''}
 
         <!-- Govde: ortali. Sola hizali bloklar (ekran karti, liste) kendi hizasini verir. -->
         <tr>

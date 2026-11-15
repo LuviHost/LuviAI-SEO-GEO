@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { EmailService, gscGunAraligi, type EmailTemplate } from './email.service.js';
+import { fileURLToPath } from 'node:url';
+import { EmailService, SABLON_MOTIFI, gscGunAraligi, type EmailTemplate } from './email.service.js';
 import {
   duzen, dugme, olcuSatiri, kacisla, kahramanOlcu, karsilastirmaCubugu, sutunGrafik, MARKA,
+  EPOSTA_MOTIFLERI, UST_GORSEL_YOLU, ustGorsel,
 } from './email-layout.js';
+import { deletionCompletedEmail, deletionRequestedEmail } from '../me/account-deletion.emails.js';
 
 /**
  * E-posta sablonlari.
@@ -138,6 +141,88 @@ describe('e-posta istemcisi uyumlulugu', () => {
   it('dis kaynak yok — istemciler engeller', () => {
     expect(html).not.toMatch(/<link[^>]+stylesheet/);
     expect(html).not.toMatch(/<script/);
+  });
+});
+
+describe('hareketli ust gorsel — "Nokta işaretler" (sahip secimi 16.11.2026)', () => {
+  const GENEL = fileURLToPath(new URL('../../../web/public/email/v1/', import.meta.url));
+
+  it('her sablonun TEK gorseli vardir: turune ait isaret, logonun altinda, govdeden once', () => {
+    for (const t of tumSablonlar()) {
+      const { html } = render(t as EmailTemplate, { name: 'Ayşe', title: 'Başlık', siteName: 'Site' });
+      const motif = SABLON_MOTIFI[t as EmailTemplate];
+      expect(EPOSTA_MOTIFLERI, t).toContain(motif);
+      const gorsel = ustGorsel(motif, 'https://ranksup.ai');
+      expect(html.match(/<img/g), t).toHaveLength(1);
+      expect(html, t).toContain(gorsel);
+      // Sira: logo → gorsel → baslik
+      const logo = html.indexOf('>Up</span>');
+      const baslik = html.indexOf('<h1');
+      expect(logo, t).toBeGreaterThan(-1);
+      expect(html.indexOf(gorsel), t).toBeGreaterThan(logo);
+      expect(html.indexOf(gorsel), t).toBeLessThan(baslik);
+    }
+  });
+
+  it('esleme sahibin gordugu onizlemeyle ayni', () => {
+    expect(SABLON_MOTIFI).toMatchObject({
+      welcome_day0: 'ok', welcome_day7: 'ok', trial_expiry_d11: 'kumsaati', trial_expired: 'kumsaati',
+      article_ready: 'belge', weekly_report: 'cubuk', monthly_report: 'cubuk', plan_upgraded: 'kart', payment_failed: 'kart',
+    });
+    // Dogrudan duzen cagiranlar: hesap silme = kilit, ucretsiz test = hedef, uyari ve bildirim = zil
+    expect(deletionRequestedEmail({ purgeAfterText: '15 Aralık 2026', subscriptionCanceled: false } as never).html).toContain('/isaret-kilit.gif"');
+    expect(deletionCompletedEmail({}).html).toContain('/isaret-kilit.gif"');
+    const kaynak = (yol: string) => readFileSync(new URL(yol, import.meta.url), 'utf8');
+    expect(kaynak('../audit/public-citation-subscriber.service.ts').match(/gorsel: 'hedef'/g)).toHaveLength(2);
+    expect(kaynak('../audit/public-check-report-email.ts')).toContain("gorsel: 'hedef'");
+    expect(kaynak('../audit/ai-mention-alarm.service.ts')).toContain("gorsel: 'zil'");
+    expect(kaynak('../notifications/notifications.service.ts')).toContain("gorsel: 'zil'");
+  });
+
+  it('gorsel sustur: alt bos, genisligi belli, dis adres yalniz kendi sitemiz; gorselsiz de eksiksiz okunur', () => {
+    const g = ustGorsel('ok', 'https://ranksup.ai');
+    expect(g).toBe(
+      '<img src="https://ranksup.ai/email/v1/isaret-ok.gif" width="560" alt="" style="display:block;width:100%;max-width:560px;height:auto;margin:0 auto;border:0;border-radius:14px;" />',
+    );
+    // Kendi tablo satirinda; alttaki bosluk hucre dolgusu (Windows Outlook gorseldeki margin'i uygulamaz)
+    const belge = duzen('Baslik', '<p>govde</p>', { gorsel: 'ok' });
+    expect(belge).toMatch(/<tr>\s*<td class="ped" align="center" style="padding:0 20px 30px;"><img src="https:\/\/ranksup\.ai\/email\/v1\/isaret-ok\.gif"/);
+    // Bos tanimli ortam degiskeni goreli adres uretmez
+    const onceki = process.env.WEB_BASE_URL;
+    process.env.WEB_BASE_URL = '';
+    try {
+      expect(duzen('Baslik', '<p>govde</p>', { gorsel: 'ok' })).toContain('src="https://ranksup.ai/email/v1/isaret-ok.gif"');
+      expect(duzen('Baslik', '<p>govde</p>', { gorsel: 'ok', baseUrl: '' })).toContain('src="https://ranksup.ai/email/v1/isaret-ok.gif"');
+    } finally {
+      if (onceki === undefined) delete process.env.WEB_BASE_URL; else process.env.WEB_BASE_URL = onceki;
+    }
+    // Sondaki egik cizgi cift cizgiye donmez; bilinmeyen isaret adrese girmez
+    expect(ustGorsel('zil', 'https://ranksup.ai/')).toContain('src="https://ranksup.ai/email/v1/isaret-zil.gif"');
+    expect(ustGorsel('../x' as never, 'https://ranksup.ai')).toBe('');
+    // Gorsel verilmezse (kurumsal kampanya, giris kodu) belgede hic <img> yok
+    expect(duzen('Baslik', '<p>govde</p>')).not.toContain('<img');
+    // Gorselli e-postanin metni gorselsiz haliyle ayni
+    const metin = (h: string) => h.replace(/<img[^>]*>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    expect(metin(duzen('Baslik', '<p>govde</p>', { gorsel: 'ok' }))).toBe(metin(duzen('Baslik', '<p>govde</p>')));
+  });
+
+  it('dosyalar yerinde: her isaretin GIF\'i web/public/email/v1 altinda, hareketli ve hafif', () => {
+    expect(UST_GORSEL_YOLU).toBe('/email/v1');
+    for (const motif of EPOSTA_MOTIFLERI) {
+      const dosya = readFileSync(`${GENEL}isaret-${motif}.gif`);
+      expect(dosya.subarray(0, 6).toString('latin1'), motif).toBe('GIF89a');
+      // Genislik 700 px (gorunen 560'in 1,25 kati), yukseklik 280
+      expect([dosya.readUInt16LE(6), dosya.readUInt16LE(8)], motif).toEqual([700, 280]);
+      // Mobil veride hizli acilsin: dosya basina ust sinir
+      expect(dosya.length, motif).toBeLessThan(330 * 1024);
+      // Sonsuz dongu uzantisi (hareketsiz tek kare degil)
+      expect(dosya.includes(Buffer.from('NETSCAPE2.0', 'latin1')), motif).toBe(true);
+    }
+  });
+
+  it('web gorselleri uzun sureli onbellekle sunar (her e-posta acilisinda kaynaga sorulmasin)', () => {
+    const ayar = readFileSync(new URL('../../../web/next.config.ts', import.meta.url), 'utf8');
+    expect(ayar).toMatch(/source: '\/email\/:path\*',\s*headers: \[\{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' \}\]/);
   });
 });
 

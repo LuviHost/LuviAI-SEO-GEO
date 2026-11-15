@@ -69,6 +69,16 @@ const config: NextConfig = {
        *    specification/ai-catalog.md "Media Type"
        * Herkese acik, salt-okuma metadata: tarayici tabanli istemciler icin CORS acik.
        */
+      /**
+       * E-postalarin hareketli ust gorselleri (public/email/v1/isaret-*.gif; api email-layout
+       * ustGorsel). Next public/ dosyalarini `max-age=0` ile sunar: her e-posta acilisinda
+       * ~300 KB dosya kaynaga yeniden sorulurdu. Dosya adi surumlu (v1; degisirse v2), bu
+       * yuzden uzun sureli ve degismez onbellek guvenli.
+       */
+      {
+        source: '/email/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
       {
         source: '/.well-known/oauth-protected-resource/:path*',
         headers: [

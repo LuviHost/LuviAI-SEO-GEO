@@ -27,7 +27,7 @@ export interface PurchaseState {
 
 /** API metin gondermezse (beklenmez) — api CHECKOUT_TEST_MODE_MESSAGE ile ayni metin */
 export const PURCHASE_CLOSED_FALLBACK =
-  'Ödeme altyapısı şu an test modunda; satın alma henüz açık değil. Bilgi için bizimle iletişime geç.';
+  'Kartla ödeme altyapımız şu an test aşamasında. Plan almak istersen bize yaz; ödemeyi havale / EFT ile alıp planını başlatalım.';
 
 /** "Bizimle iletişime geç" adresi — sitenin geri kalaniyla ayni destek kutusu (site-footer) */
 export const PURCHASE_CONTACT_EMAIL = 'destek@luvihost.com';

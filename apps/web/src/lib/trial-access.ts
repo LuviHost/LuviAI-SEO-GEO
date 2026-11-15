@@ -162,7 +162,9 @@ export function expiredModal(
   }
   return {
     title: TRIAL_COPY.expiredTitle,
-    body: 'Deneme süren doldu. Ödeme altyapımız şu an test aşamasında olduğu için hesabın kilitlenmedi; satın alma açılana kadar kalan deneme haklarınla devam edebilirsin.',
+    // "satın alma açılana kadar" denmez: kart kapali ama plan ALINABILIR (yazarak, havale / EFT
+    // ile — sahip 16.11.2026); nasil alinacagi hemen alttaki notta (checkoutMessage + destek adresi)
+    body: 'Deneme süren doldu. Kartla ödeme altyapımız şu an test aşamasında olduğu için hesabın kilitlenmedi; kalan deneme haklarınla devam edebilirsin.',
     dismissible: true,
     checkoutMessage: opts.checkoutMessage?.trim() || PURCHASE_CLOSED_FALLBACK,
   };

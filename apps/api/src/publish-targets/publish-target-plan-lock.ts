@@ -1,4 +1,5 @@
 import { LAPSED_LEAD, upgradePathSentence, type UpgradeOffer } from '../billing/plan-limit.js';
+import { articleOfferPlan, findPlan } from '../billing/plans.js';
 import type { PublishTargetCatalogEntry } from './publish-target-catalog.js';
 
 /**
@@ -53,7 +54,22 @@ export function publishTargetLockedMessage(
   const acik = allowedLabels.length > 0 ? `yalnız ${joinTr(allowedLabels)} yayın hedefi eklenebilir` : 'bu yayın hedefi eklenemez';
   const durum = access.lapsed ? `${LAPSED_LEAD}; bu düzeyde ${acik}.` : `Ücretsiz denemede ${acik}.`;
   const yol = upgradePathSentence(access.upgrade, `${label} için`);
-  return yol ? `${durum} ${yol}` : durum;
+  return [durum, yol, yol ? articleProductionNote(access.upgrade) : ''].filter(Boolean).join(' ');
+}
+
+/**
+ * Onerilen plan makale URETMIYORSA bunu soyleyen ek cumle; uretiyorsa ya da yol yoksa ''.
+ *
+ * NEDEN (inceleme bulgusu + sahip onayi, 16.11.2026): kilit, hesabi turleri acan EN DUSUK plana
+ * yonlendirir (Baslangic); o planda makale uretimi yok. Yazilarini Webflow'a gondermek icin plan
+ * alan musteri makale uretemedigini sonradan ogrenmesin. Deneme bitisi e-postalari ve makale
+ * siniri cumlesi ayni seyi ayni adla soyler (plans.ts articleOfferPlan).
+ */
+export function articleProductionNote(upgrade: UpgradeOffer): string {
+  if (upgrade.kind === 'wait' || !upgrade.planId) return '';
+  const plan = findPlan(upgrade.planId);
+  if (!plan || plan.articlesPerMonth > 0) return '';
+  return `Makale üretimi ${articleOfferPlan().name_tr} ve üzeri planlarda.`;
 }
 
 /** Hesabin ekleyebildigi turlerin katalog etiketleri (cumle icin) */

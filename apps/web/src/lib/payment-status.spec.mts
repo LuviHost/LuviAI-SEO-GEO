@@ -29,7 +29,7 @@ const OID_STA = 'LUVIck3x9a2bSTA1760780000000';
 
 const LIVE = { open: true, testMode: false, message: null };
 const ADMIN_IN_TEST = { open: true, testMode: true, message: null };
-const CUSTOMER_IN_TEST = { open: false, testMode: true, message: 'Ödeme altyapısı şu an test modunda; satın alma henüz açık değil.' };
+const CUSTOMER_IN_TEST = { open: false, testMode: true, message: 'Kartla ödeme altyapımız şu an test aşamasında. Plan almak istersen bize yaz; ödemeyi havale / EFT ile alıp planını başlatalım.' };
 
 const current = (status: string, planId: string, checkout: unknown = LIVE) => ({
   status,
