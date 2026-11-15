@@ -15,6 +15,8 @@ import { formatNum } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
+import { MeasurementWaitLabel } from '@/components/upgrade-gate';
+import { LIMIT_COPY } from '@/lib/plan-limit';
 
 export default function VisibilityPage() {
   const { site } = useSiteContext();
@@ -27,8 +29,12 @@ export default function VisibilityPage() {
   const engines = Array.isArray(siteEngines) && siteEngines.length > 0
     ? (siteEngines as string[])
     : siteEngines === undefined && entitlements?.engines?.length ? entitlements.engines : null;
-  // Haftalik AI olcum hakki — not grafikteki "Yeniden Test"in altinda gorunur
-  const { blocked: measurementBlocked } = useMeasurementAllowance();
+  // Haftalik AI olcum hakki. Hak kullanildiysa buradaki iki dugme de pasif kalir; eskiden
+  // aciklama yalniz ustteki grafikte duruyordu: dugme gri ve sessizdi, bos kutu da "AI
+  // önerisi al'a bas" demeye devam ediyordu (sahip 15.11.2026). Artik dugmenin ustunde ve
+  // bos kutuda ne zaman acilacagi yazar. Satis dugmesi YOK: hak her planda ayni.
+  const { blocked: measurementBlocked, nextLabel: nextMeasurement } = useMeasurementAllowance();
+  const measurementUsedText = measurementBlocked && nextMeasurement ? LIMIT_COPY.measurementUsed(nextMeasurement) : null;
   const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [roadmap, setRoadmap] = useState<{
     summary: string;
@@ -125,6 +131,8 @@ export default function VisibilityPage() {
               <Button size="sm" variant="outline" onClick={runRoadmap} disabled={roadmapLoading || measurementBlocked}>
                 {roadmapLoading ? (
                   <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden /> Analiz ediliyor</>
+                ) : measurementBlocked ? (
+                  <MeasurementWaitLabel />
                 ) : (
                   <><Sparkles className="h-3.5 w-3.5 mr-1.5" aria-hidden /> {roadmap ? 'Yeniden üret' : 'AI önerisi al'}</>
                 )}
@@ -138,7 +146,9 @@ export default function VisibilityPage() {
             <span className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-md border text-foreground/70" aria-hidden>
               <Compass className="h-5 w-5" />
             </span>
-            <p className="mx-auto max-w-xl">&quot;AI önerisi al&quot;a bas — alıntı testi çalışır ve uygulanabilir 5 öneri üretilir.</p>
+            <p className="mx-auto max-w-xl">
+              {measurementUsedText ?? <>&quot;AI önerisi al&quot;a bas — alıntı testi çalışır ve uygulanabilir 5 öneri üretilir.</>}
+            </p>
           </div>
         )}
 
@@ -185,6 +195,8 @@ export default function VisibilityPage() {
               <Button size="sm" variant="outline" onClick={runPerPage} disabled={perPageLoading || measurementBlocked}>
                 {perPageLoading ? (
                   <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden /> Analiz ediliyor</>
+                ) : measurementBlocked ? (
+                  <MeasurementWaitLabel />
                 ) : (
                   <><Search className="h-3.5 w-3.5 mr-1.5" aria-hidden /> {perPage ? 'Yeniden çalıştır' : 'Analiz et'}</>
                 )}
@@ -198,7 +210,9 @@ export default function VisibilityPage() {
             <span className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-md border text-foreground/70" aria-hidden>
               <FileText className="h-5 w-5" />
             </span>
-            <p className="mx-auto max-w-xl">&quot;Analiz et&quot; → AI cevaplarında sitenden hangi sayfaların alıntılandığını ve alıntıyı hangi sorgunun tetiklediğini gösterir.</p>
+            <p className="mx-auto max-w-xl">
+              {measurementUsedText ?? <>&quot;Analiz et&quot; → AI cevaplarında sitenden hangi sayfaların alıntılandığını ve alıntıyı hangi sorgunun tetiklediğini gösterir.</>}
+            </p>
           </div>
         )}
 

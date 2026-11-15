@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { AlertTriangle, Lightbulb, Loader2, Calendar, ExternalLink, FileCheck2, GripVertical, Send, Sparkles, RefreshCw, Eye, Lock } from 'lucide-react';
-import { isPlanLocked } from '@/lib/plan-lock';
+import { PLAN_LOCK_COPY, isPlanLocked } from '@/lib/plan-lock';
 import { LockedGenerateButton, LockedRowPreview, PlanUpgradeButton } from '@/components/locked-article';
 import { refreshArticleAllowance, useArticleAllowance } from '@/lib/use-article-allowance';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
@@ -710,7 +710,7 @@ export function ContentFlowTable({
                             // Uretim dugmesi YOK ("Simdi uret" deneme hakki dolu oldugu icin 403 donerdi):
                             // yukseltme ve kilitli yazinin sayfasi
                             <div className="flex items-center justify-end gap-1.5">
-                              <PlanUpgradeButton variant="outline" />
+                              <PlanUpgradeButton variant="outline" offer={allowance.offer} reason={PLAN_LOCK_COPY.title} />
                               {row.articleId && (
                                 <Link href={`/sites/${siteId}/articles/${row.articleId}`}>
                                   <Button size="sm" variant="outline" title="Kilitli yazıyı aç">

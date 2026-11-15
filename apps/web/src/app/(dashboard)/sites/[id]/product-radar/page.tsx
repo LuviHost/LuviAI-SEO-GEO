@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { MeasurementWaitLabel } from '@/components/upgrade-gate';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { useEntitlements } from '@/lib/entitlements';
 import { PlanLockedCard } from '@/components/plan-locked-card';
@@ -88,8 +89,14 @@ export default function ProductRadarPage() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <SectionHeader icon={Radar} title="Ürün Radarı" description={<>AI asistanlar "{site.niche ?? 'kategorinde'}" hangi ürünleri öneriyor — sen listede misin, kimler önünde?</>} />
         <Button onClick={run} disabled={running || measurementBlocked}>
-          {running ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
-          {running ? 'Taranıyor… (~1 dk)' : 'Şimdi Tara'}
+          {measurementBlocked && !running ? (
+            <MeasurementWaitLabel />
+          ) : (
+            <>
+              {running ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
+              {running ? 'Taranıyor… (~1 dk)' : 'Şimdi Tara'}
+            </>
+          )}
         </Button>
       </div>
       <MeasurementLimitNote />

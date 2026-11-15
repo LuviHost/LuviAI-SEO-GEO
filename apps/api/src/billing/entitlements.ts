@@ -4,6 +4,8 @@ import {
 } from './plans.js';
 import { ownerEngines } from './plan-engines.js';
 import { measuredEngines } from './measured-engines.js';
+import { PURCHASABLE_PLAN_IDS } from './plans.js';
+import type { UpgradeKind } from './plan-limit.js';
 
 export interface Entitlements {
   plan: PlanId;
@@ -16,8 +18,14 @@ export interface Entitlements {
    * denemede dort, Profesyonel ve ustunde alti (+ anahtari tanimliysa Muse).
    */
   engines: string[];
-  /** Kapali ozellik icin kullaniciya ne soylenecegi — hepsi plans.ts'ten turer */
-  required: Record<PlanFeature, { plan: PlanId; planName: string; label: string }>;
+  /**
+   * Kapali ozellik icin kullaniciya ne soylenecegi — hepsi plans.ts'ten turer.
+   * `offer` (15.11.2026): `plan` / `planName`deki plan nasil alinir — 'buy' kartla, 'quote'
+   * yalniz teklifle. AYNI plandan turetilir (ayri hesaplanirsa ozelligi zaten olan hesapta
+   * "Profesyonel planı teklifle" gibi celisen bir ikili cikiyordu; inceleme 15.11.2026).
+   * Panel kilitli dugmeyi buna gore yazar ("X'e geç" / "Teklif al").
+   */
+  required: Record<PlanFeature, { plan: PlanId; planName: string; label: string; offer: UpgradeKind }>;
 }
 
 /**
@@ -55,6 +63,7 @@ export function entitlementsFor(rawPlan: string, role?: string | null): Entitlem
       plan: offer.id,
       planName: offer.name_tr,
       label: PLAN_FEATURE_LABELS[key],
+      offer: PURCHASABLE_PLAN_IDS.includes(offer.id) ? 'buy' : 'quote',
     };
   }
 

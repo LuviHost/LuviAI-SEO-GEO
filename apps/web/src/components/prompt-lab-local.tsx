@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Info, Loader2, MapPin, Play, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { MeasurementWaitLabel } from '@/components/upgrade-gate';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { watchRunAll } from '@/lib/prompt-lab-run-all';
 import {
@@ -369,8 +370,14 @@ export function LocalPromptsTab({ siteId }: { siteId: string }) {
           Soruları oluştur
         </Button>
         <Button size="sm" variant="outline" onClick={runLocal} disabled={running || measurementBlocked}>
-          {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-          Yerel soruları çalıştır
+          {measurementBlocked && !running ? (
+            <MeasurementWaitLabel />
+          ) : (
+            <>
+              {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+              Yerel soruları çalıştır
+            </>
+          )}
         </Button>
       </div>
       <MeasurementLimitNote />

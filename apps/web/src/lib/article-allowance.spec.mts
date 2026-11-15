@@ -20,6 +20,8 @@ describe('generationLock — hak bitti, dugme kilitli', () => {
       // 11.11.2026 paket yapisi: makale uretimi yalniz Profesyonel ve ustunde — "planını yükselt"
       // Baslangic'i da kapsardi (sunucunun deneme 403'u de "Profesyonel plana geç" der)
       hint: 'Ücretsiz denemedeki 2 makale hakkını kullandın. Yeni makale üretmek için Profesyonel plana geç.',
+      // Yukseltme yolu sunucudan gelir (hesap durumu verilmedi): uydurulmaz (plan-limit.spec.mts)
+      offer: null,
     });
     // Ayni kaynak: kilitli takvim yazisinin dugmesiyle ayni etiket ve hedef
     expect(l.label).toBe(PLAN_LOCK_COPY.cta);
@@ -108,7 +110,7 @@ describe('generationLock — acik kalir', () => {
       const l = generationLock({ limit: baslangic.articlesPerMonth, remaining: 0, used: 0 }, plan);
       expect(l, JSON.stringify(plan)).toEqual({
         locked: true, reason: 'no_article_plan', label: PLAN_LOCK_COPY.cta, href: UPGRADE_HREF,
-        hint: GENERATION_LOCK_COPY.noArticles,
+        hint: GENERATION_LOCK_COPY.noArticles, offer: null,
       });
     }
     // Sunucunun cumlesiyle birebir ayni; plan adi makale ureten en dusuk satistaki plan
@@ -134,7 +136,7 @@ describe('generationLock — acik kalir', () => {
 
   it('acik durumda da etiket ve hedef tanimli (cagiran kosulsuz okuyabilir)', () => {
     const l = generationLock(null, null);
-    expect(l).toEqual({ locked: false, reason: null, label: 'Planını yükselt', href: '/pricing', hint: null });
+    expect(l).toEqual({ locked: false, reason: null, label: 'Planını yükselt', href: '/pricing', hint: null, offer: null });
   });
 });
 
@@ -144,7 +146,7 @@ describe('generationLock — denemede "Uret" icin yayin hedefi (sunucu generatio
 
   it('hedef yok: "Önce yayın hedefini bağla" → yayin hedefleri sayfasi, sunucunun metniyle', () => {
     const l = generationLock({ limit: 2, remaining: 2, used: 0 }, 'TRIAL', { readiness: notReady, publishTargetsHref: href });
-    expect(l).toEqual({ locked: true, reason: 'source_required', label: 'Önce yayın hedefini bağla', href, hint: 'Önce bağla (sunucu metni)' });
+    expect(l).toEqual({ locked: true, reason: 'source_required', label: 'Önce yayın hedefini bağla', href, hint: 'Önce bağla (sunucu metni)', offer: null });
   });
 
   it('hedef bagli ya da ucretli plan (sart yok): acik', () => {

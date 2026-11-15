@@ -22,7 +22,7 @@ import { siteHref } from '@/lib/site-routes';
  * uretimden sonra TUM dugmelerin birlikte guncellenmesi icin abone listesi.
  */
 
-type Snapshot = { quota: unknown; plan: unknown };
+type Snapshot = { quota: unknown; plan: unknown; upgrade: unknown; phase: unknown };
 
 /** Bu kadar eski degeri yeni mount olan bilesen tazeler (hak iadesi / ay basi / yukseltme) */
 const STALE_MS = 60_000;
@@ -35,8 +35,17 @@ function load(ownerId: string, force = false): Promise<Snapshot | null> {
   const hit = cache.get(ownerId);
   if (hit && !force && Date.now() - hit.at < STALE_MS) return hit.promise;
   const promise = api
-    .request<{ plan?: unknown; articleQuota?: unknown }>(`/billing/users/${encodeURIComponent(ownerId)}/current`)
-    .then((r) => ({ quota: r?.articleQuota ?? null, plan: r?.plan ?? null }))
+    .request<{ plan?: unknown; articleQuota?: unknown; articleUpgrade?: unknown; trialAccess?: { phase?: unknown } | null }>(
+      `/billing/users/${encodeURIComponent(ownerId)}/current`,
+    )
+    .then((r) => ({
+      quota: r?.articleQuota ?? null,
+      plan: r?.plan ?? null,
+      // Yukseltme yolu ve deneme evresi (plani biten eski musteri: 'lapsed') — kilitli dugmenin
+      // etiketi ve metni icin (lib/article-allowance.ts generationLock)
+      upgrade: r?.articleUpgrade ?? null,
+      phase: r?.trialAccess?.phase ?? null,
+    }))
     // Hata yutulur: durum bilinmiyorsa kilit gosterilmez, sunucu yine korur
     .catch(() => null)
     .then((s) => {
@@ -135,5 +144,10 @@ export function useArticleAllowance(ownerId: string | null | undefined, siteId?:
 
   const snap = id && state?.owner === id ? state.snap : null;
   const readiness = sid && ready?.site === sid ? ready.value : null;
-  return generationLock(snap?.quota, snap?.plan, sid ? { readiness, publishTargetsHref: siteHref(sid, 'publishTargets') } : undefined);
+  return generationLock(
+    snap?.quota,
+    snap?.plan,
+    sid ? { readiness, publishTargetsHref: siteHref(sid, 'publishTargets') } : undefined,
+    { upgrade: snap?.upgrade, phase: snap?.phase },
+  );
 }

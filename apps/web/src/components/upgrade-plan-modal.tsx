@@ -4,9 +4,10 @@ import { CHECKOUT_STORAGE_KEY } from '@/components/direct-checkout-form';
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Minus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { invalidateEntitlements } from '@/lib/entitlements';
 import { PURCHASE_CONTACT_EMAIL, purchaseState } from '@/lib/checkout-availability';
@@ -25,6 +26,13 @@ import { PENDING_MERCHANT_OID_KEY } from '@/lib/payment-status';
  * 11.11.2026 paket yapisi: /billing/plans yalniz satistaki planlari doner (Baslangic,
  * Profesyonel, Kurumsal; Ajans satistan kalkti). Kurumsal contactSales oldugu icin modalda
  * iki plan gorunur; Baslangic makale uretmez (asagidaki bildirim metni bunu gozetir).
+ *
+ * 15.11.2026: bu pencere yazilmis ama HICBIR yere bagli degildi; butun yukseltme dugmeleri
+ * musteriyi panelden cikarip fiyat sayfasina atiyordu. Artik components/upgrade-gate.tsx
+ * acar: kilitli bir dugmeye basildiginda ya da sunucu plan siniri (403 PLAN_LIMIT)
+ * dondugunde. `reason` musterinin carptigi duvari, `liftedBy` o duvari kaldiran en dusuk
+ * plani soyler: kartlar "Bu sınırı kaldırır" / "Bu sınırı kaldırmaz" diye isaretlenir
+ * (makale icin Baslangic'i alan musteri duvarin yerinde kaldigini odemeden once gorsun).
  */
 type Plan = {
   id: string;
@@ -45,11 +53,18 @@ export function UpgradePlanModal({
   onClose,
   onSuccess,
   reason,
+  liftedBy,
 }: {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
   reason?: string;
+  /**
+   * Musterinin carptigi siniri kaldiran EN DUSUK planin kimligi (sunucudan: api
+   * billing/plan-limit.ts). Liste dusukten yuksege siralidir (api publicPlans); o plan ve
+   * ustundekiler siniri kaldirir, altindakiler kaldirmaz. Bilinmiyorsa isaret cizilmez.
+   */
+  liftedBy?: string | null;
 }) {
   const { data: session } = useSession();
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
@@ -59,6 +74,13 @@ export function UpgradePlanModal({
   const [originalPlan, setOriginalPlan] = useState<string | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   /**
+   * /billing/plans'in TAM sirasi (dusukten yuksege; deneme ve teklifle satilan plan dahil).
+   * Musterinin planinin ALTINDAKI planlari ayirmak icin: "Planını yükselt" basligi altinda
+   * Profesyonel musterisine Baslangic "Bu plana geç" diye sunulmaz. Web plan tablosu
+   * tutmaz; sira sunucunun listesinden okunur.
+   */
+  const [planOrder, setPlanOrder] = useState<string[]>([]);
+  /**
    * Satin alma acik mi — PayTR test modunda kapali (lib/checkout-availability.ts).
    * Eskiden butonlar her durumda acikti; tiklayan musteri API'nin 403 metnini hata
    * bildirimi olarak goruyordu. pageCheckout: /plans (anonim karar); accountCheckout:
@@ -66,6 +88,12 @@ export function UpgradePlanModal({
    */
   const [pageCheckout, setPageCheckout] = useState<unknown>(null);
   const [accountCheckout, setAccountCheckout] = useState<unknown>(null);
+  /**
+   * Hesabin su anki plani (ayni /current cevabindan). Pencere satistaki butun planlari
+   * listeler; musterinin ZATEN bulundugu plan "Şu anki planın" diye isaretlenir ve dugmesi
+   * kapanir — eskiden Baslangic musterisine Baslangic "Bu plana geç" diye sunuluyordu.
+   */
+  const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
 
   // Fiyat kartlariyla AYNI kaynak. contactSales planlari (Kurumsal) modalda
   // gosterilmez: kart ile satin alinamiyorlar, satis ekibinden geciyorlar.
@@ -73,7 +101,9 @@ export function UpgradePlanModal({
     if (!open) return;
     api.getPlans('tr')
       .then((r) => {
-        setPlans(((r?.plans ?? []) as Plan[]).filter((p) => p.id !== 'trial' && !p.contactSales));
+        const all = (r?.plans ?? []) as Plan[];
+        setPlanOrder(all.map((p) => p.id));
+        setPlans(all.filter((p) => p.id !== 'trial' && !p.contactSales));
         setPageCheckout(r?.checkout ?? null);
       })
       .catch(() => { /* fiyat gosterilmez, modal yine acilir */ });
@@ -83,12 +113,15 @@ export function UpgradePlanModal({
   const sessionUserId = session?.user?.id;
   useEffect(() => {
     if (!open) return;
-    if (!sessionUserId) { setAccountCheckout(null); return; }
+    if (!sessionUserId) { setAccountCheckout(null); setCurrentPlanId(null); return; }
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     fetch(`${apiBase}/api/billing/users/${sessionUserId}/current`, { credentials: 'include' })
       .then((r) => r.json())
-      .then((d) => setAccountCheckout(d?.checkout ?? null))
-      .catch(() => setAccountCheckout(null));
+      .then((d) => {
+        setAccountCheckout(d?.checkout ?? null);
+        setCurrentPlanId(typeof d?.plan?.id === 'string' ? d.plan.id : null);
+      })
+      .catch(() => { setAccountCheckout(null); setCurrentPlanId(null); });
   }, [open, sessionUserId]);
 
   const purchase = purchaseState({ page: pageCheckout, account: accountCheckout });
@@ -180,41 +213,49 @@ export function UpgradePlanModal({
 
   if (!open) return null;
 
+  // Siniri kaldiran planin listedeki yeri; listede yoksa (bilinmiyor) isaret cizilmez
+  const liftIndex = liftedBy ? plans.findIndex((p) => p.id === liftedBy) : -1;
+  // Musterinin planinin sunucu sirasindaki yeri. Listede olmayan plan (satistan kalkan
+  // Ajans) kartla alinan planlarin hepsinin ustundedir: hicbiri yukseltme degildir.
+  const currentRank = currentPlanId === null ? -1 : planOrder.indexOf(currentPlanId);
+  const currentUnlisted = currentPlanId !== null && planOrder.length > 0 && currentRank < 0;
+
+  /*
+   * Radix Dialog (ui/dialog.tsx). NEDEN: pencere el yapimi `fixed inset-0` bir div'di; baska
+   * bir diyalogun ICINDEN acildiginda (video penceresindeki kilitli onizleme, uygulama
+   * ekleme penceresinde plan siniri) acik diyalog govdeyi tiklamaya kapattigi icin pencere
+   * arkada kaliyor, tiklanamiyordu (bagimsiz inceleme 15.11.2026). Radix katmanlari yigar:
+   * en son acilan ustte ve tiklanabilir; odak kilidi, Esc ve kaydirma kilidi de buradan.
+   */
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 overflow-y-auto"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="bg-popover text-popover-foreground border rounded-lg max-w-5xl w-full max-h-[92vh] overflow-y-auto">
+    <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent
+        size="lg"
+        className="max-w-3xl"
+        // Odeme ekrani acikken disari tiklamak pencereyi (ve odeme takibini) kapatmasin
+        onInteractOutside={(e) => { if (iframeUrl) e.preventDefault(); }}
+      >
         {/* Iframe acildiysa odeme ekrani */}
         {iframeUrl ? (
           <div className="flex flex-col h-[85vh]">
-            <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center justify-between p-4 pr-12 border-b">
               <div>
-                <p className="text-panel-3">Güvenli Ödeme · PayTR</p>
-                <p className="text-xs text-muted-foreground">{polling && 'Ödeme bekleniyor… ekran otomatik kapanacak.'}</p>
+                <DialogTitle className="text-panel-3">Güvenli Ödeme · PayTR</DialogTitle>
+                <DialogDescription className="text-xs">{polling ? 'Ödeme bekleniyor… ekran otomatik kapanacak.' : 'Ödemeni PayTR ekranında tamamla.'}</DialogDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={() => { setIframeUrl(null); }}>
-                ← Plan seçimine dön
+                <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden /> Plan seçimine dön
               </Button>
             </div>
             <iframe src={iframeUrl} className="flex-1 w-full border-0" title="PayTR Ödeme" />
           </div>
         ) : (
           <div className="p-6 sm:p-8">
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-panel-2">Plan Yükselt</h2>
-                {reason && <p className="text-sm text-muted-foreground mt-1">{reason}</p>}
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="Kapat"
-              >
-                ✕
-              </button>
+            <div className="mb-4 pr-8">
+              <DialogTitle>Planını yükselt</DialogTitle>
+              <DialogDescription className="mt-1 max-w-xl">
+                {reason || 'Planları karşılaştır; sana uyanı seç.'}
+              </DialogDescription>
             </div>
 
             {/* Cycle toggle */}
@@ -264,8 +305,14 @@ export function UpgradePlanModal({
             )}
 
             {/* Plans grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {plans.map((p) => {
+            <div className={cn('grid grid-cols-1 gap-3', plans.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2')}>
+              {plans.map((p, i) => {
+                // Bu plan musterinin carptigi siniri kaldirir mi (bilinmiyorsa null: isaret yok)
+                const lifts = liftIndex < 0 ? null : i >= liftIndex;
+                const isCurrent = currentPlanId !== null && p.id === currentPlanId;
+                // Musterinin planinin altindaki plan yukseltme degildir: dugmesi kapali
+                const below = !isCurrent && (currentUnlisted || (currentRank >= 0 && planOrder.indexOf(p.id) < currentRank));
+                const notUpgrade = isCurrent || below;
                 // Fiyat USD'de kanonik; yillikta aylik esdeger gosteriliyor.
                 const price = cycle === 'monthly' ? p.monthly : Math.round(p.annual / 12);
                 return (
@@ -273,14 +320,23 @@ export function UpgradePlanModal({
                     key={p.id}
                     className={cn(
                       'rounded-lg border p-4 flex flex-col transition-colors',
-                      p.popular ? 'border-foreground/40 bg-muted/40' : 'hover:border-foreground/30',
+                      // Dar ekranda kartlar alt alta: musterinin zaten bulundugu plan sona iner,
+                      // siniri kaldiran plan kaydirmadan gorunur
+                      notUpgrade && 'order-last md:order-none',
+                      // Vurgu: sinir biliniyorsa onu kaldiran EN DUSUK plan; bilinmiyorsa "en popüler"
+                      (liftIndex >= 0 ? i === liftIndex : p.popular) ? 'border-foreground/40 bg-muted/40' : 'hover:border-foreground/30',
                     )}
                   >
-                    {p.popular && (
-                      <div className="font-mono text-vitrin-rail text-brand self-start mb-2">
-                        EN POPÜLER
+                    {notUpgrade ? (
+                      <div className="v-rail mb-2 self-start">{isCurrent ? 'Şu anki planın' : 'Planının altında'}</div>
+                    ) : lifts !== null ? (
+                      <div className={cn('v-rail mb-2 inline-flex items-center gap-1.5 self-start', lifts ? 'text-success' : 'text-muted-foreground')}>
+                        {lifts ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Minus className="h-3.5 w-3.5" aria-hidden />}
+                        {lifts ? 'Bu sınırı kaldırır' : 'Bu sınırı kaldırmaz'}
                       </div>
-                    )}
+                    ) : p.popular ? (
+                      <div className="v-rail mb-2 self-start">En popüler</div>
+                    ) : null}
                     <h3 className="text-panel-2">{p.name}</h3>
                     <div className="mt-2">
                       <span className="text-metric-lg tabular-nums">${price.toLocaleString('en-US')}</span>
@@ -292,7 +348,7 @@ export function UpgradePlanModal({
                     <ul className="mt-3 space-y-1.5 text-xs flex-1">
                       {(p.features ?? []).slice(0, 6).map((f, i) => (
                         <li key={i} className="flex items-start gap-2">
-                          <span className="text-success shrink-0">✓</span>
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
                           <span>{f}</span>
                         </li>
                       ))}
@@ -300,23 +356,25 @@ export function UpgradePlanModal({
                     <Button
                       className="mt-4 w-full"
                       onClick={() => subscribe(p.id)}
-                      disabled={loadingPlan === p.id || !purchase.open}
+                      disabled={loadingPlan === p.id || !purchase.open || notUpgrade}
                       aria-describedby={purchase.open ? undefined : 'upgrade-purchase-closed'}
-                      variant={p.popular ? 'default' : 'outline'}
+                      // Turuncu tek dugmede: siniri kaldiran en dusuk plan (bilinmiyorsa en populer)
+                      variant={(liftIndex >= 0 ? i === liftIndex : p.popular) ? 'default' : 'outline'}
                     >
-                      {loadingPlan === p.id ? 'Hazırlanıyor…' : 'Bu Plana Geç'}
+                      {loadingPlan === p.id ? 'Hazırlanıyor…' : isCurrent ? 'Şu anki planın' : below ? 'Planının altında' : 'Bu plana geç'}
                     </Button>
                   </div>
                 );
               })}
             </div>
 
+            {/* "KDV dahil" yazmiyor: fiyat sayfasi boyle bir sey soylemiyor, dogrulanmamis iddia */}
             <p className="text-center text-xs text-muted-foreground mt-4">
-              💳 PayTR güvenli ödeme · ✅ İstediğin zaman iptal · 🇹🇷 KDV dahil
+              Ödeme PayTR ile alınır. Aboneliği istediğin zaman iptal edebilirsin; erişimin dönem sonuna kadar sürer.
             </p>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

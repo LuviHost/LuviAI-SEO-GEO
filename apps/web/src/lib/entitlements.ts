@@ -27,6 +27,11 @@ export type FeatureRequirement = {
   planName: string;
   /** "Product Radar" gibi ozellik adi */
   label: string;
+  /**
+   * Bu hesap ozelligi nasil acar (api billing/entitlements.ts): 'buy' kartla alinan plan,
+   * 'quote' yalniz teklifle satilan plan. Eski API yanitinda alan yok.
+   */
+  offer?: 'buy' | 'quote' | 'wait';
 };
 
 export type Entitlements = {
@@ -64,16 +69,30 @@ type Status = 'loading' | 'ready' | 'error';
  * promise'ten aninda deger alir, yani yeniden istek ve flicker olmaz.
  */
 let cache: Promise<Entitlements | null> | null = null;
+/** Ayni /me cevabindaki hesap kimligi (currentAccountId) — ikinci bir istek atilmasin */
+let accountId: string | null = null;
 
 function load(): Promise<Entitlements | null> {
   if (!cache) {
     cache = api
       .getMe()
-      .then((me: any) => (me?.entitlements as Entitlements) ?? null)
+      .then((me: any) => {
+        accountId = typeof me?.id === 'string' && me.id ? me.id : null;
+        return (me?.entitlements as Entitlements) ?? null;
+      })
       // Hata yutuluyor ve null donuyor: asagida "izin verici" moda dusuyoruz.
       .catch(() => null);
   }
   return cache;
+}
+
+/**
+ * Oturumdaki hesabin kimligi — haklarla AYNI /me isteginden (oturumda tek istek).
+ * Hesaba ozel uclari (GET /billing/users/:id/current) cagiran yardimcilar icin
+ * (lib/use-purchase-state.ts). Okunamazsa null.
+ */
+export function currentAccountId(): Promise<string | null> {
+  return load().then(() => accountId);
 }
 
 /** Plan degisince (yukseltme sonrasi) haklari tazelemek icin. */

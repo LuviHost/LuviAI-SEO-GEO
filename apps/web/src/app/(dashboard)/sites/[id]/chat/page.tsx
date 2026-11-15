@@ -15,6 +15,8 @@ import {
   Wrench, ChevronDown, Database,
 } from 'lucide-react';
 import { SectionHeader } from '@/components/ui/section-header';
+import { UpgradeButton } from '@/components/upgrade-gate';
+import { upgradeOfferOfError, type UpgradeOffer } from '@/lib/plan-limit';
 
 /**
  * RanksUp Chat — verinin üstünde konuşan asistan + skill kataloğu.
@@ -30,6 +32,11 @@ type Msg = {
   skill?: string | null;
   /** Sunucunun "bu mesaj cevaplanmadi" notu (mesaj hakki / AI butcesi); model cevabi degil */
   notice?: boolean;
+  /**
+   * Notun yukseltme yolu (sunucunun `upgrade` alani). Yalniz paket almak siniri kaldiriyorsa
+   * dolu: Baslangic'ta "Profesyonel'e geç"; Profesyonel'de bos (hak yeni ayda yenilenir).
+   */
+  offer?: UpgradeOffer | null;
 };
 
 /**
@@ -147,7 +154,11 @@ export default function ChatPage() {
     } catch (err: any) {
       if (err instanceof ApiError && err.code && NOTICE_CODES.has(err.code)) {
         // Soru balonu yerinde kalir; altina sunucunun aciklamasi asistan notu olarak eklenir
-        setMessages((prev) => [...prev, { id: `notice-${Date.now()}`, role: 'assistant', content: err.message, notice: true }]);
+        const offer = upgradeOfferOfError(err.rawBody);
+        setMessages((prev) => [...prev, {
+          id: `notice-${Date.now()}`, role: 'assistant', content: err.message, notice: true,
+          offer: offer && offer.kind !== 'wait' ? offer : null,
+        }]);
       } else {
         toast.error(err.message);
         setMessages((prev) => prev.slice(0, -1));
@@ -244,6 +255,8 @@ export default function ChatPage() {
                         // eslint-disable-next-line react/no-danger
                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(m.content, { async: false }) as string) }}
                       />
+                      {/* Sinir notu: paket almak siniri kaldiriyorsa yolu gosteren dugme */}
+                      {m.notice && m.offer && <UpgradeButton offer={m.offer} reason={m.content} className="mt-2.5" />}
                     </>
                   ) : (
                     <span className="whitespace-pre-wrap">{m.content}</span>

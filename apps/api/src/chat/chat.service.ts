@@ -180,9 +180,10 @@ export class ChatService {
     //    Sayac okunamazsa mesaj engellenmez (QuotaService.aiBudgetBlock loglar).
     // 2) Mesaj hakki ISTEGI YAPAN hesabin (yonetici disinda site sahibiyle ayni kisi; ADMIN
     //    ve platform otomasyonu sayilmaz). Butce once: butceye takilan mesaj hak dusurmesin.
-    const budgetMessage = await this.quota.aiBudgetBlock(site.userId);
-    if (budgetMessage) {
-      throw new ForbiddenException({ statusCode: 403, message: budgetMessage, code: AI_BUDGET_EXHAUSTED_CODE });
+    const budget = await this.quota.aiBudgetBlockDetail(site.userId);
+    if (budget) {
+      // `upgrade`: panel notun altina yolu gosteren dugmeyi cizer (billing/plan-limit.ts)
+      throw new ForbiddenException({ statusCode: 403, message: budget.message, code: AI_BUDGET_EXHAUSTED_CODE, upgrade: budget.upgrade });
     }
     const slot: ChatMessageSlot = options.automated
       ? { charged: false, key: null }

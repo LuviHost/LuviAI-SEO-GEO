@@ -90,7 +90,9 @@ describe('kaynak: yükseltme penceresi (upgrade-plan-modal.tsx)', () => {
   });
 
   it('kilitliyken plan butonları devre dışı, API metni ve iletişim adresi görünür, ödeme isteği gönderilmez', () => {
-    expect(modal).toContain('disabled={loadingPlan === p.id || !purchase.open}');
+    // 15.11.2026: musterinin bulundugu ve altindaki planlarin dugmesi de kapali (notUpgrade);
+    // satin alma kilidi kosulu yerinde
+    expect(modal).toContain('disabled={loadingPlan === p.id || !purchase.open || notUpgrade}');
     expect(modal).toMatch(/\{!purchase\.open && \([\s\S]*?\{purchase\.message\}[\s\S]*?PURCHASE_CONTACT_EMAIL/);
     expect(modal).toMatch(/const subscribe = async \(planId: string\) => \{\s*if \(!purchase\.open\) return;/);
   });

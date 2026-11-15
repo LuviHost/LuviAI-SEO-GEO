@@ -1332,7 +1332,9 @@ describe('Panel metinleri = kod', () => {
     const apiSrc = path.resolve(HERE, '..');
     const cagiranlar = walk(apiSrc, /\.ts$/)
       .filter((f) => !f.endsWith('.spec.ts') && path.basename(f) !== 'quota.service.ts')
-      .filter((f) => /\.(?:enforceAiCostBudget|aiBudgetBlock)\(/.test(stripComments(read(f))))
+      // aiBudgetBlockDetail (15.11.2026): ayni kapinin metin + yukseltme yolu donen okumasi
+      // (panel sohbeti 403 govdesine `upgrade` koyar)
+      .filter((f) => /\.(?:enforceAiCostBudget|aiBudgetBlock(?:Detail)?)\(/.test(stripComments(read(f))))
       .map((f) => path.basename(f))
       .sort();
     // Yeni bir cagiran eklenirse quota-monitor.tsx uyarisi ve yardim metinleri de guncellenmeli.

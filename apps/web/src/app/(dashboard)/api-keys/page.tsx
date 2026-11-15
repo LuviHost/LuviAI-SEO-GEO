@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Copy, Trash2, Plus, AlertTriangle, KeyRound, Terminal } from 'lucide-react';
 import { api } from '@/lib/api';
+import { UpgradeButton } from '@/components/upgrade-gate';
+import { useEntitlements } from '@/lib/entitlements';
+import { requirementOffer } from '@/lib/plan-limit';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +57,13 @@ export default function ApiKeysPage() {
   const [creating, setCreating] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', scopes: DEFAULT_SCOPES });
+
+  const { can, requirementFor } = useEntitlements();
+  const planLocked = can('apiAccess') === false;
+  const requirement = requirementFor('apiAccess');
+  const lockReason = requirement?.planName
+    ? `${requirement.label}, ${requirement.planName} planına dahildir.`
+    : 'REST API erişimi mevcut planında bulunmuyor.';
 
   const load = async () => {
     setLoading(true);
@@ -135,9 +145,19 @@ export default function ApiKeysPage() {
               </div>
             ))}
           </div>
-          <Button onClick={create} disabled={creating}>
-            <Plus className="h-4 w-4" aria-hidden /> {creating ? 'Oluşturuluyor…' : 'Anahtar oluştur'}
-          </Button>
+          {/* Plan kapisi (api enforcePlanFeature 'apiAccess'). Eskiden dugme her planda acikti,
+              basinca sunucunun 403'u kirmizi hata olarak cikiyordu. Kesin kapaliysa dugme
+              yukseltme yolunu soyler; mevcut anahtarlari gorme ve iptal etme acik kalir. */}
+          {planLocked ? (
+            <div className="space-y-2">
+              <UpgradeButton offer={requirementOffer(requirement)} reason={lockReason} size="default" />
+              <p className="text-sm text-muted-foreground">{lockReason}</p>
+            </div>
+          ) : (
+            <Button onClick={create} disabled={creating}>
+              <Plus className="h-4 w-4" aria-hidden /> {creating ? 'Oluşturuluyor…' : 'Anahtar oluştur'}
+            </Button>
+          )}
         </div>
       </Card>
 

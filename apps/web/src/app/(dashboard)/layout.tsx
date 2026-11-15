@@ -15,6 +15,7 @@ import { CommandPalette, openCommandPalette } from '@/components/command-palette
 import { NotificationBell } from '@/components/notification-bell';
 import { BrandWordmark } from '@/components/brand-logo';
 import { TrialUpgrade } from '@/components/trial-upgrade';
+import { UpgradeGate } from '@/components/upgrade-gate';
 
 /** md kirilimi (768px) — tailwind.config ile ayni */
 const DESKTOP_QUERY = '(min-width: 768px)';
@@ -142,6 +143,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* ⌘K komut paleti */}
       <CommandPalette />
+
+      {/* Plan siniri: kilitli dugme ya da sunucunun 403 PLAN_LIMIT'i plan / teklif penceresini acar */}
+      <UpgradeGate />
     </div>
   );
 }

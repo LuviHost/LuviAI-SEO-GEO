@@ -6,6 +6,7 @@ import { measuredEngines } from './measured-engines.js';
 import { periodEndFromInvoice } from './subscription-period.js';
 import { QuotaService } from './quota.service.js';
 import { articleQuotaView, resetAwareArticleLimit } from './article-quota-view.js';
+import { upgradeOfferFor } from './plan-limit.js';
 import { trialAccess } from './trial-policy.js';
 
 export interface PlanDefinition {
@@ -185,6 +186,10 @@ export class BillingService {
       articlesUsedThisMonth: user.articlesUsedThisMonth,
       articlesQuotaResetAt: user.articlesQuotaResetAt,
       articleQuota: articleQuotaView(articleLimit, user.articlesUsedThisMonth),
+      // Makale hakki bittiginde panelin kilitli uretim dugmesinin soyleyecegi yol
+      // (plan-limit.ts): deneme ve Baslangic → Profesyonel (kartla), Profesyonel → Kurumsal
+      // (teklifle). Limit okunamadiysa null: panel yolu uydurmaz.
+      articleUpgrade: articleLimit === null ? null : upgradeOfferFor(user.plan, (p) => p.articlesPerMonth > articleLimit),
       // 2026-05 Premium Pricing — grandfathering bilgisi (frontend banner için)
       grandfatheredUntil: (user as any).grandfatheredUntil ?? null,
       legacyMonthlyPriceTry: (user as any).legacyMonthlyPriceTry ?? null,

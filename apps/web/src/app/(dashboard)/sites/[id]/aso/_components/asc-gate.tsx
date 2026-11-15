@@ -6,6 +6,9 @@ import { siteHref } from '@/lib/site-routes';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBanner } from '@/components/ui/status-banner';
+import { UpgradeButton } from '@/components/upgrade-gate';
+import { useEntitlements } from '@/lib/entitlements';
+import { requirementOffer } from '@/lib/plan-limit';
 import { useAsoApp } from './app-context';
 import type { AscApp } from './types';
 
@@ -17,6 +20,24 @@ import type { AscApp } from './types';
 export function AscGate({ purpose, children }: { purpose: string; children: (ascApp: AscApp) => React.ReactNode }) {
   const { siteId, app, asc } = useAsoApp();
   const connectHref = `${siteHref(siteId, 'aso')}/connect`;
+  // Plan kapisi (api @RequiresPlan('ascEnabled')): plan yetmiyorsa "Bağla" demek musteriyi
+  // 403 verecek bir forma yollardi. Kesin kapaliysa (false) yukseltme yolu gosterilir.
+  const { can, requirementFor } = useEntitlements();
+  if (can('ascEnabled') === false) {
+    const requirement = requirementFor('ascEnabled');
+    const reason = requirement?.planName
+      ? `${requirement.label}, ${requirement.planName} planına dahildir.`
+      : 'App Store Connect mevcut planında bulunmuyor.';
+    return (
+      <StatusBanner
+        tone="info"
+        title={reason}
+        action={<UpgradeButton offer={requirementOffer(requirement)} reason={reason} />}
+      >
+        {purpose} için App Store Connect bağlantısı gerekir.
+      </StatusBanner>
+    );
+  }
 
   if (!app.appStoreId) {
     return (
