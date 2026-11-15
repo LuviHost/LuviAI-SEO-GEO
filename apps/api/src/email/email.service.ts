@@ -6,6 +6,7 @@ import {
   kahramanOlcu, sutunGrafik, ekranKarti, ekranBolucu, MARKA, FONT, type EpostaMotifi,
 } from './email-layout.js';
 import { ENGINE_LABELS, articleOfferPlan, planEngines } from '../billing/plans.js';
+import { PANEL_DEDUPE_WINDOW_MS, panelNotificationFor } from './panel-notification.js';
 
 /**
  * Deneme hesabinin olctugu asistanlar, e-posta cumlesi olarak ("A, B, C ve D") — plans.ts
@@ -211,7 +212,11 @@ export class EmailService {
       return { ok: false, skipped: 'account_deletion' };
     }
 
-    const { subject, html } = this.renderTemplate(opts.template, opts.data ?? {});
+    const { subject, html, onizleme } = this.renderTemplate(opts.template, opts.data ?? {});
+
+    // Olay e-postasi panel ziline de duser (panel-notification.ts). Saglayici kontrolunden
+    // ONCE: e-posta gidemese de olay olmustur, musteri panelde gorur.
+    await this.panelBildirimi(opts, subject, onizleme);
 
     if (!this.client) {
       // Saglayici yok (yerel gelistirme ya da uretimde eksik anahtar): GITMEDI
@@ -309,6 +314,54 @@ export class EmailService {
   }
 
   /** Hesapta silme talebi var mi — users.id uzerinden tek sorgu */
+  /**
+   * Gonderilen sablonun panel bildirimini yazar (kenar cubugundaki zil). Karsilama dizisi gibi
+   * olay olmayan sablonlar ve alicisi hesap olmayan gonderimler (yonetici testi) zile dusmez.
+   *
+   * Hata YUTULUR: bildirim yazilamadi diye e-posta gonderimi durmaz. NotificationsService
+   * kullanilmaz (o servis bu servise bagimli; dongu olurdu) — kayit dogrudan yazilir, kanal
+   * yalniz 'inapp' (e-postasi zaten bu gonderimdir).
+   */
+  private async panelBildirimi(
+    opts: { userId?: string; template: EmailTemplate; data?: Record<string, any> },
+    subject: string,
+    onizleme: string,
+  ): Promise<void> {
+    if (!opts.userId) return;
+    const bildirim = panelNotificationFor(opts.template, opts.data ?? {}, { subject, onizleme }, process.env.WEB_BASE_URL || 'https://ranksup.ai');
+    if (!bildirim) return;
+    try {
+      // AYNI olay bir kez: e-posta gonderilemeyince cagiran ertesi gun yeniden dener (aylik rapor,
+      // "deneme süren doldu"); her denemede yeni satir yazilmaz (PANEL_DEDUPE_WINDOW_MS).
+      const onceki = await this.prisma.notification.findFirst({
+        where: {
+          userId: opts.userId,
+          refKind: bildirim.refKind,
+          refId: opts.template,
+          link: bildirim.link,
+          title: bildirim.title,
+          createdAt: { gte: new Date(Date.now() - PANEL_DEDUPE_WINDOW_MS) },
+        },
+        select: { id: true },
+      });
+      if (onceki) return;
+      await this.prisma.notification.create({
+        data: {
+          userId: opts.userId,
+          type: 'SYSTEM',
+          title: bildirim.title,
+          body: bildirim.body,
+          link: bildirim.link,
+          refKind: bildirim.refKind,
+          refId: opts.template,
+          channels: ['inapp'],
+        },
+      });
+    } catch (err: any) {
+      this.log.warn(`[EMAIL] ${opts.template} panel bildirimi yazilamadi: ${err?.message ?? err}`);
+    }
+  }
+
   private async deletionRequested(userId: string): Promise<boolean> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { deletionRequestedAt: true } });
     return !!user?.deletionRequestedAt;
@@ -347,7 +400,7 @@ export class EmailService {
    * marka rengi (mor #6c5ce7) uygulamanin turuncusuyla hic uyusmuyordu,
    * altbilgide "LuviHost" yaziyordu, dugmeler Outlook'ta tiklanamiyordu.
    */
-  private renderTemplate(template: EmailTemplate, data: Record<string, any>): { subject: string; html: string } {
+  private renderTemplate(template: EmailTemplate, data: Record<string, any>): { subject: string; html: string; onizleme: string } {
     const name = kacisla(String(data.name ?? 'merhaba'));
     // HAM ad — `h()` (baslik) ve konu satiri icin. `h`, `duzen`in <title>'i ve onizlemesi kendi
     // kacislar; oralara kacislanmis `name` verilince cift kacislaniyordu: adinda ya da makale
@@ -370,6 +423,8 @@ export class EmailService {
     const yap = (subject: string, onizleme: string, govde: string) => ({
       subject,
       html: duzen(subject, govde, { onizleme, baseUrl, gorsel: SABLON_MOTIFI[template] }),
+      // Onizleme cumlesi panel bildiriminin metni olarak da kullanilir (panel-notification.ts)
+      onizleme,
     });
 
     switch (template) {
@@ -461,9 +516,10 @@ export class EmailService {
       // planin denemeden fazla verdigi: site ve aylik calistirma; makale ayri soylenir (MAKALE_PLANI).
       case 'trial_expiry_d11':
         return yap(
-          'Deneme süreni bitmesine 3 gün kaldı',
+          // Yazim duzeltmesi (16.11.2026): "süreni bitmesine" → "sürenin bitmesine"
+          'Deneme sürenin bitmesine 3 gün kaldı',
           `Daha fazla site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda).`,
-          h(adliBaslik`deneme süreni bitmesine 3 gün kaldı`) +
+          h(adliBaslik`deneme sürenin bitmesine 3 gün kaldı`) +
             p(`14 günlük ücretsiz denemenin 11 günü doldu. ${PLAN_KAZANCI}; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.`) +
             p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),

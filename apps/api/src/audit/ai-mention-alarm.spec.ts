@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { AiMentionAlarmService, snapshotTrend } from './ai-mention-alarm.service.js';
+import { ALARM_REF_KIND, ALARM_REPEAT_WINDOW_MS, AiMentionAlarmService, snapshotTrend } from './ai-mention-alarm.service.js';
 
 const snap = (provider: string, probes: any[], extra: any = {}) => ({ provider, available: true, probes, matchVersion: 2, ...extra });
 const q = (query: string, cited: boolean, brandMentioned = cited, more: any = {}) => ({ query, cited, brandMentioned, ...more });
@@ -88,5 +88,63 @@ describe('scanAndAlert — silme talebi olan hesap', () => {
     const html = (t.email.sendRaw.mock.calls[0] as any[])[0].html as string;
     expect(html).not.toContain('04:00');
     expect(html).toContain('son 7 günün AI görünürlük ölçümleri önceki 7 günle karşılaştırılarak');
+  });
+});
+
+describe('scanAndAlert — panel bildirimi ve ayni degisikligin tekrari', () => {
+  // Sahip 16.11.2026: "burdaki bildirimleri kullanalım" — alarm panel ziline de duser.
+  // Tarama her gun calisir, musteri en fazla haftada bir olcer: yeni olcum gelene kadar fark
+  // her gun AYNI cikar. Ayni degisiklik bir kez bildirilir (zil ve e-posta).
+  const onceki = Array.from({ length: 4 }, () => snap('anthropic', [q('en iyi hosting', true)], { matchVersion: 4 }));
+  const simdi = Array.from({ length: 4 }, () => snap('anthropic', [q('en iyi hosting', false, false)], { matchVersion: 4 }));
+
+  function kur(opts: { bildirimHatasi?: boolean } = {}) {
+    const satirlar: any[] = [];
+    const prisma = {
+      site: { findMany: vi.fn(async () => [{ id: 'site-1', name: 'Örnek Mağaza', user: { id: 'u1', email: 'a@ornek.com', deletionRequestedAt: null } }]) },
+      aiCitationSnapshot: { findMany: vi.fn(async ({ where }: any) => (where.date.lt ? onceki : simdi)) },
+      notification: {
+        findFirst: vi.fn(async ({ where }: any) => {
+          if (opts.bildirimHatasi) throw new Error('veritabani');
+          return satirlar.find((s) => s.userId === where.userId && s.refKind === where.refKind && s.link === where.link && s.body === where.body) ?? null;
+        }),
+        create: vi.fn(async ({ data }: any) => { satirlar.push(data); return { id: `n${satirlar.length}` }; }),
+      },
+    };
+    const email = { sendRaw: vi.fn(async () => ({ ok: true })) };
+    const svc = new AiMentionAlarmService(prisma as never, email as never);
+    for (const seviye of ['debug', 'log', 'warn'] as const) vi.spyOn((svc as any).log, seviye).mockImplementation(() => undefined);
+    return { svc, prisma, email, satirlar };
+  }
+
+  it('ilk taramada panel bildirimi yazilir ve e-posta gider; baglanti sitenin AI gorunurluk sayfasi', async () => {
+    const t = kur();
+    await t.svc.scanAndAlert();
+    expect(t.satirlar).toHaveLength(1);
+    expect(t.satirlar[0]).toMatchObject({
+      userId: 'u1', type: 'SYSTEM', title: 'Örnek Mağaza: AI görünürlük değişikliği',
+      link: '/sites/site-1/visibility', refKind: ALARM_REF_KIND, channels: ['inapp'],
+    });
+    expect(t.satirlar[0].body.length).toBeGreaterThan(0);
+    expect(t.email.sendRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('ertesi gun AYNI degisiklik: yeni bildirim yok, e-posta da yok (eskiden yedi gun ust uste gidiyordu)', async () => {
+    const t = kur();
+    await t.svc.scanAndAlert();
+    await t.svc.scanAndAlert();
+    await t.svc.scanAndAlert();
+    expect(t.satirlar).toHaveLength(1);
+    expect(t.email.sendRaw).toHaveBeenCalledTimes(1);
+    // Tekrar kontrolu yalniz son pencereye bakar
+    const where = (t.prisma.notification.findFirst.mock.calls[0] as any[])[0].where;
+    expect(Date.now() - where.createdAt.gte.getTime()).toBeGreaterThanOrEqual(ALARM_REPEAT_WINDOW_MS - 5_000);
+  });
+
+  it('bildirim tablosu okunamazsa e-posta YINE gider', async () => {
+    const t = kur({ bildirimHatasi: true });
+    await t.svc.scanAndAlert();
+    expect(t.email.sendRaw).toHaveBeenCalledTimes(1);
+    expect(t.satirlar).toHaveLength(0);
   });
 });

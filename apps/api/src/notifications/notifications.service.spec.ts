@@ -80,3 +80,47 @@ describe('NotificationsService — e-posta kanali', () => {
     }
   });
 });
+
+describe('NotificationsService — kapsam: deneme / odeme bildirimleri yalniz panele doner', () => {
+  // Mobil uygulama GET /notifications'i parametresiz cagirir ve satirlari baslik + metinle ana
+  // sayfasinda basar. Deneme / odeme / abonelik bildirimleri ("planlara göz atabilirsin",
+  // "Ödeme alınamadı") uygulamada gosterilmez; web paneli `?scope=panel` ile ister.
+  const KULLANICI = { id: 'u1', role: 'USER' as const };
+
+  function kurListe() {
+    const findMany = vi.fn(async (_a: any) => []);
+    const count = vi.fn(async (_a: any) => 0);
+    const svc = new NotificationsService({ notification: { findMany, count } } as never, {} as never);
+    return { svc, findMany, count };
+  }
+
+  it('parametresiz (mobil): odeme satirlari disarida; refKind BOS satirlar ICERIDE kalir', async () => {
+    const t = kurListe();
+    await t.svc.list(KULLANICI, { limit: 5 });
+    await t.svc.unreadCount(KULLANICI);
+    const beklenen = { OR: [{ refKind: null }, { refKind: { not: 'email_billing' } }] };
+    expect((t.findMany.mock.calls[0] as any[])[0].where).toEqual({ userId: 'u1', ...beklenen });
+    expect((t.count.mock.calls[0] as any[])[0].where).toEqual({ userId: 'u1', readAt: null, ...beklenen });
+  });
+
+  it('panel (scope=panel): hepsi doner', async () => {
+    const t = kurListe();
+    await t.svc.list(KULLANICI, { limit: 20, includeBilling: true });
+    await t.svc.unreadCount(KULLANICI, { includeBilling: true });
+    expect((t.findMany.mock.calls[0] as any[])[0].where).toEqual({ userId: 'u1' });
+    expect((t.count.mock.calls[0] as any[])[0].where).toEqual({ userId: 'u1', readAt: null });
+  });
+
+  it('denetleyici kapsami yalniz "panel" degeriyle acar; web zili bu parametreyi gonderir, mobil gondermez', async () => {
+    const { readFileSync } = await import('node:fs');
+    const oku = (yol: string) => readFileSync(new URL(yol, import.meta.url), 'utf8');
+    const denetleyici = oku('./notifications.controller.ts');
+    expect(denetleyici.match(/includeBilling: scope === 'panel'/g)).toHaveLength(2);
+    const web = oku('../../../web/src/lib/api.ts');
+    expect(web).toContain("q.set('scope', 'panel')");
+    expect(web).toContain("'/notifications/unread-count?scope=panel'");
+    const mobil = oku('../../../../mobile/src/api.ts');
+    expect(mobil).toContain('`/notifications?limit=${limit}`');
+    expect(mobil).not.toContain('scope=panel');
+  });
+});

@@ -2294,10 +2294,12 @@ export const api = {
     if (params.type) q.set('type', params.type);
     if (params.limit) q.set('limit', String(params.limit));
     if (params.cursor) q.set('cursor', params.cursor);
-    const tail = q.toString() ? `?${q.toString()}` : '';
-    return request<Array<any>>(`/notifications${tail}`);
+    // Panel kapsami: deneme / odeme / abonelik bildirimleri dahil. API bu satirlari parametresiz
+    // istege (mobil uygulama) donmez (api notifications.service `kapsam`).
+    q.set('scope', 'panel');
+    return request<Array<any>>(`/notifications?${q.toString()}`);
   },
-  notificationsUnreadCount: () => request<number>('/notifications/unread-count'),
+  notificationsUnreadCount: () => request<number>('/notifications/unread-count?scope=panel'),
   markNotificationRead: (id: string) => request<any>(`/notifications/${id}/read`, { method: 'PATCH' }),
   markAllNotificationsRead: () => request<number>('/notifications/read-all', { method: 'POST' }),
   deleteNotification: (id: string) =>

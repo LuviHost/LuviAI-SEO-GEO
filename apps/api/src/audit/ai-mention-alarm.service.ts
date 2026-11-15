@@ -49,6 +49,11 @@ export function snapshotTrend(recent: SnapshotLike[], previous: SnapshotLike[], 
   return compareCells([...rows(recent, true), ...rows(previous, false)]);
 }
 
+/** Alarm bildiriminin `refKind` degeri (tekrar kontrolu bununla aranir) */
+export const ALARM_REF_KIND = 'ai_mention_alarm';
+/** Ayni degisiklik bu sure icinde bir kez bildirilir (karsilastirma penceresi 7 + 7 gun) */
+export const ALARM_REPEAT_WINDOW_MS = 14 * 86_400_000;
+
 @Injectable()
 export class AiMentionAlarmService {
   private readonly log = new Logger(AiMentionAlarmService.name);
@@ -94,6 +99,37 @@ export class AiMentionAlarmService {
 
     for (const [siteId, siteAlerts] of bySite) {
       const first = siteAlerts[0];
+      // Panel ziline de duser (sahip, 16.11.2026: "burdaki bildirimleri kullanalım"); e-posta
+      // gidemese de musteri degisikligi panelde gorur. Hata e-postayi durdurmaz.
+      // AYNI degisiklik bir kez bildirilir. Tarama her gun calisir ama musteri en fazla haftada
+      // bir olcer: iki olcum arasindaki fark, yeni olcum gelene kadar her gun AYNI cikar. Eskiden
+      // ayni e-posta yedi gun ust uste gidiyordu; zil de ayni satirla dolardi. Metin (sayilariyla)
+      // degismedikce yeni bildirim de e-posta da yok; yeni olcum farkli sayi uretince yeniden gider.
+      const bildirim = {
+        title: `${first.siteName}: AI görünürlük değişikliği`.slice(0, 191),
+        body: siteAlerts.map((a) => a.message).join(' · ').slice(0, 1000),
+        link: `/sites/${siteId}/visibility`,
+      };
+      try {
+        const onceki = await this.prisma.notification.findFirst({
+          where: {
+            userId: first.userId, refKind: ALARM_REF_KIND, link: bildirim.link, body: bildirim.body,
+            createdAt: { gte: new Date(Date.now() - ALARM_REPEAT_WINDOW_MS) },
+          },
+          select: { id: true },
+        });
+        if (onceki) {
+          this.log.debug(`[ALARM ${siteId}] Ayni degisiklik daha once bildirildi; tekrar gonderilmedi`);
+          continue;
+        }
+        // Tur SYSTEM: panel turu gostermez; uretimde yazildigi bilinen deger
+        await this.prisma.notification.create({
+          data: { userId: first.userId, type: 'SYSTEM', ...bildirim, refKind: ALARM_REF_KIND, channels: ['inapp'] },
+        });
+      } catch (err: any) {
+        // Bildirim okunamadi / yazilamadi: e-posta yine gider
+        this.log.warn(`[${siteId}] Panel bildirimi yazilamadi: ${err?.message ?? err}`);
+      }
       try {
         await this.email.sendRaw({
           userId: first.userId,

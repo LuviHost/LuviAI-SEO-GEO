@@ -15,8 +15,15 @@ function ensureUser(req: Request) {
 export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
+  /**
+   * `?scope=panel`: web panelinin zili — deneme / odeme / abonelik bildirimleri dahil. Parametre
+   * yoksa (mobil uygulama) o satirlar donmez (notifications.service `kapsam`).
+   */
   @Get()
-  list(@Req() req: Request, @Query('unread') unread?: string, @Query('type') type?: string, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
+  list(
+    @Req() req: Request, @Query('unread') unread?: string, @Query('type') type?: string,
+    @Query('limit') limit?: string, @Query('cursor') cursor?: string, @Query('scope') scope?: string,
+  ) {
     // Sorgu ayristirici ?type[not]=x'i nesneye cevirir; Prisma'ya yalniz dize gitsin
     const n = limit ? parseInt(limit, 10) : NaN;
     return this.notifications.list(ensureUser(req), {
@@ -24,12 +31,13 @@ export class NotificationsController {
       type: typeof type === 'string' && type ? type : undefined,
       limit: Number.isFinite(n) ? n : undefined,
       cursor: typeof cursor === 'string' && cursor ? cursor : undefined,
+      includeBilling: scope === 'panel',
     });
   }
 
   @Get('unread-count')
-  unread(@Req() req: Request) {
-    return this.notifications.unreadCount(ensureUser(req));
+  unread(@Req() req: Request, @Query('scope') scope?: string) {
+    return this.notifications.unreadCount(ensureUser(req), { includeBilling: scope === 'panel' });
   }
 
   @Patch(':id/read')

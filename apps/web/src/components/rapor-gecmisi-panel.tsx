@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api, type RaporKaydi } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -105,15 +106,20 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
   // musteri e-postadaki dugmeye basinca yalniz bir liste gorurdu → rapor gorunur alana kaydirilir.
   // Parametre adresten silinir: sayfa yenilenince (ya da rapor sonradan silinince) yeniden
   // acilmaya calisilmasin, "Rapor bulunamadı" bildirimi her yenilemede cikmasin.
+  //
+  // Adresteki parametre IZLENIR (useSearchParams): musteri zaten bu sayfadayken zildeki "aylık
+  // rapor hazır" bildirimine tiklarsa yalniz sorgu degisir, bilesen yeniden kurulmaz — yalniz
+  // ilk yuklemede bakilsaydi rapor acilmazdi. Parametre silinince deger bosalir, etki bir sey yapmaz.
   const acilanRaporRef = useRef<HTMLDivElement | null>(null);
   const [kaydir, setKaydir] = useState(false);
+  const raporParametresi = useSearchParams().get('rapor');
   useEffect(() => {
     const id = reportIdFromSearch(window.location.search);
     if (!id) return;
     window.history.replaceState(null, '', urlWithoutReportParam(window.location.href));
     void raporuAc(id).then(() => { if (canli.current) setKaydir(true); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId]);
+  }, [siteId, raporParametresi]);
   // Gecmis listesi yuklenene kadar beklenir: rapor, ustundeki gecmis tablosundan ONCE gelirse
   // kaydirma tablo cizilmeden yapilir, tablo gelince rapor asagi itilir ve ekranda liste kalir.
   useEffect(() => {
