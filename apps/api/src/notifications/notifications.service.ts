@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { duzen, dugme, p, kacisla } from '../email/email-layout.js';
+import { PANEL_BILLING_REF_KIND } from '../email/panel-notification.js';
 
 type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
 
@@ -25,13 +26,24 @@ export class NotificationsService {
     private readonly email: EmailService,
   ) {}
 
-  async list(user: RequestingUser, opts: { unreadOnly?: boolean; type?: string; limit?: number; cursor?: string } = {}) {
+  /**
+   * Deneme / odeme / abonelik bildirimleri (refKind PANEL_BILLING_REF_KIND) yalniz PANELE doner.
+   * Mobil uygulama ayni uclari parametresiz cagirir ve satirlari baslik + metinle ana sayfasinda
+   * basar; plan / odeme cagrilari uygulamada gosterilmez (email/panel-notification.ts aciklamasi).
+   * `OR` ile yazilir: `NOT { refKind: x }` SQL'de `refKind` BOS olan satirlari da eler.
+   */
+  private kapsam(includeBilling: boolean | undefined) {
+    return includeBilling ? {} : { OR: [{ refKind: null }, { refKind: { not: PANEL_BILLING_REF_KIND } }] };
+  }
+
+  async list(user: RequestingUser, opts: { unreadOnly?: boolean; type?: string; limit?: number; cursor?: string; includeBilling?: boolean } = {}) {
     const limit = Math.min(100, Math.max(1, opts.limit ?? 30));
     return this.prisma.notification.findMany({
       where: {
         userId: user.id,
         ...(opts.unreadOnly ? { readAt: null } : {}),
         ...(opts.type ? { type: opts.type as any } : {}),
+        ...this.kapsam(opts.includeBilling),
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -39,8 +51,8 @@ export class NotificationsService {
     });
   }
 
-  async unreadCount(user: RequestingUser): Promise<number> {
-    return this.prisma.notification.count({ where: { userId: user.id, readAt: null } });
+  async unreadCount(user: RequestingUser, opts: { includeBilling?: boolean } = {}): Promise<number> {
+    return this.prisma.notification.count({ where: { userId: user.id, readAt: null, ...this.kapsam(opts.includeBilling) } });
   }
 
   async markAsRead(notificationId: string, user: RequestingUser) {
