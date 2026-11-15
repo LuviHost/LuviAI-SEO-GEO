@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   duzen, dugme, olcuSatiri, bilgiKutusu, kacisla, h, etiket, p, liste, baglanti,
-  kahramanOlcu, sutunGrafik, ekranKarti, ekranBolucu, MARKA, FONT,
+  kahramanOlcu, sutunGrafik, ekranKarti, ekranBolucu, MARKA, FONT, type EpostaMotifi,
 } from './email-layout.js';
 import { ENGINE_LABELS, articleOfferPlan, planEngines } from '../billing/plans.js';
 
@@ -68,6 +68,22 @@ export type EmailTemplate =
   | 'subscription_expired'       // odeme alinamadi → plan deneme duzeyine dustu
   | 'grandfathering_expiring'   // 2026-05 Premium Pricing — 30 gün uyari
   | 'grandfathering_expired';   // 2026-05 Premium Pricing — yeni fiyata gectigi gun
+
+/**
+ * Her sablonun hareketli ust gorseli (email-layout ustGorsel) — sahip secimi 16.11.2026,
+ * "Nokta işaretler": hos geldin = ok, deneme = kum saati, makale = belge, rapor = cubuklar,
+ * abonelik ve odeme = kart. `Record<EmailTemplate, …>`: yeni sablon eklenince isareti de
+ * yazilmadan derlenmez. Dogrudan `duzen` cagiran e-postalar kendi isaretini verir (hesap silme =
+ * kilit, ucretsiz test = hedef, uyari ve bildirim = zil).
+ */
+export const SABLON_MOTIFI: Record<EmailTemplate, EpostaMotifi> = {
+  welcome_day0: 'ok', welcome_day1: 'ok', welcome_day3: 'ok', welcome_day7: 'ok',
+  trial_expiry_d11: 'kumsaati', trial_expiry_d13: 'kumsaati', trial_expired: 'kumsaati',
+  weekly_report: 'cubuk', weekly_plan: 'cubuk', monthly_report: 'cubuk',
+  first_article_published: 'belge', article_ready: 'belge',
+  plan_upgraded: 'kart', plan_canceled: 'kart', payment_failed: 'kart', renewal_failed: 'kart',
+  renewal_required: 'kart', subscription_expired: 'kart', grandfathering_expiring: 'kart', grandfathering_expired: 'kart',
+};
 
 /**
  * "Makale hazir" e-postalarindaki editor skorunun paydasi.
@@ -353,7 +369,7 @@ export class EmailService {
     /** Konu + onizleme + govde -> tam mail */
     const yap = (subject: string, onizleme: string, govde: string) => ({
       subject,
-      html: duzen(subject, govde, { onizleme, baseUrl }),
+      html: duzen(subject, govde, { onizleme, baseUrl, gorsel: SABLON_MOTIFI[template] }),
     });
 
     switch (template) {

@@ -43,11 +43,20 @@ import { TRIAL_CANCEL_NOT_ALLOWED_MESSAGE } from './trial-policy.js';
  * Yonetici satin alabilir: PayTR canliya gecis icin basarili bir test odemesi
  * ister (ayni entegrasyon sureci sayfalari) — akisi uctan uca deneyen odur.
  */
+/**
+ * Kartla satin alma kapaliyken musteriye gosterilen metin (fiyat sayfasi, abonelik sayfasi, plan
+ * penceresi, odeme hatasi sayfasi — hepsinde ardindan destek adresi baglantisi gelir — ve 403).
+ *
+ * Eskiden "satın alma henüz açık değil. Bilgi için bizimle iletişime geç" diyordu: musteri plan
+ * ALAMAYACAGINI saniyordu. Sahip 16.11.2026: kartla odeme kapali ama plan satiliyor — musteri
+ * yazar, odeme havale / EFT ile alinir, plani sahip baslatir. E-postalardaki cumleyle ayni yol
+ * (email.service HAVALE_YOLU). Sure sozu verilmez.
+ */
 export const CHECKOUT_TEST_MODE_MESSAGE =
-  'Ödeme altyapısı şu an test modunda; satın alma henüz açık değil. Bilgi için bizimle iletişime geç.';
+  'Kartla ödeme altyapımız şu an test aşamasında. Plan almak istersen bize yaz; ödemeyi havale / EFT ile alıp planını başlatalım.';
 /** Fiyat sayfasinin Ingilizce surumu icin ayni metin */
 export const CHECKOUT_TEST_MODE_MESSAGE_EN =
-  'Our payment system is in test mode right now, so purchases are not open yet. Contact us for details.';
+  'Card payments are in test mode right now. To get a plan, write to us; we take payment by bank transfer and start your plan.';
 /** Reddedilen test odemesinin fatura aciklamasina eklenen neden (musteri fatura listesinde gorur) */
 export const TEST_PAYMENT_FAILURE_CODE = 'TEST_MODE';
 export const TEST_PAYMENT_FAILURE_REASON = 'Test modunda yapılan ödeme gerçek tahsilat değil; plan açılmadı';

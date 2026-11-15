@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { attemptEmailHtml, markala, reportOfResult, trTarih, type AttemptReport } from './public-check-report-email.js';
 import { attemptNotification } from './public-check-attempt.js';
-import { MARKA } from '../email/email-layout.js';
+import { MARKA, ustGorsel } from '../email/email-layout.js';
+
+/** E-postanin tek gorseli: hareketli ust gorsel (ucretsiz test = hedef isareti) */
+const UST_GORSEL = ustGorsel('hedef', process.env.WEB_BASE_URL ?? 'https://ranksup.ai');
 
 /**
  * Ucretsiz test bildirim e-postasi (sahip istegi 15.11.2026): site diliyle (koyu, duz) gider ve
@@ -214,8 +217,10 @@ describe('attemptEmailHtml — rapor e-postanin icinde', () => {
     expect(html).toContain('content="dark"');
   });
 
-  it('e-posta kurallari: SVG, dis gorsel, betik ve harici stil yok', () => {
-    expect(html).not.toMatch(/<svg|<img|<script|<link|<iframe|javascript:/i);
+  it('e-posta kurallari: SVG, betik ve harici stil yok; TEK gorsel hareketli ust gorsel (hedef isareti)', () => {
+    expect(html).toContain(UST_GORSEL);
+    expect(html.match(/<img/g)).toHaveLength(1);
+    expect(html).not.toMatch(/<svg|<script|<link|<iframe|javascript:/i);
   });
 
   it('disaridan gelen HER metin kacislanir (alan adi, marka, soru, alinti, rakip adi)', () => {
@@ -228,8 +233,9 @@ describe('attemptEmailHtml — rapor e-postanin icinde', () => {
     });
     const out = attemptEmailHtml(girdi({ report: kotu, domain: `kotu.com/"><b>`, summary: { brand: `Marka ${XSS}`, niche: `nis ${XSS}` }, note: `Not ${XSS}` }));
     expect(out).not.toContain(XSS);
-    // Ham etiket yok (metin olarak kacislanmis hali durur: "&lt;img … onerror=alert(1)&gt;")
-    expect(out).not.toMatch(/<img|<b>/);
+    // Ham etiket yok (metin olarak kacislanmis hali durur: "&lt;img … onerror=alert(1)&gt;");
+    // tek <img> e-postanin kendi ust gorseli
+    expect(out.replace(UST_GORSEL, '')).not.toMatch(/<img|<b>/);
     expect(out).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(out).toContain('&quot;tirnak&quot;');
   });

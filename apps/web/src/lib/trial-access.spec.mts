@@ -85,6 +85,13 @@ describe('expiredModal — sure doldu', () => {
     expect(m?.dismissible).toBe(true);
     expect(m?.checkoutMessage).toBe(PURCHASE_CLOSED_FALLBACK);
     expect(m?.body).toContain('hesabın kilitlenmedi');
+    // Kart kapali ama plan alinabilir (havale): "satın alma açılana kadar" denmez; nasil
+    // alinacagi nottadir ve pencere notun ardina destek adresini koyar
+    expect(m?.body).not.toContain('satın alma açılana kadar');
+    expect(m?.body).toContain('kalan deneme haklarınla devam edebilirsin');
+    expect(m?.checkoutMessage).toContain('havale / EFT');
+    const pencere = readFileSync(new URL('../components/trial-upgrade.tsx', import.meta.url), 'utf8');
+    expect(pencere).toMatch(/\{modal\.checkoutMessage\}\{' '\}\s*<a href=\{`mailto:\$\{PURCHASE_CONTACT_EMAIL\}`\}/);
   });
   it('abonelik sayfasinda acilmaz (plan orada secilir); deneme suruyorsa yok', () => {
     expect(expiredModal(readTrialAccess({ phase: 'expired', readOnly: true }), { pathname: '/billing' })).toBeNull();

@@ -133,7 +133,7 @@ export class NotificationsService {
         to: user.email,
         subject: opts.title,
         // Cagiranin hazirladigi govde varsa o (bos / bosluk ise genel kalip)
-        html: opts.emailHtml?.trim() ? opts.emailHtml : duzen(opts.title, govde),
+        html: opts.emailHtml?.trim() ? opts.emailHtml : duzen(opts.title, govde, { gorsel: 'zil' }),
       });
       if (!res.ok) {
         this.log.warn(`Bildirim e-postası gönderilemedi: ${opts.title}`);

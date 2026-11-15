@@ -168,8 +168,17 @@ describe('odeme baslatma kapisi (iFrame jetonu ve Direkt API formu)', () => {
     }
   });
 
-  it('metin sahibin istedigi gibi', () => {
-    expect(CHECKOUT_TEST_MODE_MESSAGE).toBe('Ödeme altyapısı şu an test modunda; satın alma henüz açık değil. Bilgi için bizimle iletişime geç.');
+  it('metin sahibin istedigi gibi: kart kapali ama plan ALINABILIR — yazarak, havale / EFT ile (16.11.2026)', () => {
+    expect(CHECKOUT_TEST_MODE_MESSAGE).toBe(
+      'Kartla ödeme altyapımız şu an test aşamasında. Plan almak istersen bize yaz; ödemeyi havale / EFT ile alıp planını başlatalım.',
+    );
+    expect(CHECKOUT_TEST_MODE_MESSAGE_EN).toBe(
+      'Card payments are in test mode right now. To get a plan, write to us; we take payment by bank transfer and start your plan.',
+    );
+    // Musteriye "plan alamazsin" diye okunan eski cumle yok; verilemeyecek sure sozu de yok
+    for (const m of [CHECKOUT_TEST_MODE_MESSAGE, CHECKOUT_TEST_MODE_MESSAGE_EN]) {
+      expect(m).not.toMatch(/henüz açık değil|not open yet|aynı gün|same day|hemen/i);
+    }
   });
 
   it('Direkt API (otomatik yenileme acik) ayni kapidan gecer: musteri 403, yonetici imzali formu alir', async () => {

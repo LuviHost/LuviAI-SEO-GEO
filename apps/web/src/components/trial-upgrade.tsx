@@ -9,7 +9,7 @@ import { Clock, Sparkles, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { readCheckout } from '@/lib/checkout-availability';
+import { PURCHASE_CONTACT_EMAIL, readCheckout } from '@/lib/checkout-availability';
 import {
   TRIAL_BILLING_HREF, TRIAL_COPY, TRIAL_UPGRADE_HREF, expiredModal, lapsedNotice, parseDismissed, readTrialAccess, trialBanner, trialPopup,
   trialPopupStorageKey, type TrialAccessView,
@@ -225,7 +225,16 @@ export function TrialUpgrade() {
             </DialogHeader>
             <DialogBody className="space-y-3">
               <DialogDescription>{modal.body}</DialogDescription>
-              {modal.checkoutMessage && <p className="rounded-md border bg-muted px-3 py-2 text-sm">{modal.checkoutMessage}</p>}
+              {/* Not "bize yaz" der: adres hemen ardindan gelir (fiyat sayfasi, abonelik sayfasi ve
+                  plan penceresiyle ayni kalip). Eskiden burada adres yoktu. */}
+              {modal.checkoutMessage && (
+                <p className="rounded-md border bg-muted px-3 py-2 text-sm">
+                  {modal.checkoutMessage}{' '}
+                  <a href={`mailto:${PURCHASE_CONTACT_EMAIL}`} className="font-medium underline underline-offset-2">
+                    {PURCHASE_CONTACT_EMAIL}
+                  </a>
+                </p>
+              )}
               <div className="grid gap-2 sm:grid-cols-2">
                 <Link href={TRIAL_UPGRADE_HREF} className="rounded-md border p-3 text-sm transition-colors hover:border-foreground/30">
                   <span className="font-medium">Planlar ve fiyatlar</span>

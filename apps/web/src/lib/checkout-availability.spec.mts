@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PURCHASE_CLOSED_FALLBACK, purchaseState, readCheckout } from './checkout-availability';
 
-const TR = 'Ödeme altyapısı şu an test modunda; satın alma henüz açık değil. Bilgi için bizimle iletişime geç.';
-const EN = 'Our payment system is in test mode right now, so purchases are not open yet. Contact us for details.';
+const TR = 'Kartla ödeme altyapımız şu an test aşamasında. Plan almak istersen bize yaz; ödemeyi havale / EFT ile alıp planını başlatalım.';
+const EN = 'Card payments are in test mode right now. To get a plan, write to us; we take payment by bank transfer and start your plan.';
 const closed = (message: string | null = TR) => ({ open: false, testMode: true, message });
 const LIVE = { open: true, testMode: false, message: null };
 const ADMIN_IN_TEST = { open: true, testMode: true, message: null };

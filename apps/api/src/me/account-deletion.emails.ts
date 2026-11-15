@@ -58,7 +58,7 @@ export function deletionRequestedEmail(o: {
     ]) +
     // Baglanti rengi ACIKCA verilir (baglanti): koyu kutuda istemcinin varsayilan mavisi okunmuyordu
     bilgiKutusu('Bu talebi sen yapmadıysan', `Hemen ${baglanti(DESTEK, `mailto:${DESTEK}`)} adresine yaz.`);
-  return { subject, html: duzen(subject, govde, { onizleme: `Verilerin ${o.purgeAfterText} tarihinden sonra kalıcı olarak silinecek.`, baseUrl: o.baseUrl }) };
+  return { subject, html: duzen(subject, govde, { onizleme: `Verilerin ${o.purgeAfterText} tarihinden sonra kalıcı olarak silinecek.`, baseUrl: o.baseUrl, gorsel: 'kilit' }) };
 }
 
 export function deletionCompletedEmail(o: { name?: string | null; email?: string | null; baseUrl?: string }) {
@@ -69,5 +69,5 @@ export function deletionCompletedEmail(o: { name?: string | null; email?: string
     hesapSatiri(o.email) +
     p('Fatura ve ödeme kayıtları yasal saklama yükümlülüğü nedeniyle, kişisel bağlantısı kaldırılarak saklanmaya devam eder.') +
     p('Yeniden kullanmak istersen istediğin zaman yeni bir hesap açabilirsin.');
-  return { subject, html: duzen(subject, govde, { onizleme: 'Hesabın ve bağlı veriler kalıcı olarak silindi.', baseUrl: o.baseUrl }) };
+  return { subject, html: duzen(subject, govde, { onizleme: 'Hesabın ve bağlı veriler kalıcı olarak silindi.', baseUrl: o.baseUrl, gorsel: 'kilit' }) };
 }

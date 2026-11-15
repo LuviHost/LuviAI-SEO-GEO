@@ -216,6 +216,6 @@ export class AiMentionAlarmService {
       // yanlisti — alarm isi 05:00 UTC'de kosar, gunluk olcum cron'u ise
       // AI_CITATION_DAILY_CRON ile kapatilabilir (apps/worker/src/index.ts).
       p(`<span style="font-size:13px;color:${MARKA.soluk};">Bu uyarı, son 7 günün AI görünürlük ölçümleri önceki 7 günle karşılaştırılarak otomatik hazırlanır.</span>`);
-    return duzen(baslik, govde, { onizleme: alerts.map((a) => a.message).join(' · ') });
+    return duzen(baslik, govde, { onizleme: alerts.map((a) => a.message).join(' · '), gorsel: 'zil' });
   }
 }

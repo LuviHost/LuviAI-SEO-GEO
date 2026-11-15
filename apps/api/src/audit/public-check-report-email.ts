@@ -340,6 +340,7 @@ export function attemptEmailHtml(a: AttemptEmailInput): string {
   return duzen(a.title, govde.join('\n'), {
     onizleme: [kim, a.note].filter(Boolean).join(' — '),
     baseUrl: a.baseUrl,
+    gorsel: 'hedef',
     altNot: 'Bu e-posta yönetici hesabına gönderilen bir bildirimdir.',
   });
 }

@@ -470,7 +470,8 @@ export class PublicCitationSubscriberService {
       par(`<span style="font-size:13px;color:${MARKA.soluk};">${tr ? 'Bu e-postayı beklemiyorsanız görmezden gelebilirsiniz.' : 'If you did not expect this email, you can safely ignore it.'}</span>`);
     return duzen(tr ? 'Aboneliğinizi onaylayın' : 'Confirm your subscription', govde, {
       onizleme: tr ? `${p.brand} için AI görünürlük takibini onaylayın.` : `Confirm AI visibility tracking for ${p.brand}.`,
-      baseUrl: process.env.WEB_URL ?? undefined,
+      baseUrl: process.env.WEB_URL || undefined,
+      gorsel: 'hedef',
       altBaglantilar: [{ metin: tr ? 'Aboneliği iptal et' : 'Unsubscribe', href: p.unsubscribeUrl }],
       dil: tr ? 'tr' : 'en',
     });
@@ -582,7 +583,8 @@ export class PublicCitationSubscriberService {
       dugme(tr ? '2 Makale Ücretsiz Dene' : 'Try 2 Articles Free', kacisla(p.signupUrl));
     return duzen(`${p.brand} ${p.intervalLabel} ${tr ? 'rapor' : 'report'}`, govde, {
       onizleme: summary,
-      baseUrl: process.env.WEB_URL ?? undefined,
+      baseUrl: process.env.WEB_URL || undefined,
+      gorsel: 'hedef',
       altBaglantilar: [{ metin: tr ? 'Aboneliği iptal et' : 'Unsubscribe', href: p.unsubscribeUrl }],
       dil: tr ? 'tr' : 'en',
     });
