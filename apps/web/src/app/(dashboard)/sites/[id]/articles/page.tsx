@@ -106,7 +106,7 @@ export default function ArticlesPage() {
           tone="info"
           // 11.11.2026: makale uretimi yalniz Profesyonel ve ustunde (lib/plan-lock.ts notu)
           title={`Takviminde ${formatNum(counts.locked)} makale kilitli; Profesyonel plana geçtiğinde yazılır.`}
-          action={<PlanUpgradeButton />}
+          action={<PlanUpgradeButton offer={allowance.offer} reason={PLAN_LOCK_COPY.title} />}
         >
           {PLAN_LOCK_COPY.body}
         </StatusBanner>
@@ -128,8 +128,10 @@ export default function ArticlesPage() {
       {allowance.locked && allowance.reason !== 'source_required' && counts.locked === 0 && (
         <StatusBanner
           tone="info"
-          title="Makale hakkın doldu; yeni üretim için planını yükselt."
-          action={<PlanUpgradeButton />}
+          // Baslik yol soylemez: yol plana gore degisir (kartla / teklifle / yalniz yenilenme)
+          // ve asagidaki cumle ile dugme onu soyler. Eski baslik her hesaba "planını yükselt" diyordu.
+          title="Makale hakkın doldu."
+          action={<PlanUpgradeButton offer={allowance.offer} reason={allowance.hint} />}
         >
           {allowance.hint}
         </StatusBanner>

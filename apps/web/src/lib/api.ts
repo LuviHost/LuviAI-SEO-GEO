@@ -13,6 +13,7 @@ import type { RakipGorunurlugu } from './rakip-gorunurlugu';
 import type { AiTrafficResponse } from './ai-traffic';
 import type { GeoScoreCardData } from './geo-score-card';
 import { readApiErrorCode, trialErrorAction, TRIAL_ERROR_EVENT } from './trial-errors';
+import { planLimitRequest, PLAN_LIMIT_EVENT } from './plan-limit';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -46,6 +47,22 @@ function announceTrialError(status: number, body: unknown, path: string): void {
     window.dispatchEvent(new CustomEvent(TRIAL_ERROR_EVENT, { detail: action }));
   } catch {
     // Olay kurulamadiysa (eski tarayici) cagiranin kendi bildirimi yeter
+  }
+}
+
+/**
+ * Plan siniri (403 PLAN_LIMIT) panele duyurulur: components/upgrade-gate.tsx kirmizi hata
+ * bildirimi yerine plan penceresini acar (lib/plan-limit.ts). Yalniz degistiren isteklerde
+ * (bir tiklamanin cevabi); okuma isteginde pencere acilmaz. Hata yine firlatilir.
+ */
+function announcePlanLimit(status: number, method: string | undefined, body: unknown): void {
+  if (typeof window === 'undefined') return;
+  const request = planLimitRequest(status, method, body);
+  if (!request) return;
+  try {
+    window.dispatchEvent(new CustomEvent(PLAN_LIMIT_EVENT, { detail: request }));
+  } catch {
+    // Olay kurulamadiysa cagiranin kendi bildirimi yeter
   }
 }
 
@@ -114,7 +131,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   } catch (err: unknown) {
     throw new ApiError(0, toUserMessage(0, null), (err as Error)?.message);
   }
-  return parseResponse<T>(res, path);
+  return parseResponse<T>(res, path, init.method);
 }
 
 /**
@@ -128,10 +145,10 @@ async function requestForm<T>(path: string, form: FormData): Promise<T> {
   } catch (err: unknown) {
     throw new ApiError(0, toUserMessage(0, null), (err as Error)?.message);
   }
-  return parseResponse<T>(res, path);
+  return parseResponse<T>(res, path, 'POST');
 }
 
-async function parseResponse<T>(res: Response, path: string): Promise<T> {
+async function parseResponse<T>(res: Response, path: string, method?: string): Promise<T> {
   if (!res.ok) {
     let body: unknown = null;
     try {
@@ -147,6 +164,7 @@ async function parseResponse<T>(res: Response, path: string): Promise<T> {
       console.error(`[API ${res.status}] ${path}`, body);
     }
     announceTrialError(res.status, body, path);
+    announcePlanLimit(res.status, method, body);
     throw new ApiError(res.status, toUserMessage(res.status, body), body);
   }
 

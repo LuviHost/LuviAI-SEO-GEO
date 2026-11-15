@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { MeasurementWaitLabel } from '@/components/upgrade-gate';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { displayProbeText } from '@/lib/probe-error-text';
 import { runAllProgressText, watchRunAll } from '@/lib/prompt-lab-run-all';
@@ -283,8 +284,14 @@ function PromptsTab({ siteId }: { siteId: string }) {
           Brain'den aktar
         </Button>
         <Button size="sm" variant="outline" onClick={runAll} disabled={runningAll || prompts.length === 0 || measurementBlocked}>
-          {runningAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-          {runningAll ? `Çalışıyor${runProgress ? ` ${runProgress}` : ''}` : 'Tümünü çalıştır'}
+          {measurementBlocked && !runningAll ? (
+            <MeasurementWaitLabel />
+          ) : (
+            <>
+              {runningAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+              {runningAll ? `Çalışıyor${runProgress ? ` ${runProgress}` : ''}` : 'Tümünü çalıştır'}
+            </>
+          )}
         </Button>
       </div>
       <MeasurementLimitNote />
@@ -430,7 +437,7 @@ function PromptRow({
           </p>
         </div>
 
-        <Button size="sm" variant="ghost" onClick={() => run(false)} disabled={running || measurementBlocked} title="Ana soruyu çalıştır">
+        <Button size="sm" variant="ghost" onClick={() => run(false)} disabled={running || measurementBlocked} title={measurementBlocked ? 'Bu haftaki AI ölçüm hakkı kullanıldı' : 'Ana soruyu çalıştır'}>
           {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
         </Button>
         <Button size="sm" variant="ghost" onClick={onDelete} title="Sil" className="text-muted-foreground hover:text-danger">
@@ -479,7 +486,7 @@ function PromptRow({
               {branches.length ? 'Dalları yenile' : 'Dalları üret'}
             </Button>
             {branches.length > 0 && (
-              <Button size="sm" variant="outline" onClick={() => run(true)} disabled={running || measurementBlocked}>
+              <Button size="sm" variant="outline" onClick={() => run(true)} disabled={running || measurementBlocked} title={measurementBlocked ? 'Bu haftaki AI ölçüm hakkı kullanıldı' : undefined}>
                 {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                 Dallarla çalıştır
               </Button>

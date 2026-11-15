@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { UpgradeButton } from '@/components/upgrade-gate';
 import { PLAN_LOCK_COPY, UPGRADE_HREF, placeholderParagraphs } from '@/lib/plan-lock';
 import type { GenerationLock } from '@/lib/article-allowance';
+import type { UpgradeOffer } from '@/lib/plan-limit';
 import { cn } from '@/lib/utils';
 
 /*
@@ -32,34 +34,43 @@ export function PlanLockBadge({ className }: { className?: string }) {
 }
 
 /**
- * Yukseltme baglantisi (fiyatlandirma). Varsayilan birincil (turuncu): uyari seridinde ve
- * kilit kartinda gorunumun tek eylemi. Tablo satirinda tekrar eden dugme `variant="outline"`
- * alir — turuncu satir satir cogalmasin.
+ * Yukseltme dugmesi. Varsayilan birincil (turuncu): uyari seridinde ve kilit kartinda
+ * gorunumun tek eylemi. Tablo satirinda tekrar eden dugme `variant="outline"` alir —
+ * turuncu satir satir cogalmasin.
+ *
+ * 15.11.2026: fiyat sayfasina giden baglanti degil; panel ici plan penceresini acar
+ * (components/upgrade-gate.tsx). `offer` yukseltme yoludur (makale icin
+ * useArticleAllowance().offer, video icin entitlements.required.articleVideo): etiket ona
+ * gore yazilir. Verilmezse dugme "Planları gör" der, satis vaat etmez.
  */
 export function PlanUpgradeButton({
   size = 'sm',
   variant,
   className,
+  offer,
+  reason,
 }: {
   size?: 'sm' | 'default';
   variant?: 'default' | 'outline' | 'secondary';
   className?: string;
+  offer?: UpgradeOffer | null;
+  /** Neden kilitli — plan penceresinin basliginin altinda gorunur */
+  reason?: string | null;
 }) {
-  return (
-    <Button asChild size={size} variant={variant} className={className}>
-      <Link href={UPGRADE_HREF}>
-        <Lock className="h-3.5 w-3.5 mr-1.5" aria-hidden />
-        {PLAN_LOCK_COPY.cta}
-      </Link>
-    </Button>
-  );
+  return <UpgradeButton offer={offer ?? null} reason={reason ?? PLAN_LOCK_COPY.title} size={size} variant={variant ?? 'default'} className={className} />;
 }
 
 /**
  * Makale hakki bitince uretim dugmesinin yerine gecen kilitli dugme (karar:
  * lib/article-allowance.ts generationLock). Ozgun dugmenin boyutu ve turu korunur,
- * satir/kart duzeni kaymaz. Tiklaninca istek atilmaz (eskiden 403 donuyordu),
- * fiyatlandirmaya gider. Neden kilitli oldugu title'da ve ekran okuyucuda.
+ * satir/kart duzeni kaymaz. Tiklaninca istek atilmaz (eskiden 403 donuyordu).
+ * Neden kilitli oldugu title'da ve ekran okuyucuda.
+ *
+ * 15.11.2026: plan kilidinde (hak bitti / pakette makale yok) dugme musteriyi panelden
+ * cikarip fiyat sayfasina atmiyor; panel ici plan penceresini acar ve etiketi yola gore
+ * yazar ("Profesyonel'e geç" / "Teklif al" / satin alma kapaliyken "Bize yaz";
+ * components/upgrade-gate.tsx). Yayin hedefi kilidi (denemede kaynak sarti) eskisi gibi
+ * yayin hedefleri sayfasina giden baglantidir.
  */
 export function LockedGenerateButton({
   lock,
@@ -67,11 +78,14 @@ export function LockedGenerateButton({
   variant,
   className,
 }: {
-  lock: Pick<GenerationLock, 'label' | 'href' | 'hint'>;
+  lock: Pick<GenerationLock, 'label' | 'href' | 'hint'> & { offer?: GenerationLock['offer'] };
   size?: 'sm' | 'default';
   variant?: 'default' | 'outline' | 'secondary';
   className?: string;
 }) {
+  if (lock.href === UPGRADE_HREF) {
+    return <UpgradeButton offer={lock.offer ?? null} reason={lock.hint ?? ''} size={size} variant={variant ?? 'outline'} className={className} />;
+  }
   return (
     <Button asChild size={size} variant={variant} className={className}>
       <Link href={lock.href} title={lock.hint ?? undefined}>
@@ -97,7 +111,7 @@ export function LockedRowPreview({ seed }: { seed: string }) {
 }
 
 /** Yazi sayfasinin govdesi: bulanik yer tutucu + kilit karti */
-export function LockedArticleBody({ seed }: { seed: string }) {
+export function LockedArticleBody({ seed, offer }: { seed: string; offer?: UpgradeOffer | null }) {
   const paragraphs = useMemo(() => placeholderParagraphs(seed, { paragraphs: 5 }), [seed]);
   return (
     <Card className="relative overflow-hidden">
@@ -116,7 +130,7 @@ export function LockedArticleBody({ seed }: { seed: string }) {
             <h3 className="text-panel-3">{PLAN_LOCK_COPY.title}</h3>
             <p className="text-sm text-muted-foreground">{PLAN_LOCK_COPY.body}</p>
             <p className="text-label text-muted-foreground">{PLAN_LOCK_COPY.placeholderNote}</p>
-            <PlanUpgradeButton size="default" />
+            <PlanUpgradeButton size="default" offer={offer} reason={PLAN_LOCK_COPY.title} />
           </div>
         </div>
       </CardContent>

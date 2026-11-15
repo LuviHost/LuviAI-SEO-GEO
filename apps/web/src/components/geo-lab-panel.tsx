@@ -11,6 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SectionHeader } from '@/components/ui/section-header';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { MeasurementWaitLabel, UpgradeButton } from '@/components/upgrade-gate';
+import { useEntitlements } from '@/lib/entitlements';
+import { requirementOffer } from '@/lib/plan-limit';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { displayProbeText } from '@/lib/probe-error-text';
 import { Card, CardContent } from '@/components/ui/card';
@@ -653,6 +656,15 @@ function HeatmapTab({ siteId }: { siteId: string }) {
   const [running, setRunning] = useState(false);
   const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [data, setData] = useState<any>(null);
+  // Plan kapisi (api @RequiresPlan('geoHeatmap')). Eskiden dugme her planda acik gorunuyor,
+  // basinca sunucunun 403'u kirmizi hata olarak cikiyordu. Kesin kapaliysa (false) dugme
+  // yukseltme yolunu soyler; haklar yuklenirken / okunamazsa (null, true) eski davranis.
+  const { can, requirementFor } = useEntitlements();
+  const planLocked = can('geoHeatmap') === false;
+  const requirement = requirementFor('geoHeatmap');
+  const lockReason = requirement?.planName
+    ? `${requirement.label}, ${requirement.planName} planına dahildir.`
+    : 'GEO ısı haritası mevcut planında bulunmuyor.';
 
   const run = async () => {
     setRunning(true);
@@ -675,11 +687,21 @@ function HeatmapTab({ siteId }: { siteId: string }) {
         <p className="text-xs text-muted-foreground max-w-2xl">
           Sektör sorgularını Claude/Gemini/ChatGPT/Perplexity'ye sorar. Her hücre: <span className="text-success">●</span> alıntılandın · <span className="text-warning">●</span> sadece marka adı geçti · <span className="text-danger">●</span> rakip alıntılandı · <span className="text-muted-foreground">●</span> kimse alıntılanmadı (fırsat) · <span className="text-muted-foreground">ölçülemedi</span> sağlayıcı hata verdi ya da etkin değil — skora ve önerilere girmez
         </p>
-        <Button size="sm" onClick={run} disabled={running || measurementBlocked}>
-          {running ? 'Test ediliyor (~60 sn)…' : <><Play className="h-3.5 w-3.5 mr-1.5" aria-hidden />Isı haritasını çalıştır</>}
-        </Button>
+        {planLocked ? (
+          <UpgradeButton offer={requirementOffer(requirement)} reason={lockReason} />
+        ) : (
+          <Button size="sm" onClick={run} disabled={running || measurementBlocked}>
+            {running
+              ? 'Test ediliyor (~60 sn)…'
+              : measurementBlocked
+                ? <MeasurementWaitLabel />
+                : <><Play className="h-3.5 w-3.5 mr-1.5" aria-hidden />Isı haritasını çalıştır</>}
+          </Button>
+        )}
       </div>
-      <MeasurementLimitNote />
+      {planLocked
+        ? <p className="text-xs text-muted-foreground">{lockReason}</p>
+        : <MeasurementLimitNote />}
 
       {data && (
         <div className="space-y-3">

@@ -16,8 +16,10 @@ import {
 import { showNotice } from '@/lib/notice';
 import { isPlanLocked } from '@/lib/plan-lock';
 import { LockedArticleBody, PlanLockBadge } from '@/components/locked-article';
+import { useArticleAllowance } from '@/lib/use-article-allowance';
+import { SiteContext } from '../../site-context';
 import { ArticleVideoButton } from '@/components/article-video';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { marked } from 'marked';
@@ -119,6 +121,10 @@ export default function ArticleDetailPage() {
   const params = useParams();
   const siteId = params.id as string;
   const articleId = params.articleId as string;
+  // Kilitli yazinin yukseltme dugmesi icin hesabin makale yukseltme yolu (site sahibinden;
+  // lib/use-article-allowance.ts). Baglam yoksa (beklenmez) yol bilinmez, dugme satis vaat etmez.
+  const siteOwnerId = useContext(SiteContext)?.site?.userId as string | undefined;
+  const articleUpgrade = useArticleAllowance(siteOwnerId, siteId).offer;
 
   const [article, setArticle] = useState<any>(null);
   const [targets, setTargets] = useState<any[]>([]);
@@ -585,7 +591,7 @@ ${body}
             </div>
           </div>
         </div>
-        <LockedArticleBody seed={String(article.id)} />
+        <LockedArticleBody seed={String(article.id)} offer={articleUpgrade} />
       </div>
     );
   }

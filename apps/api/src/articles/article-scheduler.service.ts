@@ -7,6 +7,7 @@ import { automationPublishFields, type PublishApprovalSite } from './publish-app
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 import { automaticGenerationAllowed } from '../billing/trial-policy.js';
 import { NO_AUTO_ARTICLE_PLANS, articleOfferPlan } from '../billing/plans.js';
+import { planLimitError, upgradeOfferFor } from '../billing/plan-limit.js';
 import { explicitContentPlan, findRankerTopicHint, rankerPlanFromHint, rankerPlanFromTopic, withContentPlan } from './content-plan.js';
 import { sayacAnahtari, son7GunAnahtarlari, tavanAcikMi, trGunAnahtari } from './site-yayin-tavani.js';
 
@@ -1067,7 +1068,11 @@ export class ArticleSchedulerService {
     if (!allowed) {
       // Eski metin her planda "makale/ay" diyordu; deneme hesabinin hakki ay
       // basi sifirlanmaz (QuotaService.maybeResetMonthlyQuota)
-      throw new ForbiddenException(scheduleQuotaFullMessage(site.user?.plan, limit));
+      // Plan siniri: panel hatayi bildirim yerine plan penceresiyle karsilar (billing/plan-limit.ts)
+      throw planLimitError(
+        scheduleQuotaFullMessage(site.user?.plan, limit),
+        upgradeOfferFor(site.user?.plan, (p) => p.articlesPerMonth > limit),
+      );
     }
     // Deneme hesabinda bekleyen ayirmasi YOK. NEDEN: ayirma, otomasyonun kalan haktan
     // fazlasini uretime almasini onler; denemede otomasyon hic makale uretmez

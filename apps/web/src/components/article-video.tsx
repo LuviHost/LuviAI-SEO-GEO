@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { siteHref } from '@/lib/site-routes';
 import { placeholderParagraphs } from '@/lib/plan-lock';
+import { requirementOffer } from '@/lib/plan-limit';
 import {
   ARTICLE_VIDEO_COPY, DEFAULT_VIDEO_STYLE, DEFAULT_VIDEO_TEMPO, VIDEO_STYLES, VIDEO_STYLE_HINT, VIDEO_STYLE_LABEL, VIDEO_TEMPOS, VIDEO_TEMPO_HINT, VIDEO_TEMPO_LABEL,
   canRequestVideo, nextRadioValue, normalizeHex, quotaLine, tempoDurationLabel, videoRequestBody, videoStylePreview,
@@ -35,6 +36,8 @@ import { cn } from '@/lib/utils';
 /** Kilitli onizleme — bulanik 9:16 yer tutucu + yukseltme (locked-article.tsx kalibi) */
 export function LockedVideoPreview({ seed, compact = false }: { seed: string; compact?: boolean }) {
   const lines = useMemo(() => placeholderParagraphs(seed, { paragraphs: 3, sentences: 1 }), [seed]);
+  // Yukseltme yolu sunucudan (entitlements.required.articleVideo): dugme etiketi ona gore
+  const { requirementFor } = useEntitlements();
   return (
     <div className={cn('relative overflow-hidden rounded-lg border bg-card', compact ? 'min-h-[22rem]' : 'min-h-[30rem]')}>
       <div aria-hidden className="pointer-events-none flex select-none justify-center p-6 blur-sm">
@@ -56,7 +59,8 @@ export function LockedVideoPreview({ seed, compact = false }: { seed: string; co
           <h3 className="text-panel-3">{ARTICLE_VIDEO_COPY.lockedTitle}</h3>
           <p className="text-sm text-muted-foreground">{ARTICLE_VIDEO_COPY.lockedBody}</p>
           <p className="text-xs text-muted-foreground">{ARTICLE_VIDEO_COPY.lockedNote}</p>
-          <PlanUpgradeButton size="default" />
+          {/* Neden: kisa cumle (plan penceresinin basliginin altinda gorunur), urun tanitimi degil */}
+          <PlanUpgradeButton size="default" offer={requirementOffer(requirementFor('articleVideo'))} reason={ARTICLE_VIDEO_COPY.lockedTitle} />
         </div>
       </div>
     </div>

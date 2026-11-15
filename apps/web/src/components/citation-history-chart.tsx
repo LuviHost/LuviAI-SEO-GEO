@@ -20,6 +20,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } 
 import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { MeasurementWaitLabel } from '@/components/upgrade-gate';
 import { displayProbeText, isProbeErrorText, probeErrorText } from '@/lib/probe-error-text';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import {
@@ -283,7 +284,10 @@ export function CitationHistoryChart({
               ))}
             </div>
             <Button size="sm" variant="outline" onClick={triggerSnapshot} disabled={running || measurementBlocked}>
-              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${running ? 'animate-spin' : ''}`} /> Yeniden Test
+              {/* Haftalik hak kullanildiysa dugme ne zaman acilacagini soyler (satis yok: hak her planda ayni) */}
+              {measurementBlocked && !running
+                ? <MeasurementWaitLabel />
+                : <><RefreshCw className={`h-3.5 w-3.5 mr-1 ${running ? 'animate-spin' : ''}`} /> Yeniden Test</>}
             </Button>
           </div>
         </div>
