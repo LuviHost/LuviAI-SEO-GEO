@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Check, X, Minus, Lock, ArrowRight, ChevronDown } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
+import { groupLockedByPlan, type LockedEngine } from '@/lib/locked-engines';
 import type { api } from '@/lib/api';
 
 /**
@@ -71,6 +72,10 @@ export interface QueryCardLabels {
   aiAnswer: string;
   truncated: string;
   lockedHint: string;
+  /** Kilitli asistanlarin notu, {plan} yer tutuculu ("{plan} planda ölçülür") */
+  lockedEngines?: string;
+  /** Kilitli asistan grubunun ekran okuyucu adi */
+  lockedEnginesAria?: string;
 }
 
 export interface QueryCardProps {
@@ -81,10 +86,20 @@ export interface QueryCardProps {
   isOpen: boolean;
   onToggle: () => void;
   labels: QueryCardLabels;
+  /**
+   * Bu testin SORMADIGI, ust planlarin olctugu asistanlar (lib/locked-engines.ts; liste ve
+   * plan adi sunucudan). Olculen asistanlarin yaninda kilitli durur. Bir sonuc DEGILDIR:
+   * "x / y" sayisina girmez, anildi / anilmadi isareti tasimaz. Verilmezse hic cizilmez.
+   */
+  lockedEngines?: readonly LockedEngine[];
 }
 
-export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: QueryCardProps) {
+export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels, lockedEngines }: QueryCardProps) {
   const catLabel = q.category ? CATEGORY_LABELS[q.category]?.[lang] : undefined;
+  // Adi / logosu bilinmeyen saglayici kilitli de olsa cizilmez (bos kutu bir sey anlatmaz)
+  const lockedGroups = labels.lockedEngines
+    ? groupLockedByPlan((lockedEngines ?? []).filter((e) => PROVIDER_SHORT[e.provider] && PROVIDER_LOGOS[e.provider]))
+    : [];
 
   if (q.locked) {
     return (
@@ -195,6 +210,35 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
             </div>
           );
         })}
+        {/* Bu testin sormadigi asistanlar: kesikli cerceve + soluk logo + kilit. Anildi /
+            anilmadi isareti YOK (olculmedi); not hangi planda olculdugunu soyler. */}
+        {lockedGroups.map((g) => (
+          <div
+            key={g.planName}
+            role="group"
+            aria-label={labels.lockedEnginesAria}
+            // flex-wrap + min-w-0: dar telefonda (360px ve alti) grup karttan tasmasin; kutular
+            // ve not grubun icinde alt satira iner (bagimsiz inceleme 15.11.2026)
+            className="flex min-w-0 flex-wrap items-center gap-3 border-l border-border pl-3"
+          >
+            {g.providers.map((provider) => (
+              <div key={provider} className="flex flex-col items-center gap-1">
+                <div className="relative grid h-11 w-11 place-items-center rounded-md border border-dashed border-border">
+                  <span className="opacity-40 grayscale" aria-hidden>
+                    <VendorLogo name={PROVIDER_LOGOS[provider]} size={22} alt="" />
+                  </span>
+                  <div className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-muted text-muted-foreground ring-2 ring-background">
+                    <Lock className="h-3 w-3" strokeWidth={2.5} aria-hidden />
+                  </div>
+                </div>
+                <span className="text-label text-muted-foreground/70">{PROVIDER_SHORT[provider]}</span>
+              </div>
+            ))}
+            <p className="max-w-[7rem] text-xs leading-snug text-muted-foreground">
+              {(labels.lockedEngines ?? '').replace('{plan}', g.planName)}
+            </p>
+          </div>
+        ))}
       </div>
 
       <ResponsesToggle providers={q.providers} brand={brand} isOpen={isOpen} onToggle={onToggle} labels={labels} />

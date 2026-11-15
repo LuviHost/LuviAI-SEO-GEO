@@ -139,7 +139,8 @@ describe('tool kapisi — cagri (b: eski konusma / dogrudan MCP istegi)', () => 
     expect(err).toBeInstanceOf(Error);
     expect(err!.message).toContain('İçerik fırsatları');
     expect(err!.message).toContain('Profesyonel');
-    expect(err!.message).toMatch(/yükselt/i);
+    // Yol plana gore yazilir (billing/quota.service assertPlanFeature): kartla alinan plan
+    expect(err!.message).toMatch(/Profesyonel plana geçerek kullanabilirsin/);
   });
 
   it('plani yeten kullanicida kapi gecilir (handler\'a kadar ilerler)', async () => {

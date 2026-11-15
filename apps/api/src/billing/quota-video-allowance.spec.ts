@@ -73,7 +73,7 @@ describe('QuotaService.consumeVideoAllowance', () => {
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
     expect(rejected.reason).toBeInstanceOf(ForbiddenException);
-    expect(rejected.reason.message).toBe('Bu ayki 20 video hakkını kullandın. Hak yeni ayda yenilenir; daha fazlası için planını yükseltebilirsin.');
+    expect(rejected.reason.message).toBe('Bu ayki 20 video hakkını kullandın. Hak yeni ayda yenilenir. Daha fazlası için Kurumsal planı teklifle sunuluyor.');
     expect(prisma.row.videosUsedThisMonth).toBe(20);
   });
 

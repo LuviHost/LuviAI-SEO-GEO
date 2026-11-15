@@ -100,8 +100,11 @@ describe('GEO heatmap — aylik hak (soru basina 1 calistirma)', () => {
     (svc as any).askProvider = vi.fn(async () => 'cevap');
     const err = await svc.runForSite('s1').catch((e) => e);
     expect(err).toBeInstanceOf(ForbiddenException);
-    expect(err.message).toMatch(/hakkın doldu \(3\/3\)/);
+    // Denemenin hakki toplamdir: "yeni ayda yenilenir" denmez (QuotaService.citationQuotaError)
+    expect(err.message).toMatch(/hakkını kullandın \(3\/3\); deneme hakkı yenilenmez/);
     expect(err.message).not.toMatch(/BYOK/);
+    // AI testiyle ayni duvar: plan siniri kodu ve yukseltme yolu (panel plan penceresini acar)
+    expect(err.getResponse()).toMatchObject({ code: 'PLAN_LIMIT', upgrade: { kind: 'buy', planId: 'starter' } });
   });
 
   it('yalniz OLCULEN soru hak yer; maliyet kiraci defterine olculen hucre kadar yazilir', async () => {

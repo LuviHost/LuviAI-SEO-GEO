@@ -10,6 +10,7 @@ import type { Locale } from '@/lib/i18n';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { QueryCard, UnlockCta, isMeasuredRow, PROVIDER_LOGOS, PROVIDER_SHORT, type ProviderRow } from '@/components/citation/query-card';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { lockedEnginesFrom, planEngineCount, type PlanEngines } from '@/lib/locked-engines';
 import { openExplainer } from './explainer-dialog';
 import type { CheckerCopy } from './checker-copy';
 
@@ -78,6 +79,39 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
 
   const summary = useMemo(() => (result ? summarize(result) : null), [result]);
   const loading = phase === 'loading';
+
+  // Plan listesi (herkese acik uc): kilitli asistanlar ve "N AI motorunda" sayilari buradan
+  // (lib/locked-engines.ts). Katman acilirken (yukleme asamasinda) cekilir, sonuc geldiginde
+  // hazirdir. Okunamazsa kilitli asistan cizilmez; ekran eski haline duser.
+  const [plans, setPlans] = useState<PlanEngines[] | null>(null);
+  // Ucretsiz testin SORDUGU asistanlar (ayni yanit: freeTestEngines). Sonuctaki satirlardan
+  // cikarmak yetmez: saglayici duzeyinde dusen asistan (anahtar / kredi / emekli model) sonuca
+  // satir olarak HIC girmez ve "Ücretsiz Deneme planda ölçülür" diye kilitli cizilirdi
+  // (bagimsiz inceleme 15.11.2026). Alan yoksa (eski API) kilitli asistan gosterilmez.
+  const [freeEngines, setFreeEngines] = useState<string[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.getPlans(locale)
+      .then((r) => {
+        if (!alive) return;
+        setPlans(Array.isArray(r?.plans) ? r.plans : null);
+        const free = (r as { freeTestEngines?: unknown } | null)?.freeTestEngines;
+        setFreeEngines(Array.isArray(free) ? free.filter((x): x is string => typeof x === 'string') : null);
+      })
+      .catch(() => { /* kilitli asistan gosterilmez */ });
+    return () => { alive = false; };
+  }, [locale]);
+  const lockedEngines = useMemo(() => {
+    if (!result || !freeEngines) return [];
+    // Sorulan asistanlar: testin kapsami + sonuctaki satirlar (hata veren de sayilir; ona
+    // soruldu, kilitli degil)
+    const asked = [...freeEngines, ...result.queries.filter((q) => !q.locked).flatMap((q) => (q.providers as ProviderRow[]).map((p) => p.provider))];
+    return lockedEnginesFrom(plans, asked);
+  }, [plans, freeEngines, result]);
+  // Sayilar sunucudan; okunamazsa plans.ts'in her kurulumda gecerli tabani (4 / 6)
+  const unlockBody = c.unlockBody
+    .replace('{starter}', String(planEngineCount(plans, 'starter') ?? 4))
+    .replace('{pro}', String(planEngineCount(plans, 'pro') ?? 6));
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !loading) onReset(); }}>
@@ -150,7 +184,7 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
                           unlockedCount={result.access?.unlockedQueries ?? 0}
                           domain={result.domain}
                           onNavigate={onReset}
-                          labels={{ title: c.unlockTitle, body: c.unlockBody, cta: c.unlockCta, note: c.unlockNote }}
+                          labels={{ title: c.unlockTitle, body: unlockBody, cta: c.unlockCta, note: c.unlockNote }}
                         />
                       </div>
                     )}
@@ -161,7 +195,8 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
                       lang={locale}
                       isOpen={expandedQueries.has(idx)}
                       onToggle={() => toggleQuery(idx)}
-                      labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated, lockedHint: c.lockedHint }}
+                      labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated, lockedHint: c.lockedHint, lockedEngines: c.lockedEngines, lockedEnginesAria: c.lockedEnginesAria }}
+                      lockedEngines={lockedEngines}
                     />
                   </div>
                 ))}

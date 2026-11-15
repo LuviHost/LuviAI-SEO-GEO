@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import { decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { withUpgradePath } from '../billing/plan-limit.js';
 import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
 import { FREE_TEST_ENGINES, ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
 import type { ModelTier } from '../billing/plans.js';
@@ -530,14 +531,20 @@ export class AiCitationService {
     if (!(needed > 0)) return;
     const q = await this.quota.checkCitationQuota(userId);
     if (q.remaining >= needed) return;
-    if (q.remaining <= 0) {
-      throw new ForbiddenException(
-        `Aylık ${q.limit} AI görünürlük çalıştırması hakkın doldu (${q.used}/${q.limit}). Hak yeni ayda yenilenir; daha fazlası için planını yükseltebilirsin.`,
-      );
-    }
+    // Hak tamamen bittiyse AI testiyle AYNI duvar (QuotaService.citationQuotaError): plan
+    // siniri 403'u (kod + yukseltme yolu), panel plan penceresini acar. Eskiden buradaki duz
+    // 403 kirmizi bildirim olarak kaliyor ve her hesaba "planını yükseltebilirsin" diyordu.
+    // byokNote false: isi haritasi ve uygulama soru laboratuvari kendi anahtari kullanmaz.
+    if (q.remaining <= 0) throw await this.quota.citationQuotaError(userId, q, { byokNote: false });
+    // Hak var ama bu calistirmaya yetmiyor: musterinin kendi cozumu var (soru sayisini
+    // azaltmak), pencere acilmaz; ust plan yola gore ayrica soylenir (en ust planda soylenmez).
     throw new ForbiddenException(
-      `${label} bu çalıştırmada ${needed} AI görünürlük çalıştırması kullanır; bu ay ${q.remaining} hakkın kaldı (${q.used}/${q.limit}). ` +
-      'Soru sayısını azaltarak ya da planını yükselterek devam edebilirsin.',
+      withUpgradePath(
+        `${label} bu çalıştırmada ${needed} AI görünürlük çalıştırması kullanır; bu ay ${q.remaining} hakkın kaldı (${q.used}/${q.limit}). ` +
+        'Soru sayısını azaltarak devam edebilirsin.',
+        // Onerilen plan bu calistirmayi KALDIRMALI: aylik hakki kullanilan + gereken kadar olmali
+        await this.quota.citationUpgradeFor(userId, q.limit, q.used + needed - 1),
+      ),
     );
   }
 
