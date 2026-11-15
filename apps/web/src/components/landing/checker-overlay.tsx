@@ -84,19 +84,30 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
   // (lib/locked-engines.ts). Katman acilirken (yukleme asamasinda) cekilir, sonuc geldiginde
   // hazirdir. Okunamazsa kilitli asistan cizilmez; ekran eski haline duser.
   const [plans, setPlans] = useState<PlanEngines[] | null>(null);
+  // Ucretsiz testin SORDUGU asistanlar (ayni yanit: freeTestEngines). Sonuctaki satirlardan
+  // cikarmak yetmez: saglayici duzeyinde dusen asistan (anahtar / kredi / emekli model) sonuca
+  // satir olarak HIC girmez ve "Ücretsiz Deneme planda ölçülür" diye kilitli cizilirdi
+  // (bagimsiz inceleme 15.11.2026). Alan yoksa (eski API) kilitli asistan gosterilmez.
+  const [freeEngines, setFreeEngines] = useState<string[] | null>(null);
   useEffect(() => {
     let alive = true;
     api.getPlans(locale)
-      .then((r) => { if (alive) setPlans(Array.isArray(r?.plans) ? r.plans : null); })
+      .then((r) => {
+        if (!alive) return;
+        setPlans(Array.isArray(r?.plans) ? r.plans : null);
+        const free = (r as { freeTestEngines?: unknown } | null)?.freeTestEngines;
+        setFreeEngines(Array.isArray(free) ? free.filter((x): x is string => typeof x === 'string') : null);
+      })
       .catch(() => { /* kilitli asistan gosterilmez */ });
     return () => { alive = false; };
   }, [locale]);
   const lockedEngines = useMemo(() => {
-    if (!result) return [];
-    // Sorulan asistanlar: hata veren de sayilir (ona soruldu, kilitli degil)
-    const asked = result.queries.filter((q) => !q.locked).flatMap((q) => (q.providers as ProviderRow[]).map((p) => p.provider));
+    if (!result || !freeEngines) return [];
+    // Sorulan asistanlar: testin kapsami + sonuctaki satirlar (hata veren de sayilir; ona
+    // soruldu, kilitli degil)
+    const asked = [...freeEngines, ...result.queries.filter((q) => !q.locked).flatMap((q) => (q.providers as ProviderRow[]).map((p) => p.provider))];
     return lockedEnginesFrom(plans, asked);
-  }, [plans, result]);
+  }, [plans, freeEngines, result]);
   // Sayilar sunucudan; okunamazsa plans.ts'in her kurulumda gecerli tabani (4 / 6)
   const unlockBody = c.unlockBody
     .replace('{starter}', String(planEngineCount(plans, 'starter') ?? 4))

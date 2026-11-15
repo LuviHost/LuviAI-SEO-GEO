@@ -474,7 +474,12 @@ describe('ContentPivotService.scanAllSites — otomatik yeniden yazim makale hak
     const metin = pivotBlockText('quota_exhausted');
     expect(metin).toContain('Bu ayki makale hakkın doldu');
     expect(metin).toContain('otomatik yeniden yazım da makale hakkından bir makale düştüğü için başlatılmadı');
-    expect(metin).toContain('Hak yeni ayda ya da planını yükselttiğinde yenilenir');
+    // En ust plana da giden metin: yukseltme onerisi yok (15.11.2026), yalniz yenilenme
+    expect(metin).toContain('Hak yeni ayda yenilenir;');
+    expect(metin).not.toMatch(/yükselt/);
+    expect(pivotBlockText('allowance_reserved')).not.toMatch(/yükselt/);
+    // Plani biten musteriye "Ücretsiz deneme hesabı" denmez; acan plan adiyla soylenir
+    expect(pivotBlockText('trial_plan')).toBe('Hesabın deneme düzeyinde; otomatik yeniden yazım Profesyonel ve üzeri planlarda çalışır (deneme düzeyinde yapay zekâ toplam 2 makale üretir).');
     expect(metin).toContain('sonraki haftalık taramada yeniden değerlendirilir');
   });
 

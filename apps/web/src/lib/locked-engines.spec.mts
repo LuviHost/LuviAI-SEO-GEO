@@ -94,6 +94,28 @@ describe('sonuc ekrani baglantisi', () => {
     expect(overlay).toContain('lockedEngines={lockedEngines}');
   });
 
+  // Bagimsiz inceleme (15.11.2026): saglayici duzeyinde dusen asistan sonuca satir olarak girmez.
+  // "Sorulanlar" yalniz satirlardan cikarilirsa o asistan, onu listeleyen ILK planin (deneme)
+  // adiyla kilitli cizilirdi: "Gemini — Ücretsiz Deneme planda ölçülür".
+  it('testin kapsamindaki asistan sonucta satir olarak yoksa da kilitli SAYILMAZ', () => {
+    const satirlar = ['openai', 'anthropic', 'perplexity']; // gemini saglayici duzeyinde dustu
+    expect(lockedEnginesFrom(PLANS, satirlar).map((e) => `${e.provider}@${e.planName}`)).toContain('gemini@Deneme');
+    expect(lockedEnginesFrom(PLANS, [...FREE, ...satirlar])).toEqual([
+      { provider: 'xai', planName: 'Profesyonel' },
+      { provider: 'deepseek', planName: 'Profesyonel' },
+      { provider: 'meta', planName: 'Profesyonel' },
+    ]);
+    // Ekran: kapsam ayni yanittan (freeTestEngines); alan yoksa hic kilitli asistan cizilmez
+    expect(overlay).toContain('freeTestEngines');
+    expect(overlay).toContain('if (!result || !freeEngines) return [];');
+    expect(overlay).toContain('const asked = [...freeEngines, ...result.queries');
+  });
+
+  it('kilitli grup dar ekranda tasmaz: kendi icinde alt satira inebilir', () => {
+    const blok = card.slice(card.indexOf('{lockedGroups.map('), card.indexOf('<ResponsesToggle'));
+    expect(blok).toContain('flex min-w-0 flex-wrap items-center');
+  });
+
   it('kilitli asistan bir sonuc gibi cizilmez: kilit rozeti var, sayiya girmez', () => {
     const blok = card.slice(card.indexOf('{lockedGroups.map('), card.indexOf('<ResponsesToggle'));
     expect(blok).toContain('<Lock ');

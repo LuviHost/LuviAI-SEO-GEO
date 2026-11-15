@@ -217,15 +217,20 @@ export function pivotBlockText(block: PivotBlock, labels: string[] = [], at?: Da
     case 'not_published':
       return 'Yazı artık yayında değil; otomatik yeniden yazım başlatılmadı.';
     case 'trial_plan':
-      return 'Ücretsiz deneme hesabında otomatik yeniden yazım yapılmaz (denemede yapay zekâ toplam 2 makale üretir); planını yükselttiğinde başlar.';
+      // Bu engel cogunlukla plani BITEN musteride cikar (is kuyruktayken plan deneme duzeyine
+      // dustu): "Ücretsiz deneme hesabında" ona yanlis hitapti; "planını yükselttiğinde başlar"
+      // da Baslangic icin yanlisti (makale uretimi yok). Metin acan plani soyler (15.11.2026).
+      return `Hesabın deneme düzeyinde; otomatik yeniden yazım ${articleOfferPlan().name_tr} ve üzeri planlarda çalışır (deneme düzeyinde yapay zekâ toplam 2 makale üretir).`;
     case 'no_article_plan':
       return `Bu pakette makale üretimi yok; otomatik yeniden yazım ${articleOfferPlan().name_tr} ve üzeri planlarda çalışır.`;
     case 'quota_exhausted':
-      return 'Bu ayki makale hakkın doldu; otomatik yeniden yazım da makale hakkından bir makale düştüğü için başlatılmadı. Hak yeni ayda ya da planını yükselttiğinde yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.';
+      // "ya da planını yükselttiğinde" kalkti (15.11.2026): en ust planda yukseltilecek plan
+      // yok, Profesyonel'in ustu yalniz teklifle. Her planda dogru olan: hak yeni ayda yenilenir.
+      return 'Bu ayki makale hakkın doldu; otomatik yeniden yazım da makale hakkından bir makale düştüğü için başlatılmadı. Hak yeni ayda yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.';
     case 'allowance_not_charged':
       return 'Bu otomatik yeniden yazım işi için makale hakkı düşülmemiş; iş çalıştırılmadı. Yazı sonraki haftalık taramada yeniden değerlendirilir.';
     case 'allowance_reserved':
-      return 'Kalan makale hakkın takvimde üretilmeyi bekleyen yazılarına ayrılı; otomatik yeniden yazım o hakkı kullanmaz. Hak yeni ayda ya da planını yükselttiğinde yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.';
+      return 'Kalan makale hakkın takvimde üretilmeyi bekleyen yazılarına ayrılı; otomatik yeniden yazım o hakkı kullanmaz. Hak yeni ayda yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.';
     case 'budget_exhausted':
       return 'Aylık AI kullanım bütçen doldu; otomatik yeniden yazım başlatılmadı ve makale hakkından düşülmedi. Bütçe yeni ayın başında sıfırlanır; yazı sonraki haftalık taramada yeniden değerlendirilir.';
   }

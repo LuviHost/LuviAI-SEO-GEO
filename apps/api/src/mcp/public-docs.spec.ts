@@ -1584,7 +1584,7 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     expect(dus).toContain('where: { id: userId, articlesUsedThisMonth: { lt: limit } }');
     // Engel metni: hak yenilenince sonraki haftalik tarama alir ("bekler" iddiasinin dayanagi)
     expect(pivotSrc).toContain("case 'quota_exhausted':");
-    expect(pivotSrc).toContain('Hak yeni ayda ya da planını yükselttiğinde yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.');
+    expect(pivotSrc).toContain('Hak yeni ayda yenilenir; yazı sonraki haftalık taramada yeniden değerlendirilir.');
 
     const TR = 'otomatik yeniden yazılan makale aylık makale hakkından bir makale düşer, hakkın dolduysa yeniden yazım hak yenilenene kadar bekler';
     expect(faq).toContain(`Yarı otomatikte yeni hali onayını bekler; ${TR}, (6)`);

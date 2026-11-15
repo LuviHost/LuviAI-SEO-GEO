@@ -217,7 +217,9 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels, locke
             key={g.planName}
             role="group"
             aria-label={labels.lockedEnginesAria}
-            className="flex items-center gap-3 border-l border-border pl-3"
+            // flex-wrap + min-w-0: dar telefonda (360px ve alti) grup karttan tasmasin; kutular
+            // ve not grubun icinde alt satira iner (bagimsiz inceleme 15.11.2026)
+            className="flex min-w-0 flex-wrap items-center gap-3 border-l border-border pl-3"
           >
             {g.providers.map((provider) => (
               <div key={provider} className="flex flex-col items-center gap-1">

@@ -11,7 +11,7 @@ import { LAPSED_LEAD, planLimitError, upgradeOfferFor, withUpgradePath, type Upg
 import { hasEverPaid } from './ever-paid.js';
 import { periodEndFromInvoice, shouldDowngrade } from './subscription-period.js';
 import {
-  hasGenerationSource, requiresGenerationSource, TRIAL_SOURCE_REQUIRED_CODE, TRIAL_SOURCE_REQUIRED_MESSAGE, type GenerationReadiness,
+  hasGenerationSource, requiresGenerationSource, LAPSED_SOURCE_REQUIRED_MESSAGE, TRIAL_SOURCE_REQUIRED_CODE, TRIAL_SOURCE_REQUIRED_MESSAGE, type GenerationReadiness,
 } from './trial-policy.js';
 
 /**
@@ -269,7 +269,7 @@ export class QuotaService {
     if (!allowed) throw await this.articleQuotaError(userId, user.plan, limit);
     // Deneme: uretim yalniz sitede kaynak (yayin hedefi) bagliyken (trial-policy.ts).
     // siteId ZORUNLU parametre: yeni bir uretim yolu bu kapiyi atlayamasin.
-    const readiness = await this.generationReadinessFor(user.plan, siteId);
+    const readiness = await this.generationReadinessFor(user.plan, siteId, userId);
     if (!readiness.ready) {
       throw new ForbiddenException({ statusCode: 403, message: readiness.message, code: TRIAL_SOURCE_REQUIRED_CODE });
     }
@@ -294,7 +294,7 @@ export class QuotaService {
    */
   async generationReadiness(userId: string, siteId: string): Promise<GenerationReadiness> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
-    return this.generationReadinessFor(user.plan, siteId);
+    return this.generationReadinessFor(user.plan, siteId, userId);
   }
 
   /**
@@ -312,14 +312,17 @@ export class QuotaService {
     await this.enforceAiCostBudget(userId);
   }
 
-  private async generationReadinessFor(plan: string, siteId: string): Promise<GenerationReadiness> {
+  private async generationReadinessFor(plan: string, siteId: string, userId: string): Promise<GenerationReadiness> {
     if (!requiresGenerationSource(plan)) return { requiresSource: false, ready: true, message: null };
     const targets = await this.prisma.publishTarget.findMany({
       where: { siteId, isActive: true },
       select: { type: true, isActive: true },
     });
     const ready = hasGenerationSource(targets);
-    return { requiresSource: true, ready, message: ready ? null : TRIAL_SOURCE_REQUIRED_MESSAGE };
+    if (ready) return { requiresSource: true, ready, message: null };
+    // Plani biten eski musteri deneme DUZEYINDEDIR: "Ücretsiz denemede" hitabi ona gitmez
+    const message = (await this.isLapsed(userId, plan)) ? LAPSED_SOURCE_REQUIRED_MESSAGE : TRIAL_SOURCE_REQUIRED_MESSAGE;
+    return { requiresSource: true, ready, message };
   }
 
   /**
@@ -687,13 +690,33 @@ export class QuotaService {
         429,
       );
     }
+    // Onerilen planin gercekten yer acmasi icin esik (inceleme 15.11.2026): plani biten musteri
+    // deneme sayacina gecer ama bu ayin UCRETLI sayaci yerinde durur; ayni ay yeniden plan
+    // alinca o sayaca doner. Bu ay 480 mesaj atmis eski Profesyonel hesaba "Başlangıç'ta ayda
+    // 100" denmez.
+    const floor = Math.max(limit, await this.paidMonthChatUsage(user.id, plan, now));
     throw new ForbiddenException({
       statusCode: 403,
-      message: this.chatLimitMessage(plan, limit, await this.isLapsed(user.id, plan)),
+      message: this.chatLimitMessage(plan, limit, await this.isLapsed(user.id, plan), floor),
       code: CHAT_MESSAGE_LIMIT_CODE,
       // chatLimitMessage ile ayni kural: yalniz kartla alinabilen ust plan onerilir
-      upgrade: upgradeOfferFor(plan, (p) => p.chatMessagesPerMonth > limit, { purchasableOnly: true }),
+      upgrade: upgradeOfferFor(plan, (p) => p.chatMessagesPerMonth > floor, { purchasableOnly: true }),
     });
+  }
+
+  /**
+   * Deneme duzeyindeki hesabin BU AYKI ucretli sohbet sayaci (plan alinca donecegi sayac).
+   * Ucretli planda 0 doner (kendi sayaci zaten limitle karsilastirildi). Okunamazsa 0.
+   */
+  private async paidMonthChatUsage(userId: string, plan: string, now: Date): Promise<number> {
+    if (plan !== 'TRIAL') return 0;
+    try {
+      const { key } = this.chatCounterKey(userId, 'PAID', now);
+      const row = await this.prisma.kvStore.findUnique({ where: { key }, select: { value: true } });
+      return counterValue(row?.value);
+    } catch {
+      return 0;
+    }
   }
 
   /**
@@ -744,8 +767,9 @@ export class QuotaService {
    * Deneme hakki yenilenmez; Baslangic → Profesyonel soylenir; Profesyonel ve ustunde
    * yukseltme VAAT EDILMEZ (Kurumsal teklifle), yalniz yenilenme.
    */
-  private chatLimitMessage(plan: string, limit: number, lapsed = false): string {
-    const ust = this.upgradeOffers(plan).filter((p) => p.chatMessagesPerMonth > limit);
+  private chatLimitMessage(plan: string, limit: number, lapsed = false, floor = limit): string {
+    // floor: onerilen planin asmasi gereken esik (consumeChatMessageSlot; dugmeyle ayni)
+    const ust = this.upgradeOffers(plan).filter((p) => p.chatMessagesPerMonth > floor);
     const teklif = ust.map((p) => `${p.name_tr} planında ayda ${fmtCount(p.chatMessagesPerMonth)}`).join(', ');
     if (plan === 'TRIAL') {
       // Plani biten eski musteri deneme DUZEYINDEDIR, deneme hesabi degildir (15.11.2026)
@@ -959,14 +983,22 @@ export class QuotaService {
     // "yeni ayda yenilenir" denemede yanlisti ve bu cumle artik plan penceresinin
     // basliginin altinda gorunuyor (inceleme 15.11.2026). Ucretli plana gecince ilk
     // kontrol sayaci sifirlar; yol bu yuzden limite gore.
-    const upgrade = this.citationUpgrade(plan, limit);
+    // Yol KULLANIMA da bakar (inceleme 15.11.2026): plan alinca sayac sifirlanmaz (yalniz ay
+    // donumunde). Bu ay 30 calistirma yapip plani biten hesaba Baslangic (20) onerilirse
+    // satin alir, 30/20 ile duvar yerinde kalir.
+    const upgrade = this.citationUpgrade(plan, limit, used);
     // Ucretli planda yol dugmeyle ayni karardan (en ust planda yukseltme onerilmez);
-    // plani biten eski musteriye "Deneme hesabı" denmez (15.11.2026)
+    // plani biten eski musteriye "Deneme hesabı" denmez (15.11.2026). Deneme duzeyinde son
+    // cumle de dugmenin soyledigi plani soyler (eskiden "bir plan seçebilirsin").
     const hak = plan !== 'TRIAL'
       ? withUpgradePath(`Aylık ${limit} AI görünürlük çalıştırması hakkın doldu (${used}/${limit}). Hak yeni ayda yenilenir.`, upgrade)
-      : (await this.isLapsed(userId, plan))
-        ? `${LAPSED_LEAD} ve bu düzeydeki ${limit} AI görünürlük çalıştırması hakkını kullandın (${used}/${limit}); bu hak yenilenmez. Devam etmek için bir plan seçebilirsin.`
-        : `Deneme hesabındaki ${limit} AI görünürlük çalıştırması hakkını kullandın (${used}/${limit}); deneme hakkı yenilenmez. Devam etmek için bir plan seçebilirsin.`;
+      : withUpgradePath(
+        (await this.isLapsed(userId, plan))
+          ? `${LAPSED_LEAD} ve bu düzeydeki ${limit} AI görünürlük çalıştırması hakkını kullandın (${used}/${limit}); bu hak yenilenmez.`
+          : `Deneme hesabındaki ${limit} AI görünürlük çalıştırması hakkını kullandın (${used}/${limit}); deneme hakkı yenilenmez.`,
+        upgrade,
+        'Devam etmek için',
+      );
     if (!opts.byokNote) return planLimitError(hak, upgrade);
     // Eski metin "BYOK ile sinirsiz" diyordu; iki yanlis: BYOK yalniz Kurumsal
     // planda (plans.ts FEATURE_MIN_PLAN.byok) ve kendi anahtarla olcum de
@@ -974,21 +1006,36 @@ export class QuotaService {
     // dolunca BYOK saglayicilari kosmaya devam eder (ai-citation.service.ts),
     // sinirsiz olmaz. Hak her takvim ayinda sifirlanir (maybeResetCitationQuota).
     const byokPlan = findPlan(FEATURE_MIN_PLAN.byok)?.name_tr ?? 'Kurumsal';
+    // BYOK'u zaten olan hesaba "Kurumsal planda …" denmez: kendi planinin tanitimi gibi okunur
+    const byokSahibi = planHasFeature(String(plan ?? '').toLowerCase() as PlanId, 'byok');
     return planLimitError(
       `${hak} ` +
-      `${byokPlan} planda kendi API anahtarlarını (BYOK) bağlarsan havuz kotası dolduğunda da ölçüm bu anahtarlarla sürer; haftalık ölçüm hakkı yine geçerlidir.`,
+      `${byokSahibi ? 'Kendi' : `${byokPlan} planda kendi`} API anahtarlarını (BYOK) bağlarsan havuz kotası dolduğunda da ölçüm bu anahtarlarla sürer; haftalık ölçüm hakkı yine geçerlidir.`,
       upgrade,
     );
   }
 
-  /** Aylik calistirma tavanini kaldiran plan (plan-limit.ts); metin ve dugme ayni karari okur */
-  citationUpgrade(plan: string | null | undefined, limit: number): UpgradeOffer {
-    return upgradeOfferFor(plan, (p) => p.aiRunsPerMonth > limit);
+  /**
+   * Aylik calistirma tavanini kaldiran plan (plan-limit.ts); metin ve dugme ayni karari okur.
+   * `mustExceed`: planin aylik hakkinin ASMASI gereken sayi; verilmezse limit. Kullanim limitin
+   * ustundeyse (plani biten hesap) kullanim esas alinir.
+   */
+  citationUpgrade(plan: string | null | undefined, limit: number, mustExceed = limit): UpgradeOffer {
+    const esik = Math.max(limit, mustExceed);
+    return upgradeOfferFor(plan, (p) => p.aiRunsPerMonth > esik);
   }
 
-  /** Hesabin planina gore ayni yol (audit/ai-citation.service assertCitationRuns icin) */
-  async citationUpgradeFor(userId: string, limit: number): Promise<UpgradeOffer> {
-    return this.citationUpgrade(await this.planOf(userId), limit);
+  /**
+   * Hesabin planina gore ayni yol (audit/ai-citation.service assertCitationRuns icin).
+   * Plan okunamazsa oneri yok ('wait'): metnin yol cumlesi yuzunden 403, 500'e donmesin.
+   */
+  async citationUpgradeFor(userId: string, limit: number, mustExceed = limit): Promise<UpgradeOffer> {
+    try {
+      return this.citationUpgrade(await this.planOf(userId), limit, mustExceed);
+    } catch (err: any) {
+      this.log.warn(`[${userId}] Plan okunamadi, calistirma siniri metni onerisiz yazildi: ${err?.message ?? err}`);
+      return { kind: 'wait', planId: null, planName: null };
+    }
   }
 
   async incrementCitationUsage(userId: string): Promise<void> {

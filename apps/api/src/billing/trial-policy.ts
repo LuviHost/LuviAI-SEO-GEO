@@ -178,6 +178,13 @@ export function requiresGenerationSource(plan: string | null | undefined): boole
 export const TRIAL_SOURCE_REQUIRED_MESSAGE =
   'Ücretsiz denemede makale üretmek için önce sitene bir yayın hedefi bağla (WordPress ya da Markdown ZIP). Yayın Hedefleri sayfasından birkaç adımda ekleyebilirsin.';
 
+/**
+ * Ayni sart, plani biten ESKI musteriye (hesap deneme duzeyinde ama deneme hesabi degil;
+ * inceleme 15.11.2026): "Ücretsiz denemede" hitabi yok.
+ */
+export const LAPSED_SOURCE_REQUIRED_MESSAGE =
+  'Makale üretmek için önce sitene bir yayın hedefi bağla (WordPress ya da Markdown ZIP). Yayın Hedefleri sayfasından birkaç adımda ekleyebilirsin.';
+
 /** 403 govdesindeki makine kodu */
 export const TRIAL_SOURCE_REQUIRED_CODE = 'TRIAL_SOURCE_REQUIRED';
 

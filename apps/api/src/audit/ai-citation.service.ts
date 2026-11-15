@@ -542,7 +542,8 @@ export class AiCitationService {
       withUpgradePath(
         `${label} bu çalıştırmada ${needed} AI görünürlük çalıştırması kullanır; bu ay ${q.remaining} hakkın kaldı (${q.used}/${q.limit}). ` +
         'Soru sayısını azaltarak devam edebilirsin.',
-        await this.quota.citationUpgradeFor(userId, q.limit),
+        // Onerilen plan bu calistirmayi KALDIRMALI: aylik hakki kullanilan + gereken kadar olmali
+        await this.quota.citationUpgradeFor(userId, q.limit, q.used + needed - 1),
       ),
     );
   }
