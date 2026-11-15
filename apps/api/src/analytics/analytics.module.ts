@@ -4,6 +4,7 @@ import { AnalyticsService } from './analytics.service.js';
 import { AnalyticsCron } from './analytics.cron.js';
 import { GaService } from './ga.service.js';
 import { ReportsService } from './reports.service.js';
+import { MonthlyReportCron } from './monthly-report.cron.js';
 import { SiteReportService } from './site-report.service.js';
 import { GoogleAiSurfaceService } from './google-ai-surface.service.js';
 import { SearchOpportunityService } from './search-opportunity.service.js';
@@ -25,7 +26,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 @Module({
   imports: [AuditModule, AuthModule, PrismaModule],
   controllers: [AnalyticsController, LandingAnalyticsController, LookerController],
-  providers: [GscLiveService, AnalyticsService, AnalyticsCron, GaService, ReportsService, SiteReportService, LandingAnalyticsService, GoogleAiSurfaceService, SearchOpportunityService, AiTrafficService],
+  providers: [GscLiveService, AnalyticsService, AnalyticsCron, GaService, ReportsService, MonthlyReportCron, SiteReportService, LandingAnalyticsService, GoogleAiSurfaceService, SearchOpportunityService, AiTrafficService],
   exports: [GscLiveService, AnalyticsService, GaService, ReportsService, SiteReportService, LandingAnalyticsService],
 })
 export class AnalyticsModule {}

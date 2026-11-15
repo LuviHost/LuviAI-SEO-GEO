@@ -1,4 +1,4 @@
-import { duzen, h, p, liste, bilgiKutusu, kacisla } from '../email/email-layout.js';
+import { duzen, h, p, liste, bilgiKutusu, kacisla, baglanti } from '../email/email-layout.js';
 
 /**
  * Hesap silme e-postalari — talep ani ve silme tamamlandiginda.
@@ -56,7 +56,8 @@ export function deletionRequestedEmail(o: {
       `Sitelerin, içeriklerin ve raporların dahil tüm verilerin <strong>${kacisla(o.purgeAfterText)}</strong> tarihinden sonra kalıcı olarak silinecek.`,
       'Fatura ve ödeme kayıtları, vergi ve ticaret mevzuatı gereği saklanması zorunlu olduğundan kişisel bağlantısı kaldırılarak saklanır.',
     ]) +
-    bilgiKutusu('Bu talebi sen yapmadıysan', `Hemen <a href="mailto:${DESTEK}">${DESTEK}</a> adresine yaz.`);
+    // Baglanti rengi ACIKCA verilir (baglanti): koyu kutuda istemcinin varsayilan mavisi okunmuyordu
+    bilgiKutusu('Bu talebi sen yapmadıysan', `Hemen ${baglanti(DESTEK, `mailto:${DESTEK}`)} adresine yaz.`);
   return { subject, html: duzen(subject, govde, { onizleme: `Verilerin ${o.purgeAfterText} tarihinden sonra kalıcı olarak silinecek.`, baseUrl: o.baseUrl }) };
 }
 

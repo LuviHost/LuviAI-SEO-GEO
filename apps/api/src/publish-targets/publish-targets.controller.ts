@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { SessionOnly } from '../auth/session-only.decorator.js';
 import { PublishTargetsService } from './publish-targets.service.js';
@@ -15,13 +15,15 @@ export class PublishTargetsController {
   constructor(private readonly service: PublishTargetsService) {}
 
   /**
-   * GET /api/publish-targets/catalog — desteklenen hedef tipleri (form alanları ile).
+   * GET /api/publish-targets/catalog[?siteId=…] — desteklenen hedef tipleri (form alanları ile).
    * Auth required: session/user role'üne göre admin-only hedefler (KOBIPRATIK) filtrelenir.
+   * siteId verilirse sitenin sahibinin planinda EKLENEMEYEN turler `locked` + `upgrade` +
+   * `lockedReason` ile isaretlenir (15.11.2026; panel kutuyu kilitli cizer).
    */
   @Get('publish-targets/catalog')
-  catalog(@Req() req: Request) {
+  catalog(@Req() req: Request, @Query('siteId') siteId?: string) {
     const user = ensureUser(req);
-    return PublishTargetsService.getTypeCatalog({ isAdmin: user.role === 'ADMIN' });
+    return this.service.catalogFor(typeof siteId === 'string' && siteId ? siteId : undefined, user);
   }
 
   /**

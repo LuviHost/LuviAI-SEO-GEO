@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   duzen, dugme, olcuSatiri, bilgiKutusu, kacisla, h, etiket, p, liste, baglanti,
-  kahramanOlcu, karsilastirmaCubugu, sutunGrafik, bolucu, MARKA,
+  kahramanOlcu, sutunGrafik, ekranKarti, ekranBolucu, MARKA, FONT,
 } from './email-layout.js';
 import { ENGINE_LABELS, articleOfferPlan, planEngines } from '../billing/plans.js';
 
@@ -27,6 +27,25 @@ export const MAKALE_PLANI: string = articleOfferPlan().name_tr;
 
 /** Deneme bitisi e-postalarinin ortak cumle parcasi: plan ne kazandirir */
 const PLAN_KAZANCI = `Daha fazla site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda)`;
+/** Plan almak icin yazilacak adres — web lib/checkout-availability PURCHASE_CONTACT_EMAIL ile ayni kutu */
+export const PLAN_ILETISIM_EPOSTA = 'destek@luvihost.com';
+
+/**
+ * Kartla satin alma KAPALIYKEN (PayTR test modu) plan nasil alinir — d11, d13 ve "süren doldu"
+ * e-postalarinda AYNI cumle.
+ *
+ * NEDEN (sahip, 16.11.2026: "satın alma kapalı ama IBAN ile ödeme alıp üyelik başlatabilirim, o
+ * yüzden çalışmalı"): eski metin "Ödeme altyapımız şu an test aşamasında; satın alma açılana
+ * kadar kalan deneme haklarınla devam edebilirsin" diyordu. Musteri plan ALAMAYACAGINI saniyordu
+ * ve cumle ayni e-postadaki "bir plan seçebilirsin" ile celisiyordu. Gercek: kartla odeme
+ * kapali, plan yazarak alinir, odeme havale / EFT ile; plani sahip baslatir.
+ *
+ * HTML doner (baglanti); `p()` icinde kullanilir.
+ */
+export const HAVALE_YOLU = `Kartla ödeme altyapımız şu an test aşamasında: plan almak istersen ${baglanti(
+  'bize yaz',
+  `mailto:${PLAN_ILETISIM_EPOSTA}?subject=${encodeURIComponent('RanksUp planı')}`,
+)}, ödemeyi havale / EFT ile alıp planını başlatalım.`;
 
 export type EmailTemplate =
   | 'welcome_day0'
@@ -84,7 +103,28 @@ export function gscGunAraligi(from: string, to: string): string {
 export function denemeSonu(readOnlyAtEnd: unknown): string {
   return readOnlyAtEnd === true
     ? 'Deneme bittiğinde hesabın salt okunur olur: sitelerini, makalelerini ve raporlarını görmeye ve indirmeye devam edersin; yapay zekâ ile yeni üretim, ölçüm ve analiz için bir plan seçmen gerekir. Verilerin hesabında kalır.'
-    : 'Deneme bittiğinde yapay zekâ ile yeni üretim ve ölçüm için bir plan seçmen istenecek. Ödeme altyapımız şu an test aşamasında; satın alma açılana kadar kalan deneme haklarınla devam edebilirsin. Verilerin hesabında kalır.';
+    : `Deneme bittiğinde kalan deneme haklarınla devam edebilirsin; daha fazlası için plan gerekir. ${HAVALE_YOLU} Verilerin hesabında kalır.`;
+}
+
+/**
+ * Deneme BITTIKTEN sonra durum — `trial_expired` e-postasinin iki paragrafi (denemeSonu'nun
+ * simdiki zamanli ikizi; o "bittiğinde … olur" der, bu e-posta bittikten SONRA gider).
+ *
+ * readOnlyNow true: kartla satin alma ACIK, hesap su an salt okunur; plan panelden secilir.
+ * false/yok: kartla satin alma KAPALI (PayTR test modu), kilit yok: kalan deneme haklariyla
+ * devam edilir. Plan yine ALINABILIR — yazarak, havale / EFT ile (HAVALE_YOLU). Eskiden burada
+ * "satın alma açılana kadar…" yaziyordu; "bir plan seçebilirsin" cumlesiyle celisiyordu.
+ */
+export function denemeBitti(readOnlyNow: unknown): [string, string] {
+  return readOnlyNow === true
+    ? [
+        `Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor. ${PLAN_KAZANCI}; plan seçtiğinde kaldığın yerden devam edersin.`,
+        'Hesabın şu an salt okunur: sitelerini, makalelerini ve raporlarını görmeye ve indirmeye devam edersin; yapay zekâ ile yeni üretim, ölçüm ve analiz için bir plan seçmen gerekir. Verilerin hesabında kalır.',
+      ]
+    : [
+        `Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor; kalan deneme haklarınla devam edebilirsin. ${PLAN_KAZANCI}.`,
+        HAVALE_YOLU,
+      ];
 }
 
 /**
@@ -97,6 +137,9 @@ export function denemeSonu(readOnlyAtEnd: unknown): string {
  * Yerel gelistirme bozulmaz: hata firlatilmaz, konu loga yazilir.
  */
 export const EMAIL_STATUS_NO_PROVIDER = 'not_sent_no_provider';
+
+/** EmailLog.subject sutununun uzunlugu (prisma `String` = VARCHAR(191)) */
+export const EMAIL_LOG_SUBJECT_MAX = 191;
 
 /** Gonderilmemis sayilan kayit durumlari (karsilama kancasi tekrar deneyebilsin) */
 export const EMAIL_NOT_SENT_STATUSES = [EMAIL_STATUS_NO_PROVIDER, 'failed'] as const;
@@ -177,7 +220,12 @@ export class EmailService {
         return { ok: false };
       }
 
-      await this.logEmail(opts, subject, 'sent', result.data?.id ?? null);
+      // Gonderim BASARILI. Kayit yazilamazsa (gecici veritabani hatasi) sonuc "gitmedi"ye
+      // donmez: eskiden bu hata asagidaki catch'e dusuyor, GIDEN e-posta 'failed' sayiliyor ve
+      // cagiran (aylik rapor, "deneme süren doldu") ertesi gun AYNI e-postayi yeniden gonderiyordu.
+      await this.logEmail(opts, subject, 'sent', result.data?.id ?? null).catch((err: any) =>
+        this.log.error(`[EMAIL] ${opts.template} gonderildi ama kaydi yazilamadi: ${err?.message ?? err}`),
+      );
       return { ok: true, resendId: result.data?.id };
     } catch (err: any) {
       this.log.error(`Email send error: ${err.message}`);
@@ -261,7 +309,9 @@ export class EmailService {
         userId: opts.userId,
         to: opts.to,
         template: opts.template,
-        subject,
+        // EmailLog.subject VARCHAR(191): konu site adi / makale basligi tasir ve bunlar uzun
+        // olabilir. Kesilmezse kayit HER SEFERINDE hata verir (e-posta ise gitmistir).
+        subject: subject.slice(0, EMAIL_LOG_SUBJECT_MAX),
         status,
         resendId,
         metadata: opts.data as any,
@@ -283,6 +333,20 @@ export class EmailService {
    */
   private renderTemplate(template: EmailTemplate, data: Record<string, any>): { subject: string; html: string } {
     const name = kacisla(String(data.name ?? 'merhaba'));
+    // HAM ad — `h()` (baslik) ve konu satiri icin. `h`, `duzen`in <title>'i ve onizlemesi kendi
+    // kacislar; oralara kacislanmis `name` verilince cift kacislaniyordu: adinda ya da makale
+    // basliginda kesme isareti / & olan musteri "SEO&#39;da 5 Hata" goruyordu (konu satirinda da:
+    // konu duz metindir, HTML degil). Govde paragraflari (`p`) HTML alir; orada `name` kullanilir.
+    const adHam = String(data.name ?? 'merhaba');
+    // Adla baslayan baslik: h(adliBaslik`deneme süren doldu`) → "Ayşe, deneme süren doldu".
+    // Ad YOKSA (Apple ile giris yapan hesaplarda sik) ad ve virgul dusurulur, ilk harf buyur:
+    // "Deneme süren doldu". Eskiden "merhaba, deneme süren doldu" yaziyordu. Etiketli sablon
+    // olarak cagrilir; metinde degisken yoktur.
+    const adVar = typeof data.name === 'string' && data.name.trim().length > 0;
+    const adliBaslik = (parcalar: TemplateStringsArray) => {
+      const metin = parcalar.join('');
+      return adVar ? `${adHam.trim()}, ${metin}` : metin.charAt(0).toLocaleUpperCase('tr-TR') + metin.slice(1);
+    };
     const baseUrl = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
     const sayi = (n: any) => (typeof n === 'number' ? n.toLocaleString('tr-TR') : n ?? '—');
 
@@ -303,9 +367,9 @@ export class EmailService {
         // Asistan listesi plans.ts ile ayni: DENEME hesabinin olctugu dort asistan
         // (11.11.2026'ya kadar her planda ayni 6 asistandi; simdi Grok ve DeepSeek Profesyonel ve ustunde).
         return yap(
-          `RanksUp'a hoş geldin, ${name}`,
+          `RanksUp'a hoş geldin${adVar ? `, ${adHam.trim()}` : ''}`,
           'Hesabın hazır: 14 gün ücretsiz, kart gerekmez. İlk siteni bağlayınca tarama hemen başlar.',
-          h(`Hoş geldin, ${name}`) +
+          h(`Hoş geldin${adVar ? `, ${adHam.trim()}` : ''}`) +
             p('Hesabın oluşturuldu ve 14 günlük ücretsiz denemen başladı; kart bilgisi gerekmez. İlk siteni bağladığında seni şunlar bekliyor:') +
             liste([
               '<strong>SEO sağlık taraması</strong> — 14 kontrol, sayfa sayfa; siteni eklediğin anda başlar',
@@ -329,7 +393,7 @@ export class EmailService {
         return yap(
           'İlk makaleni başlattın mı?',
           'Siteni eklediysen konu başlıkların hazır; yayın hedefini bağlayıp ilk makaleni başlatabilirsin.',
-          h(`Selam ${name}`) +
+          h(`Selam${adVar ? ` ${adHam.trim()}` : ''}`) +
             p('Siteni eklediysen tarama tamamlanmış ve konu başlıkların takvimine yazılmıştır. Denemede yapay zekâ makaleyi kendiliğinden yazmaz: sitene bir yayın hedefi (ör. WordPress) bağla, sonra istediğin konuda “Şimdi üret” ile başlat. Denemede toplam 2 makale hakkın var.') +
             p('Siteni henüz eklemediysen, eklediğin anda SEO taraması hemen başlar ve konu başlıkların hazırlanır.') +
             dugme('Panele git', `${baseUrl}/dashboard`) +
@@ -343,7 +407,7 @@ export class EmailService {
         return yap(
           'Search Console bağlantısını yaptın mı?',
           'GSC bağlanınca konu önerileri tahminle değil, gerçek arama verisiyle üretilir.',
-          h(`${name}, Search Console'u bağladın mı?`) +
+          h(adliBaslik`Search Console'u bağladın mı?`) +
             p(`Google Search Console'u bağladığında ${kacisla(String(data.gscBenefit ?? 'konu önerileri tahminle değil, sitenin gerçek arama verisiyle üretilir'))}. Zaten bağladıysan yapman gereken bir şey yok.`) +
             bilgiKutusu(
               'Neden önemli',
@@ -356,7 +420,7 @@ export class EmailService {
         return yap(
           'İlk hafta nasıl geçti?',
           'Bir sorun ya da eksik gördüysen bu maili yanıtlaman yeterli.',
-          h(`${name}, ilk hafta doldu`) +
+          h(adliBaslik`ilk hafta doldu`) +
             // Sayi yalniz verildiyse yazilir: email.cron.ts articleCount gecirmiyor,
             // eski "birkac" yedegi hic makale uretmemis kullaniciya da gidiyordu
             (typeof data.articleCount === 'number' ? p(`Şu ana kadar ${sayi(data.articleCount)} makale üretildi.`) : '') +
@@ -383,7 +447,7 @@ export class EmailService {
         return yap(
           'Deneme süreni bitmesine 3 gün kaldı',
           `Daha fazla site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda).`,
-          h(`${name}, deneme süreni bitmesine 3 gün kaldı`) +
+          h(adliBaslik`deneme süreni bitmesine 3 gün kaldı`) +
             p(`14 günlük ücretsiz denemenin 11 günü doldu. ${PLAN_KAZANCI}; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.`) +
             p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),
@@ -393,7 +457,7 @@ export class EmailService {
         return yap(
           'Deneme süren yarın bitiyor',
           'Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.',
-          h(`${name}, deneme süren yarın bitiyor`) +
+          h(adliBaslik`deneme süren yarın bitiyor`) +
             p(`${PLAN_KAZANCI}. Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır; kaldığın yerden devam edersin.`) +
             p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),
@@ -403,27 +467,30 @@ export class EmailService {
         return yap(
           'Deneme süren doldu',
           'Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor.',
-          h(`${name}, deneme süren doldu`) +
-            p(`Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor. ${PLAN_KAZANCI}; plan seçtiğinde kaldığın yerden devam edersin.`) +
-            p(denemeSonu(data.readOnlyAtEnd)) +
+          h(adliBaslik`deneme süren doldu`) +
+            // Deneme BITTI: gelecek zamanli "bittiğinde … olur" degil, simdiki durum; kartla satin
+            // alma kapaliyken plan yazarak, havale ile alinir (denemeBitti, HAVALE_YOLU)
+            denemeBitti(data.readOnlyAtEnd).map((paragraf) => p(paragraf)).join('') +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 
       case 'first_article_published':
         return yap(
           'İlk makalen yayına hazır',
-          `${kacisla(String(data.title ?? ''))} — editörden geçti, onayını bekliyor.`,
-          h('İlk makalen hazır') +
+          // Onizleme metnini duzen kacislar (adHam aciklamasi): ham baslik
+          `${String(data.title ?? '')} — editörden geçti, onayını bekliyor.`,
+          // Veri ustte, ekran kartinda (email-layout.ts kompozisyonu); sonra baslik, metin, dugme
+          olcuSatiri([
+            { etiket: 'Kelime', deger: sayi(data.wordCount) },
+            { etiket: 'FAQ', deger: sayi(data.faqs ?? 0) },
+            { etiket: 'Editör skoru', deger: data.editorScore != null ? `${data.editorScore}/${EDITOR_SCORE_MAX}` : null },
+          ]) +
+            h('İlk makalen hazır') +
             p(`<strong>${kacisla(String(data.title ?? ''))}</strong> editörden geçti ve <strong>yayına hazır</strong>.`) +
             bilgiKutusu(
               'Henüz yayında değil',
               'İncelemen ve onayın gerekiyor. Düzenleyebilir, yayın hedefini seçebilir, sonra yayına alabilirsin.',
             ) +
-            olcuSatiri([
-              { etiket: 'Kelime', deger: sayi(data.wordCount) },
-              { etiket: 'FAQ', deger: sayi(data.faqs ?? 0) },
-              { etiket: 'Editör skoru', deger: data.editorScore != null ? `${data.editorScore}/${EDITOR_SCORE_MAX}` : null },
-            ]) +
             dugme('Makaleyi aç ve incele', String(data.publicUrl ?? `${baseUrl}/dashboard`)) +
             // Deneme planinda yayin hedefi yalniz Markdown ZIP + WordPress REST
             // (QuotaService.LIMITS.TRIAL); "WordPress/FTP" denemede FTP'yi vaat ediyordu
@@ -441,24 +508,26 @@ export class EmailService {
         const guncelleme = data.liveUpdate === true;
         return yap(
           guncelleme
-            ? `Güncelleme onayını bekliyor: ${kacisla(String(data.title ?? ''))}`
-            : `Makalen hazır: ${kacisla(String(data.title ?? ''))}`,
+            ? `Güncelleme onayını bekliyor: ${String(data.title ?? '')}`
+            : `Makalen hazır: ${String(data.title ?? '')}`,
           guncelleme
             ? 'Yayındaki yazının güncellenmiş hali onayını bekliyor; onaylayana kadar eski hali yayında kalır.'
             : 'Editörden geçti, onayını bekliyor.',
-          etiket(guncelleme ? 'Güncelleme onay bekliyor' : 'Onay bekliyor') +
-            h(kacisla(String(data.title ?? 'Makalen hazır'))) +
+          olcuSatiri([
+            { etiket: 'Kelime', deger: sayi(data.wordCount) },
+            { etiket: 'FAQ', deger: sayi(data.faqs ?? 0) },
+            { etiket: 'Editör', deger: data.editorScore != null ? `${data.editorScore}/${EDITOR_SCORE_MAX}` : null },
+            ...(!guncelleme && typeof data.articlesPublished === 'number'
+              // Tek satir etiket ("7." / "Bu sitede" = bu sitedeki 7. makale): eskiden alt satirda
+              // ayrica "makale" yaziyor, dar sutunda etiket iki satira iniyordu
+              ? [{ etiket: 'Bu sitede', deger: `${data.articlesPublished}.` as string | number | null }]
+              : []),
+          ]) +
+            etiket(guncelleme ? 'Güncelleme onay bekliyor' : 'Onay bekliyor') +
+            h(String(data.title ?? 'Makalen hazır')) +
             p(guncelleme
               ? 'Editörden geçti. <strong>Yayındaki yazının güncellenmiş hali onayını bekliyor</strong>; onaylayana kadar eski hali yayında kalır.'
               : 'Editörden geçti ve onayını bekliyor. <strong>Henüz yayında değil</strong> — inceleyip yayına alman gerekiyor.') +
-            olcuSatiri([
-              { etiket: 'Kelime', deger: sayi(data.wordCount) },
-              { etiket: 'FAQ', deger: sayi(data.faqs ?? 0) },
-              { etiket: 'Editör', deger: data.editorScore != null ? `${data.editorScore}/${EDITOR_SCORE_MAX}` : null },
-              ...(!guncelleme && typeof data.articlesPublished === 'number'
-                ? [{ etiket: 'Bu sitede', deger: `${data.articlesPublished}.` as string | number | null, alt: 'makale' }]
-                : []),
-            ]) +
             dugme(guncelleme ? 'Güncellemeyi incele' : 'Makaleyi incele', String(data.publicUrl ?? `${baseUrl}/dashboard`)),
         );
       }
@@ -472,12 +541,8 @@ export class EmailService {
         return yap(
           `Haftalık rapor: ${sayi(tik)} tıklama`,
           `${sayi(tik)} tıklama, ${sayi(gos)} gösterim, ${sayi(data.articlesPublished ?? 0)} yeni makale.`,
-          etiket('Haftalık rapor') +
-            h('Bu hafta') +
-            // GSC ~2-3 gun gecikmeli: hangi gunlerin sayildigi acikca yazilir
-            (typeof data.dataFrom === 'string' && typeof data.dataTo === 'string'
-              ? p(`Search Console verisi: ${kacisla(gscGunAraligi(data.dataFrom, data.dataTo))}`)
-              : '') +
+          // Ekran karti: haftanin verisi tek kartta (buyuk sayi + gunluk seyir + uc olcu)
+          ekranKarti(
             // Tek buyuk sayi: haftanin en onemli rakami. Fark ancak onceki
             // hafta olculduyse gosterilir — yoksa "sifirdan buyume" yalani.
             kahramanOlcu({
@@ -492,13 +557,20 @@ export class EmailService {
                     },
               alt: fark === null && tik !== null ? 'Geçen hafta ölçüm yok — karşılaştırma yapılamadı' : undefined,
             }) +
-            (Array.isArray(data.clicksSeries) ? sutunGrafik(data.clicksSeries, 'Günlük tıklama') : '') +
-            bolucu() +
-            olcuSatiri([
-              { etiket: 'Gösterim', deger: gos === null ? null : sayi(gos) },
-              { etiket: 'Ort. sıra', deger: data.avgPosition ?? null },
-              { etiket: 'Makale', deger: sayi(data.articlesPublished ?? 0) },
-            ]) +
+              (Array.isArray(data.clicksSeries) ? sutunGrafik(data.clicksSeries, 'Günlük tıklama') : '') +
+              ekranBolucu() +
+              olcuSatiri([
+                { etiket: 'Gösterim', deger: gos === null ? null : sayi(gos) },
+                { etiket: 'Ort. sıra', deger: data.avgPosition ?? null },
+                { etiket: 'Makale', deger: sayi(data.articlesPublished ?? 0) },
+              ], { kart: false }),
+          ) +
+            etiket('Haftalık rapor') +
+            h('Bu hafta') +
+            // GSC ~2-3 gun gecikmeli: hangi gunlerin sayildigi acikca yazilir
+            (typeof data.dataFrom === 'string' && typeof data.dataTo === 'string'
+              ? p(`Search Console verisi: ${kacisla(gscGunAraligi(data.dataFrom, data.dataTo))}`)
+              : '') +
             (data.topArticle
               ? p(`<strong>En çok tıklanan:</strong> ${kacisla(String(data.topArticle.title))} — ${sayi(data.topArticle.clicks)} tıklama`)
               : '') +
@@ -508,42 +580,84 @@ export class EmailService {
 
       case 'monthly_report': {
         // Bu sablon tip listesinde vardi ama case'i YOKTU — mailler sessizce
-        // "RanksUp bildirimi" basligiyla bos govdeye dusuyordu.
-        const siteAdi = kacisla(String(data.siteName ?? 'siten'));
-        const link = data.siteId ? `${baseUrl}/sites/${data.siteId}/report` : `${baseUrl}/dashboard`;
+        // "RanksUp bildirimi" basligiyla bos govdeye dusuyordu. Sonra case yazildi ama GONDEREN
+        // KOD yoktu; 15.11.2026'da baglandi (analytics/monthly-report.cron.ts, her ayin 4'u).
+        //
+        // VERI: onceki takvim ayinin DONDURULMUS raporu (SiteReportService.generate; alanlar
+        // analytics/monthly-report.ts monthlyReportData). Baglanirken duzeltilenler:
+        //  - Baglanti dondurulmus raporu acar (?rapor=<id>, web rapor-gecmisi-panel); "saklandı"
+        //    cumlesi yalniz rapor kimligi varken yazilir (kimliksiz baglanti canli sayfaya gider).
+        //  - SEO / GEO / AI skorlari icin once/sonra cubugu kalkti: rapor ozetinde onceki donemin
+        //    skoru yok; "ölçüm yok" yazan uc cubuk yerine donem sonundaki skorlar yazilir.
+        //  - Arama verisi yoksa (Search Console bagli degil) buyuk "0 tıklama" basilmaz:
+        //    olculemeyen sey 0 gosterilmez; kart skorlarla baslar.
+        //  - Fark "önceki N güne göre" yazilir, "geçen aya göre" degil: kiyas ayni uzunluktaki
+        //    hemen onceki donemdir (Ekim icin 31 Agustos–30 Eylul), dondurulmus raporla ayni.
+        //  - Fark yoksa NEDENI yazilir: onceki donemde olcum yok / onceki donem bastan sona
+        //    olculmedi / bu donemin verisi hangi gunleri kapsiyor.
+        //  - Konu satiri HAM site adiyla kurulur (duzen <title> ve onizlemeyi kendi kacislar);
+        //    kacislanmis ad konuya girerse gelen kutusunda "Koç &amp; Koç" gorunur.
+        const siteAdiHam = String(data.siteName ?? 'siten');
+        const donemHam = String(data.periodLabel ?? 'Aylık rapor');
+        const raporId = typeof data.reportId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(data.reportId) ? data.reportId : null;
+        const link = data.siteId
+          ? `${baseUrl}/sites/${data.siteId}/report${raporId ? `?rapor=${raporId}` : ''}`
+          : `${baseUrl}/dashboard`;
         const oncekiTik = typeof data.prevClicks === 'number' ? data.prevClicks : null;
         const tik = typeof data.totalClicks === 'number' ? data.totalClicks : null;
         const fark = tik !== null && oncekiTik !== null ? tik - oncekiTik : null;
+        const kiyasDonemi =
+          typeof data.periodDays === 'number' && data.periodDays > 0 ? `önceki ${data.periodDays} güne göre` : 'önceki döneme göre';
+        // Fark yokken nedeni (oncelik sirasiyla): bu donem bastan sona olculmedi / onceki donem
+        // bastan sona olculmedi / onceki donemde hic olcum yok
+        const farkYok =
+          typeof data.dataFrom === 'string' && typeof data.dataTo === 'string'
+            ? `Arama verisi ${data.dataFrom} – ${data.dataTo} arası için var; kıyas yapılmadı`
+            : data.prevPartial === true
+              ? 'Önceki dönem baştan sona ölçülmedi; kıyas yapılmadı'
+              : 'Önceki dönemde ölçüm yok';
+        const skor = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null);
+        const makale = sayi(data.articlesPublished ?? 0);
+        const tarama = sayi(data.auditCount ?? 0);
 
         return yap(
-          `${siteAdi} — aylık rapor hazır`,
-          `${sayi(data.totalClicks)} tıklama, ${sayi(data.articlesPublished ?? 0)} makale. Dönem raporu panelde.`,
-          etiket(kacisla(String(data.periodLabel ?? 'Aylık rapor'))) +
-            h(siteAdi) +
-            kahramanOlcu({
-              deger: tik === null ? null : sayi(tik),
-              etiket: 'organik tıklama',
-              degisim:
-                fark === null
-                  ? null
-                  : {
-                      yon: fark > 0 ? 'artis' : fark < 0 ? 'dusus' : 'yok',
-                      metin: `önceki döneme göre ${fark > 0 ? '+' : ''}${sayi(fark)}`,
-                    },
-              alt: fark === null && tik !== null ? 'Önceki dönemde ölçüm yok' : undefined,
-            }) +
-            // Dönem karsilastirmasi: cubuk, sayidan cok daha hizli okunuyor.
-            karsilastirmaCubugu([
-              { etiket: 'SEO skoru', once: data.prevSeoScore ?? null, sonra: data.seoScore ?? null },
-              { etiket: 'GEO skoru', once: data.prevGeoScore ?? null, sonra: data.geoScore ?? null },
-              { etiket: 'AI görünürlük', once: data.prevAiVisibility ?? null, sonra: data.aiVisibility ?? null },
-            ]) +
-            bolucu() +
-            p('Rapor <strong>oluşturulduğu andaki sayılarla donduruldu</strong> — sonradan açtığında aynı rakamları görürsün.') +
-            olcuSatiri([
-              { etiket: 'Yayınlanan makale', deger: sayi(data.articlesPublished ?? 0) },
-              { etiket: 'Çalıştırılan tarama', deger: sayi(data.auditCount ?? 0) },
-            ]) +
+          `${siteAdiHam} — aylık rapor hazır`,
+          tik !== null
+            ? `${sayi(tik)} tıklama, ${makale} makale. Dönem raporu panelde.`
+            : `${makale} makale, ${tarama} tarama. Dönem raporu panelde.`,
+          // Ekran karti: donemin verisi tek kartta (varsa buyuk sayi + skorlar + iki sayac)
+          ekranKarti(
+            (tik !== null
+              ? kahramanOlcu({
+                  deger: sayi(tik),
+                  etiket: 'organik tıklama',
+                  degisim:
+                    fark === null
+                      ? null
+                      : {
+                          yon: fark > 0 ? 'artis' : fark < 0 ? 'dusus' : 'yok',
+                          metin: `${kiyasDonemi} ${fark > 0 ? '+' : ''}${sayi(fark)}`,
+                        },
+                  alt: fark === null ? farkYok : undefined,
+                }) + ekranBolucu()
+              : '') +
+              olcuSatiri([
+                { etiket: 'SEO skoru', deger: skor(data.seoScore) },
+                { etiket: 'GEO skoru', deger: skor(data.geoScore) },
+                { etiket: 'AI görünürlük', deger: skor(data.aiVisibility) },
+              ], { kart: false }) +
+              ekranBolucu() +
+              olcuSatiri([
+                { etiket: 'Yayınlanan makale', deger: makale },
+                { etiket: 'Çalıştırılan tarama', deger: tarama },
+              ], { kart: false }),
+          ) +
+            etiket(donemHam) +
+            h(siteAdiHam) +
+            p(
+              `${kacisla(donemHam)} döneminin özeti yukarıda; sorgular, sayfalar ve tarama ayrıntıları panelde.` +
+                (raporId ? ' Rapor, oluşturulduğu andaki sayılarla saklandı; sonradan değişmez.' : ''),
+            ) +
             dugme('Raporu aç', link),
         );
       }
@@ -551,7 +665,8 @@ export class EmailService {
       case 'weekly_plan': {
         // Icerik LLM'den geliyor — kacislamadan basilirsa tek bir '<' maili
         // bozar. Diger sablonlarda veri bizim uretimimiz, burada degil.
-        const siteName = kacisla(String(data.siteName ?? 'siten'));
+        // Konu ve baslik HAM adi alir (duzen ve `h` kendi kacislar — adHam aciklamasi)
+        const siteName = String(data.siteName ?? 'siten');
         const items: string[] = Array.isArray(data.items) ? data.items : [];
         const planLink = data.siteId ? `${baseUrl}/sites/${data.siteId}/action-plan` : `${baseUrl}/dashboard`;
         return yap(
@@ -560,10 +675,11 @@ export class EmailService {
           h(`${siteName} için bu haftanın planı`) +
             p(`Asistan sitenin görünürlük verisine baktı ve ${items.length} maddelik öncelik listesi çıkardı. Maddeler Aksiyon Planına eklendi.`) +
             (items.length
-              ? `<ol style="margin:0 0 16px;padding-left:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:15px;line-height:1.7;color:${MARKA.govde};">${items
-                  .map((t) => `<li style="margin-bottom:8px;">${kacisla(String(t))}</li>`)
-                  .join('')}</ol>`
-              : p('<span style="color:#6b6b70;">Bu hafta öne çıkan bir madde çıkmadı — durum stabil.</span>')) +
+              // Numarali liste: `liste` ile ayni cerceveli, sola hizali kutu (email-layout.ts)
+              ? `<table role="presentation" align="center" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MARKA.kart}" style="margin:6px auto 22px;max-width:520px;background:${MARKA.kart};border:1px solid ${MARKA.cizgi};border-radius:10px;"><tr><td style="padding:18px 20px 8px 8px;text-align:left;"><ol style="margin:0;padding-left:28px;font-family:${FONT};font-size:15px;line-height:1.6;color:${MARKA.govde};">${items
+                  .map((t) => `<li style="margin-bottom:10px;">${kacisla(String(t))}</li>`)
+                  .join('')}</ol></td></tr></table>`
+              : p(`<span style="color:${MARKA.soluk};">Bu hafta öne çıkan bir madde çıkmadı — durum stabil.</span>`)) +
             dugme('Aksiyon planını aç', planLink) +
             p('<span style="font-size:13px;">Her maddenin gerekçesi ve dayandığı ölçüm açıklamasında.</span>'),
         );
@@ -582,15 +698,15 @@ export class EmailService {
           ...(makale > 0 ? [`${sayi(makale)} makale`] : []),
         ];
         return yap(
-          `Plan aktif: ${kacisla(String(data.planName ?? ''))}`,
+          `Plan aktif: ${String(data.planName ?? '')}`,
           `Aylık kotan: ${ozet.join(', ')}.`,
-          h(`${kacisla(String(data.planName ?? 'Planın'))} aktif`) +
+          olcuSatiri([
+            ...(calistirma > 0 ? [{ etiket: 'Aylık AI çalıştırması (en fazla)', deger: sayi(calistirma) }] : []),
+            { etiket: 'Site', deger: sayi(data.siteQuota ?? 0) },
+            ...(makale > 0 ? [{ etiket: 'Aylık makale', deger: sayi(makale) }] : []),
+          ]) +
+            h(`${String(data.planName ?? 'Planın')} aktif`) +
             p('Aboneliğin başladı.') +
-            olcuSatiri([
-              ...(calistirma > 0 ? [{ etiket: 'Aylık AI çalıştırması (en fazla)', deger: sayi(calistirma) }] : []),
-              { etiket: 'Site', deger: sayi(data.siteQuota ?? 0) },
-              ...(makale > 0 ? [{ etiket: 'Aylık makale', deger: sayi(makale) }] : []),
-            ]) +
             dugme('Panele git', `${baseUrl}/dashboard`),
         );
       }
@@ -600,7 +716,7 @@ export class EmailService {
         return yap(
           'Abonelik yenilemesi alınamadı',
           kalan > 0 ? `Yarın tekrar deneyeceğiz (${kalan} deneme kaldı).` : 'Son deneme de başarısız oldu.',
-          h(`${name}, aboneliğini yenileyemedik`) +
+          h(adliBaslik`aboneliğini yenileyemedik`) +
             p(`<strong>${kacisla(String(data.planName ?? 'Planın'))}</strong> aboneliğinin yenileme ödemesi kayıtlı kartından alınamadı (deneme ${kacisla(String(data.attempt ?? 1))}/${kacisla(String(data.maxAttempts ?? 3))}).`) +
             p(kalan > 0
               ? `Yarın otomatik olarak tekrar deneyeceğiz. ${kalan} deneme sonunda da ödeme alınamazsa hesabın deneme düzeyine geçer. Kartını güncellemek için aboneliğini yeniden başlatabilirsin.`
@@ -617,8 +733,8 @@ export class EmailService {
         // recurringEnabled'i veriye koyar; alan yoksa kapali sayilir.
         return yap(
           'Aboneliğinin yenilenmesi gerekiyor',
-          `${kacisla(String(data.deadlineText ?? '7 gün içinde'))} tarihine kadar yenilemezsen hesabın deneme düzeyine geçer.`,
-          h(`${name}, aboneliğini yenilemen gerekiyor`) +
+          `${String(data.deadlineText ?? '7 gün içinde')} tarihine kadar yenilemezsen hesabın deneme düzeyine geçer.`,
+          h(adliBaslik`aboneliğini yenilemen gerekiyor`) +
             p(`<strong>${kacisla(String(data.planName ?? 'Planın'))}</strong> aboneliğinin ödenen dönemi ${data.periodEndText ? `<strong>${kacisla(String(data.periodEndText))}</strong> tarihinde bitiyor` : 'bitti'}. ${data.recurringEnabled === true ? ' Kayıtlı bir kartın olmadığı için otomatik yenileyemiyoruz.' : ' Abonelikler şu an otomatik yenilenmiyor; yenilemeyi abonelik sayfasından sen yaparsın.'}`) +
             p(`<strong>${kacisla(String(data.deadlineText ?? '7 gün içinde'))}</strong> tarihine kadar ödeme yapmazsan hesabın deneme düzeyine geçer; sitelerin ve içeriklerin silinmez.${data.recurringEnabled === true ? ' Yenilerken kartını kaydedersen sonraki dönemler otomatik yenilenir.' : ''}`) +
             dugme('Aboneliği yenile', `${baseUrl}/pricing`),
@@ -628,7 +744,7 @@ export class EmailService {
         return yap(
           'Aboneliğin sona erdi',
           'Ödeme alınamadığı için hesabın deneme düzeyine geçti.',
-          h(`${name}, aboneliğin sona erdi`) +
+          h(adliBaslik`aboneliğin sona erdi`) +
             p(`Ödeme alınamadığı için <strong>${kacisla(String(data.planName ?? 'aboneliğin'))}</strong> sona erdi ve hesabın deneme düzeyine geçti. Sitelerin, içeriklerin ve raporların silinmedi.`) +
             p('Aboneliği yeniden başlatarak tüm özelliklere hemen dönebilirsin.') +
             dugme('Aboneliği yeniden başlat', `${baseUrl}/pricing`),
@@ -638,7 +754,7 @@ export class EmailService {
         return yap(
           'Ödeme alınamadı',
           'Kartını kontrol edip tekrar deneyebilirsin. Hesabın hemen kapanmıyor.',
-          h(`${name}, ödemeni alamadık`) +
+          h(adliBaslik`ödemeni alamadık`) +
             p('Kart bilgilerini kontrol edip tekrar deneyebilir ya da başka bir kart kullanabilirsin. Hesabın hemen kapanmıyor.') +
             (data.reasonMsg
               ? bilgiKutusu(
@@ -652,8 +768,8 @@ export class EmailService {
       case 'plan_canceled':
         return yap(
           'Aboneliğin iptal edildi',
-          data.accessUntilText ? `${kacisla(String(data.accessUntilText))} tarihine kadar erişimin devam ediyor.` : 'Mevcut dönem sonuna kadar erişimin devam ediyor.',
-          h(`${name}, aboneliğin iptal edildi`) +
+          data.accessUntilText ? `${String(data.accessUntilText)} tarihine kadar erişimin devam ediyor.` : 'Mevcut dönem sonuna kadar erişimin devam ediyor.',
+          h(adliBaslik`aboneliğin iptal edildi`) +
             p(`${data.planName ? `<strong>${kacisla(String(data.planName))}</strong> planın iptal edildi. ` : ''}${data.accessUntilText ? `<strong>${kacisla(String(data.accessUntilText))}</strong> tarihine kadar` : 'Mevcut dönem sonuna kadar'} tüm özelliklerin açık kalır; sonra hesabın deneme düzeyine geçer.`) +
             p('Sonrasında ürettiğin makaleleri indirip saklayabilir, ya da tekrar abone olup kaldığın yerden devam edebilirsin.') +
             dugme('Planları gör', `${baseUrl}/pricing`) +
@@ -663,13 +779,13 @@ export class EmailService {
       case 'grandfathering_expiring':
         return yap(
           'Fiyatın 30 gün sonra güncelleniyor',
-          `${kacisla(String(data.expiryDateText ?? 'Yakında'))} tarihinde yeni fiyata geçiş yapılacak.`,
-          h(`${name}, fiyatın 30 gün sonra güncelleniyor`) +
+          `${String(data.expiryDateText ?? 'Yakında')} tarihinde yeni fiyata geçiş yapılacak.`,
+          olcuSatiri([
+            { etiket: 'Şu anki', deger: `₺${(data.legacyPriceTry ?? 0).toLocaleString('tr-TR')}`, alt: 'aylık' },
+            { etiket: 'Yeni', deger: `$${(data.newPriceUsd ?? 0).toLocaleString('tr-TR')}`, alt: 'aylık' },
+          ]) +
+            h(adliBaslik`fiyatın 30 gün sonra güncelleniyor`) +
             p(`Yeni fiyatlandırmaya geçişin <strong>${kacisla(String(data.expiryDateText ?? 'yakında'))}</strong> tarihinde yapılacak.`) +
-            olcuSatiri([
-              { etiket: 'Şu anki', deger: `₺${(data.legacyPriceTry ?? 0).toLocaleString('tr-TR')}`, alt: 'aylık' },
-              { etiket: 'Yeni', deger: `$${(data.newPriceUsd ?? 0).toLocaleString('tr-TR')}`, alt: 'aylık' },
-            ]) +
             p('<span style="font-size:13px;">Yeni fiyat ABD doları üzerindendir; ödeme günü TCMB kuruyla Türk lirasına çevrilerek tahsil edilir.</span>') +
             p(`${data.planName ? `<strong>${kacisla(String(data.planName))}</strong> planına` : 'Planına'} bu dönemde eklenen özellikler:`) +
             liste((Array.isArray(data.features) ? data.features : []).map((x: unknown) => kacisla(String(x)))) +
@@ -681,12 +797,12 @@ export class EmailService {
         return yap(
           'Yeni fiyatın bugün itibarıyla aktif',
           'Bir sonraki faturan yeni fiyat üzerinden kesilecek.',
-          h(`${name}, yeni fiyatın aktif`) +
+          olcuSatiri([
+            { etiket: 'Eski (sona erdi)', deger: `₺${(data.legacyPriceTry ?? 0).toLocaleString('tr-TR')}` },
+            { etiket: 'Yeni aylık', deger: `$${(data.newPriceUsd ?? 0).toLocaleString('tr-TR')}` },
+          ]) +
+            h(adliBaslik`yeni fiyatın aktif`) +
             p('Geçiş tamamlandı. Bir sonraki faturan yeni fiyat üzerinden kesilecek.') +
-            olcuSatiri([
-              { etiket: 'Eski (sona erdi)', deger: `₺${(data.legacyPriceTry ?? 0).toLocaleString('tr-TR')}` },
-              { etiket: 'Yeni aylık', deger: `$${(data.newPriceUsd ?? 0).toLocaleString('tr-TR')}` },
-            ]) +
             p('<span style="font-size:13px;">Tutar ödeme günü TCMB kuruyla Türk lirasına çevrilerek tahsil edilir.</span>') +
             dugme('Panele git', `${baseUrl}/dashboard`) +
             p('<span style="font-size:13px;">Aboneliğini ' + baglanti('abonelik sayfasından', `${baseUrl}/billing`) + ' yönetebilirsin.</span>'),

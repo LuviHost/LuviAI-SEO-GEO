@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CHART } from '@/lib/chart-colors';
 import { formatNum, formatPct, formatPos } from '@/lib/format';
 import { formatGscRange } from '@/lib/gsc-coverage';
+import { previousPeriodNote } from '@/lib/report-link';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 
 type Range = 'week' | 'month' | 'year';
@@ -81,7 +82,9 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
   const olculemeyenSayisi: number = typeof data.audit.olculemeyenSayisi === 'number' ? data.audit.olculemeyenSayisi : 0;
   // Onceki donemde GSC olcumu yoksa API farki null doner (reports.service.ts oncekiDonemVeriVar).
   // Rozet gosterilmez: bos "−" rozeti "degismedi" diye okunurdu, halbuki kiyaslanacak olcum yok.
-  const gscHint = data.search.oncekiDonemVeriVar === false ? 'önceki dönemde ölçüm yok' : 'önceki döneme göre';
+  // Onceki donemde veri var ama o donem bastan sona olculmediyse de fark null (oncekiDonemTam):
+  // birkac gunluk toplamla kiyas sahte buyume gosterirdi.
+  const gscHint = previousPeriodNote(data.search) ?? 'önceki döneme göre';
 
   return (
     <div className="space-y-5">

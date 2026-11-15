@@ -7,8 +7,11 @@ import {
   attemptNotification, emailPolicy, isCappedOutcome, notifyKey,
   type AttemptOutcome, type AttemptSummary,
 } from './public-check-attempt.js';
+import { attemptEmailHtml, type AttemptReport } from './public-check-report-email.js';
 
 const GUN_MS = 24 * 60 * 60 * 1000;
+/** Bildirimin panelde actigi sayfa (e-postadaki "Panelde aç" da buraya gider) */
+const PANEL_LINK = '/admin/leads';
 
 export interface AttemptInput {
   /** Normalize host (attemptHost) — ham girdi buraya GELMEZ */
@@ -19,6 +22,12 @@ export interface AttemptInput {
   checkId?: string | null;
   detail?: string | null;
   summary?: AttemptSummary;
+  /**
+   * Ziyaretcinin gordugu sonucun e-posta raporu (public-check-report-email.ts reportOfResult).
+   * Yalniz bildirim e-postasinda kullanilir; VERITABANINA YAZILMAZ (kayit: alan adi, sonuc
+   * turu, IP ozeti — public-check-attempt.ts).
+   */
+  report?: AttemptReport | null;
 }
 
 /**
@@ -90,21 +99,45 @@ export class PublicCheckAttemptService {
     return izin;
   }
 
+  /** Bildirim e-postasinin govdesi; hata yutulur (undefined → NotificationsService genel kalibi) */
+  private emailHtml(n: { title: string; note: string }, input: AttemptInput): string | undefined {
+    try {
+      const base = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
+      return attemptEmailHtml({
+        title: n.title,
+        domain: input.domain,
+        outcome: input.outcome,
+        note: n.note,
+        summary: input.summary,
+        report: input.report ?? null,
+        panelUrl: `${base}${PANEL_LINK}`,
+        baseUrl: base,
+      });
+    } catch (err: any) {
+      this.log.warn(`Deneme e-postasi govdesi kurulamadi (${input.domain}): ${err?.message ?? err}`);
+      return undefined;
+    }
+  }
+
   /** Panel (+ e-posta); alici ilk ADMIN hesap (LinkedIn bildirimleriyle ayni kural) */
   private async notify(attemptId: string, input: AttemptInput): Promise<void> {
     try {
       const admin = await this.prisma.user.findFirst({ where: { role: 'ADMIN' }, orderBy: { createdAt: 'asc' }, select: { id: true } });
       if (!admin) { this.log.warn('Deneme bildirimi icin ADMIN kullanici yok'); return; }
       const n = attemptNotification(input);
+      const eposta = this.emailAllowed(input.outcome, input.domain);
       await this.notifications.create({
         userId: admin.id,
         type: 'SYSTEM',
         title: n.title,
         body: n.body,
-        link: '/admin/leads',
+        link: PANEL_LINK,
         refKind: 'public_check_attempt',
         refId: attemptId,
-        channels: this.emailAllowed(input.outcome, input.domain) ? ['inapp', 'email'] : ['inapp'],
+        channels: eposta ? ['inapp', 'email'] : ['inapp'],
+        // E-posta site diliyle ve RAPORLA gider (sahip istegi 15.11.2026); panel bildirimi
+        // ayni kisa metin. Govde kurulamazsa bildirim dusmez: genel kaliba doner.
+        emailHtml: eposta ? this.emailHtml(n, input) : undefined,
       });
       await this.prisma.publicCheckAttempt.update({ where: { id: attemptId }, data: { notifiedAt: new Date() } });
     } catch (err: any) {

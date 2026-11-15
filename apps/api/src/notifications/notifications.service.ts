@@ -74,6 +74,12 @@ export class NotificationsService {
     refKind?: string;
     refId?: string;
     channels?: ('inapp' | 'email')[];
+    /**
+     * Hazir e-posta govdesi (TAM HTML belgesi). Verilirse e-posta bununla gider; verilmezse
+     * genel kalip (metin + "Panelde aç"). Yalniz e-postada kullanilir, kayda YAZILMAZ: panel
+     * bildirimi `title` + `body`dir. Ilk kullanan: ucretsiz test bildirimi (raporlu e-posta).
+     */
+    emailHtml?: string;
   }) {
     const channels = opts.channels ?? ['inapp'];
     const kayit = await this.prisma.notification.create({
@@ -98,7 +104,7 @@ export class NotificationsService {
    */
   private async epostaGonder(
     notificationId: string,
-    opts: { userId: string; title: string; body?: string; link?: string },
+    opts: { userId: string; title: string; body?: string; link?: string; emailHtml?: string },
   ): Promise<void> {
     try {
       const user = await this.prisma.user.findUnique({
@@ -126,7 +132,8 @@ export class NotificationsService {
         userId: opts.userId,
         to: user.email,
         subject: opts.title,
-        html: duzen(opts.title, govde),
+        // Cagiranin hazirladigi govde varsa o (bos / bosluk ise genel kalip)
+        html: opts.emailHtml?.trim() ? opts.emailHtml : duzen(opts.title, govde),
       });
       if (!res.ok) {
         this.log.warn(`Bildirim e-postası gönderilemedi: ${opts.title}`);

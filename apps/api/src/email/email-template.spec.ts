@@ -83,10 +83,13 @@ describe('marka tutarliligi', () => {
   });
 
   it('marka rengi uygulamanin turuncusuyla ayni', () => {
-    // apps/web/tailwind.config brand + brand-logo.tsx paleti
-    expect(MARKA.primary).toBe('#E04E24');
-    expect(MARKA.gradBas).toBe('#F36D32');
-    expect(MARKA.gradSon).toBe('#B63325');
+    // Sitenin birincil eylem turuncusu: apps/web globals.css --brand-vivid (21 100% 50%, #FF5800).
+    // 15.11.2026'ya kadar e-posta eski logo paletini (#E04E24 + degrade) kullaniyordu.
+    expect(MARKA.primary).toBe('#FF5800');
+    // Koyu zemin sitenin koyu tema belirtecleriyle ayni (globals.css .dark)
+    expect(MARKA.zemin).toBe('#090909');
+    expect(MARKA.kart).toBe('#111111');
+    expect(Object.keys(MARKA)).not.toContain('gradBas');
   });
 });
 
@@ -112,9 +115,20 @@ describe('e-posta istemcisi uyumlulugu', () => {
     expect(html).toContain('Editörden geçti');
   });
 
-  it('karanlik mod bildirimi ve paleti var', () => {
-    expect(html).toContain('name="color-scheme"');
-    expect(html).toContain('prefers-color-scheme: dark');
+  // 15.11.2026: belge YALNIZ koyu (site dili). Istemciye "bunu cevirme" denir; acik tema
+  // paleti ve ona gecis sorgusu yok. Zemin hem attribute hem style ile boyanir.
+  it('belge yalniz koyu: color-scheme dark, zemin iki yoldan boyali', () => {
+    expect(html).toContain('<meta name="color-scheme" content="dark" />');
+    expect(html).toContain(':root { color-scheme: dark; }');
+    expect(html).not.toContain('prefers-color-scheme');
+    expect(html).toContain(`bgcolor="${MARKA.zemin}"`);
+    expect(html).toContain(`background:${MARKA.zemin}`);
+  });
+
+  it('kompozisyon: logo ve altbilgi ortali; tek birincil dugme turuncu ve ok isaretli', () => {
+    expect(html).toMatch(/<td align="center"[^>]*>\s*<a [^>]*>\s*<span[^>]*>Ranks<\/span><span[^>]*>Up<\/span>/);
+    expect(html.split(`bgcolor="${MARKA.primary}"`).length - 1).toBe(1);
+    expect(html).toContain('&nbsp;&rarr;</a>');
   });
 
   it('SVG yok — Gmail SVG\'yi siler', () => {
@@ -127,6 +141,31 @@ describe('e-posta istemcisi uyumlulugu', () => {
   });
 });
 
+describe('adla baslayan basliklar — adi olmayan hesap "merhaba, …" gormez', () => {
+  const metin = (html: string) => (html.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1] ?? '').trim();
+
+  it('ad varsa "Ad, …"; ad yoksa ad ve virgul duser, ilk harf buyur (Turkce i → İ)', () => {
+    expect(metin(render('trial_expired', { name: 'Ayşe' }).html)).toBe('Ayşe, deneme süren doldu');
+    for (const name of [undefined, null, '', '   ']) {
+      expect(metin(render('trial_expired', { name }).html), String(name)).toBe('Deneme süren doldu');
+      expect(metin(render('trial_expiry_d13', { name }).html)).toBe('Deneme süren yarın bitiyor');
+      expect(metin(render('welcome_day7', { name }).html)).toBe('İlk hafta doldu');
+      expect(metin(render('payment_failed', { name }).html)).toBe('Ödemeni alamadık');
+      expect(metin(render('welcome_day0', { name }).html)).toBe('Hoş geldin');
+      expect(render('welcome_day0', { name }).subject).toBe("RanksUp'a hoş geldin");
+      expect(metin(render('welcome_day1', { name }).html)).toBe('Selam');
+    }
+  });
+
+  it('hicbir sablonun basligi "merhaba," ya da bos virgulle baslamaz', () => {
+    for (const t of tumSablonlar()) {
+      const baslik = metin(render(t as EmailTemplate, {}).html);
+      expect(baslik, t).not.toMatch(/^merhaba\b/i);
+      expect(baslik, t).not.toMatch(/^[,\s]/);
+    }
+  });
+});
+
 describe('kacislama', () => {
   it('kullanici/LLM metni HTML\'e sizmiyor', () => {
     const kotu = '<img src=x onerror=alert(1)>';
@@ -135,10 +174,28 @@ describe('kacislama', () => {
     expect(html).toContain('&lt;img');
   });
 
-  it('makale basligi konu satirinda kacisliyor', () => {
+  it('makale basligi HTML\'de bir kez kacislanir; konu satiri duz metindir, kacislanmaz', () => {
     const { subject, html } = render('article_ready', { title: '<b>x</b>', publicUrl: 'https://a.test' });
     expect(html).not.toContain('<b>x</b>');
-    expect(subject).toContain('&lt;b&gt;');
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
+    // Konu bir e-posta ust bilgisidir (HTML degil): kacislanirsa gelen kutusunda "&lt;b&gt;" gorunur
+    expect(subject).toBe('Makalen hazır: <b>x</b>');
+  });
+
+  it('kesme isaretli / &\'li baslik ve ad CIFT kacislanmaz (canlida "SEO&#39;da 5 Hata" gorunuyordu)', () => {
+    const baslik = "SEO'da 5 Hata & Çözümü";
+    const makale = render('article_ready', { title: baslik, publicUrl: 'https://a.test' });
+    expect(makale.subject).toBe(`Makalen hazır: ${baslik}`);
+    expect(makale.html).toContain('SEO&#39;da 5 Hata &amp; Çözümü');
+    const ilk = render('first_article_published', { title: baslik });
+    const plan = render('weekly_plan', { siteName: "Koç & Koç", items: [] });
+    expect(plan.subject).toBe('Bu haftanın planı: Koç & Koç');
+    const hosgeldin = render('welcome_day0', { name: "O'Neil" });
+    expect(hosgeldin.subject).toBe("RanksUp'a hoş geldin, O'Neil");
+    for (const h of [makale.html, ilk.html, plan.html, hosgeldin.html]) {
+      expect(h).not.toContain('&amp;#39;');
+      expect(h).not.toContain('&amp;amp;');
+    }
   });
 
   it('kacisla tek tirnagi da kapsiyor — attribute icine gomulebilir', () => {
@@ -156,6 +213,27 @@ describe('olcu satiri — olculemedi != sifir', () => {
   it('gercek 0 degeri gizlenmiyor', () => {
     const h = olcuSatiri([{ etiket: 'Makale', deger: 0 }]);
     expect(h).toContain('>0<');
+  });
+
+  // Sahip (15.11.2026): "gösterimi, hizası, büyüklüğü düzenlenmeli" — sutunlar icerige gore
+  // rastgele genisliyor, uc olculu kartta sag taraf bos kaliyordu.
+  it('sutunlar esit genislikte; tek basina kartta ortali ve ayracli, bilesik kartta sola hizali', () => {
+    const uc = olcuSatiri([{ etiket: 'Kelime', deger: '1.840' }, { etiket: 'FAQ', deger: 6 }, { etiket: 'Editör', deger: '81/90' }]);
+    expect(uc).toContain('table-layout:fixed');
+    expect(uc.split('width="33.33%"').length - 1).toBe(3);
+    expect(uc.split('text-align:center').length - 1).toBe(3);
+    // Ayrac yalniz sutunlar ARASINDA: ilk sutunda yok
+    expect(uc.split('border-left:1px solid').length - 1).toBe(2);
+    const dort = olcuSatiri([{ etiket: 'a', deger: 1 }, { etiket: 'b', deger: 2 }, { etiket: 'c', deger: 3 }, { etiket: 'd', deger: 4 }]);
+    expect(dort.split('width="25.00%"').length - 1).toBe(4);
+    // Deger satiri bolunmez ("81/90" iki satira inmez)
+    expect(uc).toContain('white-space:nowrap');
+
+    const icte = olcuSatiri([{ etiket: 'Gösterim', deger: '38.420' }, { etiket: 'Ort. sıra', deger: 14.2 }], { kart: false });
+    expect(icte.split('width="50.00%"').length - 1).toBe(2);
+    expect(icte).toContain('text-align:left');
+    expect(icte).not.toContain('border-left:1px solid');
+    expect(icte).not.toContain('text-align:center');
   });
 });
 
@@ -194,10 +272,10 @@ describe('grafik bilesenleri', () => {
 
   it('sutun grafik en yuksek degere gore olcekleniyor', () => {
     const h = sutunGrafik([10, 20, 40], 'Tiklama');
-    // Tavan 40 -> 56px; 10 -> 14px, 20 -> 28px, 40 -> 56px
-    expect(h).toContain('height:56px');
-    expect(h).toContain('height:28px');
-    expect(h).toContain('height:14px');
+    // Tavan 40 -> 64px; 10 -> 16px, 20 -> 32px, 40 -> 64px
+    expect(h).toContain('height:64px');
+    expect(h).toContain('height:32px');
+    expect(h).toContain('height:16px');
   });
 
   it('karsilastirma cubugu olculemeyeni cizmiyor, "olcum yok" yaziyor', () => {

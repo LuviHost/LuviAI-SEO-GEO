@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { CalendarRange, Download, FileText, Loader2, Play, Printer, Trash2 } from 'lucide-react';
 import { DondurulmusRapor } from './dondurulmus-rapor';
+import { periodDayLabel, reportIdFromSearch, reportTriggerLabel, urlWithoutReportParam } from '@/lib/report-link';
 
 /**
  * Rapor calistirma + gecmis.
@@ -25,8 +26,9 @@ const HAZIR_DONEMLER = [
   { key: 'year', etiket: 'Son 1 yıl' },
 ] as const;
 
+/** Ozel donemin gunleri UTC gunuyle yazilir (lib/report-link.ts periodDayLabel) */
 function gunAdi(iso: string) {
-  return new Date(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+  return periodDayLabel(iso, 'custom', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function donemEtiketi(r: RaporKaydi) {
@@ -94,6 +96,31 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
       if (canli.current) setSeciliYukleniyor(false);
     }
   };
+
+  // Aylik rapor e-postasindaki "Raporu aç" baglantisi ?rapor=<id> tasir (lib/report-link.ts):
+  // sayfa o dondurulmus raporla acilir. Yalniz ilk yuklemede ve site degisince; raporuAc her
+  // cizimde yeniden olustugu icin bagimlilik listesine girmez.
+  //
+  // Acilan rapor, calistirma karti ve gecmis tablosunun ALTINDA cizilir; uzun gecmisi olan
+  // musteri e-postadaki dugmeye basinca yalniz bir liste gorurdu → rapor gorunur alana kaydirilir.
+  // Parametre adresten silinir: sayfa yenilenince (ya da rapor sonradan silinince) yeniden
+  // acilmaya calisilmasin, "Rapor bulunamadı" bildirimi her yenilemede cikmasin.
+  const acilanRaporRef = useRef<HTMLDivElement | null>(null);
+  const [kaydir, setKaydir] = useState(false);
+  useEffect(() => {
+    const id = reportIdFromSearch(window.location.search);
+    if (!id) return;
+    window.history.replaceState(null, '', urlWithoutReportParam(window.location.href));
+    void raporuAc(id).then(() => { if (canli.current) setKaydir(true); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteId]);
+  // Gecmis listesi yuklenene kadar beklenir: rapor, ustundeki gecmis tablosundan ONCE gelirse
+  // kaydirma tablo cizilmeden yapilir, tablo gelince rapor asagi itilir ve ekranda liste kalir.
+  useEffect(() => {
+    if (!kaydir || !secili || yukleniyor) return;
+    acilanRaporRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setKaydir(false);
+  }, [kaydir, secili, yukleniyor]);
 
   const calistir = async (donem: { range?: string; from?: string; to?: string }) => {
     setCalisiyor(true);
@@ -223,9 +250,9 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
                           day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                         })}
                         {/* Otomatik uretilen raporlar kullanicinin calistirdiklarindan ayirt edilir */}
-                        {r.trigger !== 'manual' && (
+                        {reportTriggerLabel(r.trigger) && (
                           <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                            {r.trigger}
+                            {reportTriggerLabel(r.trigger)}
                           </span>
                         )}
                       </td>
@@ -265,7 +292,7 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
       {seciliYukleniyor && <p className="text-sm text-muted-foreground">Rapor açılıyor…</p>}
 
       {secili && (
-        <div className="space-y-3">
+        <div ref={acilanRaporRef} className="scroll-mt-6 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
             <p className="text-panel-3">
               {donemEtiketi(secili)} raporu

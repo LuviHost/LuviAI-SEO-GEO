@@ -40,7 +40,19 @@ describe('donemHesapla — keyfi tarih araligi', () => {
     const r = donemHesapla({ from: new Date('2026-07-01'), to: new Date('2026-07-31') });
     const oncekiGun = Math.round((+r.prevEnd - +r.prevStart) / 86400000);
     expect(oncekiGun).toBe(r.days);
-    expect(+r.prevEnd).toBe(+r.rangeStart);
+    // Hemen oncesinde biter, bu donemin ilk aniyla CAKISMAZ: alt sorgular `lte: prevEnd` ve
+    // `gte: rangeStart` kullanir; esit olsaydi ilk gun iki donemde de sayilirdi.
+    expect(+r.prevEnd).toBe(+r.rangeStart - 1);
+  });
+
+  it('panelin "1–31 Ekim" donemi: iki donem de 31 gun, ortak gun yok', () => {
+    // analytics.controller donemParametresi bitis gununu gun sonuna ceker
+    const r = donemHesapla({ from: new Date('2026-10-01T00:00:00.000Z'), to: new Date('2026-10-31T23:59:59.999Z') });
+    expect(r.days).toBe(31);
+    const gun = (d: Date) => d.toISOString().slice(0, 10);
+    expect([gun(r.rangeStart), gun(r.rangeEnd)]).toEqual(['2026-10-01', '2026-10-31']);
+    expect([gun(r.prevStart), gun(r.prevEnd)]).toEqual(['2026-08-31', '2026-09-30']);
+    expect(r.prevEnd < r.rangeStart).toBe(true);
   });
 
   it('ters aralik hata firlatiyor — sessizce bos rapor uretmiyor', () => {

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
+import { FONT, MARKA, MONO, dugme, duzen, ekranKarti, h, kacisla, p } from '../email/email-layout.js';
 import { compareCells, type TrendResult, type TrendRow } from './comparable-trend.js';
 
 export interface AlarmTrigger {
@@ -190,40 +191,31 @@ export class AiMentionAlarmService {
     return ({ anthropic: 'Claude', gemini: 'Gemini', openai: 'ChatGPT', perplexity: 'Perplexity' } as any)[p] ?? p;
   }
 
+  /**
+   * GORUNUM (15.11.2026): ortak e-posta duzeni (email/email-layout.ts); degisimler ustteki
+   * ekran kartinda. Eskiden kendi HTML'i vardi: mor (#6c5ce7) baslik ve dugme — eski marka rengi.
+   * Site adi ve uyari metni artik KACISLANIR: site adini musteri yazar; kacislanmadan e-postaya
+   * gomuluyordu.
+   */
   private renderAlertEmail(alerts: AlarmTrigger[]): string {
     const first = alerts[0];
-    // Altbilgi yalniz koddan dogrulanabileni soyler: alarm son 7 gunu onceki 7
-    // gunle kiyaslar (checkSite). Eski "her gun 04:00 UTC'de kontrol edilir"
-    // yanlisti — alarm isi 05:00 UTC'de kosar, gunluk olcum cron'u ise
-    // AI_CITATION_DAILY_CRON ile kapatilabilir (apps/worker/src/index.ts).
-    return `
-<!DOCTYPE html>
-<html><body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-  <h2 style="color: #6c5ce7;">🚨 AI Görünürlük Uyarısı</h2>
-  <p>Merhaba,</p>
-  <p><strong>${first.siteName}</strong> sitenizin son 7 günlük AI görünürlüğünde değişiklikler tespit ettik:</p>
-  <ul>
-    ${alerts.map((a) => `
-      <li style="margin: 8px 0;">
-        <strong>${a.message}</strong><br>
-        <small style="color: #666;">
-          Önceki ortalama: ${a.prevAvg.toFixed(0)}/100 → Şu an: ${a.currentAvg.toFixed(0)}/100
-        </small>
-      </li>
-    `).join('')}
-  </ul>
-  <p>RanksUp <strong>otopilot</strong> moduyla bu sorunları otomatik düzeltebilir. Detaylar için panele bakın:</p>
-  <p>
-    <a href="https://ranksup.ai/sites/${first.siteId}?tab=report"
-       style="display: inline-block; background: #6c5ce7; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
-      Raporu Aç →
-    </a>
-  </p>
-  <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
-  <p style="font-size: 12px; color: #999;">
-    RanksUp · Bu uyarı, son 7 günün AI görünürlük ölçümleri önceki 7 günle karşılaştırılarak otomatik hazırlanır.
-  </p>
-</body></html>
-    `;
+    const satirlar = alerts.map((a, i) => `
+      <div style="${i > 0 ? `border-top:1px solid ${MARKA.ekranCizgi};margin-top:14px;padding-top:14px;` : ''}font-family:${FONT};">
+        <div style="font-size:17px;line-height:1.3;font-weight:700;letter-spacing:-.3px;color:${MARKA.ekranInk};">${kacisla(a.message)}</div>
+        <div style="margin-top:4px;font-size:13px;color:${MARKA.ekranSoluk};">Önceki ortalama: ${a.prevAvg.toFixed(0)}/100 &rarr; Şu an: ${a.currentAvg.toFixed(0)}/100</div>
+      </div>`).join('');
+    const baslik = 'AI Görünürlük Uyarısı';
+    const govde =
+      ekranKarti(`<div style="font-family:${MONO};font-size:12px;line-height:16px;color:${MARKA.ekranSoluk};margin-bottom:12px;">${kacisla(first.siteName)} · son 7 gün</div>${satirlar}`) +
+      h(baslik) +
+      p(`<strong>${kacisla(first.siteName)}</strong> sitenizin son 7 günlük AI görünürlüğünde değişiklikler tespit ettik.`) +
+      p('RanksUp <strong>otopilot</strong> moduyla bu sorunları otomatik düzeltebilir. Detaylar için panele bakın:') +
+      dugme('Raporu Aç', `https://ranksup.ai/sites/${encodeURIComponent(first.siteId)}?tab=report`) +
+      // Altbilgi yalniz koddan dogrulanabileni soyler: alarm son 7 gunu onceki 7
+      // gunle kiyaslar (checkSite). Eski "her gun 04:00 UTC'de kontrol edilir"
+      // yanlisti — alarm isi 05:00 UTC'de kosar, gunluk olcum cron'u ise
+      // AI_CITATION_DAILY_CRON ile kapatilabilir (apps/worker/src/index.ts).
+      p(`<span style="font-size:13px;color:${MARKA.soluk};">Bu uyarı, son 7 günün AI görünürlük ölçümleri önceki 7 günle karşılaştırılarak otomatik hazırlanır.</span>`);
+    return duzen(baslik, govde, { onizleme: alerts.map((a) => a.message).join(' · ') });
   }
 }

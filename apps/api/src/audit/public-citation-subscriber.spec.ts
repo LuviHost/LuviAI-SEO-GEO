@@ -275,7 +275,8 @@ describe('retest e-postasi — sayi birimi ve icerik dogrulugu', () => {
     const t = kur({ taban: sonuc(0, { matchVersion: 4 }), taze: sonuc(2, { matchVersion: 4 }) });
     await t.svc.runScheduledRetests();
     const { html } = gonderilen(t.email);
-    expect(html).toContain('+2 cevap</h2>');
+    // 15.11.2026: fark artik ustteki ekran kartinda yazar (ortak e-posta duzeni); metin ayni
+    expect(html).toContain('>+2 cevap</div>');
     expect(html).not.toContain('(+0%)');
   });
 

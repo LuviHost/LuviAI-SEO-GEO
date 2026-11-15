@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { assertPublishTargetSafe, publishTargetBlockReason, type PublicResolver } from './publish-target-url.js';
 import { catalogFieldLabel, publishTargetCatalog } from './publish-target-catalog.js';
+import { planLimitError } from '../billing/plan-limit.js';
+import { allowedTargetLabels, lockCatalog, publishTargetLockedMessage, type LockableCatalogEntry } from './publish-target-plan-lock.js';
 import {
   isCredentialChange,
   mergeCredentials,
@@ -73,6 +75,19 @@ export class PublishTargetsService {
     }
   }
 
+  /**
+   * Katalog + SITENIN SAHIBININ planina gore kilitler (publish-target-plan-lock.ts).
+   * Yonetici her turu ekleyebilir (create ADMIN muaf) → kilit yok. Site verilmezse eski yanit
+   * (kilitsiz katalog): asil kapi create()'te, kilit yalniz gorunum.
+   */
+  async catalogFor(siteId: string | undefined, requestingUser: { id: string; role: string }): Promise<LockableCatalogEntry[]> {
+    const base = PublishTargetsService.getTypeCatalog({ isAdmin: requestingUser.role === 'ADMIN' });
+    if (!siteId || requestingUser.role === 'ADMIN') return base;
+    await this.ensureSiteOwner(siteId, requestingUser);
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { userId: true } });
+    return lockCatalog(base, await this.quota.publishTargetAccess(site.userId));
+  }
+
   /** Sitenin sahibinin planina gore uretim kaynagi durumu (QuotaService.generationReadiness) */
   async generationReadiness(siteId: string, requestingUser: { id: string; role: string }) {
     await this.ensureSiteOwner(siteId, requestingUser);
@@ -132,9 +147,13 @@ export class PublishTargetsService {
         select: { userId: true },
       });
       if (site && !(await this.quota.canUsePublishTarget(site.userId, dto.type))) {
-        throw new ForbiddenException(
-          `${dto.type} yayın hedefi planına dahil değil. Ücretli bir plana geçerek kullanabilirsin.`,
-        );
+        // Plan siniri (15.11.2026): panel bunu kirmizi bildirim yerine plan penceresiyle
+        // karsilar. Katalog kilitli turu bastan isaretledigi icin buraya normalde gelinmez
+        // (eski sekme, dogrudan istek); cumle katalogdakiyle AYNI (publish-target-plan-lock.ts).
+        const access = await this.quota.publishTargetAccess(site.userId);
+        const catalog = publishTargetCatalog();
+        const label = catalog.find((c) => c.type === dto.type)?.label ?? dto.type;
+        throw planLimitError(publishTargetLockedMessage(label, allowedTargetLabels(catalog, access), access), access.upgrade);
       }
     }
 

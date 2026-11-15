@@ -77,6 +77,12 @@ export interface ReportOverview {
     impressionsDelta: number | null;
     /** Onceki donemde karsilastirilacak olcum var miydi */
     oncekiDonemVeriVar: boolean;
+    /**
+     * Onceki donem BASTAN SONA olculdu mu (olcum o donemin ilk gununde ya da daha once
+     * baslamisti). False iken farklar null: yarim olculmus bir donemle kiyas sahte buyume
+     * gosterir. Bu alandan once uretilmis (dondurulmus) raporlarda yok (undefined).
+     */
+    oncekiDonemTam?: boolean;
     topQueries: Array<{ query: string; clicks: number; impressions: number; ctr: number; position: number }>;
     topPages: Array<{ page: string; clicks: number; impressions: number; ctr: number; position: number }>;
     /**
@@ -199,7 +205,11 @@ export function donemHesapla(o: ReportOpts): {
       range: 'custom',
       rangeStart,
       rangeEnd,
-      prevEnd: new Date(rangeStart),
+      // Onceki donem bu donemin BASLADIGI ANDAN HEMEN ONCE biter. Eskiden prevEnd = rangeStart
+      // idi; alt sorgular `lte: prevEnd` ve `gte: rangeStart` kullandigi icin gun basinda
+      // baslayan ozel donemde ("1–31 Ekim") ilk gun IKI DONEMDE DE sayiliyordu: onceki donem
+      // bir gun uzun cikiyor, fark o gunun tiklamasi kadar kucuk gorunuyordu.
+      prevEnd: new Date(+rangeStart - 1),
       prevStart: new Date(+rangeStart - days * 86400000),
       days,
     };
@@ -607,6 +617,14 @@ export class ReportsService {
     // Onceki donemde HIC snapshot yoksa fark hesaplanamaz — sifirdan
     // buyume iddiasi uretmemek icin delta null donecek.
     const oncekiDonemVeriVar = prevSnapshots.length > 0;
+    // Onceki donem BASTAN SONA olculdu mu: sitenin olcumu onceki donemin ilk gununde ya da daha
+    // once baslamis olmali. "Onceki donemde veri var" tek basina yetmez: olcum o donemin
+    // ORTASINDA basladiysa (yeni baglanan Search Console) birkac gunluk toplam tam bir donemin
+    // yanina konur ve sahte bir buyume cikar ("300 → 1.250, +950"). Aradaki bos gunler sorun
+    // degildir (gosterimi olmayan gunun kaydi yazilmaz); bakilan, olcumun ne zaman BASLADIGI.
+    const oncekiDonemTam =
+      oncekiDonemVeriVar &&
+      (await this.prisma.analyticsSnapshot.findFirst({ where: { siteId, date: { lte: prevStart } }, select: { id: true } })) !== null;
     const prevClicks = prevSnapshots.reduce((a, s) => a + s.totalClicks, 0);
     const prevImpressions = prevSnapshots.reduce((a, s) => a + s.totalImpressions, 0);
 
@@ -756,9 +774,10 @@ export class ReportsService {
         totalImpressions,
         avgCtr,
         avgPosition,
-        clicksDelta: oncekiDonemVeriVar ? totalClicks - prevClicks : null,
-        impressionsDelta: oncekiDonemVeriVar ? totalImpressions - prevImpressions : null,
+        clicksDelta: oncekiDonemTam ? totalClicks - prevClicks : null,
+        impressionsDelta: oncekiDonemTam ? totalImpressions - prevImpressions : null,
         oncekiDonemVeriVar,
+        oncekiDonemTam,
         topQueries,
         topPages,
         brandSplit,
@@ -846,10 +865,12 @@ export class ReportsService {
     yaz('planlanan_makale', report.articles.scheduled);
     yaz('basarisiz_makale', report.articles.failed);
     if (sosyalVar) yaz('sosyal_post', report.social.posts);
+    // Fark yoksa nedeni: onceki donemde hic olcum yok / olcum o donemin ortasinda basladi
+    const farkYok = report.search.oncekiDonemVeriVar === false ? 'onceki donemde olcum yok' : 'onceki donem bastan sona olculmedi';
     yaz('toplam_tiklama', report.search.totalClicks);
-    yaz('tiklama_farki', report.search.clicksDelta ?? 'onceki donemde olcum yok');
+    yaz('tiklama_farki', report.search.clicksDelta ?? farkYok);
     yaz('toplam_gosterim', report.search.totalImpressions);
-    yaz('gosterim_farki', report.search.impressionsDelta ?? 'onceki donemde olcum yok');
+    yaz('gosterim_farki', report.search.impressionsDelta ?? farkYok);
     yaz('ortalama_ctr', `${(report.search.avgCtr * 100).toFixed(2)}%`);
     yaz('ortalama_pozisyon', report.search.avgPosition.toFixed(1));
     // Dondurulmus rapor da buradan gecer (analytics.controller reportByIdCsv);

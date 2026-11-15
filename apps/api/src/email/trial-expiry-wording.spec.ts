@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { EmailService, MAKALE_PLANI, type EmailTemplate } from './email.service.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { EmailService, HAVALE_YOLU, MAKALE_PLANI, PLAN_ILETISIM_EPOSTA, type EmailTemplate } from './email.service.js';
 import { PLAN_RANK, PURCHASABLE_PLAN_IDS, findPlan, publicPlans } from '../billing/plans.js';
 import { MEASUREMENT_WINDOW_MS, computeAllowance } from '../billing/measurement-allowance.js';
 
@@ -27,21 +29,44 @@ const SABLONLAR: EmailTemplate[] = ['trial_expiry_d11', 'trial_expiry_d13', 'tri
 describe('deneme bitisi e-postalari — plan daha sik AI olcumu vaat etmiyor', () => {
   it('"AI görünürlük ölçümü" vaadi yok; plan daha fazla site ve aylik AI gorunurluk calistirmasi verir; makale yalniz adi verilen plan ve ustunde', () => {
     for (const t of SABLONLAR) {
-      const { subject, html } = render(t, { name: 'Test' });
-      const metin = `${subject} ${html}`;
-      expect(metin, t).not.toContain('AI görünürlük ölçümü');
-      expect(metin, t).not.toMatch(/daha (fazla|sık)[^.]{0,40}ölçüm/i);
-      expect(html, t).toContain('Daha fazla site ve aylık AI görünürlük çalıştırması için');
-      // "Bir plan sec, daha fazla makale" yok: makale HER planda yok
-      expect(metin, t).not.toMatch(/daha fazla makale/i);
-      expect(metin, t).not.toMatch(/daha fazla[^.(;]{0,40}makale/i);
-      // Makale ureten plan adiyla soylenir (plans.ts)
-      expect(html, t).toContain(`makale üretimi ${MAKALE_PLANI} ve üzeri planlarda`);
+      // Iki durumda da ayni vaat: satin alma acik (readOnlyAtEnd true) ve kapali
+      for (const readOnlyAtEnd of [true, false, undefined]) {
+        const ad = `${t} / ${String(readOnlyAtEnd)}`;
+        const { subject, html } = render(t, { name: 'Test', readOnlyAtEnd });
+        const metin = `${subject} ${html}`;
+        expect(metin, ad).not.toContain('AI görünürlük ölçümü');
+        expect(metin, ad).not.toMatch(/daha (fazla|sık)[^.]{0,40}ölçüm/i);
+        expect(html, ad).toContain('Daha fazla site ve aylık AI görünürlük çalıştırması için');
+        // Kartla satin alma KAPALIYKEN de plan alinabilir: yazarak, havale / EFT ile (sahip,
+        // 16.11.2026). Eskiden "satın alma açılana kadar…" yazip "bir plan seçebilirsin" ile
+        // celisiyordu; uc e-posta da artik ayni yolu gosterir.
+        if (readOnlyAtEnd !== true) {
+          expect(html, ad).toContain(HAVALE_YOLU);
+          expect(html, ad).not.toContain('satın alma açılana kadar');
+          expect(html, ad).not.toContain('plan seçmen istenecek');
+        } else {
+          expect(html, ad).not.toContain('havale');
+        }
+        // "Bir plan sec, daha fazla makale" yok: makale HER planda yok
+        expect(metin, ad).not.toMatch(/daha fazla makale/i);
+        expect(metin, ad).not.toMatch(/daha fazla[^.(;]{0,40}makale/i);
+        // Makale ureten plan adiyla soylenir (plans.ts)
+        expect(html, ad).toContain(`makale üretimi ${MAKALE_PLANI} ve üzeri planlarda`);
+      }
     }
     // d11 onizleme metni de ayni dili kullanir
     expect(render('trial_expiry_d11').html).toContain(
       `Daha fazla site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda).`,
     );
+  });
+
+  it('havale yolu: yazilacak adres sitenin "bizimle iletişime geç" kutusuyla ayni, baglanti tiklanir', () => {
+    const web = readFileSync(fileURLToPath(new URL('../../../web/src/lib/checkout-availability.ts', import.meta.url)), 'utf8');
+    expect(web).toContain(`export const PURCHASE_CONTACT_EMAIL = '${PLAN_ILETISIM_EPOSTA}';`);
+    expect(HAVALE_YOLU).toContain(`href="mailto:${PLAN_ILETISIM_EPOSTA}?subject=`);
+    expect(HAVALE_YOLU).toContain('havale / EFT');
+    // Verilemeyecek soz yok: sure / "ayni gun" vaadi yazilmaz
+    expect(HAVALE_YOLU).not.toMatch(/aynı gün|dakika|saat içinde|hemen/i);
   });
 
   it('dayanak: satin alinabilir her plan denemeden fazla site ve aylik calistirma verir; makale yalniz e-postanin adini verdigi plandan itibaren; olcum hakki her hesapta ayni pencere', () => {
