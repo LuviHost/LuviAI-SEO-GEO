@@ -20,11 +20,17 @@ describe('deneme bitis metni', () => {
     expect(denemeSonu(true)).toContain('görmeye ve indirmeye devam edersin');
   });
 
-  it('satin alma kapali ya da bilinmiyor: kilit iddiasi yok, test asamasi soylenir', () => {
-    for (const v of [false, undefined]) {
-      const { html } = render('trial_expiry_d13', { name: 'A', readOnlyAtEnd: v });
-      expect(html).not.toContain('salt okunur');
-      expect(html).toContain('test aşamasında');
+  it('kartla satin alma kapali ya da bilinmiyor: kilit iddiasi yok; kartin kapali oldugu ve planin havale ile alinabildigi soylenir', () => {
+    for (const t of ['trial_expiry_d11', 'trial_expiry_d13'] as const) {
+      for (const v of [false, undefined]) {
+        const { html } = render(t, { name: 'A', readOnlyAtEnd: v });
+        expect(html, t).not.toContain('salt okunur');
+        expect(html, t).toContain('test aşamasında');
+        expect(html, t).toContain('kalan deneme haklarınla devam edebilirsin');
+        expect(html, t).toContain('havale / EFT');
+        // "Plan alamazsin" diye okunan eski cumle yok (ayni e-postadaki "bir plan seçebilirsin" ile celisiyordu)
+        expect(html, t).not.toContain('satın alma açılana kadar');
+      }
     }
   });
 });

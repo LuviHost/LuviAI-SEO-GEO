@@ -6,6 +6,7 @@ import { PUBLIC_BUDGET_MESSAGE, PublicCitationService, type PublicCheckResult } 
 import { PublicCitationSubscriberService } from './public-citation-subscriber.service.js';
 import { PublicCheckAttemptService } from './public-check-attempt.service.js';
 import { attemptDetail, attemptHost, outcomeOfError, outcomeOfResult, summaryOfResult } from './public-check-attempt.js';
+import { reportOfResult } from './public-check-report-email.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
 import { clientIp } from '../common/client-ip.js';
@@ -194,6 +195,9 @@ export class PublicCitationController {
           checkId: sonuc && !sonuc.fromCache ? sonuc.checkId ?? null : null,
           detail: sonuc ? null : attemptDetail(hata),
           summary: sonuc ? summaryOfResult(sonuc) : undefined,
+          // Bildirim e-postasi ziyaretcinin gordugu raporu tasir (public-check-report-email.ts);
+          // yalniz e-postada kullanilir, kayda yazilmaz
+          report: sonuc ? reportOfResult(sonuc) : undefined,
         };
         void Promise.resolve()
           .then(() => this.attempts.record(girdi))

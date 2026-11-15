@@ -4,7 +4,7 @@ import { siteHref } from '@/lib/site-routes';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Plus, Trash2, Edit2, CheckCircle2, XCircle, Star, Power, Loader2, BarChart3, Link2, Unlink, Activity } from 'lucide-react';
+import { Plus, Trash2, Edit2, CheckCircle2, XCircle, Star, Power, Loader2, BarChart3, Link2, Unlink, Activity, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { finishOAuthConnect, oauthCallbackErrorText } from '@/lib/oauth-connect';
@@ -19,6 +19,8 @@ import { AiKeysPanel } from '@/components/ai-keys-panel';
 import { SiteAuthorCard } from '@/components/site-author-card';
 import { BrandIcon } from '@/components/brand-icon';
 import { refreshGenerationReadiness } from '@/lib/use-article-allowance';
+import { openUpgrade } from '@/components/upgrade-gate';
+import { lockedGroupTitle, lockedTargetRequest, splitCatalogByLock } from '@/lib/publish-target-lock';
 
 type CatalogField = {
   key: string;
@@ -39,6 +41,13 @@ type CatalogItem = {
   fields: CatalogField[];
   configFields: CatalogField[];
   adminOnly?: boolean;
+  /**
+   * Bu hesap bu turu ekleyemez (api publish-target-plan-lock.ts; karar sunucuda). Kutu kilitli
+   * cizilir; tiklayinca form yerine plan penceresi acilir (lib/publish-target-lock.ts).
+   */
+  locked?: boolean;
+  upgrade?: unknown;
+  lockedReason?: string;
 };
 
 type Target = {
@@ -77,7 +86,8 @@ export function PublishTargetsManager({
   const refresh = async () => {
     try {
       const [c, t] = await Promise.all([
-        api.getPublishTargetsCatalog(),
+        // siteId: sunucu sitenin sahibinin planinda eklenemeyen turleri kilitli isaretler
+        api.getPublishTargetsCatalog(siteId),
         api.listPublishTargets(siteId),
       ]);
       // Defensive client-side filter — backend de zaten role'e gore filter ediyor,
@@ -159,6 +169,9 @@ export function PublishTargetsManager({
       setTestingId(null);
     }
   };
+
+  // Acik turler once, bu planda eklenemeyenler ayri grupta (lib/publish-target-lock.ts)
+  const catalogGroups = useMemo(() => splitCatalogByLock(catalog), [catalog]);
 
   const catalogByType = useMemo(() => {
     const m = new Map<string, CatalogItem>();
@@ -272,7 +285,7 @@ export function PublishTargetsManager({
               </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {catalog.map((c) => (
+              {catalogGroups.open.map((c) => (
                 <button
                   key={c.type}
                   onClick={() => setAdding(c)}
@@ -288,6 +301,44 @@ export function PublishTargetsManager({
                 </button>
               ))}
             </div>
+            {/* Bu planda eklenemeyen turler (15.11.2026): BASTAN kilitli. Eskiden hepsi acik
+                gorunuyor, musteri formu doldurup "Ekle"ye basinca kirmizi bildirim aliyordu.
+                Tiklayinca form degil plan penceresi acilir; hangi plan actigi sunucudan. */}
+            {catalogGroups.locked.length > 0 && (
+              <div className="space-y-2 pt-3">
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Lock className="h-3.5 w-3.5" aria-hidden />
+                  {lockedGroupTitle(catalogGroups.locked)}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {catalogGroups.locked.map((c) => (
+                    <button
+                      key={c.type}
+                      type="button"
+                      onClick={() => {
+                        const request = lockedTargetRequest(c);
+                        if (request) openUpgrade(request);
+                        else toast.message(c.lockedReason || `${c.label} bu planda eklenemiyor.`);
+                      }}
+                      title={c.lockedReason}
+                      className="flex items-start gap-3 rounded-md border border-dashed p-3 text-left transition-colors hover:border-foreground/30 hover:bg-muted"
+                    >
+                      <span className="shrink-0 opacity-50 grayscale" aria-hidden>
+                        <BrandIcon type={c.type} fallback={c.icon} className="h-7 w-7" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-muted-foreground">{c.label}</div>
+                        <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground/70">
+                          {c.description}
+                        </div>
+                      </div>
+                      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="sr-only">{c.lockedReason}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

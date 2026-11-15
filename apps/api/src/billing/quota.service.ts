@@ -858,6 +858,26 @@ export class QuotaService {
     return (allowed as string[]).includes(targetType);
   }
 
+  /**
+   * Hesabin ekleyebildigi yayin hedefi turleri + kilitli turleri acan plan
+   * (publish-targets/publish-target-plan-lock.ts; panel katalogu bastan kilitli cizer).
+   * Karar canUsePublishTarget ile AYNI tablodan (LIMITS); taninmayan plan en dar kapsami alir.
+   * Yol: yayin hedeflerinin TAMAMINI acan en dusuk satistaki plan (plans.ts publishTargets).
+   * Odeme gecmisi yalniz kilit varken sorulur (deneme duzeyi).
+   */
+  async publishTargetAccess(userId: string): Promise<{ allowed: 'all' | string[]; upgrade: UpgradeOffer; lapsed: boolean }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
+    const row = Object.prototype.hasOwnProperty.call(this.LIMITS, user.plan)
+      ? this.LIMITS[user.plan as keyof typeof this.LIMITS]
+      : this.LIMITS.TRIAL;
+    if (row.publishTargets === 'all') return { allowed: 'all', upgrade: { kind: 'wait', planId: null, planName: null }, lapsed: false };
+    return {
+      allowed: [...row.publishTargets],
+      upgrade: upgradeOfferFor(user.plan, (p) => p.publishTargets === 'all'),
+      lapsed: await this.isLapsed(userId, user.plan),
+    };
+  }
+
   // ────────────────────────────────────────────
   //  Trial helpers
   // ────────────────────────────────────────────

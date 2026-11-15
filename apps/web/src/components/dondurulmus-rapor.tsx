@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, Minus, Search, Sparkles, Smartphone, Megaphone, Wre
 import { geoAccessOf, geoSampleNote, type GeoAccessBlock, type GeoSample, type ReportAuditGeo } from '@/lib/api';
 import { PROVIDER_LABELS } from '@/lib/chart-colors';
 import { crawlAccessTitle, currentCrawlAccess } from '@/lib/crawl-access';
+import { periodDayLabel, previousPeriodNote } from '@/lib/report-link';
 
 /**
  * Rapor govdesindeki GEO engel / orneklem: canli raporun `audit`'i, dondurulmus raporun
@@ -113,9 +114,8 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
   const asa: Bolum<any> = d.asa ?? { olculemedi: true, neden: 'Bu rapor ASA bölümü olmadan üretilmiş.' };
   const is = d.is ?? {};
 
-  const tarihAralik = `${new Date(rapor.periodStart).toLocaleDateString('tr-TR')} – ${new Date(
-    rapor.periodEnd,
-  ).toLocaleDateString('tr-TR')}`;
+  // Ozel donem UTC gunuyle yazilir: yoksa Turkiye'de "1–31 Ekim" raporu "1.10 – 1.11" gorunur
+  const tarihAralik = `${periodDayLabel(rapor.periodStart, meta.period)} – ${periodDayLabel(rapor.periodEnd, meta.period)}`;
 
   // Teknik GEO skoru icin engel / orneklem notu. seo.audit rapor anindaki SON tarama;
   // teknikGeoSkoru ise donemdeki son SKORLU tarama. Son tarama engele takildiysa (skor yok)
@@ -165,11 +165,11 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               etiket="Tıklama"
               deger={sayi(seo.search?.totalClicks)}
               alt={
-                seo.search?.oncekiDonemVeriVar === false ? (
-                  /* Onceki donemde hic olcum yoksa fark gosterilmez: "+14.766"
-                     sifirdan buyume gibi okunurdu, halbuki site o donemde
-                     henuz olculmuyordu. */
-                  <span className="text-xs text-muted-foreground">önceki dönemde ölçüm yok</span>
+                previousPeriodNote(seo.search) ? (
+                  /* Onceki donemde hic olcum yoksa ya da o donem bastan sona olculmediyse fark
+                     gosterilmez: "+14.766" sifirdan buyume gibi okunurdu, halbuki site o donemde
+                     henuz (tam) olculmuyordu. Nedeni yazilir (lib/report-link.ts). */
+                  <span className="text-xs text-muted-foreground">{previousPeriodNote(seo.search)}</span>
                 ) : (
                   <Delta deger={seo.search?.clicksDelta ?? null} />
                 )
@@ -179,8 +179,8 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               etiket="Gösterim"
               deger={sayi(seo.search?.totalImpressions)}
               alt={
-                seo.search?.oncekiDonemVeriVar === false ? (
-                  <span className="text-xs text-muted-foreground">önceki dönemde ölçüm yok</span>
+                previousPeriodNote(seo.search) ? (
+                  <span className="text-xs text-muted-foreground">{previousPeriodNote(seo.search)}</span>
                 ) : (
                   <Delta deger={seo.search?.impressionsDelta ?? null} />
                 )

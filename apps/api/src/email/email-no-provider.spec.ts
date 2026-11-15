@@ -17,7 +17,7 @@ vi.mock('resend', () => ({
   },
 }));
 
-const { EmailService, EMAIL_STATUS_NO_PROVIDER, EMAIL_NOT_SENT_STATUSES } = await import('./email.service.js');
+const { EmailService, EMAIL_STATUS_NO_PROVIDER, EMAIL_NOT_SENT_STATUSES, EMAIL_LOG_SUBJECT_MAX } = await import('./email.service.js');
 
 function makePrisma() {
   return {
@@ -77,5 +77,29 @@ describe('EmailService — Resend hata nesnesi', () => {
     const r = await new EmailService(prisma as never).send({ userId: 'u1', to: 'a@b.co', template: 'weekly_report', data: { name: 'A' } });
     expect(r).toEqual({ ok: true, resendId: 're_1' });
     expect(prisma.emailLog.create.mock.calls[0][0].data.status).toBe('sent');
+  });
+
+  it('e-posta GITTI ama kaydi yazilamadi: sonuc yine ok — "gitmedi" denirse cagiran ertesi gun yeniden gonderir', async () => {
+    // Aylik rapor ve "deneme süren doldu" sonuca bakip yeniden deniyor; giden e-posta
+    // 'failed' sayilsaydi musteri ayni e-postayi dort gun ust uste alirdi.
+    const prisma = makePrisma();
+    prisma.emailLog.create.mockRejectedValueOnce(new Error('veritabani'));
+    const r = await new EmailService(prisma as never).send({ userId: 'u1', to: 'a@b.co', template: 'weekly_report', data: { name: 'A' } });
+    expect(r).toEqual({ ok: true, resendId: 're_1' });
+    // Ikinci bir 'failed' kaydi da yazilmadi
+    expect(prisma.emailLog.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('uzun konu kayit sutununa sigacak kadar kesilir (e-postanin konusu kesilmez)', async () => {
+    const uzunAd = 'Ç'.repeat(190);
+    const prisma = makePrisma();
+    const r = await new EmailService(prisma as never).send({
+      userId: 'u1', to: 'a@b.co', template: 'monthly_report',
+      data: { siteName: uzunAd, siteId: 's1', periodLabel: 'Ekim 2026', articlesPublished: 1, auditCount: 0 },
+    });
+    expect(r.ok).toBe(true);
+    expect(prisma.emailLog.create.mock.calls[0][0].data.subject).toHaveLength(EMAIL_LOG_SUBJECT_MAX);
+    expect(EMAIL_LOG_SUBJECT_MAX).toBe(191);
+    expect((resendSend.mock.calls[0] as any[])[0].subject).toBe(`${uzunAd} — aylık rapor hazır`);
   });
 });

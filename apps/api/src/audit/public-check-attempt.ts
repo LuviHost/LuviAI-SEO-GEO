@@ -139,29 +139,35 @@ export function summaryOfResult(result: {
   };
 }
 
-/** Yoneticiye giden bildirim (panel + e-posta). Kisi bilgisi yok: alan adi ve ne oldugu. */
-export function attemptNotification(a: { domain: string; outcome: AttemptOutcome; detail?: string | null; summary?: AttemptSummary }): { title: string; body: string } {
+/**
+ * Yoneticiye giden bildirim (panel + e-posta). Kisi bilgisi yok: alan adi ve ne oldugu.
+ * `note`: yalniz ne oldugunu anlatan cumle (govdenin son satiri) — e-posta bunu rapordan
+ * ayri bir yerde gosterir (public-check-report-email.ts).
+ */
+export function attemptNotification(a: { domain: string; outcome: AttemptOutcome; detail?: string | null; summary?: AttemptSummary }): { title: string; body: string; note: string } {
   const s = a.summary ?? {};
   const satirlar: string[] = [];
   const kim = [s.brand, s.niche].filter(Boolean).join(' · ');
   if (kim) satirlar.push(kim);
+  let note: string;
   if (a.outcome === 'measured' || a.outcome === 'cached') {
     if (typeof s.total === 'number' && s.total > 0) satirlar.push(`Sonuç: ${s.cited ?? 0}/${s.total} cevapta kaynak gösterildi.`);
-    satirlar.push(a.outcome === 'cached'
+    note = a.outcome === 'cached'
       ? 'Bu alan adı daha önce ölçülmüştü; ziyaretçi kayıtlı sonucu gördü, yeni ölçüm yapılmadı.'
-      : 'Ana sayfadaki ücretsiz testle yapılan yeni bir ölçüm.');
+      : 'Ana sayfadaki ücretsiz testle yapılan yeni bir ölçüm.';
   } else if (a.outcome === 'rate_limited') {
     // "Ziyaretci baska bir alan adini test etmisti" DENMEZ: sinir IP basinadir, ayni agdaki
     // baska biri de olabilir.
-    satirlar.push('Aynı IP adresinden bu hafta başka bir alan adı test edilmişti; bu deneme haftalık sınıra takıldı ve ölçülmedi.');
+    note = 'Aynı IP adresinden bu hafta başka bir alan adı test edilmişti; bu deneme haftalık sınıra takıldı ve ölçülmedi.';
   } else if (a.outcome === 'budget') {
-    satirlar.push('Günlük ücretsiz test tavanı dolduğu için bu deneme ölçülmedi.');
+    note = 'Günlük ücretsiz test tavanı dolduğu için bu deneme ölçülmedi.';
   } else {
-    satirlar.push(`Test tamamlanamadı${a.detail ? `: ${a.detail}` : '.'}`);
+    note = `Test tamamlanamadı${a.detail ? `: ${a.detail}` : '.'}`;
   }
+  satirlar.push(note);
   const ek = ` (${ATTEMPT_LABEL_TR[a.outcome].toLocaleLowerCase('tr-TR')})`;
   const on = 'Ücretsiz test: ';
   // Baslik sutunu 191 karakter: uzun alan adi kirpilir, sonuc eki korunur
   const alan = a.domain.length + on.length + ek.length > TITLE_MAX ? `${a.domain.slice(0, TITLE_MAX - on.length - ek.length - 1)}…` : a.domain;
-  return { title: `${on}${alan}${ek}`, body: satirlar.join('\n') };
+  return { title: `${on}${alan}${ek}`, body: satirlar.join('\n'), note };
 }

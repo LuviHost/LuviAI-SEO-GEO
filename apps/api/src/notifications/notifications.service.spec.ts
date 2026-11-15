@@ -59,4 +59,24 @@ describe('NotificationsService — e-posta kanali', () => {
     expect(t.prisma.user.findUnique).not.toHaveBeenCalled();
     expect(t.email.sendRaw).not.toHaveBeenCalled();
   });
+
+  // 15.11.2026: cagiran hazir e-posta govdesi verebilir (ucretsiz test bildirimi: raporlu e-posta)
+  it('hazir e-posta govdesi verilirse e-posta onunla gider; kayda yazilmaz; verilmezse genel kalip', async () => {
+    const t = kur({ email: 'kisi@ornek.com', deletionRequestedAt: null });
+    const html = '<html><body>RAPORLU GOVDE</body></html>';
+    await t.svc.create({ ...bildirim, emailHtml: html });
+    expect((t.email.sendRaw as any).mock.calls[0][0].html).toBe(html);
+    // Bildirim kaydinda govde yok (panel: baslik + metin)
+    const kayit = (t.prisma.notification.create as any).mock.calls[0][0].data;
+    expect(JSON.stringify(kayit)).not.toContain('RAPORLU GOVDE');
+    expect(Object.keys(kayit)).not.toContain('emailHtml');
+
+    for (const bos of [undefined, '', '   ']) {
+      const g = kur({ email: 'kisi@ornek.com', deletionRequestedAt: null });
+      await g.svc.create({ ...bildirim, emailHtml: bos });
+      const gonderilen = (g.email.sendRaw as any).mock.calls[0][0].html as string;
+      expect(gonderilen).toContain('Panelde aç');
+      expect(gonderilen).toContain('<!DOCTYPE html');
+    }
+  });
 });

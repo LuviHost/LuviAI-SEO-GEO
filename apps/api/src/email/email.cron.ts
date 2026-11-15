@@ -1,17 +1,36 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { EmailService } from './email.service.js';
+import { EMAIL_NOT_SENT_STATUSES, EmailService } from './email.service.js';
 import { checkoutTestModeOn } from '../billing/checkout-mode.js';
+import { hasEverPaid } from '../billing/ever-paid.js';
 import { eskiFiyatBilgisi } from './grandfathering.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { weeklySiteSummary } from '../analytics/gsc-aggregate.js';
 
 /**
+ * "Deneme süren doldu" e-postasi deneme bittikten sonra en fazla bu kadar gun icinde gider.
+ *
+ * NEDEN PENCERE (tek gun degil): gorev bir gun calismazsa (dagitim, yeniden baslatma) e-posta
+ * kaybolmasin. Bir kez gitmesini e-posta kaydi saglar (EmailCron.trialExpiredDue), pencere degil.
+ * Pencerenin disinda kalan hesap (or. bu baglanti canliya alindiginda denemesi haftalar once
+ * bitmis olan) gec kalmis bir "süren doldu" e-postasi ALMAZ.
+ */
+export const TRIAL_EXPIRED_WINDOW_DAYS = 3;
+
+/** Deneme `now`dan once bitti ve bitisinin uzerinden pencere kadar gun gecmedi */
+export function trialJustExpired(trialEndsAtMs: number, nowMs: number): boolean {
+  const gecen = nowMs - trialEndsAtMs;
+  return gecen >= 0 && gecen < TRIAL_EXPIRED_WINDOW_DAYS * 86400000;
+}
+
+/**
  * Email otomasyon cron'ları:
  *  - Welcome series (gün 1, 3, 7)
  *  - Trial expiry warnings (gün 11, 13)
+ *  - Trial expired (deneme bittikten sonraki ilk calismada, bir kez)
  *  - Weekly reports (Pazartesi 09:00)
+ *  - Aylik rapor ayri dosyada: analytics/monthly-report.cron.ts
  *
  * HER CRON KILITLI (common/cron-lock.ts): API ve worker ayni AppModule'u
  * bootstrap ettigi icin @Cron iki proseste birden tetikleniyor; kilitsiz her
@@ -71,6 +90,12 @@ export class EmailCron {
           } else if (daysLeft === 1) {
             await this.email.send({ userId: u.id, to: u.email, template: 'trial_expiry_d13', data: { name: u.name, readOnlyAtEnd } });
             sent++;
+          } else if (u.role !== 'ADMIN' && trialJustExpired(u.trialEndsAt.getTime(), now) && (await this.trialExpiredDue(u.id))) {
+            // Deneme BITTI. Sablon 15.11.2026'ya kadar hic gonderilmiyordu (gonderen kod yoktu).
+            // Yonetici deneme kurallarina takilmaz (trialAccess), "süren doldu" e-postasi da almaz.
+            // d13 ile cakismaz: sure dolunca daysLeft <= 0 olur.
+            await this.email.send({ userId: u.id, to: u.email, template: 'trial_expired', data: { name: u.name, readOnlyAtEnd } });
+            sent++;
           }
         }
       } catch (err: any) {
@@ -79,6 +104,26 @@ export class EmailCron {
     }
 
     if (sent > 0) this.log.log(`${sent} daily email gönderildi`);
+  }
+
+  /**
+   * "Deneme süren doldu" bu hesaba gonderilmeli mi: daha once GITMEDIYSE ve hesap hic odeme
+   * yapmadiysa.
+   *
+   *  - Bir kez: pencere (TRIAL_EXPIRED_WINDOW_DAYS) birkac gun acik; ikinci gun yeniden gitmesin.
+   *    Gitmemis sayilan kayitlar (saglayici yok / hata) engel degildir, ertesi gun yeniden denenir.
+   *  - Eski musteri: plani TRIAL'a dusmus ama PAID faturasi olan hesap bir deneme hesabi degildir
+   *    (billing/ever-paid.ts); ona "deneme süren doldu" denmez.
+   *
+   * Yalniz denemesi pencere icinde bitmis hesap icin sorulur (gunde birkac hesap).
+   */
+  private async trialExpiredDue(userId: string): Promise<boolean> {
+    const onceki = await this.prisma.emailLog.findFirst({
+      where: { userId, template: 'trial_expired', status: { notIn: [...EMAIL_NOT_SENT_STATUSES] } },
+      select: { id: true },
+    });
+    if (onceki) return false;
+    return !(await hasEverPaid(this.prisma, userId));
   }
 
   /** Pazartesi 09:00 — haftalık rapor */

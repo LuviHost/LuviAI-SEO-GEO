@@ -133,6 +133,41 @@ describe('PublicCheckAttemptService — kayit + bildirim', () => {
     expect(t.satirlar[0].notifiedAt).toBeInstanceOf(Date);
   });
 
+  // Sahip istegi (15.11.2026): bildirim e-postasi site diliyle ve ziyaretcinin gordugu RAPORLA gider
+  it('e-posta raporu tasir ve site diliyle kurulur; rapor veritabanina YAZILMAZ, panel metni ayni kalir', async () => {
+    const t = kur();
+    const report = {
+      brand: 'Örnek Klinik', score: 8, engines: [{ label: 'Claude', cited: true }, { label: 'Gemini', cited: false }],
+      questions: [{ no: 1, query: 'Görüşme nasıl ayarlanır?', category: 'Keşif', branded: false, cited: 1, total: 2, providers: [{ label: 'Claude', state: 'cited' as const }, { label: 'Gemini', state: 'absent' as const }], answers: [{ label: 'Claude', excerpt: 'Örnek Klinik öne çıkıyor.', truncated: false }] }],
+      locked: [{ no: 2, query: 'Kilitli soru' }], competitors: [{ name: 'rakip-a.com', pct: 14, isBrand: false }], measuredAt: null,
+    };
+    await t.svc.record({ domain: 'ornekklinik.com', outcome: 'measured', ipHash: 'h1', checkId: 'c1', summary: { brand: 'Örnek Klinik', niche: 'estetik', cited: 1, total: 12 }, report });
+    const cagri = t.notifications.create.mock.calls[0][0];
+    expect(cagri.channels).toEqual(['inapp', 'email']);
+    expect(cagri.emailHtml).toContain('ornekklinik.com');
+    expect(cagri.emailHtml).toContain('Görüşme nasıl ayarlanır?');
+    expect(cagri.emailHtml).toContain('Claude &#10003;');
+    expect(cagri.emailHtml).toContain('rakip-a.com');
+    expect(cagri.emailHtml).toContain('href="https://ranksup.ai/admin/leads"');
+    expect(cagri.emailHtml).toContain('bgcolor="#090909"');
+    // Panel bildirimi kisa metin olarak kalir
+    expect(cagri.body).toBe('Örnek Klinik · estetik\nSonuç: 1/12 cevapta kaynak gösterildi.\nAna sayfadaki ücretsiz testle yapılan yeni bir ölçüm.');
+    // Kayit: alan adi, sonuc turu, IP ozeti — rapor yok
+    expect(Object.keys(t.prisma.publicCheckAttempt.create.mock.calls[0][0].data).sort()).toEqual(['checkId', 'detail', 'domain', 'ip', 'outcome']);
+  });
+
+  it('e-posta gitmeyen bildirimde govde kurulmaz; raporsuz denemede e-posta yalniz durumu soyler', async () => {
+    const t = kur();
+    await t.svc.record({ domain: 'yok.example', outcome: 'failed', ipHash: 'h1', detail: 'Alan adı çözülemedi' });
+    expect(t.notifications.create.mock.calls[0][0].channels).toEqual(['inapp']);
+    expect(t.notifications.create.mock.calls[0][0].emailHtml).toBeUndefined();
+    await t.svc.record({ domain: 'ornek.com', outcome: 'rate_limited', ipHash: 'h2' });
+    const sinir = t.notifications.create.mock.calls[1][0];
+    expect(sinir.channels).toEqual(['inapp', 'email']);
+    expect(sinir.emailHtml).toContain('haftalık sınıra takıldı ve ölçülmedi');
+    expect(sinir.emailHtml).not.toContain('skor / 100');
+  });
+
   it('ayni alan adi + ayni sonuc icin yarim saatte tek bildirim; deneme yine yazilir', async () => {
     const t = kur();
     await t.svc.record({ domain: 'ornek.com', outcome: 'cached', ipHash: 'h1' });
@@ -242,7 +277,11 @@ describe('POST citation-check — deneme kaydi', () => {
 
   const sonuc = (over: Record<string, unknown> = {}) => ({
     domain: 'murataktas.co.uk', brand: 'Murat Aktaş', niche: 'sağlık', customNiche: null, fromCache: false, checkId: 'c1',
-    queries: [{ citedCount: 1, totalProviders: 4 }, { citedCount: 0, totalProviders: 4 }, { locked: true }],
+    queries: [
+      { query: 'Estetik cerrahisi için görüşme nasıl ayarlanır?', citedCount: 1, totalProviders: 4 },
+      { query: 'Saç ekimi ne kadar tutar?', citedCount: 0, totalProviders: 4 },
+      { query: 'Kilitli soru', locked: true },
+    ],
     ...over,
   });
 
@@ -254,7 +293,21 @@ describe('POST citation-check — deneme kaydi', () => {
     expect(t.attempts.record).toHaveBeenCalledWith({
       domain: 'murataktas.co.uk', outcome: 'measured', ipHash: 'hash(203.0.113.7)', checkId: 'c1', detail: null,
       summary: { brand: 'Murat Aktaş', niche: 'sağlık', cited: 1, total: 8 },
+      // 15.11.2026: bildirim e-postasi ziyaretcinin gordugu raporu tasir (yalniz e-postada
+      // kullanilir; kayda yazilmaz). Ozetle AYNI sayilardan: 8 cevabin 1'i → skor 13.
+      report: expect.objectContaining({ brand: 'Murat Aktaş', score: 13 }),
     });
+    // Rapor kisi bilgisi tasimaz: IP ozeti ve ham girdi raporda yok
+    const gonderilen = JSON.stringify((t.attempts.record as any).mock.calls[0][0].report);
+    expect(gonderilen).not.toContain('203.0.113.7');
+    expect(gonderilen).not.toContain('hash(');
+  });
+
+  it('hata durumunda rapor gitmez (olculen bir sey yok)', async () => {
+    const t = kur(async () => { throw new HttpException('Alan adı çözülemedi', HttpStatus.BAD_REQUEST); });
+    await expect(t.ctrl.check(t.istek(), { domain: 'yok-boyle-bir-site.example' })).rejects.toMatchObject({ status: 400 });
+    await bekle();
+    expect((t.attempts.record as any).mock.calls[0][0].report).toBeUndefined();
   });
 
   it('kayitli sonuc (onbellek): "cached" — eskiden hic iz birakmiyordu', async () => {

@@ -2,7 +2,8 @@ import { Injectable, Logger, BadRequestException, NotFoundException, HttpExcepti
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
-import { kacisla } from '../email/email-layout.js';
+// `p as par`: e-posta kuran yontemlerde parametre adi `p`; paragraf yardimcisi onunla karismasin
+import { FONT, MARKA, MONO, dugme, duzen, ekranKarti, etiket, h, kacisla, liste, p as par } from '../email/email-layout.js';
 import { PublicCitationService, baselineQuestionSet, type RetestComparison } from './public-citation.service.js';
 import { normalizePublicDomainInput } from '../sites/site-url-policy.js';
 import {
@@ -445,46 +446,34 @@ export class PublicCitationSubscriberService {
    */
   private welcomeEmailHtml(p: { brand: string; domain: string; confirmUrl: string; unsubscribeUrl: string; locale: string; pazarlama?: boolean }): string {
     const tr = p.locale === 'tr';
-    const brand = kacisla(p.brand);
     const domain = kacisla(p.domain);
     const asistanSayisi = FREE_TEST_ENGINES.length;
     const asistanlar = FREE_TEST_ENGINES.map((e) => ENGINE_LABELS[e]).join(', ');
-    return `<!doctype html>
-<html><head><meta charset="utf-8"><title>${tr ? 'Aboneliğinizi onaylayın' : 'Confirm your subscription'}</title></head>
-<body style="margin:0;padding:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;line-height:1.5">
-<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
-  <div style="background:linear-gradient(135deg,#f97316,#ea580c);padding:32px;text-align:center;color:#fff">
-    <div style="font-size:32px;margin-bottom:8px">✨</div>
-    <h1 style="margin:0;font-size:24px;font-weight:800">RanksUp</h1>
-    <p style="margin:8px 0 0;opacity:0.9;font-size:14px">AI Visibility Tracker</p>
-  </div>
-  <div style="padding:32px">
-    <h2 style="margin:0 0 16px;font-size:20px;font-weight:700">${tr ? `${brand} için takibi onaylayın` : `Confirm tracking for ${brand}`}</h2>
-    <p style="margin:0 0 16px;color:#4a4a4a">
-      ${tr
+    // GORUNUM (15.11.2026): ortak e-posta duzeni (email/email-layout.ts). Eskiden bu e-posta
+    // kendi HTML'ini yaziyordu: turuncu degrade baslik, emoji, "AI Visibility Tracker".
+    // METIN DEGISMEDI; yalniz gorunum.
+    const baslik = tr ? `${p.brand} için takibi onaylayın` : `Confirm tracking for ${p.brand}`;
+    const govde =
+      etiket(tr ? 'Ücretsiz test takibi' : 'Free test tracking') +
+      h(baslik) +
+      par(tr
         ? `<strong>${domain}</strong> alan adının ${asistanSayisi} AI asistanındaki (${asistanlar}) görünürlüğünü 15, 30, 60 ve 90 gün sonra otomatik olarak yeniden test edip her seferinde size rapor göndereceğiz.`
-        : `We'll automatically retest <strong>${domain}</strong> on ${asistanSayisi} AI assistants (${asistanlar}) at 15, 30, 60 and 90 days, and email you each report.`}
-    </p>
-    ${p.pazarlama
-      // NEDEN: cift onay, onaylanan konuyu acikca soylemeli (Mailjet AUP); pazarlama kutusu isaretliyse o da onaylanir
-      ? `<p style="margin:0 0 16px;color:#4a4a4a">${tr
-        ? 'Formda ayrıca <strong>RanksUp ürün haberleri ve kampanya e-postalarını</strong> almayı seçtiniz. Onayınız bu izni de kapsar; her e-postadaki bağlantıyla istediğiniz zaman çıkabilirsiniz.'
-        : 'You also chose to receive <strong>RanksUp product news and promotional emails</strong>. Confirming covers this too; you can opt out anytime from any email.'}</p>`
-      : ''}
-    <p style="margin:0 0 24px;color:#4a4a4a">${tr ? 'Başlamak için aşağıdaki butona tıklayın:' : 'Click the button below to confirm:'}</p>
-    <div style="text-align:center;margin:32px 0">
-      <a href="${p.confirmUrl}" style="display:inline-block;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;font-size:15px">${tr ? 'Aboneliği Onayla' : 'Confirm Subscription'}</a>
-    </div>
-    <p style="margin:24px 0 0;font-size:12px;color:#888;border-top:1px solid #eee;padding-top:16px">
-      ${tr ? 'Bu e-postayı beklemiyorsanız görmezden gelebilirsiniz.' : 'If you did not expect this email, you can safely ignore it.'}
-      <br><a href="${p.unsubscribeUrl}" style="color:#888;text-decoration:underline">${tr ? 'Aboneliği iptal et' : 'Unsubscribe'}</a>
-    </p>
-  </div>
-  <div style="background:#fafafa;padding:16px;text-align:center;font-size:11px;color:#999;border-top:1px solid #eee">
-    RanksUp · ${tr ? 'AI çağı için pazarlama otomasyonu' : 'Marketing automation for the AI era'}
-  </div>
-</div>
-</body></html>`;
+        : `We'll automatically retest <strong>${domain}</strong> on ${asistanSayisi} AI assistants (${asistanlar}) at 15, 30, 60 and 90 days, and email you each report.`) +
+      (p.pazarlama
+        // NEDEN: cift onay, onaylanan konuyu acikca soylemeli (Mailjet AUP); pazarlama kutusu isaretliyse o da onaylanir
+        ? par(tr
+          ? 'Formda ayrıca <strong>RanksUp ürün haberleri ve kampanya e-postalarını</strong> almayı seçtiniz. Onayınız bu izni de kapsar; her e-postadaki bağlantıyla istediğiniz zaman çıkabilirsiniz.'
+          : 'You also chose to receive <strong>RanksUp product news and promotional emails</strong>. Confirming covers this too; you can opt out anytime from any email.')
+        : '') +
+      par(tr ? 'Başlamak için aşağıdaki butona tıklayın:' : 'Click the button below to confirm:') +
+      dugme(tr ? 'Aboneliği Onayla' : 'Confirm Subscription', kacisla(p.confirmUrl)) +
+      par(`<span style="font-size:13px;color:${MARKA.soluk};">${tr ? 'Bu e-postayı beklemiyorsanız görmezden gelebilirsiniz.' : 'If you did not expect this email, you can safely ignore it.'}</span>`);
+    return duzen(tr ? 'Aboneliğinizi onaylayın' : 'Confirm your subscription', govde, {
+      onizleme: tr ? `${p.brand} için AI görünürlük takibini onaylayın.` : `Confirm AI visibility tracking for ${p.brand}.`,
+      baseUrl: process.env.WEB_URL ?? undefined,
+      altBaglantilar: [{ metin: tr ? 'Aboneliği iptal et' : 'Unsubscribe', href: p.unsubscribeUrl }],
+      dil: tr ? 'tr' : 'en',
+    });
   }
 
   /**
@@ -503,6 +492,9 @@ export class PublicCitationSubscriberService {
    * ya da taban bulunamadiysa "ayni kosulda karsilastirilamadi" notu.
    * Kiyas yapildi ama bazi cevaplar bir olcumde eksikse (partialCoverage)
    * sayilarin hangi cevaplar uzerinden oldugu yazilir.
+   *
+   * GORUNUM (15.11.2026): ortak e-posta duzeni; sayilar ustteki ekran kartinda. Eskiden kendi
+   * HTML'i vardi (turuncu degrade baslik, emoji). METIN DEGISMEDI; yalniz gorunum.
    */
   private retestEmailHtml(p: {
     brand: string;
@@ -514,13 +506,11 @@ export class PublicCitationSubscriberService {
     locale: string;
   }): string {
     const tr = p.locale === 'tr';
-    const brand = kacisla(p.brand);
     const domain = kacisla(p.domain);
     const { current, past, delta, deltaPct, methodChanged } = p.cmp;
     // Neden kodu yoksa (eski compareWithPast cevabi) yontem notu — eski davranis
     const notSameConditions = methodChanged && !!p.cmp.methodChangeReason && p.cmp.methodChangeReason !== 'match_version';
-    const direction = delta > 0 ? '📈' : delta < 0 ? '📉' : '⏸️';
-    const directionColor = methodChanged ? '#6b7280' : delta > 0 ? '#10b981' : delta < 0 ? '#ef4444' : '#6b7280';
+    const directionColor = methodChanged ? MARKA.ekranSoluk : delta > 0 ? MARKA.iyi : delta < 0 ? MARKA.kotu : MARKA.ekranSoluk;
     const answers = (n: number) => (tr ? `${n} cevap` : `${n} ${Math.abs(n) === 1 ? 'answer' : 'answers'}`);
     // Onceki deger 0 iken yuzde tanimsiz (deltaPct 0 gelir) — "+%0" yazilmaz
     const pct = deltaPct > 0 ? ` (+${deltaPct}%)` : '';
@@ -556,67 +546,45 @@ export class PublicCitationSubscriberService {
     // Iki sayi da yalniz iki olcumde de yanit alinan cevaplardan; eksik varsa soylenir
     const compared = p.cmp.comparedAnswers ?? 0;
     const coverageNote = !methodChanged && p.cmp.partialCoverage && compared > 0
-      ? `<p style="margin:0 0 16px;color:#6b7280;font-size:13px">${tr
+      ? par(`<span style="font-size:13px;color:${MARKA.soluk};">${tr
         ? `Karşılaştırma, iki ölçümde de yanıt alınan ${compared} cevap üzerinden yapıldı; ölçümlerden birinde yanıt alınamayan cevaplar kıyasa girmedi.`
-        : `The comparison uses the ${compared} ${compared === 1 ? 'answer' : 'answers'} received in both measurements; answers missing from either measurement were left out.`}</p>`
+        : `The comparison uses the ${compared} ${compared === 1 ? 'answer' : 'answers'} received in both measurements; answers missing from either measurement were left out.`}</span>`)
       : '';
     const fmtDate = (d?: Date) => (d ? new Date(d).toLocaleDateString(tr ? 'tr-TR' : 'en-US') : '');
-    const pastCell = methodChanged ? '' : `
-        <td style="width:50%;padding:16px;background:#f9fafb;border-radius:12px;text-align:center;vertical-align:top">
-          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr ? 'Önceki' : 'Before'}</div>
-          <div style="font-size:32px;font-weight:800;color:#4a4a4a">${past?.totalCited ?? 0}</div>
-          <div style="font-size:11px;color:#888;margin-top:4px">${unit}</div>
-          <div style="font-size:11px;color:#888;margin-top:4px">${fmtDate(past?.createdAt)}</div>
-        </td>
-        <td style="width:24px"></td>`;
+    // Ekran kartindaki sayi hucresi: bugunku sayi koyu, onceki soluk
+    const hucre = (ad: string, sayi: number, tarih: string, vurgu: boolean) => `
+        <td valign="top" style="width:50%;padding:4px 12px 4px 0;font-family:${FONT};">
+          <div style="font-family:${MONO};font-size:11px;color:${MARKA.ekranSoluk};">${ad}</div>
+          <div style="margin-top:6px;font-size:44px;line-height:1.05;font-weight:700;letter-spacing:-1.6px;color:${vurgu ? MARKA.ekranInk : MARKA.ekranSoluk};font-variant-numeric:tabular-nums;">${sayi}</div>
+          <div style="margin-top:6px;font-size:12px;color:${MARKA.ekranSoluk};">${unit}</div>
+          <div style="margin-top:2px;font-size:12px;color:${MARKA.ekranSoluk};">${tarih}</div>
+        </td>`;
+    const kart = ekranKarti(`
+      <div style="font-family:${MONO};font-size:12px;line-height:16px;color:${MARKA.ekranSoluk};">${domain} · ${kacisla(p.intervalLabel)} ${tr ? 'rapor' : 'report'}</div>
+      <div style="margin:10px 0 18px;font-family:${FONT};font-size:20px;line-height:1.25;font-weight:700;letter-spacing:-.4px;color:${directionColor};">${headline}</div>
+      <table role="presentation" class="olcu" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        ${methodChanged ? '' : hucre(tr ? 'Önceki' : 'Before', past?.totalCited ?? 0, fmtDate(past?.createdAt), false)}
+        ${hucre(tr ? 'Bugün' : 'Today', current?.totalCited ?? 0, fmtDate(current?.createdAt), true)}
+      </tr></table>`);
 
-    return `<!doctype html>
-<html><head><meta charset="utf-8"><title>${brand} ${p.intervalLabel} ${tr ? 'rapor' : 'report'}</title></head>
-<body style="margin:0;padding:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;line-height:1.5">
-<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
-  <div style="background:linear-gradient(135deg,#f97316,#ea580c);padding:32px;text-align:center;color:#fff">
-    ${methodChanged ? '' : `<div style="font-size:48px;margin-bottom:8px">${direction}</div>`}
-    <h1 style="margin:0;font-size:24px;font-weight:800">${brand}</h1>
-    <p style="margin:8px 0 0;opacity:0.9;font-size:14px">${domain} · ${p.intervalLabel} ${tr ? 'rapor' : 'report'}</p>
-  </div>
-  <div style="padding:32px">
-    <h2 style="margin:0 0 24px;font-size:18px;font-weight:700;text-align:center;color:${directionColor}">${headline}</h2>
-
-    <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 24px">
-      <tr>${pastCell}
-        <td style="width:${methodChanged ? '100' : '50'}%;padding:16px;background:linear-gradient(135deg,#fff7ed,#ffedd5);border-radius:12px;text-align:center;vertical-align:top;border:1px solid #fdba74">
-          <div style="font-size:11px;color:#9a3412;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr ? 'Bugün' : 'Today'}</div>
-          <div style="font-size:32px;font-weight:800;color:#ea580c">${current?.totalCited ?? 0}</div>
-          <div style="font-size:11px;color:#9a3412;margin-top:4px">${unit}</div>
-          <div style="font-size:11px;color:#9a3412;margin-top:4px">${fmtDate(current?.createdAt)}</div>
-        </td>
-      </tr>
-    </table>
-
-    <p style="margin:0 0 16px;color:#4a4a4a">${summary}</p>
-    ${coverageNote}
-
-    <p style="margin:0 0 24px;color:#4a4a4a;font-weight:600">${tr ? 'RanksUp ile:' : 'With RanksUp:'}</p>
-
-    <ul style="margin:0 0 24px;padding-left:20px;color:#4a4a4a">
-      <li>${tr ? 'Otomatik llms.txt ve yapısal veri (schema) üretimi' : 'Automatic llms.txt and structured data (schema) generation'}</li>
-      <li>${tr ? 'Sektörünüze göre AI aramaya uygun içerik üretimi' : 'AI-search-ready content for your niche'}</li>
-      <li>${tr ? 'AI görünürlük ölçümü ve düşüş alarmı' : 'AI visibility measurement and drop alerts'}</li>
-      <li>${tr ? 'GEO Score Card (6 başlık) ve düzeltme önerileri' : 'GEO Score Card (6 pillars) and fix recommendations'}</li>
-    </ul>
-
-    <div style="text-align:center;margin:32px 0">
-      <a href="${p.signupUrl}" style="display:inline-block;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;font-size:15px">${tr ? '2 Makale Ücretsiz Dene' : 'Try 2 Articles Free'}</a>
-    </div>
-
-    <p style="margin:24px 0 0;font-size:12px;color:#888;border-top:1px solid #eee;padding-top:16px;text-align:center">
-      <a href="${p.unsubscribeUrl}" style="color:#888;text-decoration:underline">${tr ? 'Aboneliği iptal et' : 'Unsubscribe'}</a>
-    </p>
-  </div>
-  <div style="background:#fafafa;padding:16px;text-align:center;font-size:11px;color:#999;border-top:1px solid #eee">
-    RanksUp · ${tr ? 'AI çağı için pazarlama otomasyonu' : 'Marketing automation for the AI era'}
-  </div>
-</div>
-</body></html>`;
+    const govde =
+      kart +
+      h(p.brand) +
+      par(summary) +
+      coverageNote +
+      par(`<strong>${tr ? 'RanksUp ile:' : 'With RanksUp:'}</strong>`) +
+      liste([
+        tr ? 'Otomatik llms.txt ve yapısal veri (schema) üretimi' : 'Automatic llms.txt and structured data (schema) generation',
+        tr ? 'Sektörünüze göre AI aramaya uygun içerik üretimi' : 'AI-search-ready content for your niche',
+        tr ? 'AI görünürlük ölçümü ve düşüş alarmı' : 'AI visibility measurement and drop alerts',
+        tr ? 'GEO Score Card (6 başlık) ve düzeltme önerileri' : 'GEO Score Card (6 pillars) and fix recommendations',
+      ]) +
+      dugme(tr ? '2 Makale Ücretsiz Dene' : 'Try 2 Articles Free', kacisla(p.signupUrl));
+    return duzen(`${p.brand} ${p.intervalLabel} ${tr ? 'rapor' : 'report'}`, govde, {
+      onizleme: summary,
+      baseUrl: process.env.WEB_URL ?? undefined,
+      altBaglantilar: [{ metin: tr ? 'Aboneliği iptal et' : 'Unsubscribe', href: p.unsubscribeUrl }],
+      dil: tr ? 'tr' : 'en',
+    });
   }
 }

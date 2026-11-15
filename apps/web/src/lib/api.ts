@@ -1934,7 +1934,12 @@ export const api = {
     }),
 
   // Publish Targets
-  getPublishTargetsCatalog: () => request<any[]>('/publish-targets/catalog'),
+  /**
+   * siteId verilirse sunucu, sitenin sahibinin planinda eklenemeyen turleri `locked` +
+   * `upgrade` + `lockedReason` ile isaretler (lib/publish-target-lock.ts).
+   */
+  getPublishTargetsCatalog: (siteId?: string) =>
+    request<any[]>(`/publish-targets/catalog${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ''}`),
   listPublishTargets: (siteId: string) => request<any[]>(`/sites/${siteId}/publish-targets`),
   createPublishTarget: (siteId: string, body: any) =>
     request<any>(`/sites/${siteId}/publish-targets`, { method: 'POST', body: JSON.stringify(body) }),
