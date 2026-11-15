@@ -42,7 +42,7 @@ export const CATEGORY_LABELS: Record<string, { tr: string; en: string }> = {
   BUYING_INTENT: { tr: 'SATIN ALMA NİYETİ', en: 'BUYING INTENT' },
 };
 
-const PROVIDER_LOGOS: Record<string, VendorName> = {
+export const PROVIDER_LOGOS: Record<string, VendorName> = {
   anthropic: 'claude-ai',
   gemini: 'gemini',
   openai: 'chatgpt',
@@ -53,7 +53,8 @@ const PROVIDER_LOGOS: Record<string, VendorName> = {
   meta: 'muse',
 };
 
-const PROVIDER_SHORT: Record<string, string> = {
+/** Asistanin kisa adi — API etiketi ("Anthropic Claude") dar kutulara sigmaz */
+export const PROVIDER_SHORT: Record<string, string> = {
   anthropic: 'Claude',
   gemini: 'Gemini',
   openai: 'ChatGPT',
