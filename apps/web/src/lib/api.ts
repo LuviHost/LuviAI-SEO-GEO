@@ -1983,6 +1983,9 @@ export const api = {
       attemptsError?: boolean;
     }>(`/admin/citation-leads${q ? `?${q}` : ''}`);
   },
+  /** Kayitli ucretsiz test olcumunun raporu (HTML; yonetici bildirim e-postasindaki raporun aynisi) */
+  getCitationLeadReport: (id: string) =>
+    request<{ id: string; domain: string; createdAt: string; html: string }>(`/admin/citation-leads/${encodeURIComponent(id)}/report`),
 
   // Faz 12 — LLM Spend (LibreChat tx pattern)
   getAdminSpend: (days = 30) =>
