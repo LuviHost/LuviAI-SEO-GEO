@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 /**
  * Üye olmadan yapılan AI görünürlük testleri.
@@ -72,7 +73,55 @@ function UyeSatiri({ member }: { member?: TestUyesi | null }) {
   );
 }
 
+/**
+ * Kayitli olcumun raporu — yonetici bildirim e-postasindaki raporun aynisi (api
+ * admin citationLeadReport). Sahip 16.11.2026: "ücretsiz tarayan kişilerin raporlarını görebilirsem
+ * onlara yazabilirim". Yeni olcum yapmaz. E-posta HTML'i oldugu icin yalitilmis cercevede cizilir.
+ */
+function RaporPenceresi({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const [rapor, setRapor] = useState<{ domain: string; html: string } | null>(null);
+  const [hata, setHata] = useState<string | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    let canli = true;
+    setRapor(null);
+    setHata(null);
+    api.getCitationLeadReport(id)
+      .then((r) => { if (canli) setRapor(r); })
+      .catch((e) => { if (canli) setHata(e?.message || 'Rapor alınamadı'); });
+    return () => { canli = false; };
+  }, [id]);
+  return (
+    <Dialog open={!!id} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent size="xl">
+        <DialogHeader>
+          <DialogTitle>{rapor ? `${rapor.domain} — ücretsiz test raporu` : 'Ücretsiz test raporu'}</DialogTitle>
+          <DialogDescription>Kayıtlı ölçümden; yeni ölçüm yapılmaz. Testi kimin yaptığı bilinmez — alan adının sahibi olmayabilir.</DialogDescription>
+        </DialogHeader>
+        <div className="px-6 pb-6">
+          {hata ? (
+            <p className="text-sm text-danger">{hata}</p>
+          ) : !rapor ? (
+            <Skeleton className="h-[60vh] w-full" />
+          ) : (
+            <iframe title={`${rapor.domain} raporu`} srcDoc={rapor.html} sandbox="allow-popups allow-popups-to-escape-sandbox" className="h-[70vh] w-full rounded-md border bg-black" />
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RaporDugmesi({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="mt-1 text-xs font-medium text-foreground underline underline-offset-2 hover:text-brand">
+      Raporu gör
+    </button>
+  );
+}
+
 export default function AdminLeadsPage() {
+  const [raporId, setRaporId] = useState<string | null>(null);
   const [data, setData] = useState<Veri | null>(null);
   const [loading, setLoading] = useState(true);
   const [yenileniyor, setYenileniyor] = useState(false);
@@ -117,6 +166,15 @@ export default function AdminLeadsPage() {
     );
   }, [data, needle]);
 
+  // Alan adinin EN SON olcumu: "kayitli sonucu gordu" denemesinin checkId'si yok; raporu bu olcumdur
+  const sonOlcum = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of [...(data?.items ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+      if (!m.has(l.domain)) m.set(l.domain, l.id);
+    }
+    return m;
+  }, [data]);
+
   const denemeler = useMemo(() => {
     const list = data?.attempts ?? [];
     if (!needle) return list;
@@ -128,6 +186,7 @@ export default function AdminLeadsPage() {
 
   return (
     <div className="space-y-6">
+      <RaporPenceresi id={raporId} onClose={() => setRaporId(null)} />
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-[450] tracking-[-0.04em]">AI Test Leadleri</h1>
@@ -224,6 +283,9 @@ export default function AdminLeadsPage() {
                           {bugunMu(d.createdAt) && <BugunIsareti />}
                         </div>
                         <UyeSatiri member={d.member} />
+                        {(d.checkId || sonOlcum.get(d.domain)) && (
+                          <RaporDugmesi onClick={() => setRaporId(d.checkId || sonOlcum.get(d.domain)!)} />
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className={cn('font-medium', denemeTonu(d.outcome))}>{denemeEtiketi(d.outcome)}</div>
@@ -279,6 +341,7 @@ export default function AdminLeadsPage() {
                         </div>
                         {l.brand && <div className="text-xs text-muted-foreground">{l.brand}</div>}
                         <UyeSatiri member={l.member} />
+                        <RaporDugmesi onClick={() => setRaporId(l.id)} />
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{l.niche ?? '—'}</td>
                       <td className="px-4 py-3">

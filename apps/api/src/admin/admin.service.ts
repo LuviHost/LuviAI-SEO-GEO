@@ -1,4 +1,6 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { attemptEmailHtml, reportOfResult } from '../audit/public-check-report-email.js';
+import { summaryOfResult } from '../audit/public-check-attempt.js';
 import { containsBrand } from '../audit/brand-in-query.js';
 import { withMeasuredCounts } from '../audit/public-citation.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -137,6 +139,30 @@ export class AdminService {
    * Anonim (üye olmadan yapılan) AI görünürlük testleri — lead/kullanım takibi.
    * public_citation_checks tablosundan listeler + özet istatistik döner.
    */
+  /**
+   * Kayitli ucretsiz test olcumunun raporu — yonetici bildirim e-postasindaki raporun aynisi
+   * (audit/public-check-report-email.ts). Yeni olcum yapmaz, maliyeti yok. Rapor yalniz alan adi
+   * ve AI cevaplarini tasir; ziyaretci bilgisi (IP ozeti dahil) yoktur.
+   */
+  async citationLeadReport(id: string): Promise<{ id: string; domain: string; createdAt: string; html: string }> {
+    const k = await this.prisma.publicCitationCheck.findUnique({
+      where: { id },
+      select: { id: true, domain: true, brand: true, niche: true, customNiche: true, result: true, createdAt: true },
+    });
+    if (!k) throw new NotFoundException('Ölçüm bulunamadı');
+    const sonuc = { ...((k.result ?? {}) as any), brand: (k.result as any)?.brand ?? k.brand, cachedAt: k.createdAt, fromCache: true };
+    const rapor = reportOfResult(sonuc);
+    const ozet = summaryOfResult({ ...sonuc, niche: k.niche, customNiche: k.customNiche });
+    // Olcum tarihi rapora ayrica yazilir (cachedAt → "Ölçüm tarihi")
+    const not = 'Kayıtlı ölçümden çizildi; yeni ölçüm yapılmadı.';
+    const baseUrl = process.env.WEB_BASE_URL || 'https://ranksup.ai';
+    const html = attemptEmailHtml({
+      title: `${k.domain} — ücretsiz test raporu`, domain: k.domain, outcome: 'cached', note: not,
+      summary: ozet, report: rapor, panelUrl: `${baseUrl}/admin/leads`, baseUrl,
+    });
+    return { id: k.id, domain: k.domain, createdAt: k.createdAt.toISOString(), html };
+  }
+
   async listCitationLeads(opts: { limit?: number; offset?: number; search?: string } = {}) {
     const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
     const offset = Math.max(opts.offset ?? 0, 0);

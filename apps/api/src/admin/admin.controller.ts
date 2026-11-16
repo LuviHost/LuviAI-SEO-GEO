@@ -148,6 +148,17 @@ export class AdminController {
     return this.admin.getFailedJobs();
   }
 
+  /**
+   * GET /admin/citation-leads/:id/report — kayitli ucretsiz test olcumunun raporu (HTML).
+   * Sahip 16.11.2026: "ücretsiz tarayan kişilerin raporlarını görebilirsem onlara yazabilirim".
+   * Yeni olcum YAPMAZ; yonetici bildirim e-postasindaki raporun aynisi, kayittan cizilir.
+   */
+  @Get('citation-leads/:id/report')
+  citationLeadReport(@Req() req: Request, @Param('id') id: string) {
+    assertAdmin(req);
+    return this.admin.citationLeadReport(id);
+  }
+
   /** Anonim AI görünürlük testleri (lead listesi) */
   @Get('citation-leads')
   citationLeads(

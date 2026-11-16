@@ -180,3 +180,47 @@ describe('AdminService.listCitationLeads — uye eslesmesi', () => {
     expect(svc.prismaSahte.publicCheckAttempt.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { domain: { contains: 'murat' } } }));
   });
 });
+
+describe('AdminService.citationLeadReport — kayitli olcumun raporu (sahip 16.11.2026)', () => {
+  // Gercek bir kayit bicimi (alan adi ornek): 3 acik soru, 7 kilitli, rakip listesi
+  const kayit = {
+    id: 'c-ornek', domain: 'ornekklinik.com', brand: 'Örnek Klinik', niche: 'sağlık', customNiche: null,
+    createdAt: new Date('2026-11-16T02:48:00Z'),
+    result: {
+      brand: 'Örnek Klinik', domain: 'ornekklinik.com',
+      queries: [
+        { query: 'Estetik klinik önerisi', category: 'DISCOVERY', citedCount: 1, totalProviders: 4, providers: [
+          { provider: 'openai', label: 'OpenAI ChatGPT', measured: true, cited: true, brandMentioned: true, excerpt: 'Örnek Klinik <b>iyi</b> & güvenilir' },
+          { provider: 'gemini', label: 'Google Gemini', measured: true, cited: false, brandMentioned: false, excerpt: 'Başka klinikler' },
+        ] },
+        { query: 'Kilitli soru', category: 'BRAND', locked: true, citedCount: 0, totalProviders: 4, providers: [] },
+      ],
+      competitorRanking: [{ name: 'Örnek Klinik', isBrand: true, pct: 25, mentions: 1 }, { name: 'rakip.com', pct: 10, mentions: 1 }],
+    },
+  };
+  function kurRapor(k: any) {
+    const findUnique = vi.fn(async (_: any) => k);
+    const svc = new AdminService({ publicCitationCheck: { findUnique } } as never);
+    return { svc, findUnique };
+  }
+
+  it('raporu kayittan cizer: alan adi, sorular, kacislanmis cevap, rakip, olcum tarihi; yeni olcum yok', async () => {
+    const t = kurRapor(kayit);
+    const r = await t.svc.citationLeadReport('c-ornek');
+    expect(r).toMatchObject({ id: 'c-ornek', domain: 'ornekklinik.com', createdAt: '2026-11-16T02:48:00.000Z' });
+    expect(r.html).toContain('<!DOCTYPE html');
+    expect(r.html).toContain('ornekklinik.com');
+    expect(r.html).toContain('Estetik klinik önerisi');
+    expect(r.html).toContain('rakip.com');
+    expect(r.html).toContain('Kayıtlı ölçümden çizildi; yeni ölçüm yapılmadı.');
+    expect(r.html).toContain('Ölçüm tarihi');
+    // Cevap metni HTML'e ham girmez
+    expect(r.html).not.toContain('<b>iyi</b>');
+    // Yalniz okuma: ziyaretci bilgisi (IP ozeti) secilmez
+    expect((t.findUnique.mock.calls[0] as any[])[0].select).not.toHaveProperty('ip');
+  });
+
+  it('kayit yoksa 404', async () => {
+    await expect(kurRapor(null).svc.citationLeadReport('yok')).rejects.toThrow('Ölçüm bulunamadı');
+  });
+});
