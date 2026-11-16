@@ -258,3 +258,21 @@ describe('attemptEmailHtml — rapor e-postanin icinde', () => {
     expect(out).not.toContain('kilitli, ölçülmedi');
   });
 });
+
+describe('Google AI Bakisi "bu soruda yok" cipi (16.11.2026)', () => {
+  it('YOK satiri "yanıt yok" (hata) degil "bu soruda yok" cipi; anildi / anilmadi sayilmaz', () => {
+    const q = {
+      query: 'Saç ekimi ne kadar tutar?', category: 'DISCOVERY', brandInQuery: false, citedCount: 0, totalProviders: 1,
+      providers: [
+        p('openai'),
+        { ...p('google_ai_overview', { measured: false, excerpt: 'YOK: Google bu aramada AI Bakışı göstermedi.' }), label: 'Google AI Bakışı' },
+        p('gemini', { measured: false, excerpt: 'HATA: timeout' }),
+      ],
+    };
+    const r = reportOfResult({ ...SONUC, queries: [q] })!;
+    expect(r.questions[0].providers.map((x) => x.state)).toEqual(['absent', 'surface_absent', 'unmeasured']);
+    const html = attemptEmailHtml(girdi({ report: r }));
+    expect(html).toContain('Google AI Bakışı &ndash; bu soruda yok');
+    expect(html).not.toContain('Google AI Bakışı &ndash; yanıt yok');
+  });
+});

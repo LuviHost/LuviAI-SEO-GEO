@@ -278,7 +278,8 @@ describe('AI gorunurluk alarmi — sahte dusus', () => {
   it('yalnizca olculebilen snapshot/probe hucreye giriyor', () => {
     expect(src).toContain('snapshotTrend');
     expect(src).toMatch(/available !== false/);
-    expect(src).toMatch(/startsWith\('HATA:'\)/);
+    // Olcum disi satir (HATA ya da Google yuzeyi yok — YOK) ortak kuralla elenir (citation-score isErrorProbe)
+    expect(src).toMatch(/!isErrorProbe\(p\)/);
   });
 
   it('karsilastirilamayan donemde alarm uretilmiyor', () => {

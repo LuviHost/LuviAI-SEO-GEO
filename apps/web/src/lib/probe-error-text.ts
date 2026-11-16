@@ -19,13 +19,27 @@ const CODE_TEXT: Record<string, string> = {
   unknown: 'Sağlayıcı hatası — bu soru ölçülemedi.',
 };
 
+/**
+ * Olcum DISI satir: 'HATA:' (olculemedi) ya da 'YOK:' (Google AI Bakisi / AI Modu bu aramada
+ * cevap gostermedi — api google-ai-surfaces.ts, 16.11.2026). Ikisi de skora, sayaca ve "anildi /
+ * anilmadi" hesabina girmez; ayrimi isProbeAbsentText yapar.
+ */
 export function isProbeErrorText(s: unknown): s is string {
-  return typeof s === 'string' && s.startsWith('HATA:');
+  return typeof s === 'string' && (s.startsWith('HATA:') || s.startsWith('YOK:'));
 }
 
-/** HATA satiri ise Turkce karsiligi, degilse null */
+/**
+ * Google yuzeyi bu soruda cevap GOSTERMEDI. "Anılmadın" DEGIL, "ölçülemedi" de degil: o aramada
+ * Google yapay zeka cevabi gostermedi (sahip, 16.11.2026: "bu soruda AI Bakışı yok" diye yaz).
+ */
+export function isProbeAbsentText(s: unknown): s is string {
+  return typeof s === 'string' && s.startsWith('YOK:');
+}
+
+/** HATA / YOK satiri ise Turkce karsiligi, degilse null */
 export function probeErrorText(s: unknown): string | null {
   if (!isProbeErrorText(s)) return null;
+  if ((s as string).startsWith('YOK:')) return (s as string).slice(4).trim() || 'Google bu aramada yapay zekâ cevabı göstermedi.';
   const rest = s.slice(5).trim();
   if (Object.prototype.hasOwnProperty.call(CODE_TEXT, rest)) return CODE_TEXT[rest];
   if (rest.startsWith('bos cevap')) return 'Sağlayıcı boş cevap döndürdü — bu soru ölçülemedi.';

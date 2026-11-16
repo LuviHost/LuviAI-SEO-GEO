@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { FONT, MARKA, MONO, dugme, duzen, ekranKarti, h, kacisla, p } from '../email/email-layout.js';
 import { compareCells, type TrendResult, type TrendRow } from './comparable-trend.js';
+import { isErrorProbe } from './citation-score.js';
 
 export interface AlarmTrigger {
   siteId: string;
@@ -39,7 +40,7 @@ export function snapshotTrend(recent: SnapshotLike[], previous: SnapshotLike[], 
   const rows = (snaps: SnapshotLike[], current: boolean): TrendRow[] => snaps
     .filter((s) => s.available !== false && (!provider || s.provider === provider))
     .flatMap((s) => (Array.isArray(s.probes) ? s.probes : [])
-      .filter((p: any) => p && typeof p.query === 'string' && !String(p.excerpt ?? '').startsWith('HATA:') && !p.brandInQuery)
+      .filter((p: any) => p && typeof p.query === 'string' && !isErrorProbe(p) && !p.brandInQuery)
       .map((p: any) => ({
         cell: `${s.provider}|${p.query.trim().toLowerCase()}`,
         current,

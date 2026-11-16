@@ -90,7 +90,7 @@ export function AiCheckerHero({ engines, testEngines }: { engines?: readonly str
           <ul className="flex flex-wrap items-center gap-x-7 gap-y-3">
             {strip.map(({ label, vendor }, i) => (
               <li
-                key={vendor}
+                key={label}
                 className={cn(
                   'flex items-center gap-2 border-b py-1 text-sm transition-colors duration-200',
                   i === engine ? 'border-brand-vivid text-foreground' : 'border-transparent text-muted-foreground',

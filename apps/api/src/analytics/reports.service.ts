@@ -427,7 +427,9 @@ const AI_SAGLAYICI_ADI: Record<Provider, string> = {
   perplexity: 'Perplexity',
   xai: 'xAI Grok',
   deepseek: 'DeepSeek',
-  meta: 'Meta AI (Llama)',
+  meta: 'Meta AI (Muse)',
+  google_ai_mode: 'Google AI Modu',
+  google_ai_overview: 'Google AI Bakışı',
 };
 const saglayiciAdlari = (ids: string[]) =>
   ids.map((p) => (Object.hasOwn(AI_SAGLAYICI_ADI, p) ? AI_SAGLAYICI_ADI[p as Provider] : p)).join(', ');

@@ -5,6 +5,7 @@ import { Check, X, Minus, Lock, ArrowRight, ChevronDown } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { groupLockedByPlan, type LockedEngine } from '@/lib/locked-engines';
+import { isProbeAbsentText, isProbeErrorText } from '@/lib/probe-error-text';
 import type { api } from '@/lib/api';
 
 /**
@@ -52,6 +53,9 @@ export const PROVIDER_LOGOS: Record<string, VendorName> = {
   deepseek: 'deepseek',
   // `meta` = Muse (PR #69): engine-logo.tsx ile ayni logo
   meta: 'muse',
+  // Google AI Modu / AI Bakisi: Google isareti (engine-logo.tsx ile ayni)
+  google_ai_mode: 'google',
+  google_ai_overview: 'google',
 };
 
 /** Asistanin kisa adi — API etiketi ("Anthropic Claude") dar kutulara sigmaz */
@@ -63,6 +67,8 @@ export const PROVIDER_SHORT: Record<string, string> = {
   xai: 'Grok',
   deepseek: 'DeepSeek',
   meta: 'Meta AI',
+  google_ai_mode: 'AI Modu',
+  google_ai_overview: 'AI Bakışı',
 };
 
 export interface QueryCardLabels {
@@ -183,7 +189,11 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels, locke
           // Olculemeyen satir (saglayici hatasi) notr: ne "anildi" ne "anilmadi",
           // sayiya da girmez — sunucunun citedCount/totalProviders'i ile ayni kural.
           if (!isMeasuredRow(p)) {
-            const hint = lang === 'tr' ? `${short}: bu soruda yanıt alınamadı, ölçüme girmedi` : `${short}: no answer for this query, not counted`;
+            // Google bu aramada AI cevabi gostermediyse "yanit alinamadi" (hata) degil, "bu soruda yok"
+            const yok = isProbeAbsentText(p.excerpt);
+            const hint = yok
+              ? (lang === 'tr' ? `${short}: bu soruda yok, skor dışı` : `${short}: not shown for this query, not scored`)
+              : (lang === 'tr' ? `${short}: bu soruda yanıt alınamadı, ölçüme girmedi` : `${short}: no answer for this query, not counted`);
             return (
               <div key={p.provider} className="flex flex-col items-center gap-1" title={hint}>
                 <div className="relative w-11 h-11 rounded-md grid place-items-center bg-muted/30 border border-dashed border-border opacity-60">
@@ -303,7 +313,7 @@ function ResponsesToggle({
   labels: QueryCardLabels;
 }) {
   // "HATA:" ile isaretli / measured=false satirlar olculemeyen probe'lardir — gosterilmez.
-  const withResponse = (providers as ProviderRow[]).filter((p) => isMeasuredRow(p) && p.excerpt && !p.excerpt.startsWith('HATA:'));
+  const withResponse = (providers as ProviderRow[]).filter((p) => isMeasuredRow(p) && p.excerpt && !isProbeErrorText(p.excerpt));
   if (withResponse.length === 0) return null;
 
   const cited = withResponse.filter((p) => p.cited || p.brandMentioned);

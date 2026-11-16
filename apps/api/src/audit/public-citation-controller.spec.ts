@@ -129,8 +129,10 @@ describe('POST citation-check/unlock — beklenmedik hata', () => {
  * testin kilidini acarak paketinde olmayan Grok / DeepSeek / Muse olcumunu alabiliyordu.
  */
 describe('POST citation-check/unlock — plan kapsami', () => {
-  const DORT = ['openai', 'gemini', 'anthropic', 'perplexity'];
-  const HEPSI = [...DORT, 'xai', 'deepseek', 'meta'];
+  // Google AI Modu ve AI Bakisi (16.11.2026) her planin KAPSAMINDA; anahtar yoksa olcum sorulmaz
+  const GOOGLE = ['google_ai_mode', 'google_ai_overview'];
+  const DORT = ['openai', 'gemini', 'anthropic', 'perplexity', ...GOOGLE];
+  const HEPSI = ['openai', 'gemini', 'anthropic', 'perplexity', 'xai', 'deepseek', 'meta', ...GOOGLE];
   function kurPlan(user: Record<string, unknown>) {
     const citation = { check: vi.fn(async (..._a: unknown[]) => ({ fromCache: false, queries: [] })) };
     const quota = { enforceCitationQuota: vi.fn(async () => {}), incrementCitationUsage: vi.fn(async () => {}) };

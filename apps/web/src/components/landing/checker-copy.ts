@@ -75,6 +75,8 @@ export const CHECKER_COPY = {
     paneCited: 'Siteni kaynak gösterdi',
     paneAbsent: 'Adın geçmedi',
     paneNoAnswer: 'Yanıt alınamadı',
+    // Google AI Modu / AI Bakisi bu aramada cikmadi: "anilmadin" degil, skor disi
+    paneSurfaceAbsent: 'Bu soruda yok · skor dışı',
     // Sunucu cevabin ilk 220 karakterini yollar; marka daha sonra ya da farkli yazimla
     // geciyorsa alintida isaretlenemez. "Devaminda geciyor" demek ikinci durumda yanlis olurdu.
     paneLater: 'Adın cevapta geçiyor; bu alıntıda işaretlenemedi.',
@@ -147,6 +149,7 @@ export const CHECKER_COPY = {
     paneCited: 'Cited your site',
     paneAbsent: 'Not mentioned',
     paneNoAnswer: 'No answer',
+    paneSurfaceAbsent: 'Not shown for this query · not scored',
     paneLater: 'You are mentioned in the answer; not marked in this excerpt.',
     paneSourceOnly: 'Your site is among the sources.',
     optinSteps: ['Today', 'Day 15', 'Day 30', 'Day 60', 'Day 90'],

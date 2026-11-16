@@ -55,10 +55,12 @@ describe('kaynak: serit Muse\'u yalniz API yanitiyla gosterir', () => {
   // dort asistana sorar; Grok, DeepSeek ve Muse Profesyonel ozelligi.
   it('ucretsiz testin asistanlari = deneme ve Baslangic kapsami (dort); Profesyonel ozelligi olanlar yok', async () => {
     const { FREE_TEST_ENGINES } = await import('./plan-engines.js');
-    const { planEngines, STANDARD_ENGINES } = await import('./plans.js');
+    const { planAssistants, STANDARD_ENGINES } = await import('./plans.js');
     expect([...FREE_TEST_ENGINES]).toEqual([...STANDARD_ENGINES]);
-    expect([...FREE_TEST_ENGINES]).toEqual(planEngines('trial'));
-    expect([...FREE_TEST_ENGINES]).toEqual(planEngines('starter'));
+    // Asistanlari deneme ve Baslangic ile ayni; Google yuzeyleri (16.11.2026) ucretsiz teste girmez
+    expect([...FREE_TEST_ENGINES]).toEqual(planAssistants('trial'));
+    expect([...FREE_TEST_ENGINES]).toEqual(planAssistants('starter'));
+    for (const e of ['google_ai_mode', 'google_ai_overview']) expect(FREE_TEST_ENGINES, e).not.toContain(e);
     for (const e of ['xai', 'deepseek', 'meta']) expect(FREE_TEST_ENGINES, e).not.toContain(e);
     // Her biri her kurulumda olculen asistanlardan (kosullu asistan ucretsiz teste girmez)
     for (const e of FREE_TEST_ENGINES) expect(BASE_ENGINES, e).toContain(e);
@@ -93,7 +95,9 @@ describe('kaynak: serit Muse\'u yalniz API yanitiyla gosterir', () => {
     const sheet = read('components/landing/answer-sheet.tsx');
     const measured = sheet.slice(sheet.indexOf('export const MEASURED'), sheet.indexOf('];', sheet.indexOf('export const MEASURED')));
     expect(measured).not.toMatch(/muse|meta/i);
-    expect(sheet).toContain("measuredProviders?.includes('meta') ? [...MEASURED, MUSE] : MEASURED");
+    expect(sheet).toContain("const muse = measuredProviders?.includes('meta') ? [MUSE] : [];");
+    // Google AI Modu / AI Bakisi da ayni kural: yalniz API "olculuyor" derse (DATAFORSEO_AUTH)
+    expect(sheet).toContain('GOOGLE_STRIP.filter((g) => measuredProviders?.includes(g.provider))');
     // Sayfa listeyi API'den alip hero'ya geciriyor; sayi metne sabit yazilmiyor
     expect(read('app/page.tsx')).toContain('<AiCheckerHero engines={engines} testEngines={testEngines} />');
     const hero = read('components/landing/ai-checker-hero.tsx');

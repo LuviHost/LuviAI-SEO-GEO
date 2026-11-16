@@ -15,6 +15,8 @@
  * tanesinde anıldın" cumlesine girmez (components/citation/query-card.tsx ayri cizer).
  */
 
+import { isGoogleSurface } from './chart-colors';
+
 export interface PlanEngines {
   id: string;
   name: string;
@@ -64,9 +66,12 @@ export function groupLockedByPlan(locked: readonly LockedEngine[]): Array<{ plan
 
 /**
  * Bir planin su an olctugu asistan sayisi ("Profesyonel ve üstü N AI motorunda ölçer").
- * Plan ya da `engines` yoksa null: cagiran sayiyi uydurmaz.
+ * Plan ya da `engines` yoksa null: cagiran sayiyi uydurmaz. Google AI Modu / AI Bakisi
+ * (16.11.2026) asistan DEGIL, Google aramasinin cevabi: sayiya girmez (kilitli listede ise
+ * kendi adlariyla gorunur).
  */
 export function planEngineCount(plans: readonly PlanEngines[] | null | undefined, planId: string): number | null {
   const plan = plans?.find((p) => p?.id === planId);
-  return plan && Array.isArray(plan.engines) && plan.engines.length > 0 ? plan.engines.length : null;
+  const asistanlar = Array.isArray(plan?.engines) ? plan!.engines.filter((e) => !isGoogleSurface(e)) : [];
+  return asistanlar.length > 0 ? asistanlar.length : null;
 }

@@ -14,6 +14,27 @@
  */
 import type { Provider } from './ai-citation.service.js';
 
+/**
+ * Butun olcum saglayicilari, sabit sirayla. Servis, App Prompt Lab ve karne bu listeyi kullanir;
+ * diziler elle kopyalanmaz (yeni saglayici eklenince bir yerde unutulmasin — Google yuzeyleri,
+ * 16.11.2026).
+ */
+export const ALL_PROVIDERS: readonly Provider[] = [
+  'anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta', 'google_ai_mode', 'google_ai_overview',
+];
+
+/**
+ * GOOGLE YUZEYLERI (16.11.2026, sahip: "Google AI Modu ve AI Bakışı'nı ekleyelim; Türk müşteri
+ * Google'da arıyor"). Bunlar bir sohbet asistani degil, Google aramasinin kendi yapay zeka
+ * cevaplaridir; resmi API yok, DataForSEO SERP uclariyla okunur (audit/google-ai-surfaces.ts).
+ * Iki farki var:
+ *  - Soru TEK KEZ sorulur (tekrar yok): ayni arama ayni anda ayni cevabi verir, tekrar maliyettir.
+ *  - AI Bakisi her aramada CIKMAZ (Turkce 20 soruluk denemede 15/20). Cikmayan soru "anilmadi"
+ *    DEGILDIR: satir `surfaceAbsent` damgasiyla yazilir ve skora girmez (citation-score.ts).
+ */
+export const GOOGLE_SURFACE_PROVIDERS: readonly Provider[] = ['google_ai_mode', 'google_ai_overview'];
+export const isGoogleSurface = (p: string): boolean => (GOOGLE_SURFACE_PROVIDERS as readonly string[]).includes(p);
+
 /** Havuz (platform) anahtarinin env adi — saglayici basina */
 export const POOL_ENV_KEY: Readonly<Record<Provider, string>> = {
   anthropic:  'ANTHROPIC_API_KEY',
@@ -26,6 +47,9 @@ export const POOL_ENV_KEY: Readonly<Record<Provider, string>> = {
   // uzerinden Llama idi; Groq Llama sohbet modellerini 16.08.2026'da kapatti.
   // Ad META_APP_* (reklam entegrasyonu) ile karismasin diye "MODEL_API".
   meta:       'META_MODEL_API_KEY',
+  // DataForSEO: "login:parola"nin base64 hali (panelde "Base64 format"); iki yuzey ayni hesap
+  google_ai_mode:     'DATAFORSEO_AUTH',
+  google_ai_overview: 'DATAFORSEO_AUTH',
 };
 
 /**
@@ -93,6 +117,11 @@ export const COST_PER_PROBE_USD: Readonly<Record<Provider, number>> = {
   // Tavan olculen en cok girdinin iki katina (160K) ve 20 aramaya gore:
   // 160K x 1.25/1M = 0.20 + 3000 x 4.25/1M = 0.013 + 20 x 0.0025 = 0.05 → 0.263, yuvarlanip 0.27.
   meta:       0.27,
+  // DataForSEO canli uclari (fiyat sayfasi + 16.11.2026 denemesi): AI Modu 0.004 USD/istek;
+  // AI Bakisi = Google organik canli 0.002 + async AI Bakisi bir taban daha (0.002) = 0.004.
+  // Gecici hata (40101 / 50401) ucretsizdir ama en fazla 3 deneme yapilir: tavan 3 x 0.004.
+  google_ai_mode:     0.012,
+  google_ai_overview: 0.012,
 };
 
 /**
@@ -174,6 +203,11 @@ export const DAILY_BUDGET_DEFAULT_USD: Readonly<Record<Provider, number>> = {
   xai: 70,
   deepseek: 25,
   meta: 40,
+  // Soru basina en fazla 0.012 USD. Profesyonel'in en agir gunu (site olcumu + 50 Prompt Lab
+  // sorusu) ~0.8 USD; tavan iki hesabin en agir gununu tasir (citation-providers.spec). Musteri
+  // artinca env (AI_BUDGET_GOOGLE_USD) buyutulur.
+  google_ai_mode: 2,
+  google_ai_overview: 2,
 };
 
 /** Probe basina maliyet tavani — kademeye gore (butce guard'i ve muhasebe ayni fonksiyonu kullanir) */

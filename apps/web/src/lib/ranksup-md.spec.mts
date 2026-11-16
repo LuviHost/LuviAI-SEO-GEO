@@ -39,7 +39,8 @@ const yanit = (olculen: readonly string[]): SummaryPlan[] => publicPlans().map((
 
 /** Muse olculmuyor: her kurulumda olculen alti asistan */
 const MUSE_YOK: readonly string[] = [...BASE_ENGINES];
-const MUSE_VAR: readonly string[] = [...BASE_ENGINES, ...CONDITIONAL_ENGINES];
+// Muse olculuyor (Google AI Modu / AI Bakisi ayri test: asagida)
+const MUSE_VAR: readonly string[] = [...BASE_ENGINES, 'meta'];
 const PLANS = yanit(MUSE_YOK);
 
 const tl = (n: number) => n.toLocaleString('tr-TR');
@@ -109,9 +110,14 @@ describe('/ranksup.md', () => {
     // Plan basina sayi, planin API'deki aiProviders alaniyla ayni (kosullu asistan haric)
     for (const p of publicPlans()) expect(planEngines(p.id).filter((e) => !CONDITIONAL_ENGINES.includes(e)).length, p.id).toBe(p.aiProviders);
 
+    // Google AI Modu / AI Bakisi olculuyorsa (16.11.2026) her satira adiyla girer, asistan SAYISINA girmez
+    const googleli = buildRanksupMd(yanit([...BASE_ENGINES, 'google_ai_mode', 'google_ai_overview']), ALINDI);
+    expect(googleli).toContain(`- ${planAdi('trial')}, ${planAdi('starter')}: ${dort.join(', ')}, Google AI Modu, Google AI Bakışı (4 asistan)`);
+    expect(googleli).toContain(`- ${planAdi('pro')}, ${planAdi('enterprise')}: ${alti.join(', ')}, Google AI Modu, Google AI Bakışı (6 asistan)`);
+
     // Muse olculuyorsa yalniz ust kapsamin satirina girer; Baslangic satiri degismez
     const museli = buildRanksupMd(yanit(MUSE_VAR), ALINDI);
-    const yedi = [...alti, ...CONDITIONAL_ENGINES.map(ad)];
+    const yedi = [...alti, ad('meta')];
     expect(museli).toContain(altSatir);
     expect(museli).toContain(`- ${planAdi('pro')}, ${planAdi('enterprise')}: ${yedi.join(', ')} (${yedi.length} asistan)`);
 

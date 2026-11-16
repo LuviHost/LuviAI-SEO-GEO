@@ -21,7 +21,7 @@ export const LATEST_RUN_EXCERPT_MAX = 400;
 export const LATEST_RUN_SOURCES_MAX = 10;
 
 /** Panelde sabit sira — ai-citation.service varsayilan saglayici listesiyle ayni aile */
-const PROVIDER_ORDER = ['openai', 'anthropic', 'gemini', 'perplexity', 'xai', 'deepseek', 'meta'];
+const PROVIDER_ORDER = ['openai', 'anthropic', 'gemini', 'perplexity', 'xai', 'deepseek', 'meta', 'google_ai_mode', 'google_ai_overview'];
 
 export interface LatestRunRow {
   provider: string;

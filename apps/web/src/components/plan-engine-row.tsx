@@ -21,6 +21,8 @@ const NAMES: Record<string, string> = {
   xai: 'Grok',
   deepseek: 'DeepSeek',
   meta: 'Muse',
+  google_ai_mode: 'Google AI Modu',
+  google_ai_overview: 'Google AI Bakışı',
 };
 
 /** Kare "uygulama ikonu" bicimindeki logolar rozeti doldurur */
@@ -32,7 +34,11 @@ export function PlanEngineRow({ engines, label, className }: {
   label: string;
   className?: string;
 }) {
-  const known = (engines ?? []).filter((e) => engineVendor(e) && NAMES[e]);
+  const tanimli = (engines ?? []).filter((e) => engineVendor(e) && NAMES[e]);
+  // Google AI Modu ve AI Bakisi ayni Google isaretini tasir: tek rozet, adi ikisini birden soyler
+  const ikiGoogle = tanimli.includes('google_ai_mode') && tanimli.includes('google_ai_overview');
+  const known = ikiGoogle ? tanimli.filter((e) => e !== 'google_ai_overview') : tanimli;
+  const adi = (e: string) => (ikiGoogle && e === 'google_ai_mode' ? 'Google AI Modu ve AI Bakışı' : NAMES[e]);
   if (known.length === 0) return null;
   return (
     <ul className={cn('flex flex-wrap items-center gap-1.5', className)} aria-label={label}>
@@ -42,11 +48,11 @@ export function PlanEngineRow({ engines, label, className }: {
         return (
           <li
             key={e}
-            title={NAMES[e]}
+            title={adi(e)}
             className="relative grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded bg-white"
           >
             <VendorLogo name={vendor} size={tile ? 24 : 15} alt="" className={tile ? 'h-full w-full' : undefined} />
-            <span className="sr-only">{NAMES[e]}</span>
+            <span className="sr-only">{adi(e)}</span>
           </li>
         );
       })}

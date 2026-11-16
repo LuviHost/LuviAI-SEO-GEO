@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   BASE_ENGINES, BASE_PLANS, CONDITIONAL_ENGINES, ENGINE_LABELS, ENGINES_BULLET, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS,
-  PLAN_RANK, PURCHASABLE_PLAN_IDS, STANDARD_ENGINES, VIDEOS_PER_MONTH, articleOfferPlan, featureOfferPlan, findPlan, planEngines, publicPlans,
+  PLAN_RANK, PURCHASABLE_PLAN_IDS, STANDARD_ENGINES, VIDEOS_PER_MONTH, articleOfferPlan, featureOfferPlan, findPlan, planAssistants, planEngines, publicPlans,
   type BasePlan, type MeasurementEngine,
 } from '../billing/plans.js';
 import { planFeatures } from '../billing/billing.service.js';
@@ -156,8 +156,9 @@ describe.each([
     const dort = STANDARD_ENGINES.map(asistanAdi).join(', ');
     const ek = BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi);
     const ust = findPlan('pro')!;
-    expect(planEngines('trial')).toEqual([...STANDARD_ENGINES]);
-    expect(planEngines('starter')).toEqual([...STANDARD_ENGINES]);
+    // Asistanlar (Google AI Modu / AI Bakisi asistan sayilmaz — plans.ts planAssistants)
+    expect(planAssistants('trial')).toEqual([...STANDARD_ENGINES]);
+    expect(planAssistants('starter')).toEqual([...STANDARD_ENGINES]);
     expect(doc).toContain(`(${dort})`);
     expect(doc).toContain(`${ek.join(' ve ')} ${ust.name_tr} ve üstü planlarda eklenir`);
     // Kosullu asistan (Muse): yalniz ust kapsamda ve yalniz anahtari tanimliyken
@@ -294,7 +295,8 @@ describe('llms-full.txt bayat icerik tasimiyor', () => {
  * kurar: Muse olculmuyor (her kurulumdaki alti asistan) ve Muse olculuyor.
  */
 const MUSE_YOK: readonly string[] = [...BASE_ENGINES];
-const MUSE_VAR: readonly string[] = [...BASE_ENGINES, ...CONDITIONAL_ENGINES];
+// Muse olculuyor (Google yuzeyleri ayri: DataForSEO anahtari — kart maddesi testi plans-ai-providers.spec)
+const MUSE_VAR: readonly string[] = [...BASE_ENGINES, 'meta'];
 
 describe('fiyat karti maddeleri = kod', () => {
   const tr = BASE_PLANS.flatMap((p) => planFeatures(p, 'tr', MUSE_YOK));
@@ -320,10 +322,11 @@ describe('fiyat karti maddeleri = kod', () => {
     // Kural: deneme ve Baslangic dort asistan; Profesyonel ve ustu altisi + kosullu Muse
     expect(STANDARD_ENGINES.map(asistanAdi)).toEqual(['ChatGPT', 'Gemini', 'Claude', 'Perplexity']);
     expect(BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi)).toEqual(['Grok', 'DeepSeek']);
-    expect(CONDITIONAL_ENGINES.map(asistanAdi)).toEqual(['Muse']);
+    // Kosullu: Muse ve (16.11.2026) Google AI Modu / AI Bakisi — anahtar yoksa kartta yok
+    expect(CONDITIONAL_ENGINES.map(asistanAdi)).toEqual(['Muse', 'Google AI Modu', 'Google AI Bakışı']);
     for (const p of BASE_PLANS) {
       const ust = PLAN_RANK[p.id] >= PLAN_RANK.pro;
-      expect(planEngines(p.id), p.id).toEqual(ust ? [...BASE_ENGINES, ...CONDITIONAL_ENGINES] : [...STANDARD_ENGINES]);
+      expect(planEngines(p.id), p.id).toEqual(ust ? [...BASE_ENGINES, ...CONDITIONAL_ENGINES] : [...STANDARD_ENGINES, 'google_ai_mode', 'google_ai_overview']);
       expect(p.aiProviders, `${p.id} aiProviders`).toBe(ust ? BASE_ENGINES.length : STANDARD_ENGINES.length);
     }
     // Elle yazilmis asistan sayisi yok; kendi asistan maddesi olan planlarda yer tutucu tam bir kez
@@ -2386,7 +2389,7 @@ describe('konumlandirma: deneme slogani ve test ekranlari', () => {
       expect(ihlal, ad).toEqual([]);
     }
     const [bas, pro] = [findPlan('starter')!, findPlan('pro')!];
-    expect(planEngines('starter')).toHaveLength(4);
+    expect(planAssistants('starter')).toHaveLength(4);
     // 15.11.2026: sayilar metne sabit yazilmaz; sonuc katmani plan yanitindaki `engines`ten
     // doldurur (Muse olculuyorsa Profesyonel 7), okunamazsa plans.ts'in tabani (4 / 6)
     expect(checker).toContain(`${bas.name_tr} planı {starter}, ${pro.name_tr} ve üstü {pro} AI motorunda ölçer`);

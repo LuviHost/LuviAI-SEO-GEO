@@ -12,6 +12,7 @@ import { QueryCard, UnlockCta, isMeasuredRow, PROVIDER_LOGOS, PROVIDER_SHORT, ty
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { lockedEnginesFrom, planEngineCount, type PlanEngines } from '@/lib/locked-engines';
 import { openExplainer } from './explainer-dialog';
+import { isProbeAbsentText, isProbeErrorText } from '@/lib/probe-error-text';
 import type { CheckerCopy } from './checker-copy';
 
 /**
@@ -522,9 +523,9 @@ function AnswerPane({ p, brand, c }: { p: ProviderRow; brand: string; c: Checker
   const logo = PROVIDER_LOGOS[p.provider];
   const measured = isMeasuredRow(p);
   const ok = measured && (p.cited || p.brandMentioned);
-  const text = measured && p.excerpt && !p.excerpt.startsWith('HATA:') ? p.excerpt : '';
+  const text = measured && p.excerpt && !isProbeErrorText(p.excerpt) ? p.excerpt : '';
   const inText = !!text && !!brandRegex(brand, 'i')?.test(text);
-  const status = !measured ? c.paneNoAnswer : p.brandMentioned ? c.paneMentioned : p.cited ? c.paneCited : c.paneAbsent;
+  const status = !measured ? (isProbeAbsentText(p.excerpt) ? c.paneSurfaceAbsent : c.paneNoAnswer) : p.brandMentioned ? c.paneMentioned : p.cited ? c.paneCited : c.paneAbsent;
   return (
     <div className="flex min-h-[11rem] flex-col border-b border-r border-border p-5">
       <div className="flex items-center gap-2">

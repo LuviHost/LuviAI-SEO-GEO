@@ -20,6 +20,9 @@ const PROVIDER_TO_VENDOR: Record<string, VendorName> = {
   // `meta` = Muse (PR #69); kendi logosuyla. `llama` eski kayitlar icin Meta isaretinde kalir.
   meta: 'muse',
   llama: 'meta-ai',
+  // Google AI Modu / AI Bakisi (16.11.2026): Google'in kendi isareti; ad satirda yazar
+  google_ai_mode: 'google',
+  google_ai_overview: 'google',
 };
 
 /** Kare "uygulama ikonu" bicimindeki SVG'ler — kucuk boyutta daireye kirpilir */
@@ -52,6 +55,8 @@ const ENGINE_NAMES: Record<string, string> = {
   xai: 'Grok',
   deepseek: 'DeepSeek',
   meta: 'Muse',
+  google_ai_mode: 'Google AI Modu',
+  google_ai_overview: 'Google AI Bakışı',
 };
 
 /**

@@ -15,11 +15,15 @@ import { brandMatcher, resolveSiteBrand, unbrandedOnly } from './brand-in-query.
 import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
 import { citationScore, isErrorProbe, measuredOnly, providerOutcome } from './citation-score.js';
-import { COST_PER_PROBE_USD, DAILY_BUDGET_DEFAULT_USD, PER_USER_BUDGET_SHARE, POOL_ENV_KEY, costPerProbe, isUnconfiguredProvider } from './citation-providers.js';
+import { ALL_PROVIDERS, COST_PER_PROBE_USD, DAILY_BUDGET_DEFAULT_USD, PER_USER_BUDGET_SHARE, POOL_ENV_KEY, costPerProbe, isGoogleSurface, isUnconfiguredProvider } from './citation-providers.js';
 import {
   withProbeRetry, ProviderConfigError, isFatalProviderError,
   probeErrorCode, probeErrorExcerpt, safeErrorText, safeReasonToken,
 } from './probe-retry.js';
+import {
+  DATAFORSEO_BASE, GOOGLE_SURFACE_PATH, SURFACE_ABSENT_TEXT, parseSurfaceResponse, surfaceRequestBody,
+  type GoogleSurface, type SurfaceParse,
+} from './google-ai-surfaces.js';
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
 import { tekrarSayisiFor } from './citation-repeat.js';
@@ -30,7 +34,7 @@ import {
   type CitationSource, type RawSource,
 } from './citation-sources.js';
 
-export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
+export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta' | 'google_ai_mode' | 'google_ai_overview';
 
 export interface CitationProbe {
   query: string;
@@ -62,6 +66,11 @@ export interface CitationProbe {
   competitors?: Array<{ name: string; mentions: number; positionFirst: number | null; beforeBrand?: boolean }>;
   /** Per-page citation: AI cevabında hangi spesifik sayfa URL'leri alıntılandı (host'umuza ait) */
   citedPages?: string[];
+  /**
+   * Google yuzeyi (AI Bakisi / AI Modu) bu aramada cevap GOSTERMEDI (google-ai-surfaces.ts).
+   * Olcum degildir: "anilmadi" sayilmaz, skora ve sayaclara girmez (citation-score.ts).
+   */
+  surfaceAbsent?: true;
   /**
    * Cevapta gecen BASKA alan adlari — kendi host'umuz ve genel/noise siteler haric.
    * Onceden rakip tespiti YALNIZCA disaridan verilen listeye bakiyordu; public
@@ -137,6 +146,8 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   xai:        'xAI Grok',
   deepseek:   'DeepSeek',
   meta:       'Meta AI (Muse)',
+  google_ai_mode:     'Google AI Modu',
+  google_ai_overview: 'Google AI Bakışı',
 };
 
 // Havuz anahtari env adlari (POOL_ENV_KEY) ve probe maliyet tavanlari
@@ -156,6 +167,15 @@ export const AI_COST_KV_TTL_DAYS = 3;
  * onerilmez: yalniz Kurumsal planda var ve olcum motoru once BYOK'a bakar,
  * yani bu noktaya gelindiyse musterinin anahtari da yok.
  */
+/**
+ * Bu kurulumda sorulabilir mi. Google yuzeyleri yalniz DataForSEO anahtari (DATAFORSEO_AUTH)
+ * tanimliyken listeye girer: anahtar yokken sonucta "Google AI Modu — ölçülmüyor" satiri
+ * gostermek, satmadigimiz bir seyi eksik gibi gosterirdi (BYOK da yok). Diger saglayicilar
+ * eskisi gibi listede kalir; anahtari yoksa nedenini resolveKey yazar.
+ */
+export const kurulumdaVar = (provider: Provider, env: NodeJS.ProcessEnv = process.env): boolean =>
+  !isGoogleSurface(provider) || !isUnconfiguredProvider(provider, env);
+
 export const noPoolKeyReason = (provider: Provider): string =>
   `${PROVIDER_LABELS[provider]} şu an ölçülmüyor: RanksUp anahtarı tanımlı değil.`;
 
@@ -190,6 +210,8 @@ export class AiCitationService {
     xai:        parseFloat(process.env.AI_BUDGET_GROK_USD       ?? String(DAILY_BUDGET_DEFAULT_USD.xai)),
     deepseek:   parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD   ?? String(DAILY_BUDGET_DEFAULT_USD.deepseek)),
     meta:       parseFloat(process.env.AI_BUDGET_META_USD       ?? String(DAILY_BUDGET_DEFAULT_USD.meta)),
+    google_ai_mode:     parseFloat(process.env.AI_BUDGET_GOOGLE_USD ?? String(DAILY_BUDGET_DEFAULT_USD.google_ai_mode)),
+    google_ai_overview: parseFloat(process.env.AI_BUDGET_GOOGLE_USD ?? String(DAILY_BUDGET_DEFAULT_USD.google_ai_overview)),
   };
 
   // Probe basina maliyet TAVANI — tablo ve gerekceleri citation-providers.ts'te
@@ -334,7 +356,7 @@ export class AiCitationService {
     const byokOn = this.byokAllowed(plan, role);
     const kapsam = new Set<Provider>(ownerEngines({ plan, role }));
 
-    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+    const providers: Provider[] = ALL_PROVIDERS.filter((p) => kurulumdaVar(p));
     return providers.map(provider => {
       const byok = byokMap.get(provider);
       const hasEnvKey = !!process.env[POOL_ENV_KEY[provider]];
@@ -662,8 +684,8 @@ export class AiCitationService {
     const kapsam = new Set<Provider>(ownerEngines({ plan, role: site.user.role }));
     const istenen: Provider[] = opts.providers?.length
       ? opts.providers
-      : ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
-    const providers: Provider[] = istenen.filter((p) => kapsam.has(p));
+      : [...ALL_PROVIDERS];
+    const providers: Provider[] = istenen.filter((p) => kapsam.has(p) && kurulumdaVar(p));
 
     // KOTA ZORLAMASI — havuz anahtari kullanacak bir provider varsa kotayi
     // GERCEKTEN uygula. Ilk surumde burada yalnizca incrementCitationUsage
@@ -781,8 +803,8 @@ export class AiCitationService {
     const status = await this.getProviderStatus(siteId, plan, site.user.role);
     // Plan kapsami (11.11.2026): Baslangic ve deneme dort asistan (billing/plan-engines.ts)
     const kapsam = new Set<Provider>(ownerEngines({ plan, role: site.user.role }));
-    let providers: Provider[] = (['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'] as Provider[])
-      .filter((p) => kapsam.has(p));
+    let providers: Provider[] = ([...ALL_PROVIDERS] as Provider[])
+      .filter((p) => kapsam.has(p) && kurulumdaVar(p));
 
     if (trigger === 'user') {
       const poolProviders = new Set(
@@ -884,8 +906,11 @@ export class AiCitationService {
   }>> {
     const { brand, host, queries, competitors = [], budgetUserId, only, tier = 'premium' } = opts;
     const systemPrompt = this.buildSystemPrompt();
-    const tum: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
-    const providers: Provider[] = only?.length ? tum.filter((p) => only.includes(p)) : tum;
+    const tum: Provider[] = [...ALL_PROVIDERS];
+    // Google AI Modu / AI Bakisi yalniz ACIKCA istenirse (uye tam raporu: plan kapsami `only` ile).
+    // `only` vermeyen yollar (musteri adayi karnesi, App Prompt Lab) onlari cagirmaz: karne
+    // "bu soruda yok" satirini bilmez, maliyet tahminleri de onlari icermez (16.11.2026 inceleme).
+    const providers: Provider[] = only?.length ? tum.filter((p) => only.includes(p)) : tum.filter((p) => !isGoogleSurface(p));
 
     const out = await Promise.all(providers.map(async (provider) => {
       const label = PROVIDER_LABELS[provider];
@@ -911,6 +936,8 @@ export class AiCitationService {
           case 'xai':        probes = await this.probeXai(key, host, brand, queries, systemPrompt, competitors); break;
           case 'deepseek':   probes = await this.probeDeepseek(key, host, brand, queries, systemPrompt, competitors); break;
           case 'meta':       probes = await this.probeMeta(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'google_ai_mode':
+          case 'google_ai_overview': probes = await this.probeGoogleSurface(provider, key, host, brand, queries, competitors); break;
         }
         // Cost defteri tutulur (public da olsa sistem kotasinin parcasi)
         const cost = await this.addCost(provider, probes.length, budgetUserId, tier).catch(() => 0);
@@ -1067,7 +1094,9 @@ export class AiCitationService {
   ): Promise<CitationResult> {
     const label = PROVIDER_LABELS[provider];
     const siteOlcumu = olcum.tekrar !== undefined;
-    const istenenTekrar = siteOlcumu ? Math.max(1, Math.floor(olcum.tekrar as number) || 1) : 1;
+    // Google yuzeyleri TEK KEZ sorulur: ayni arama ayni anda ayni cevabi verir; tekrar yalniz
+    // maliyettir ve gorunme araligini sahte daraltir (citation-providers.ts GOOGLE_SURFACE_PROVIDERS)
+    const istenenTekrar = siteOlcumu && !isGoogleSurface(provider) ? Math.max(1, Math.floor(olcum.tekrar as number) || 1) : 1;
     const resolved = await this.resolveKey(siteId, provider, plan, ownerRole);
     // Model kademesi site sahibinin planindan (Baslangic ve deneme: hizli modeller)
     const tier = ownerModelTier({ plan, role: ownerRole });
@@ -1132,7 +1161,9 @@ export class AiCitationService {
 
     if (resolved.source === 'pool') {
       // Bir tur kalici hatayla dusse de basarili turlar saglayiciya gercekten soruldu
-      await this.addCost(provider, measuredOnly(probes).length, userId, tier);
+      // Google yuzeyinde "bu soruda yok" (YOK:) satiri da DataForSEO'ya ucretlidir: deftere girer
+      const ucretli = isGoogleSurface(provider) ? probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length : measuredOnly(probes).length;
+      await this.addCost(provider, ucretli, userId, tier);
     }
 
     const dusen = turlar.find((t): t is PromiseRejectedResult => t.status === 'rejected');
@@ -1197,6 +1228,8 @@ export class AiCitationService {
       case 'xai':        return this.probeXai(key, host, brand, queries, systemPrompt, competitors);
       case 'deepseek':   return this.probeDeepseek(key, host, brand, queries, systemPrompt, competitors);
       case 'meta':       return this.probeMeta(key, host, brand, queries, systemPrompt, competitors);
+      case 'google_ai_mode':
+      case 'google_ai_overview': return this.probeGoogleSurface(provider, key, host, brand, queries, competitors);
     }
   }
 
@@ -1546,6 +1579,56 @@ export class AiCitationService {
    * bicimi siniflar). Govde YALNIZCA siniflandirma ve maskelenmis log icindir —
    * musteriye giden satira probeErrorExcerpt ile kod olarak cevrilir.
    */
+  /**
+   * Google AI Modu / Google AI Bakisi — DataForSEO SERP uclari (google-ai-surfaces.ts).
+   *
+   * Satir uc bicimde yazilir:
+   *  - cevap var: diger asistanlarla AYNI kural (buildProbe + kaynak listesi, withSources)
+   *  - yuzey bu aramada cikmadi: `YOK:` onekli, `surfaceAbsent` — olcum degil, skora girmez
+   *  - hata: `HATA:` onekli (gecici hata 3 kez denenir; kimlik / bakiye hatasi saglayiciyi durdurur)
+   * Anahtar Basic kimliktir ("login:parola"nin base64'u), Bearer degil.
+   */
+  private async probeGoogleSurface(
+    surface: GoogleSurface, key: string, host: string, brand: string, queries: string[], competitors: string[] = [],
+  ): Promise<CitationProbe[]> {
+    const probes: CitationProbe[] = [];
+    for (const q of queries) {
+      let son: SurfaceParse | null = null;
+      for (let deneme = 0; deneme < 3; deneme++) {
+        let data: unknown = null;
+        try {
+          const res = await fetch(`${DATAFORSEO_BASE}${GOOGLE_SURFACE_PATH[surface]}`, {
+            method: 'POST',
+            headers: { Authorization: `Basic ${key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(surfaceRequestBody(surface, q)),
+            signal: AbortSignal.timeout(120_000),
+          });
+          data = await res.json().catch(() => ({ status_code: res.status, status_message: `HTTP ${res.status}` }));
+        } catch (err: any) {
+          data = { status_code: null, status_message: safeErrorText(err) };
+        }
+        son = parseSurfaceResponse(data);
+        if (son.kind !== 'error') break;
+        // Kimlik / dogrulama / bakiye: diger sorular da ayni hatayi alir — saglayici durur
+        if (son.fatal) throw new ProviderConfigError(`${PROVIDER_LABELS[surface]}: ${son.message}`);
+        // Son denemeden sonra beklenmez (sirali dongu; senkron "Yeniden Test" 100 sn sinirinda)
+        if (deneme < 2) await new Promise((r) => setTimeout(r, this.ARAMA_BEKLEME_MS * (deneme + 1)));
+      }
+      if (!son || son.kind === 'error') {
+        this.log.warn(`${PROVIDER_LABELS[surface]} probe failed (${q}): ${son?.message ?? 'yanıt yok'}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(new Error(son?.message ?? 'yanıt yok')) });
+        continue;
+      }
+      if (son.kind === 'absent') {
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: SURFACE_ABSENT_TEXT[surface], surfaceAbsent: true });
+        continue;
+      }
+      const urls = son.sources.map((s) => s.url).filter((u): u is string => typeof u === 'string');
+      probes.push(this.withSources(this.buildProbe(q, son.text, host, brand, competitors), urls, host, son.sources));
+    }
+    return probes;
+  }
+
   private async postJson(url: string, key: string, body: unknown): Promise<any> {
     const res = await fetch(url, {
       method: 'POST',

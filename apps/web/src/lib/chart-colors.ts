@@ -29,6 +29,9 @@ export const PROVIDER_COLORS: Record<string, string> = {
   grok: CHART[6],       // alias (geri uyum)
   deepseek: CHART[5],   // sky — DeepSeek
   meta: CHART[8],       // slate — meta
+  // Google AI Modu / AI Bakisi (16.11.2026): Google mavisi ve yesili ayri tonlarda
+  google_ai_mode: CHART[5],
+  google_ai_overview: CHART[7],
 };
 
 export const PROVIDER_LABELS: Record<string, string> = {
@@ -40,7 +43,17 @@ export const PROVIDER_LABELS: Record<string, string> = {
   grok: 'Grok (xAI)',
   deepseek: 'DeepSeek',
   meta: 'Meta AI',
+  google_ai_mode: 'Google AI Modu',
+  google_ai_overview: 'Google AI Bakışı',
 };
+
+/**
+ * Google yuzeyleri (api citation-providers GOOGLE_SURFACE_PROVIDERS): sohbet asistani DEGIL,
+ * Google aramasinin yapay zeka cevaplari. "N AI asistanı" sayilarina girmez; kartta ayri yazilir.
+ */
+export const GOOGLE_SURFACES = ['google_ai_mode', 'google_ai_overview'] as const;
+export const isGoogleSurface = (p: string | null | undefined): boolean =>
+  !!p && (GOOGLE_SURFACES as readonly string[]).includes(p);
 
 /** Bilinmeyen saglayici icin guvenli varsayilan */
 export const PROVIDER_FALLBACK = CHART[8];

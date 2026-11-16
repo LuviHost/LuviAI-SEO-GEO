@@ -7,6 +7,7 @@ import { isUnconfiguredProvider } from '../audit/citation-providers.js';
 import { containsBrand } from '../audit/brand-in-query.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
+import { isErrorProbe } from '../audit/citation-score.js';
 
 /**
  * App Prompt Lab — GEO ⨉ ASO kesisimi. RAKIPTE YOK.
@@ -195,9 +196,9 @@ export class AsoPromptLabService {
         continue;
       }
       const probe = r.probes[0]!;
-      if (probe.excerpt?.startsWith('HATA:')) {
+      if (isErrorProbe(probe)) {
         providerRows.push({
-          provider: r.provider, label: r.label, available: false, reason: probe.excerpt.slice(0, 120),
+          provider: r.provider, label: r.label, available: false, reason: (probe.excerpt ?? '').slice(0, 120),
           appMentioned: false, storeLinked: false,
         });
         continue;

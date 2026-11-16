@@ -42,7 +42,8 @@ const CATEGORY_TR: Record<string, string> = {
   BUYING_INTENT: 'Satın alma niyeti',
 };
 
-export type ProviderState = 'cited' | 'absent' | 'unmeasured';
+/** `surface_absent`: Google AI Modu / AI Bakisi bu aramada cikmadi — ne hata ne "anilmadi" */
+export type ProviderState = 'cited' | 'absent' | 'unmeasured' | 'surface_absent';
 
 export interface AttemptReport {
   brand: string | null;
@@ -117,7 +118,9 @@ export function reportOfResult(result: unknown): AttemptReport | null {
       total: num(q.totalProviders),
       providers: providers.map((p) => ({
         label: engineLabel(p),
-        state: (p.measured === false ? 'unmeasured' : p.cited === true || p.brandMentioned === true ? 'cited' : 'absent') as ProviderState,
+        state: (p.measured === false
+          ? (typeof p.excerpt === 'string' && p.excerpt.startsWith('YOK:') ? 'surface_absent' : 'unmeasured')
+          : p.cited === true || p.brandMentioned === true ? 'cited' : 'absent') as ProviderState,
       })),
       answers: providers
         .filter((p) => p.measured !== false && (p.cited === true || p.brandMentioned === true))
@@ -165,6 +168,9 @@ const CIP = 'display:inline-block;margin:0 6px 6px 0;padding:6px 10px;border-rad
 function cip(label: string, state: ProviderState): string {
   if (state === 'cited') {
     return `<span style="${CIP}border:1px solid ${M.yesilCizgi};background:${M.yesilZemin};color:${M.yesil};">${kacisla(label)} &#10003;</span>`;
+  }
+  if (state === 'surface_absent') {
+    return `<span style="${CIP}border:1px dashed ${M.cizgi};color:${M.silik};">${kacisla(label)} &ndash; bu soruda yok</span>`;
   }
   if (state === 'unmeasured') {
     return `<span style="${CIP}border:1px dashed ${M.cizgi};color:${M.silik};">${kacisla(label)} &ndash; yanıt yok</span>`;

@@ -12,8 +12,11 @@ import { BASE_ENGINES, BASE_PLANS, CONDITIONAL_ENGINES, PLAN_RANK, STANDARD_ENGI
  * musterisi parasini verdigi asistani alamaz. Iki yon de asagida kilitli.
  */
 
-const DORT = ['openai', 'gemini', 'anthropic', 'perplexity'];
-const HEPSI = [...DORT, 'xai', 'deepseek', 'meta'];
+const DORT_ASISTAN = ['openai', 'gemini', 'anthropic', 'perplexity'];
+// Google AI Modu ve AI Bakisi (16.11.2026) HER planda; asistan sayilmaz ama olcum kapsamindadir
+const GOOGLE = ['google_ai_mode', 'google_ai_overview'];
+const DORT = [...DORT_ASISTAN, ...GOOGLE];
+const HEPSI = [...DORT_ASISTAN, 'xai', 'deepseek', 'meta', ...GOOGLE];
 
 describe('ownerEngines / ownerModelTier — plan', () => {
   it('deneme ve Baslangic: dort asistan (ChatGPT, Gemini, Claude, Perplexity), standard kademe', () => {
@@ -45,7 +48,7 @@ describe('ownerEngines / ownerModelTier — plan', () => {
       expect(ownerModelTier(owner), p.id).toBe(planModelTier(p.id));
       // Esik tek: Profesyonel'in altinda dar kapsam + standard, ustunde genis + premium
       const dar = PLAN_RANK[p.id] < PLAN_RANK.pro;
-      expect(planEngines(p.id), p.id).toEqual(dar ? [...STANDARD_ENGINES] : [...BASE_ENGINES, ...CONDITIONAL_ENGINES]);
+      expect(planEngines(p.id), p.id).toEqual(dar ? [...STANDARD_ENGINES, 'google_ai_mode', 'google_ai_overview'] : [...BASE_ENGINES, ...CONDITIONAL_ENGINES]);
       expect(planModelTier(p.id), p.id).toBe(dar ? 'standard' : 'premium');
     }
   });
@@ -96,7 +99,7 @@ describe('ownerEngines / ownerModelTier — bilinmeyen plan EN DAR kapsami alir 
     const c = ownerEngines({ plan: 'TRIAL', role: 'ADMIN' });
     c.pop();
     expect(ownerEngines({ plan: 'TRIAL', role: 'ADMIN' })).toEqual(HEPSI);
-    expect([...STANDARD_ENGINES]).toEqual(DORT);
+    expect([...STANDARD_ENGINES]).toEqual(DORT_ASISTAN);
   });
 });
 
@@ -106,6 +109,8 @@ describe('ownerEngines / ownerModelTier — bilinmeyen plan EN DAR kapsami alir 
  * hesabina olcmedigimiz iki asistani gosterir. Liste = plan kapsami ∩ bu kurulumda olculenler.
  */
 describe('entitlementsFor(...).engines — panelin gosterdigi asistanlar', () => {
+  // Bu testlerde DataForSEO anahtari tanimli degil: Google yuzeyleri olculmez, listede yok
+  // (kosullu — measured-engines.ts). Anahtarli hali: measured-engines.spec.ts
   const withMetaKey = async (key: string | undefined, fn: () => Promise<void>) => {
     const eski = process.env.META_MODEL_API_KEY;
     if (key === undefined) delete process.env.META_MODEL_API_KEY; else process.env.META_MODEL_API_KEY = key;
@@ -117,22 +122,22 @@ describe('entitlementsFor(...).engines — panelin gosterdigi asistanlar', () =>
   it('Baslangic ve deneme dort; Profesyonel ve ustu alti; Muse yalniz anahtari tanimliyken sayilir', async () => {
     const { entitlementsFor } = await import('./entitlements.js');
     await withMetaKey(undefined, async () => {
-      expect(entitlementsFor('TRIAL').engines).toEqual(DORT);
-      expect(entitlementsFor('STARTER').engines).toEqual(DORT);
-      for (const p of ['PRO', 'AGENCY', 'ENTERPRISE']) expect(entitlementsFor(p).engines, p).toEqual([...DORT, 'xai', 'deepseek']);
+      expect(entitlementsFor('TRIAL').engines).toEqual(DORT_ASISTAN);
+      expect(entitlementsFor('STARTER').engines).toEqual(DORT_ASISTAN);
+      for (const p of ['PRO', 'AGENCY', 'ENTERPRISE']) expect(entitlementsFor(p).engines, p).toEqual([...DORT_ASISTAN, 'xai', 'deepseek']);
     });
     await withMetaKey('onizleme', async () => {
       // Kapsam disi planda anahtar olsa da Muse yok
-      expect(entitlementsFor('STARTER').engines).toEqual(DORT);
-      for (const p of ['PRO', 'AGENCY', 'ENTERPRISE']) expect(entitlementsFor(p).engines, p).toEqual(HEPSI);
+      expect(entitlementsFor('STARTER').engines).toEqual(DORT_ASISTAN);
+      for (const p of ['PRO', 'AGENCY', 'ENTERPRISE']) expect(entitlementsFor(p).engines, p).toEqual([...DORT_ASISTAN, 'xai', 'deepseek', 'meta']);
     });
   });
 
   it('ADMIN muaf (olcum motoruyla ayni kural); taninmayan plan en dar kapsam', async () => {
     const { entitlementsFor } = await import('./entitlements.js');
     await withMetaKey(undefined, async () => {
-      expect(entitlementsFor('TRIAL', 'ADMIN').engines).toEqual([...DORT, 'xai', 'deepseek']);
-      expect(entitlementsFor('BILINMEYEN').engines).toEqual(DORT);
+      expect(entitlementsFor('TRIAL', 'ADMIN').engines).toEqual([...DORT_ASISTAN, 'xai', 'deepseek']);
+      expect(entitlementsFor('BILINMEYEN').engines).toEqual(DORT_ASISTAN);
     });
   });
 

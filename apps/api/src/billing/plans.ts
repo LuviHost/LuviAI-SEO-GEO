@@ -253,7 +253,8 @@ export interface BasePlan {
  */
 
 /** Olcum asistanlari — audit/ai-citation.service `Provider` ile AYNI dizgeler */
-export type MeasurementEngine = 'openai' | 'gemini' | 'anthropic' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
+export type MeasurementEngine =
+  | 'openai' | 'gemini' | 'anthropic' | 'perplexity' | 'xai' | 'deepseek' | 'meta' | 'google_ai_mode' | 'google_ai_overview';
 
 /** Kart ve seritte gorunen adlar */
 export const ENGINE_LABELS: Record<MeasurementEngine, string> = {
@@ -264,7 +265,19 @@ export const ENGINE_LABELS: Record<MeasurementEngine, string> = {
   xai: 'Grok',
   deepseek: 'DeepSeek',
   meta: 'Muse',
+  google_ai_mode: 'Google AI Modu',
+  google_ai_overview: 'Google AI Bakışı',
 };
+
+/**
+ * GOOGLE YUZEYLERI (16.11.2026, sahip: "Google AI Modu ve AI Bakışı'nı ekleyelim; Türk müşteri
+ * Google'da arıyor"). Sohbet asistani degil, Google aramasinin kendi yapay zeka cevaplari —
+ * kartta "N AI asistanı" sayisina GIRMEZ, ayri yazilir. HER planda (Baslangic ve deneme dahil):
+ * soru basina en fazla ~0.012 USD, site basina haftalik olcum ayda ~0.5 USD. KOSULLUDUR:
+ * DataForSEO anahtari (DATAFORSEO_AUTH) yoksa olculmez, kartta ve seritte de gorunmez
+ * (audit/citation-providers.ts, billing/measured-engines.ts).
+ */
+export const GOOGLE_SURFACES: readonly MeasurementEngine[] = ['google_ai_mode', 'google_ai_overview'];
 
 /** Baslangic ve deneme: en bilinen dort asistan */
 export const STANDARD_ENGINES: readonly MeasurementEngine[] = ['openai', 'gemini', 'anthropic', 'perplexity'];
@@ -277,7 +290,7 @@ export const BASE_ENGINES: readonly MeasurementEngine[] = [...STANDARD_ENGINES, 
  * (audit/citation-providers.ts). Plan KAPSAMINDA Profesyonel ve ustundedir; kart
  * metnine ve "N asistan" sayisina ancak gercekten olculuyorsa girer.
  */
-export const CONDITIONAL_ENGINES: readonly MeasurementEngine[] = ['meta'];
+export const CONDITIONAL_ENGINES: readonly MeasurementEngine[] = ['meta', ...GOOGLE_SURFACES];
 
 /** Olcumde kullanilan model kademesi: 'standard' = saglayicinin hizli/ucuz modeli */
 export type ModelTier = 'standard' | 'premium';
@@ -288,7 +301,15 @@ function isStandardScope(plan: PlanId): boolean {
 
 /** Bu planin KAPSAMINDAKI asistanlar (kosullu olanlar dahil — olculup olculmeyecegini anahtar belirler) */
 export function planEngines(plan: PlanId): MeasurementEngine[] {
-  return isStandardScope(plan) ? [...STANDARD_ENGINES] : [...BASE_ENGINES, ...CONDITIONAL_ENGINES];
+  return isStandardScope(plan) ? [...STANDARD_ENGINES, ...GOOGLE_SURFACES] : [...BASE_ENGINES, ...CONDITIONAL_ENGINES];
+}
+
+/**
+ * Bu planin SOHBET ASISTANLARI — Google yuzeyleri haric. "N AI asistanı" sayilari bundan yazilir;
+ * Google AI Modu / AI Bakisi bir asistan degildir, ayri soylenir (GOOGLE_SURFACES).
+ */
+export function planAssistants(plan: PlanId): MeasurementEngine[] {
+  return planEngines(plan).filter((e) => !GOOGLE_SURFACES.includes(e));
 }
 
 /** Bu planin olcumlerinde kullanilan model kademesi */
@@ -315,12 +336,19 @@ function joinNames(names: string[], locale: 'tr' | 'en'): string {
  *  - Ust paketler: alt pakete EKLENEN asistanlar ve toplam sayi.
  */
 export function enginesBullet(plan: PlanId, locale: 'tr' | 'en', measured: readonly string[]): string {
-  const scope = planEngines(plan).filter((e) => measured.includes(e));
+  const all = planEngines(plan).filter((e) => measured.includes(e));
+  // Google yuzeyleri asistan sayisina girmez; olculuyorsa Baslangic kapsami maddesinin sonuna ayri
+  // eklenir. Ust paket maddesi "eklenir" der: Google'i orada yazmak onu Profesyonel eklentisi gibi
+  // gosterirdi (her planda var; ust kart "Baslangic'taki her sey, arti" ile acilir).
+  const scope = all.filter((e) => !GOOGLE_SURFACES.includes(e));
+  const google = all.some((e) => GOOGLE_SURFACES.includes(e))
+    ? (locale === 'tr' ? ' + Google AI Modu ve AI Bakışı' : ' + Google AI Mode and AI Overviews')
+    : '';
   if (isStandardScope(plan)) {
     const names = scope.map((e) => ENGINE_LABELS[e]).join(', ');
     return locale === 'tr'
-      ? `${scope.length} AI asistanında görünürlük ölçümü — ${names}`
-      : `AI visibility measurement across ${scope.length} assistants — ${names}`;
+      ? `${scope.length} AI asistanında görünürlük ölçümü — ${names}${google}`
+      : `AI visibility measurement across ${scope.length} assistants — ${names}${google}`;
   }
   const extras = scope.filter((e) => !STANDARD_ENGINES.includes(e)).map((e) => ENGINE_LABELS[e]);
   return locale === 'tr'

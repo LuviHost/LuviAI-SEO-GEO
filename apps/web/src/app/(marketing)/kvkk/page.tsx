@@ -23,7 +23,7 @@ export default function KvkkPage() {
             Islenen Kisisel Veriler bolumune eklendi; gizlilik sayfasiyla ayni gun.
             11 Kasim 2026: Aktarilan Taraflar'a AI olcumu icin Meta (Muse) eklendi; gizlilik sayfasiyla ayni gun. */}
         <p className="text-sm text-muted-foreground mb-1">Yürürlük: 27 Nisan 2026</p>
-        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 11 Kasım 2026</p>
+        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 16 Kasım 2026</p>
         <p className="text-sm text-muted-foreground mb-8">
           Değişiklik: Aktarılan Taraflar bölümüne yalnız çerez onayınızla yüklenen Google ve Microsoft araçları ile sizi
           davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi. İşlenen Kişisel Veriler bölümüne RanksUp
@@ -34,7 +34,8 @@ export default function KvkkPage() {
           Kurumsal İletişim bölümü LinkedIn kanalını da kapsayacak şekilde genişletildi (28 Ekim 2026). İşlenen Kişisel
           Veriler bölümüne, Canlı Tarayıcı kodunun bot doğrulaması için ilettiği ve saklanmayan IP adresi eklendi
           (2 Kasım 2026). Aktarılan Taraflar bölümüne AI görünürlük ölçümü için Meta (Muse, ABD) eklendi (11 Kasım
-          2026).
+          2026). Aktarılan Taraflar bölümüne Google AI Modu ve AI Bakışı ölçümü için DataForSEO (Estonya, AB) eklendi;
+          ona yalnız ölçüm soruları gider (16 Kasım 2026).
         </p>
 
         <div className="space-y-6 text-sm leading-relaxed">
@@ -92,7 +93,8 @@ export default function KvkkPage() {
             <ul className="text-muted-foreground space-y-1">
               <li>
                 • AI görünürlük ölçümü ve içerik üretimi: Anthropic (Claude, ABD), Google (Gemini, ABD), OpenAI (ChatGPT,
-                ABD), Perplexity (ABD), xAI (Grok, ABD), DeepSeek (Çin) ve yalnız ölçümde Meta (Muse, ABD). Ölçümde marka adı, alan adı, sektör, varsa rakip
+                ABD), Perplexity (ABD), xAI (Grok, ABD), DeepSeek (Çin), yalnız ölçümde Meta (Muse, ABD) ve Google AI Modu / AI Bakışı
+                ölçümü için yalnız ölçüm soruları DataForSEO (Estonya, AB). Ölçümde marka adı, alan adı, sektör, varsa rakip
                 adları ve ölçüm soruları; içerik üretiminde site ve marka bilgileri, anahtar kelimeler ve içerik taslakları
                 gönderilir.
               </li>

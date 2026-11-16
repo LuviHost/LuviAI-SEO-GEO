@@ -58,7 +58,8 @@ describe('getPlanPool', () => {
 
   it('Meta AI (Muse) plan havuzunda yok — yalniz META_MODEL_API_KEY tanimliyken olculur; geri kalan her saglayicinin env adi var', () => {
     expect(PLAN_POOL_PROVIDERS).not.toContain('meta');
-    const envProviders = Object.keys(POOL_ENV_KEY).filter((p) => p !== 'meta').sort();
+    // Kosullu saglayicilar (Muse, Google yuzeyleri) plan havuzunda degil: anahtar varsa olculur
+    const envProviders = Object.keys(POOL_ENV_KEY).filter((p) => !['meta', 'google_ai_mode', 'google_ai_overview'].includes(p)).sort();
     expect([...PLAN_POOL_PROVIDERS].sort()).toEqual(envProviders);
   });
 

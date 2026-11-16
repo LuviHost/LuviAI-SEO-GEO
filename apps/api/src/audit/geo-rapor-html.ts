@@ -36,6 +36,8 @@ const MOTOR_RENK: Record<string, string> = {
   deepseek: '#0EA5E9',
   xai: '#EF4444',
   meta: '#94A3B8',
+  google_ai_mode: '#4285F4',
+  google_ai_overview: '#34A853',
 };
 
 const MOTOR_AD: Record<string, string> = {
@@ -45,8 +47,10 @@ const MOTOR_AD: Record<string, string> = {
   gemini: 'Gemini',
   deepseek: 'DeepSeek',
   xai: 'Grok (xAI)',
-  // Olcum servisinin etiketiyle ayni (ai-citation.service runProvider)
-  meta: 'Meta AI (Llama)',
+  // Olcum servisinin etiketiyle ayni (ai-citation.service PROVIDER_LABELS)
+  meta: 'Meta AI (Muse)',
+  google_ai_mode: 'Google AI Modu',
+  google_ai_overview: 'Google AI Bakışı',
 };
 
 const motorAdi = (p: { provider: string; label?: string }) => MOTOR_AD[p.provider] ?? p.label ?? p.provider;
