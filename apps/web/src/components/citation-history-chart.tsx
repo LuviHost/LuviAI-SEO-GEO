@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { BeforeAfterCard } from '@/components/before-after-card';
 import { formatTrDate } from '@/components/geo-impact';
 import { EngineLogo } from '@/components/engine-logo';
-import { PROVIDER_COLORS, PROVIDER_LABELS, PROVIDER_FALLBACK } from '@/lib/chart-colors';
+import { PROVIDER_COLORS, PROVIDER_LABELS, PROVIDER_FALLBACK, isGoogleSurface } from '@/lib/chart-colors';
 import { CHART } from '@/lib/chart-colors';
 import { splitSeriesByMethod } from '@/lib/citation-chart-segments';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
@@ -167,6 +167,16 @@ export function CitationHistoryChart({
   };
 
   useEffect(() => { load(days); }, [days, siteId]);
+  // Aciklama cumlesi elle yazilmaz: Muse ve Google AI Modu / AI Bakisi anahtara bagli (API measuredEngines).
+  // Okunamazsa yalniz her zaman olculen asistanlar yazilir (olculmeyeni vaat etmeyiz).
+  const [olculen, setOlculen] = useState<string[]>([]);
+  useEffect(() => {
+    let iptal = false;
+    api.getPlans('tr').then((r) => { if (!iptal) setOlculen(r.measuredEngines ?? []); }).catch(() => undefined);
+    return () => { iptal = true; };
+  }, []);
+  const museVar = olculen.includes('meta');
+  const googleVar = olculen.some(isGoogleSurface);
   useEffect(() => { loadRuns(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
 
   const { blocked: measurementBlocked } = useMeasurementAllowance();
@@ -232,7 +242,9 @@ export function CitationHistoryChart({
               <Sparkles className="h-4 w-4 text-muted-foreground" /> AI Görünürlük Trendi
             </p>
             <p className="text-xs text-muted-foreground mt-1.5 max-w-2xl">
-              Planındaki AI asistanlarına (ChatGPT, Gemini, Claude, Perplexity; Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek) sektörünle ilgili sorular sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru. Sorusunda marka adın geçen ve sağlayıcının yanıtlayamadığı sorular skora girmez.
+              Planındaki AI asistanlarına (ChatGPT, Gemini, Claude, Perplexity; Profesyonel ve üstü planlarda ayrıca Grok, DeepSeek{museVar ? ' ve Muse' : ''}) sektörünle ilgili sorular sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz.
+              {googleVar && <> Aynı soruları Türkiye'den Google'da da arıyoruz: <strong>Google AI Modu</strong> ve <strong>AI Bakışı</strong> cevabında görünüyor musun. Google bir soruda yapay zekâ cevabı göstermezse o satır “bu soruda yok” yazar ve skora girmez.</>}
+              {' '}<strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru. Sorusunda marka adın geçen ve sağlayıcının yanıtlayamadığı sorular skora girmez.
             </p>
             {/*
               Tekrar + aralik (08.11.2026 kanit denetimi, api audit/citation-repeat.ts): AI cevaplari

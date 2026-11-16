@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   BASE_ENGINES, BASE_PLANS, CONDITIONAL_ENGINES, ENGINE_LABELS, ENGINES_BULLET, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS,
-  PLAN_RANK, PURCHASABLE_PLAN_IDS, STANDARD_ENGINES, VIDEOS_PER_MONTH, articleOfferPlan, featureOfferPlan, findPlan, planAssistants, planEngines, publicPlans,
+  GOOGLE_SURFACES, PLAN_RANK, PURCHASABLE_PLAN_IDS, STANDARD_ENGINES, VIDEOS_PER_MONTH, articleOfferPlan, featureOfferPlan, findPlan, planAssistants, planEngines, publicPlans,
   type BasePlan, type MeasurementEngine,
 } from '../billing/plans.js';
 import { planFeatures } from '../billing/billing.service.js';
@@ -921,8 +921,12 @@ describe('Pazarlama sayfaları = ürün', () => {
     // Tablo: makale satiri planini soyler; asistan hucresi ve ipucu kapsami plana gore yazar
     expect(cmp).toContain(`RanksUp: ${pro.name_tr} ve üstü planlarda; ücretsiz denemede toplam ${findPlan('trial')!.articlesPerMonth} makale. ${bas.name_tr} planında makale üretimi yoktur.`);
     expect(cmp).toContain(`RanksUp: on the ${pro.name_en} plan and up; the free trial includes ${findPlan('trial')!.articlesPerMonth} articles in total. The ${bas.name_en} plan does not include article generation.`);
-    expect(cmp).toContain(`luviai: '${sabitAsistan(pro)} asistan (${bas.name_tr}’ta ${sabitAsistan(bas)})'`);
-    expect(cmp).toContain(`luviai: '${sabitAsistan(pro)} assistants (${sabitAsistan(bas)} on ${bas.name_en})'`);
+    // Google AI Modu / AI Bakisi her planda (16.11.2026); asistan sayisina girmez, hucrede ayri yazilir
+    expect(cmp).toContain(`luviai: '${sabitAsistan(pro)} asistan (${bas.name_tr}’ta ${sabitAsistan(bas)}) + Google AI Modu ve AI Bakışı'`);
+    expect(cmp).toContain(`luviai: '${sabitAsistan(pro)} assistants (${sabitAsistan(bas)} on ${bas.name_en}) + Google AI Mode and AI Overviews'`);
+    expect(GOOGLE_SURFACES.every((g) => planEngines('starter').includes(g))).toBe(true);
+    // Eski "RanksUp bunlari olcmez" (Google AI) iddiasi geri gelmez; Copilot icin dogru kalir
+    expect(cmp).not.toMatch(/Google AI Overviews \/ AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez/);
     const dort = STANDARD_ENGINES.map(asistanAdi);
     const ek = BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi);
     expect(cmp).toContain(`RanksUp: ${dort.slice(0, -1).join(', ')} ve ${dort.at(-1)} her planda, ${ek.join(' ve ')} ${pro.name_tr} ve üstü planlarda;`);

@@ -54,7 +54,7 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/pricing',               updated: '2026-11-11', changeFrequency: 'weekly',  priority: 0.9 },
   { path: '/faq',                   updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/use-cases',             updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/compare',               updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/compare',               updated: '2026-11-16', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/about',                 updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   // Rehber (GEO icerik merkezi) — icerik content/rehber/*.ts; kaynaklar yeniden kontrol
   // edilince ya da metin degisince ilgili satirin tarihi ayni committe guncellenir.
@@ -66,10 +66,10 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/rehber/geo-nedir',                        updated: '2026-10-24', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/yapay-zeka-botlari-robots-txt',    updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/llms-txt-nedir',                   updated: '2026-11-08', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/rehber/ai-bakisi-gorunurluk',             updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/ai-bakisi-gorunurluk',             updated: '2026-11-16', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/rehber/mobil-uygulama-geo',               updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   // 14.11.2026: karsilastirmaya Turkiye listesi, KOBI, e-ticaret ve ajans rehberlerine baglantilar eklendi.
-  { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/rehber/yapay-zeka-gorunurluk-araclari',   updated: '2026-11-16', changeFrequency: 'monthly', priority: 0.7 },
   // 14.11.2026: "hangi urun" sorulari icin dort rehber (Turkiye'de satilan urunler, KOBI, e-ticaret, ajans).
   { path: '/rehber/turkiyede-yapay-zeka-gorunurluk-urunleri',   updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/rehber/kobi-seo-ve-yapay-zeka-gorunurlugu',         updated: '2026-11-14', changeFrequency: 'monthly', priority: 0.7 },

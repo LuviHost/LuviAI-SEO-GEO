@@ -92,7 +92,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             '**Güçlü yanları:** ChatGPT, Gemini, Claude ve Perplexity’de ölçüm, Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek; 14 kontrollü site SEO/GEO denetimi; ASO, Profesyonel ve üstü planlarda App Prompt Lab; Profesyonel ve üstü planlarda yapay zekâ ile makale üretimi ve 13 yayın hedefi; Profesyonel ve üstü planlarda kaybedilen sorudan içerik üretip yeniden ölçen kapalı döngü; Türkçe arayüz ve destek, PayTR ile Türk lirası ödeme.',
-            '**Sınırlamaları:** Google AI Bakışı, AI Modu ve Copilot’u doğrudan ölçmez (AI Bakışı için Search Console verisi içe aktarılabilir). Ölçüm hesap başına 7 günde birdir. Ücretli planlar Başlangıç $99/ay’dan başlar (KDV dahil); bu planda dört asistan ölçülür ve makale üretimi yoktur, makale üretimi Profesyonel $349/ay’dadır. Yalnız ölçüm isteyen biri için daha ucuz seçenekler var.',
+            '**Sınırlamaları:** Copilot’u ölçmez. Google AI Modu ve AI Bakışı’nı Türkiye’den yapılan Google aramasıyla ölçer; Google’ın AI cevabı göstermediği sorular skora girmez. Ölçüm hesap başına 7 günde birdir. Ücretli planlar Başlangıç $99/ay’dan başlar (KDV dahil); bu planda dört asistan ölçülür ve makale üretimi yoktur, makale üretimi Profesyonel $349/ay’dadır. Yalnız ölçüm isteyen biri için daha ucuz seçenekler var.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility'],
         },
@@ -230,7 +230,7 @@ export const article: RehberArticle = {
     },
     {
       q: 'Bu araçlar Google AI Bakışı’nı ölçüyor mu?',
-      a: 'Bazıları ölçüyor. Satıcı sayfalarına göre Otterly.AI, Peec AI, Profound, Ahrefs Brand Radar ve SEOYEN Google AI Overviews takibi sunuyor. RanksUp AI Bakışı’nı doğrudan ölçmüyor; GEON’un takip listesinde AI Bakışı yok.',
+      a: 'Bazıları ölçüyor. Satıcı sayfalarına göre Otterly.AI, Peec AI, Profound, Ahrefs Brand Radar ve SEOYEN Google AI Overviews takibi sunuyor. RanksUp 16 Kasım 2026’dan beri AI Bakışı’nı ve AI Modu’nu soruları Türkiye’den Google’da arayarak ölçüyor; GEON’un takip listesinde AI Bakışı yok.',
     },
     {
       q: 'Ücretsiz deneme sunan araçlar hangileri?',

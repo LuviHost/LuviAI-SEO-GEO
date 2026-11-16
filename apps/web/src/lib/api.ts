@@ -2183,6 +2183,8 @@ export const api = {
       fx: { rate: number; fetchedAt: string; source: 'TCMB' | 'fallback'; stale: boolean };
       /** Satin alma acik mi (test modunda kapali; metin locale'e gore). Eski API'de yok */
       checkout?: CheckoutAvailability;
+      /** Urunun SU AN olctugu saglayicilar (anahtara bagli: Muse, Google AI Modu / AI Bakisi). Eski API'de yok */
+      measuredEngines?: string[];
     }>(`/billing/plans${locale ? '?locale=' + locale : ''}`),
   // enterpriseInquiry / getCurrentFxRate silindi: billing/enterprise-inquiry ve
   // billing/fx-rate uclari API'de yok (Kurumsal iletisim mailto; kur /billing/plans
