@@ -907,7 +907,10 @@ describe('Pazarlama sayfaları = ürün', () => {
     const [bas, pro] = [findPlan('starter')!, findPlan('pro')!];
     // Kart: "SEO içerik üretimi ve yayın", "AI görünürlük ölçümü (6 asistan)", reklam otopilotu, Agent Readiness
     expect(cmp).toContain("'SEO içerik üretimi ve yayın (Surfer / Jasper alternatifi)',");
-    expect(cmp).toContain("'AI görünürlük ölçümü (6 asistan)',");
+    // Sayi elle yazilmaz: {PRO} o an olculen Profesyonel kapsamindan (compare-scope.ts, 16.11.2026)
+    expect(cmp).toContain("'AI görünürlük ölçümü ({PRO} asistan)',");
+    // (Rakip GEON'un "6 asistan" hucresi kendi sayfasindan; RanksUp metinlerinde sabit sayi yok)
+    expect(cmp).not.toMatch(/luviai: '6 |hc1Num: '6'|\(6 asistan\)|\(6 assistants\)|dahil 6 asistan|on 6 assistants/);
     expect(cmp).toContain("'Agent Readiness (AXO) taraması',");
     // Dort alanin hepsi ayni planda: makale (articleOfferPlan), 6 asistan (planEngines), AXO (FEATURE_MIN_PLAN)
     expect(articleOfferPlan().id).toBe('pro');
@@ -922,15 +925,21 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(cmp).toContain(`RanksUp: ${pro.name_tr} ve üstü planlarda; ücretsiz denemede toplam ${findPlan('trial')!.articlesPerMonth} makale. ${bas.name_tr} planında makale üretimi yoktur.`);
     expect(cmp).toContain(`RanksUp: on the ${pro.name_en} plan and up; the free trial includes ${findPlan('trial')!.articlesPerMonth} articles in total. The ${bas.name_en} plan does not include article generation.`);
     // Google AI Modu / AI Bakisi her planda (16.11.2026); asistan sayisina girmez, hucrede ayri yazilir
-    expect(cmp).toContain(`luviai: '${sabitAsistan(pro)} asistan (${bas.name_tr}’ta ${sabitAsistan(bas)}) + Google AI Modu ve AI Bakışı'`);
-    expect(cmp).toContain(`luviai: '${sabitAsistan(pro)} assistants (${sabitAsistan(bas)} on ${bas.name_en}) + Google AI Mode and AI Overviews'`);
+    expect(cmp).toContain(`luviai: '{PRO} asistan (${bas.name_tr}’ta {BAS}) + Google AI Modu ve AI Bakışı'`);
+    expect(cmp).toContain(`luviai: '{PRO} assistants ({BAS} on ${bas.name_en}) + Google AI Mode and AI Overviews'`);
     expect(GOOGLE_SURFACES.every((g) => planEngines('starter').includes(g))).toBe(true);
     // Eski "RanksUp bunlari olcmez" (Google AI) iddiasi geri gelmez; Copilot icin dogru kalir
     expect(cmp).not.toMatch(/Google AI Overviews \/ AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez/);
     const dort = STANDARD_ENGINES.map(asistanAdi);
     const ek = BASE_ENGINES.filter((e) => !STANDARD_ENGINES.includes(e)).map(asistanAdi);
-    expect(cmp).toContain(`RanksUp: ${dort.slice(0, -1).join(', ')} ve ${dort.at(-1)} her planda, ${ek.join(' ve ')} ${pro.name_tr} ve üstü planlarda;`);
-    expect(cmp).toContain(`RanksUp: ${dort.slice(0, -1).join(', ')} and ${dort.at(-1)} on every plan, ${ek.join(' and ')} on the ${pro.name_en} plan and up;`);
+    // Profesyonel'de eklenenler {EK}: Grok ve DeepSeek her zaman, Muse anahtara bagli (compare-scope.ts)
+    expect(ek).toEqual(['Grok', 'DeepSeek']);
+    expect(CONDITIONAL_ENGINES).toContain('meta');
+    expect(cmp).toContain(`RanksUp: ${dort.slice(0, -1).join(', ')} ve ${dort.at(-1)} her planda, {EK} ${pro.name_tr} ve üstü planlarda;`);
+    expect(cmp).toContain(`RanksUp: ${dort.slice(0, -1).join(', ')} and ${dort.at(-1)} on every plan, {EK} on the ${pro.name_en} plan and up;`);
+    const kapsam = read(path.join(MARKETING, 'compare/compare-scope.ts'));
+    expect(kapsam).toContain('const ek = s.muse ? `Grok, DeepSeek ${ve} Muse` : `Grok ${ve} DeepSeek`;');
+    expect(kapsam).toContain("export const DEFAULT_COMPARE_SCOPE: CompareScope = { pro: 6, bas: 4, muse: false };");
     // GEO isi haritasi: musteriye soylenen plan featureOfferPlan (Ajans degil)
     expect(cmp).toContain(`GEO ısı haritası (rakip × AI asistanı) (${featureOfferPlan('geoHeatmap').name_tr} planda)`);
     expect(cmp).toContain(`GEO heatmap (competitor × AI assistant) (${featureOfferPlan('geoHeatmap').name_en} plan)`);
