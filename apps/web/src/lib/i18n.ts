@@ -308,7 +308,8 @@ const dictionary = {
     'land3.hero.b': 'tavsiye ediyor mu?',
     // {n}: API'nin "su an olculuyor" dedigi asistan sayisi (6, Muse aciksa 7) — ai-checker-hero.tsx
     'land3.hero.checker': 'Alan adını yaz, {n} AI asistanında test edelim; genelde bir dakikadan kısa sürer. Üyelik gerekmez.',
-    'land3.engines': '{n} asistanda ölçülür',
+    // Google AI Modu / AI Bakisi (16.11.2026) asistan degil, Google'in AI cevabi: "platform"
+    'land3.engines': '{n} AI platformunda ölçülür',
     'land3.surf.rail': 'Üç arama yüzeyi',
     'land3.surf.meta': 'Tek panel',
     'land3.surf.a': 'Müşterin seni',
@@ -602,7 +603,7 @@ const dictionary = {
     'land3.hero.a': 'Does AI',
     'land3.hero.b': 'recommend you?',
     'land3.hero.checker': 'Enter your domain and we’ll test it across {n} AI assistants — it usually takes under a minute. No sign-up needed.',
-    'land3.engines': 'Measured across {n} assistants',
+    'land3.engines': 'Measured across {n} AI platforms',
     'land3.surf.rail': 'Three search surfaces',
     'land3.surf.meta': 'One panel',
     'land3.surf.a': 'Your customers look for you',

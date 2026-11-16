@@ -28,7 +28,7 @@ vi.mock('../common/safe-fetch.js', async (importOriginal) => {
 });
 
 import { PUBLIC_BUDGET_MESSAGE, PublicCitationService, TRIAL_ASSISTANT_COUNT, pickReusableSnapshot, publicDailyBudgetUsd, withMeasuredCounts } from './public-citation.service.js';
-import { planEngines } from '../billing/plans.js';
+import { planAssistants, planEngines } from '../billing/plans.js';
 
 const ALTI = [
   ['anthropic', 'Anthropic Claude'], ['gemini', 'Google Gemini'], ['openai', 'OpenAI ChatGPT'],
@@ -244,7 +244,8 @@ describe('IP basina haftalik hak (7 gunde 1 taze test) — kayittaki hash ile so
   });
 
   it('deneme daveti denemenin GERCEK kapsamini soyler: asistan sayisi plans.ts deneme planindan (4), 6 degil', () => {
-    expect(TRIAL_ASSISTANT_COUNT).toBe(planEngines('trial').length);
+    // Asistan sayisi: Google yuzeyleri asistan degildir (plans.ts planAssistants)
+    expect(TRIAL_ASSISTANT_COUNT).toBe(planAssistants('trial').length);
     expect(TRIAL_ASSISTANT_COUNT).toBe(4);
     expect(PUBLIC_BUDGET_MESSAGE).toContain(`siteni hemen ${TRIAL_ASSISTANT_COUNT} asistanda ölçebilirsin`);
     const sayilar = [...PUBLIC_BUDGET_MESSAGE.matchAll(/(\d+)\s*asistan/g)].map((m) => Number(m[1]));

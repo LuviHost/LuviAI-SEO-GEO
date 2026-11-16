@@ -5,7 +5,7 @@ import {
   duzen, dugme, olcuSatiri, bilgiKutusu, kacisla, h, etiket, p, liste, baglanti,
   kahramanOlcu, sutunGrafik, ekranKarti, ekranBolucu, MARKA, FONT, type EpostaMotifi,
 } from './email-layout.js';
-import { ENGINE_LABELS, articleOfferPlan, planEngines } from '../billing/plans.js';
+import { ENGINE_LABELS, articleOfferPlan, planAssistants } from '../billing/plans.js';
 import { PANEL_DEDUPE_WINDOW_MS, panelNotificationFor } from './panel-notification.js';
 
 /**
@@ -15,7 +15,8 @@ import { PANEL_DEDUPE_WINDOW_MS, panelNotificationFor } from './panel-notificati
  * (deneme) hesaba gider: alti asistan yazmak olcmeyecegimiz ikisini vaat ederdi.
  */
 export const DENEME_ASISTANLARI: string = (() => {
-  const adlar = planEngines('trial').map((e) => ENGINE_LABELS[e]);
+  // Asistanlar (Google yuzeyleri asistan sayisina girmez — plans.ts planAssistants)
+  const adlar = planAssistants('trial').map((e) => ENGINE_LABELS[e]);
   return adlar.length > 1 ? `${adlar.slice(0, -1).join(', ')} ve ${adlar[adlar.length - 1]}` : adlar.join('');
 })();
 

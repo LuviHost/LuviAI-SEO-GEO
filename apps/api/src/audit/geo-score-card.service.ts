@@ -703,6 +703,7 @@ export class GeoScoreCardService {
     const labels: Record<string, string> = {
       anthropic: 'Claude', gemini: 'Gemini', openai: 'ChatGPT', perplexity: 'Perplexity',
       xai: 'Grok (xAI)', deepseek: 'DeepSeek', meta: 'Meta AI',
+      google_ai_mode: 'Google AI Modu', google_ai_overview: 'Google AI Bakışı',
     };
     return labels[p] ?? p;
   }

@@ -21,7 +21,7 @@ import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/componen
 import { FilterChip } from '@/components/ui/filter-chip';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { MeasurementWaitLabel } from '@/components/upgrade-gate';
-import { displayProbeText, isProbeErrorText, probeErrorText } from '@/lib/probe-error-text';
+import { displayProbeText, isProbeAbsentText, isProbeErrorText, probeErrorText } from '@/lib/probe-error-text';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import {
   aralikAciklamasi, kararAciklamasi, kararYonu, olcumOf, plusMinus, sorularaGore, tekrarSoruEtiketi,
@@ -37,6 +37,8 @@ type Ton = 'emerald' | 'amber' | 'slate' | 'red';
  * puan sanar (skor bu satirlari saymaz).
  */
 function probeDurumu(p: any): { label: string; kisa: string; tone: Ton; score: string } {
+  // Google AI Bakisi / AI Modu bu aramada cevap gostermedi: "bahsetmedi" de "olculemedi" de degil
+  if (isProbeAbsentText(p?.excerpt)) return { label: 'Bu soruda yok · skor dışı', kisa: 'Bu soruda yok', tone: 'slate', score: '—' };
   if (isProbeErrorText(p?.excerpt)) return { label: 'Ölçülemedi · skor dışı', kisa: 'Ölçülemedi', tone: 'slate', score: '—' };
   if (p?.brandInQuery) return { label: 'Markalı soru · skor dışı', kisa: 'Markalı', tone: 'slate', score: '—' };
   if (p?.cited) return { label: 'URL alıntılandı', kisa: 'URL', tone: 'emerald', score: '+100' };
@@ -331,7 +333,7 @@ export function CitationHistoryChart({
 
               // "Kaynak oldun, öneri değilsin" — son ölçümde URL atıf aldı ama marka adı cevapta geçmedi (markasız sorular)
               const latestProbes: any[] = (data.latestResults ?? []).flatMap((r: any) => Array.isArray(r.probes) ? r.probes : []);
-              const unbrandedProbes = latestProbes.filter((p: any) => p.brandInQuery !== true && !String(p.excerpt ?? '').startsWith('HATA:'));
+              const unbrandedProbes = latestProbes.filter((p: any) => p.brandInQuery !== true && !isProbeErrorText(p.excerpt));
               const citedNotMentioned = unbrandedProbes.filter((p: any) => p.cited && !p.brandMentioned).length;
 
               const grade =
@@ -581,6 +583,10 @@ export function CitationHistoryChart({
                             // soru bazli nedenler asagidaki satirlarda — burada genel durum
                             const probes: any[] = Array.isArray(r.probes) ? r.probes : [];
                             const allFailed = probes.length > 0 && probes.every((p: any) => isProbeErrorText(p.excerpt));
+                            // Google AI Bakisi / AI Modu bu sorularin hicbirinde cikmadi: olcum hatasi degil
+                            if (allFailed && probes.every((p: any) => isProbeAbsentText(p.excerpt))) {
+                              return <p className="text-label text-muted-foreground mb-2 leading-snug">Google bu sorularda yapay zekâ cevabı göstermedi; skor hesaplanmadı.</p>;
+                            }
                             if (allFailed) {
                               return <p className="text-label text-muted-foreground mb-2 leading-snug">Bu sağlayıcıda hiçbir soru ölçülemedi; skor hesaplanmadı.</p>;
                             }
@@ -675,7 +681,7 @@ export function CitationHistoryChart({
                                         <span className="text-label text-muted-foreground">
                                           {sayilan.length > 0
                                             ? `${sayilan.length} tekrarın ${gorunen}'ında göründü`
-                                            : p.brandInQuery ? 'markalı soru · skor dışı' : 'ölçülemedi · skor dışı'}
+                                            : p.brandInQuery ? 'markalı soru · skor dışı' : isProbeAbsentText(p.excerpt) ? 'bu soruda yok · skor dışı' : 'ölçülemedi · skor dışı'}
                                         </span>
                                       </div>
                                     ) : (

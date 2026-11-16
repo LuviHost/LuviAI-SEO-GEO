@@ -1,5 +1,5 @@
 import {
-  BASE_ENGINES, CONDITIONAL_ENGINES, PLAN_RANK, STANDARD_ENGINES, planEngines, planModelTier,
+  BASE_ENGINES, CONDITIONAL_ENGINES, GOOGLE_SURFACES, PLAN_RANK, STANDARD_ENGINES, planEngines, planModelTier,
   type MeasurementEngine, type ModelTier, type PlanId,
 } from './plans.js';
 
@@ -41,7 +41,7 @@ function planIdOf(owner: Owner): PlanId | null {
 export function ownerEngines(owner: Owner): MeasurementEngine[] {
   if (owner?.role === 'ADMIN') return [...BASE_ENGINES, ...CONDITIONAL_ENGINES];
   const plan = planIdOf(owner);
-  return plan ? planEngines(plan) : [...STANDARD_ENGINES];
+  return plan ? planEngines(plan) : [...STANDARD_ENGINES, ...GOOGLE_SURFACES];
 }
 
 /** Bu sahibin olcumlerinde kullanilan model kademesi */

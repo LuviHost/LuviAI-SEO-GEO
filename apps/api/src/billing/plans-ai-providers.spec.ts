@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   BASE_ENGINES, BASE_PLANS, CONDITIONAL_ENGINES, ENGINES_BULLET, ENGINE_LABELS, STANDARD_ENGINES,
-  enginesBullet, findPlan, planEngines, publicPlans, type BasePlan, type MeasurementEngine,
+  enginesBullet, findPlan, planAssistants, planEngines, publicPlans, type BasePlan, type MeasurementEngine,
 } from './plans.js';
 import { BillingService, planFeatures } from './billing.service.js';
 import { measuredEngines } from './measured-engines.js';
@@ -45,12 +45,18 @@ describe('plans.ts aiProviders', () => {
     const dort = ['openai', 'gemini', 'anthropic', 'perplexity'];
     expect([...STANDARD_ENGINES]).toEqual(dort);
     expect([...BASE_ENGINES]).toEqual([...dort, 'xai', 'deepseek']);
-    expect([...CONDITIONAL_ENGINES]).toEqual(['meta']);
-    for (const id of ['trial', 'starter'] as const) expect(planEngines(id), id).toEqual(dort);
-    for (const id of ['pro', 'agency', 'enterprise'] as const) {
-      expect(planEngines(id), id).toEqual([...dort, 'xai', 'deepseek', 'meta']);
+    // Google AI Modu ve AI Bakisi (16.11.2026): kosullu (DataForSEO anahtari) ve HER planda
+    const google = ['google_ai_mode', 'google_ai_overview'];
+    expect([...CONDITIONAL_ENGINES]).toEqual(['meta', ...google]);
+    for (const id of ['trial', 'starter'] as const) {
+      expect(planEngines(id), id).toEqual([...dort, ...google]);
+      expect(planAssistants(id), id).toEqual(dort);
     }
-    expect(Object.values(ENGINE_LABELS).sort()).toEqual(['ChatGPT', 'Claude', 'DeepSeek', 'Gemini', 'Grok', 'Muse', 'Perplexity']);
+    for (const id of ['pro', 'agency', 'enterprise'] as const) {
+      expect(planEngines(id), id).toEqual([...dort, 'xai', 'deepseek', 'meta', ...google]);
+      expect(planAssistants(id), id).toEqual([...dort, 'xai', 'deepseek', 'meta']);
+    }
+    expect(Object.values(ENGINE_LABELS).sort()).toEqual(['ChatGPT', 'Claude', 'DeepSeek', 'Gemini', 'Google AI Bakışı', 'Google AI Modu', 'Grok', 'Muse', 'Perplexity']);
     expect(Object.values(ENGINE_LABELS).join(' ')).not.toMatch(/llama/i);
   });
 
@@ -253,3 +259,24 @@ describe('GET /billing/plans — teklifle satilan planin fiyati yanitta yok', ()
   });
 });
 
+
+describe('Google AI Modu ve AI Bakisi — kart maddesi (16.11.2026)', () => {
+  const googleli = measuredEngines({ DATAFORSEO_AUTH: 'x' });
+  const googlesiz = measuredEngines({});
+
+  it('anahtar tanimliyken Baslangic kapsami maddesinde ayri yazilir; asistan SAYISINA girmez', () => {
+    expect(googleli).toEqual(expect.arrayContaining(['google_ai_mode', 'google_ai_overview']));
+    expect(enginesBullet('starter', 'tr', googleli)).toBe('4 AI asistanında görünürlük ölçümü — ChatGPT, Gemini, Claude, Perplexity + Google AI Modu ve AI Bakışı');
+    expect(enginesBullet('starter', 'en', googleli)).toBe('AI visibility measurement across 4 assistants — ChatGPT, Gemini, Claude, Perplexity + Google AI Mode and AI Overviews');
+    // Ust paket maddesi Google'i tekrar yazmaz: "eklenir" listesinde Profesyonel eklentisi gibi okunurdu
+    expect(enginesBullet('pro', 'tr', googleli)).toBe('6 AI asistanı — Grok ve DeepSeek eklenir');
+    expect(enginesBullet('trial', 'tr', googleli)).toMatch(/\+ Google AI Modu ve AI Bakışı$/);
+  });
+
+  it('anahtar yokken kart Google yuzeylerini VAAT ETMEZ', () => {
+    expect(googlesiz).not.toContain('google_ai_mode');
+    for (const id of ['starter', 'pro'] as const) {
+      for (const dil of ['tr', 'en'] as const) expect(enginesBullet(id, dil, googlesiz), `${id}/${dil}`).not.toMatch(/Google AI/);
+    }
+  });
+});

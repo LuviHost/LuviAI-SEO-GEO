@@ -179,7 +179,7 @@ describe('makale hazir e-postalari editor skorunu dogru olcekle yaziyor', () => 
 describe('hos geldin ve yenileme e-postalari — deneme ve yenileme kurallariyla tutarli', () => {
   const ESKI = /kendiliğinden başlar|süre sınırı yok|ilk makale otomatik/i;
   it('welcome_day0: 14 gun, kart yok, 2 makale, makale kendiliginden yazilmaz, DENEMENIN olctugu 4 asistan', async () => {
-    const { ENGINE_LABELS, planEngines } = await import('../billing/plans.js');
+    const { ENGINE_LABELS, planAssistants, planEngines } = await import('../billing/plans.js');
     const { subject, html } = render('welcome_day0', { name: 'Test' });
     expect(`${subject} ${html}`).not.toMatch(ESKI);
     expect(html).toContain('14 günlük ücretsiz');
@@ -188,11 +188,13 @@ describe('hos geldin ve yenileme e-postalari — deneme ve yenileme kurallariyla
     expect(html).toContain('makaleyi kendiliğinden yazmaz');
     expect(html).toContain('yayın hedefi');
     // Liste plans.ts'ten: deneme planinin kapsami, o sirayla
-    const deneme = planEngines('trial').map((e) => ENGINE_LABELS[e]);
+    const deneme = planAssistants('trial').map((e) => ENGINE_LABELS[e]);
     expect(deneme).toEqual(['ChatGPT', 'Gemini', 'Claude', 'Perplexity']);
     expect(html).toContain(`${deneme.slice(0, -1).join(', ')} ve ${deneme[deneme.length - 1]} seni kaynak gösteriyor mu`);
     // Denemede olculmeyen asistan vaat edilmez (eskiden alti asistan yaziyordu)
     const kapsamDisi = (Object.keys(ENGINE_LABELS) as Array<keyof typeof ENGINE_LABELS>).filter((e) => !planEngines('trial').includes(e));
+    // Google yuzeyleri denemenin KAPSAMINDA (16.11.2026) ama asistan degil: karsilama listesinde yok
+    expect(deneme).not.toContain('Google AI Modu');
     expect(kapsamDisi.map((e) => ENGINE_LABELS[e]).sort()).toEqual(['DeepSeek', 'Grok', 'Muse']);
     for (const e of kapsamDisi) expect(html, ENGINE_LABELS[e]).not.toContain(ENGINE_LABELS[e]);
     expect(html).not.toMatch(/6 (AI )?asistan|altı (AI )?asistan/i);

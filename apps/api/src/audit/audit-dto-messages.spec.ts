@@ -107,7 +107,7 @@ describe('tavan asimi Turkce mesaj uretir (main.ts pipe ayari)', () => {
 describe('tavan disi bozuk girdiler de Turkce', () => {
   const durumlar: Array<{ ad: string; dto: unknown; body: unknown; beklenen: string }> = [
     { ad: 'providers dizi degil', dto: RunPromptDto, body: { providers: 'openai' }, beklenen: 'providers bir liste olmalı' },
-    { ad: 'providers fazla', dto: RunPromptDto, body: { providers: Array(8).fill('openai') }, beklenen: 'providers en fazla 7 sağlayıcı içerebilir' },
+    { ad: 'providers fazla', dto: RunPromptDto, body: { providers: Array(10).fill('openai') }, beklenen: 'providers en fazla 9 sağlayıcı içerebilir' },
     { ad: 'fanoutProviders dizi degil', dto: RunPromptDto, body: { fanoutProviders: 'openai' }, beklenen: 'fanoutProviders bir liste olmalı' },
     { ad: 'run-all limit 0', dto: RunAllPromptsDto, body: { limit: 0 }, beklenen: 'limit en az 1 olmalı' },
     { ad: 'fan-out max 0', dto: GenerateFanoutDto, body: { max: 0 }, beklenen: 'max en az 1 olmalı' },

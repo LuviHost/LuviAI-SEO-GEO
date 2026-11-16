@@ -34,6 +34,9 @@ const OLCULEN_EN_YUKSEK: Array<[Provider, 'standard' | 'premium', number, string
   ['xai', 'premium', 0.3177, 'grok-4.7 (132K girdi, 8 arama)'],
   ['deepseek', 'premium', 0.0844, 'deepseek-v4-pro'],
   ['meta', 'premium', 0.1412, 'muse-spark-1.3 (13 arama)'],
+  // DataForSEO canli uclari, 16.11.2026 denemesi (20 Turkce soru): istek basina sabit ucret
+  ['google_ai_mode', 'premium', 0.004, 'DataForSEO AI Modu (canli)'],
+  ['google_ai_overview', 'premium', 0.004, 'DataForSEO organik + async AI Bakisi (canli)'],
 ];
 
 describe('isUnconfiguredProvider — olcum oncesi (saglayici adi)', () => {
@@ -207,7 +210,7 @@ describe('gunluk havuz tavani — kiraci payi satistaki planin bir gunluk hakkin
       const ihtiyacTavan = (gunlukSoru('pro', saglayici) * costPerProbe(saglayici, 'premium')) / PER_USER_BUDGET_SHARE;
       expect(DAILY_BUDGET_DEFAULT_USD[saglayici], saglayici).toBeLessThan(ihtiyacTavan * 1.5);
     }
-    expect(DAILY_BUDGET_DEFAULT_USD).toEqual({ anthropic: 60, gemini: 20, openai: 100, perplexity: 5, xai: 70, deepseek: 25, meta: 40 });
+    expect(DAILY_BUDGET_DEFAULT_USD).toEqual({ anthropic: 60, gemini: 20, openai: 100, perplexity: 5, xai: 70, deepseek: 25, meta: 40, google_ai_mode: 2, google_ai_overview: 2 });
     // Global tavan iki Profesyonel hesabin en agir gununu tasir (pay 0.5): ucuncusu icin env buyutulur
     for (const saglayici of planEngines('pro') as Provider[]) {
       expect(DAILY_BUDGET_DEFAULT_USD[saglayici], saglayici).toBeGreaterThanOrEqual(2 * gunlukSoru('pro', saglayici) * costPerProbe(saglayici, 'premium'));
@@ -309,11 +312,12 @@ describe('aylik en kotu maliyet — satistaki planin geliri en pahali ayi tasir'
     }
   });
 
-  it('sayilar: Profesyonel soru basina ~0.93 USD ve en pahali olcum ayi ~109 USD; Baslangic ~0.09 ve ~7 USD', () => {
-    expect(soruMaliyeti('pro')).toBeCloseTo(0.9343, 3);
-    expect(enKotuSoru('pro') * soruMaliyeti('pro')).toBeCloseTo(109.3, 0);
-    expect(soruMaliyeti('starter')).toBeCloseTo(0.0902, 3);
-    expect(enKotuSoru('starter') * soruMaliyeti('starter')).toBeCloseTo(6.9, 0);
+  // 16.11.2026: Google AI Modu + AI Bakisi soru basina 0.008 USD ekler (iki pakette de)
+  it('sayilar: Profesyonel soru basina ~0.94 USD ve en pahali olcum ayi ~110 USD; Baslangic ~0.10 ve ~7.5 USD', () => {
+    expect(soruMaliyeti('pro')).toBeCloseTo(0.9423, 3);
+    expect(enKotuSoru('pro') * soruMaliyeti('pro')).toBeCloseTo(110.3, 0);
+    expect(soruMaliyeti('starter')).toBeCloseTo(0.0982, 3);
+    expect(enKotuSoru('starter') * soruMaliyeti('starter')).toBeCloseTo(7.5, 0);
     // Yillik Profesyonel hesabin en kotu ayinda kalan pay dar (≈ 6 USD): hak buyutulmeden once fiyat konusulur
     expect(netGelir('pro') - (enKotuSoru('pro') * soruMaliyeti('pro') + 120)).toBeGreaterThan(0);
   });

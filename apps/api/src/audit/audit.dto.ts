@@ -41,6 +41,7 @@ import { COMMUNITY_MAX_LIMIT, GEO_HEATMAP_MAX_QUERIES } from './audit-limits.js'
  */
 const PROVIDER_SET: Record<Provider, true> = {
   anthropic: true, gemini: true, openai: true, perplexity: true, xai: true, deepseek: true, meta: true,
+  google_ai_mode: true, google_ai_overview: true,
 };
 export const CITATION_PROVIDERS = Object.keys(PROVIDER_SET) as Provider[];
 

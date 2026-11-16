@@ -11,7 +11,7 @@ import type { Audience } from '../llm/model-tier.js';
 import { safeFetchText, SafeFetchError } from '../common/safe-fetch.js';
 import { detectBlock } from '../common/block-detect.js';
 import { assertPublicDomainResolves, normalizePublicDomainInput, type PublicResolver } from '../sites/site-url-policy.js';
-import { BASE_ENGINES, CONDITIONAL_ENGINES, planEngines, type MeasurementEngine, type ModelTier } from '../billing/plans.js';
+import { BASE_ENGINES, CONDITIONAL_ENGINES, GOOGLE_SURFACES, planAssistants, type MeasurementEngine, type ModelTier } from '../billing/plans.js';
 import { FREE_TEST_ENGINES } from '../billing/plan-engines.js';
 
 /**
@@ -191,7 +191,7 @@ export function publicDailyBudgetUsd(): number {
  * deneme dort asistan olcer; anonim test de ayni dort asistana sorar (plan-engines
  * FREE_TEST_ENGINES). Eski metinler "deneme hesabi ac, 6 asistanda olc" diyordu.
  */
-export const TRIAL_ASSISTANT_COUNT = planEngines('trial').length;
+export const TRIAL_ASSISTANT_COUNT = planAssistants('trial').length;
 
 export const PUBLIC_BUDGET_MESSAGE =
   `Bugünkü ücretsiz test kotası doldu. Yarın tekrar deneyebilir ya da 14 gün ücretsiz deneme hesabı açıp siteni hemen ${TRIAL_ASSISTANT_COUNT} asistanda ölçebilirsin.`;
@@ -244,7 +244,8 @@ function withSafeExcerpts<T>(result: T): T {
 
 /** Satir/probe saglayici hatasi mi ('HATA: ...') — olcum degil (ai-citation hasRealProbes ile ayni kural). */
 function isErrorExcerpt(excerpt: unknown): boolean {
-  return typeof excerpt === 'string' && excerpt.startsWith('HATA:');
+  // 'YOK:' = Google yuzeyi bu aramada cevap gostermedi — o da olcum degil (citation-score isErrorProbe)
+  return typeof excerpt === 'string' && (excerpt.startsWith('HATA:') || excerpt.startsWith('YOK:'));
 }
 
 /**
@@ -323,8 +324,12 @@ export interface PublicCheckScope {
   tier: ModelTier;
 }
 
-/** Kapsam verilmeyen olcumun (anonim test, 11.11.2026 oncesi uye raporu) kapsami: butun asistanlar, gelismis modeller */
-const FULL_SCOPE_KEY = scopeKeyOf({ engines: [...BASE_ENGINES, ...CONDITIONAL_ENGINES], tier: 'premium' });
+/**
+ * Kapsam verilmeyen olcumun (anonim test, 11.11.2026 oncesi uye raporu) kapsami: o gunun butun
+ * asistanlari (Muse dahil), gelismis modeller. Google yuzeyleri (16.11.2026) BILEREK yok: eski
+ * kayit onlari olcmedi; Google yuzeyli bugunku Profesyonel kapsami onu yeniden kullanmaz, olcer.
+ */
+const FULL_SCOPE_KEY = scopeKeyOf({ engines: [...BASE_ENGINES, ...CONDITIONAL_ENGINES.filter((e) => !GOOGLE_SURFACES.includes(e))], tier: 'premium' });
 
 /** Kapsamin onbellek anahtari — asistan kumesi (sira onemsiz) + kademe */
 function scopeKeyOf(scope: PublicCheckScope): string {

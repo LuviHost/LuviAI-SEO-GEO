@@ -29,7 +29,7 @@ export interface ScorableProbe {
   cited: boolean;
   brandMentioned: boolean;
   brandInQuery?: boolean;
-  /** 'HATA:' onekliyse satir olcum degildir (isErrorProbe) */
+  /** 'HATA:' ya da 'YOK:' onekliyse satir olcum degildir (isErrorProbe) */
   excerpt?: string | null;
 }
 
@@ -39,7 +39,18 @@ export interface ScorableProbe {
  * sorar; biri unutursa o metrik hatayi yine "gorunmedi" diye sayar.
  */
 export function isErrorProbe(p: { excerpt?: unknown } | null | undefined): boolean {
-  return typeof p?.excerpt === 'string' && p.excerpt.startsWith('HATA:');
+  return typeof p?.excerpt === 'string' && (p.excerpt.startsWith('HATA:') || p.excerpt.startsWith('YOK:'));
+}
+
+/**
+ * Google yuzeyi bu aramada cevap GOSTERMEDI — `YOK:` oneki (google-ai-surfaces.ts, 16.11.2026).
+ *
+ * isErrorProbe bunu da olcum DISI sayar (skor, sayaclar, rakip, isi haritasi ayni kurali
+ * kullanir): "AI Bakışı yok" bir "anılmadı" degildir; payda da buyumez. Panel bu satiri hata
+ * gibi degil "Bu soruda Google AI Bakışı yok" diye gosterir — ayrimi bu fonksiyon yapar.
+ */
+export function isAbsentProbe(p: { excerpt?: unknown } | null | undefined): boolean {
+  return typeof p?.excerpt === 'string' && p.excerpt.startsWith('YOK:');
 }
 
 /** Olculebilen (HATA olmayan) satirlar */

@@ -44,9 +44,22 @@ export const MEASURED: Array<{ label: string; vendor: VendorName }> = [
  */
 export const MUSE: { label: string; vendor: VendorName } = { label: 'Muse', vendor: 'muse' };
 
-/** Seritte gosterilecek asistanlar: 6 sabit + (API olculuyor diyorsa) Muse */
+/**
+ * Google AI Modu ve Google AI Bakisi (16.11.2026, sahip: "ekle ve landing page'e logolarını da
+ * koy"). KOSULLU: yalniz DataForSEO anahtari tanimliyken olculur (api citation-providers.ts);
+ * serit onlari da ancak API "su an olculuyor" derse ekler. Iki satir da Google isaretiyle,
+ * adlariyla ayrilir.
+ */
+export const GOOGLE_STRIP: Array<{ provider: string; label: string; vendor: VendorName }> = [
+  { provider: 'google_ai_mode', label: 'Google AI Modu', vendor: 'google' },
+  { provider: 'google_ai_overview', label: 'Google AI Bakışı', vendor: 'google' },
+];
+
+/** Seritte gosterilecek platformlar: 6 sabit + (API olculuyor diyorsa) Muse ve Google AI yuzeyleri */
 export function stripEngines(measuredProviders?: readonly string[]): Array<{ label: string; vendor: VendorName }> {
-  return measuredProviders?.includes('meta') ? [...MEASURED, MUSE] : MEASURED;
+  const muse = measuredProviders?.includes('meta') ? [MUSE] : [];
+  const google = GOOGLE_STRIP.filter((g) => measuredProviders?.includes(g.provider)).map(({ label, vendor }) => ({ label, vendor }));
+  return [...MEASURED, ...muse, ...google];
 }
 
 const TYPE_STEP = 2;         // her tikte kac karakter

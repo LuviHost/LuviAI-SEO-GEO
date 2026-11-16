@@ -20,6 +20,7 @@ import {
 } from './site-nap.js';
 import { formatTrPhone } from './tr-phone.js';
 import { PROMPT_LOCAL_KEY_PREFIX, promptLocalKey } from './prompt-local-key.js';
+import { isErrorProbe as isErrorProbeKurali } from './citation-score.js';
 
 /**
  * Prompt Lab — kullanicinin takip ettigi sorulari yonetir ve calistirir.
@@ -945,7 +946,8 @@ export class PromptLabService {
 
   /** Probe hata dondurduyse istatistige katma — yoksa skor yanlis duser */
   private isErrorProbe(probe: CitationProbe): boolean {
-    return !!probe.excerpt?.startsWith('HATA:');
+    // 'YOK:' (Google yuzeyi cevap gostermedi) da olcum degil — citation-score.ts ile ayni kural
+    return isErrorProbeKurali(probe);
   }
 
   private async findByNormalizedText(siteId: string, text: string) {

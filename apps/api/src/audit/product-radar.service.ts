@@ -7,6 +7,7 @@ import { parseJsonFromLlm } from '../common/safe-json.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 import { brandMatcher, resolveSiteBrand, type BrandMatcher } from './brand-in-query.js';
+import { isErrorProbe } from './citation-score.js';
 
 /**
  * Product Radar — AI asistanlar kullanicinin KATEGORISINDE hangi urunleri
@@ -80,7 +81,7 @@ export class ProductRadarService {
       for (const r of results) {
         if (!r.available || r.probes.length === 0) continue;
         const probe = r.probes[0];
-        if (probe.excerpt?.startsWith('HATA:')) continue;
+        if (isErrorProbe(probe)) continue;
 
         // Cevabin TAMAMI: excerpt yalniz ilk 220 karakter — listenin alt
         // siralarindaki urunler (cogu zaman rakipler) hic gorunmuyordu. Tam
