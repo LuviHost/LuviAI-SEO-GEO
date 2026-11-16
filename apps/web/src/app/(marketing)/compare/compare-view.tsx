@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { PageUpdatedLine } from '@/components/page-updated-line';
 import { pageUpdated, SITE_URL } from '@/lib/page-updated';
 import { VitrinBand, VitrinHero, VitrinSection, VITRIN_CELL, VITRIN_GRID } from '@/components/vitrin/vitrin-page';
+import { DEFAULT_COMPARE_SCOPE, fillCompareScope, type CompareScope } from './compare-scope';
 import { pickComparePrices, type ComparePlanPrice } from './compare-prices';
 
 /**
@@ -90,7 +91,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     icon: <Globe className="h-4 w-4" />,
     rows: [
       // 11.11.2026 paket yapisi (api plans.ts planEngines): Baslangic ve deneme dort asistan, Grok ve DeepSeek Profesyonel ve ustu
-      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '6 asistan (Başlangıç’ta 4) + Google AI Modu ve AI Bakışı', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 asistan', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Gemini, Claude ve Perplexity her planda, Grok ve DeepSeek Profesyonel ve üstü planlarda; ölçümü sen başlatırsın, hesap başına 7 günde 1. Google AI Modu ve AI Bakışı her planda, sorular Türkiye’den Google’da aranarak ölçülür; Google bir soruda AI cevabı göstermezse o soru skora girmez. Rakiplerde kapsam plana göre değişir; Copilot’u ölçenler var, RanksUp ölçmez.' },
+      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '{PRO} asistan (Başlangıç’ta {BAS}) + Google AI Modu ve AI Bakışı', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 asistan', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Gemini, Claude ve Perplexity her planda, {EK} Profesyonel ve üstü planlarda; ölçümü sen başlatırsın, hesap başına 7 günde 1. Google AI Modu ve AI Bakışı her planda, sorular Türkiye’den Google’da aranarak ölçülür; Google bir soruda AI cevabı göstermezse o soru skora girmez. Rakiplerde kapsam plana göre değişir; Copilot’u ölçenler var, RanksUp ölçmez.' },
       { name: 'GEO ısı haritası (rakip × AI asistanı) (Kurumsal planda)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'GEO Skor Kartı (6 başlık, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI görünürlük düşüş alarmı (e-posta)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'uyarılar' },
@@ -190,7 +191,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
     rows: [
-      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '6 assistants (4 on Starter) + Google AI Mode and AI Overviews', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 assistants', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Gemini, Claude and Perplexity on every plan, Grok and DeepSeek on the Professional plan and up; you start each measurement, once every 7 days per account. Google AI Mode and AI Overviews on every plan, measured by running the questions on Google from Turkey; when Google shows no AI answer for a question, that question is left out of the score. Competitor coverage depends on the plan; some track Copilot, which RanksUp does not measure.' },
+      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '{PRO} assistants ({BAS} on Starter) + Google AI Mode and AI Overviews', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', geon: '6 assistants', seoyen: 'ChatGPT, Gemini, Claude + AI Overview', hint: 'RanksUp: ChatGPT, Gemini, Claude and Perplexity on every plan, {EK} on the Professional plan and up; you start each measurement, once every 7 days per account. Google AI Mode and AI Overviews on every plan, measured by running the questions on Google from Turkey; when Google shows no AI answer for a question, that question is left out of the score. Competitor coverage depends on the plan; some track Copilot, which RanksUp does not measure.' },
       { name: 'GEO heatmap (competitor × AI assistant) (Enterprise plan)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'GEO Score Card (6 pillars, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI visibility drop alert (email)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'alerts' },
@@ -330,9 +331,9 @@ const COPY = {
     badge2: '✓ KVKK + TR veri merkezi',
     badge3: '✓ PayTR ödeme',
     badge4: '✓ 13 yayın hedefi',
-    hc1Num: '6',
+    hc1Num: '{PRO}',
     hc1Title: 'AI asistanında ölçüm',
-    hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek; Başlangıç planı ilk dördünü ölçer. Marka adı geçen sorular manşet skora girmez.',
+    hc1Desc: '{TUM}; Başlangıç planı ilk dördünü ölçer. Marka adı geçen sorular manşet skora girmez.',
     hc2Title: 'GEO/AEO aracı',
     hc2Desc: 'AI görünürlük takibi, ısı haritası, skor kartı, düşüş alarmı, siteye eklenen AI sohbet aracı ve kapalı döngü.',
     hc3Num: 'SEO + Reklam',
@@ -343,7 +344,7 @@ const COPY = {
     sumLeftTitle: 'RanksUp’ın tek panelde birleştirdiği 4 alan',
     sumLeftItems: [
       'SEO içerik üretimi ve yayın (Surfer / Jasper alternatifi)',
-      'AI görünürlük ölçümü (6 asistan)',
+      'AI görünürlük ölçümü ({PRO} asistan)',
       'Reklam otopilotu (Google Ads + Meta Ads, ROAS)',
       'Agent Readiness (AXO) taraması',
     ],
@@ -356,7 +357,7 @@ const COPY = {
     sumRightItems: [
       'Tek abonelik, tek panel',
       'Türkçe destek, KVKK, Türk lirasıyla ödeme',
-      'AI asistanlarında görünürlük ölçümü (Profesyonel ve üstü planlarda Grok ve DeepSeek dahil 6 asistan; Başlangıç planında 4)',
+      'AI asistanlarında görünürlük ölçümü (Profesyonel ve üstü planlarda {EK} dahil {PRO} asistan; Başlangıç planında {BAS})',
       'Kurumsal planda BYOK: kendi sağlayıcı anahtarınla ölçüm',
     ],
     ctaTitle: 'Saatler süren işi dakikaya indir',
@@ -374,9 +375,9 @@ const COPY = {
     badge2: '✓ KVKK + TR data center',
     badge3: '✓ PayTR payment',
     badge4: '✓ 13 publish targets',
-    hc1Num: '6',
+    hc1Num: '{PRO}',
     hc1Title: 'AI assistants measured',
-    hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; the Starter plan measures the first four. Questions that contain your brand stay out of the headline score.',
+    hc1Desc: '{TUM}; the Starter plan measures the first four. Questions that contain your brand stay out of the headline score.',
     hc2Title: 'GEO/AEO tools',
     hc2Desc: 'AI visibility tracking, heatmap, score card, drop alert, an AI chat widget for your site and the closed loop.',
     hc3Num: 'SEO + Ads',
@@ -387,7 +388,7 @@ const COPY = {
     sumLeftTitle: '4 areas RanksUp brings into one dashboard',
     sumLeftItems: [
       'SEO content generation and publishing (Surfer / Jasper alternative)',
-      'AI visibility measurement (6 assistants)',
+      'AI visibility measurement ({PRO} assistants)',
       'Ad autopilot (Google Ads + Meta Ads, ROAS)',
       'Agent Readiness (AXO) scan',
     ],
@@ -400,7 +401,7 @@ const COPY = {
     sumRightItems: [
       'One subscription, one dashboard',
       'Turkish support, KVKK, payment in Turkish lira',
-      'AI visibility measurement on 6 assistants on the Professional plan and up, Grok and DeepSeek included (4 on the Starter plan)',
+      'AI visibility measurement on {PRO} assistants on the Professional plan and up, {EK} included ({BAS} on the Starter plan)',
       'BYOK on the Enterprise plan: measure with your own provider keys',
     ],
     ctaTitle: 'Cut hours-long work to minutes',
@@ -446,7 +447,7 @@ function makeLuviCell(yesLabel: string, noLabel: string) {
  * SUNUCUDA (page.tsx, ISR) iki dil icin cekilip `initialPrices` ile gelir — ilk HTML'de
  * fiyat hazir. Sunucu cekimi bos kaldiysa (API kapali, build ani) istemcide istenir.
  */
-export function CompareView({ initialPrices }: { initialPrices: Record<Locale, ComparePlanPrice[]> }) {
+export function CompareView({ initialPrices, scope = DEFAULT_COMPARE_SCOPE }: { initialPrices: Record<Locale, ComparePlanPrice[]>; scope?: CompareScope }) {
   const { locale } = useT();
 
   const [fetched, setFetched] = useState<Partial<Record<Locale, ComparePlanPrice[]>>>({});
@@ -459,8 +460,20 @@ export function CompareView({ initialPrices }: { initialPrices: Record<Locale, C
       .then((r) => setFetched((f) => ({ ...f, [locale]: pickComparePrices(r?.plans ?? []) })))
       .catch(() => { /* fiyat gosterilmez, sayfa calismaya devam eder */ });
   }, [locale, initialPrices, fetched]);
-  const c = COPY[locale];
-  const FEATURE_GROUPS = locale === 'en' ? FEATURE_GROUPS_EN : FEATURE_GROUPS_TR;
+  // Asistan sayilari ve adlari o an olculen kapsamdan (compare-scope.ts) — metinde sabit "6" yok
+  const doldur = (t: string) => fillCompareScope(t, locale, scope);
+  const ham = COPY[locale];
+  const c = {
+    ...ham,
+    hc1Num: doldur(ham.hc1Num),
+    hc1Desc: doldur(ham.hc1Desc),
+    sumLeftItems: ham.sumLeftItems.map(doldur),
+    sumRightItems: ham.sumRightItems.map(doldur),
+  };
+  const FEATURE_GROUPS = (locale === 'en' ? FEATURE_GROUPS_EN : FEATURE_GROUPS_TR).map((g) => ({
+    ...g,
+    rows: g.rows.map((r) => ({ ...r, luviai: typeof r.luviai === 'string' ? doldur(r.luviai) : r.luviai, hint: r.hint && doldur(r.hint) })),
+  }));
   const hasFeature = (r: FeatureRow) => r.luviai === true || (typeof r.luviai === 'string' && r.luviai !== '');
   const luviaiCount = FEATURE_GROUPS.flatMap((g) => g.rows).filter(hasFeature).length;
   // GEO/AEO kartindaki sayi tablodan sayilir — elle yazilan "8" tabloyla uyusmuyordu

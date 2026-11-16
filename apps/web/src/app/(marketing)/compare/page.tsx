@@ -1,6 +1,7 @@
 import { fetchPlans } from '@/components/landing/landing-data';
 import { CompareView } from './compare-view';
 import { pickComparePrices } from './compare-prices';
+import { compareScopeFrom } from './compare-scope';
 
 /**
  * Karsilastirma sayfasi — SUNUCU bileseni. Eskiden tum sayfa 'use client' idi ve
@@ -13,5 +14,6 @@ export const revalidate = 600;
 
 export default async function ComparePage() {
   const [tr, en] = await Promise.all([fetchPlans('tr'), fetchPlans('en')]);
-  return <CompareView initialPrices={{ tr: pickComparePrices(tr), en: pickComparePrices(en) }} />;
+  // Asistan sayilari o an olculen plan kapsamindan (Muse anahtara bagli) — compare-scope.ts
+  return <CompareView initialPrices={{ tr: pickComparePrices(tr), en: pickComparePrices(en) }} scope={compareScopeFrom(tr)} />;
 }
