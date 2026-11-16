@@ -119,13 +119,13 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
               <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" aria-hidden />
               <span>
                 Ölçüm yöntemi güncellendi — kıyas yok{g.methodChangedAt ? ` (${formatTrDate(g.methodChangedAt)})` : ''}.
-                Şu an <strong>{g.enginesNow}/{g.totalEngines}</strong> asistanda görünüyorsun{g.lastAvg !== null ? <> · skor <strong>{g.lastAvg}</strong></> : null}.
+                Şu an <strong>{g.enginesNow}/{g.totalEngines}</strong> AI platformunda görünüyorsun{g.lastAvg !== null ? <> · skor <strong>{g.lastAvg}</strong></> : null}.
               </span>
             </div>
           ) : g.state === 'baseline' ? (
             <div className="flex items-center gap-2 text-sm">
               <Rocket className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-              <span>Başlangıç: <strong>{g.enginesNow}/{g.totalEngines}</strong> asistanda görünüyorsun{g.lastAvg !== null ? <> · skor <strong>{g.lastAvg}</strong></> : null}. Değişim, sonraki ölçümden sonra görünür.</span>
+              <span>Başlangıç: <strong>{g.enginesNow}/{g.totalEngines}</strong> AI platformunda görünüyorsun{g.lastAvg !== null ? <> · skor <strong>{g.lastAvg}</strong></> : null}. Değişim, sonraki ölçümden sonra görünür.</span>
             </div>
           ) : (
             <>

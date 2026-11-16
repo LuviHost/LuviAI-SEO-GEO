@@ -92,3 +92,19 @@ describe('uye tam raporu (query-card, checker-overlay)', () => {
     expect(metin).toContain("paneSurfaceAbsent: 'Not shown for this query · not scored'");
   });
 });
+
+describe('panel aciklamalari (16.11.2026, sahip: "panelde nerede?")', () => {
+  it('AI Gorunurluk Trendi aciklamasi Google ve Muse\'u API measuredEngines\'e gore soyler (elle sabit degil)', () => {
+    const grafik = oku('../components/citation-history-chart.tsx');
+    expect(grafik).toContain("api.getPlans('tr').then((r) => { if (!iptal) setOlculen(r.measuredEngines ?? []); })");
+    expect(grafik).toContain('const googleVar = olculen.some(isGoogleSurface);');
+    expect(grafik).toContain("{googleVar && <> Aynı soruları Türkiye'den Google'da da arıyoruz");
+    expect(grafik).not.toContain('Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek)');
+  });
+
+  it('RanksUp etkisi karti Google yuzeylerini de saydigi icin "asistan" degil "AI platformu" der', () => {
+    const kart = oku('../components/ranksup-impact-card.tsx');
+    expect(kart).not.toContain('</strong> asistanda görünüyorsun');
+    expect(kart.match(/AI platformunda görünüyorsun/g)).toHaveLength(2);
+  });
+});

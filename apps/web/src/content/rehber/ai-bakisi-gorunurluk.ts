@@ -134,7 +134,7 @@ export const article: RehberArticle = {
         },
         {
           t: 'p',
-          text: 'RanksUp, AI Bakışı’nı kendisi sorgulayarak ölçmez. Search Console’daki Üretken AI raporundan dışa aktardığın tarih tablosunu (CSV) RanksUp’ın Analitik sekmesine yükleyip gösterimleri zaman içinde izleyebilirsin. Bu dosyada AI Bakışı ile AI Modu ayrılmıyor. ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’teki görünürlüğü ise RanksUp doğrudan ölçer ([nasıl ölçülür](/rehber/chatgpt-markam-gorunuyor-mu)).',
+          text: 'RanksUp 16 Kasım 2026’dan beri AI Bakışı’nı ve AI Modu’nu kendisi ölçüyor: sektörüne dair soruları Türkiye’den Google’da arar, AI cevabında markanın ya da siten geçip geçmediğine bakar. Google bir soruda AI Bakışı göstermezse o soru “bu soruda yok” diye ayrı yazılır, “anılmadın” sayılmaz. Bunun yanında Search Console’daki Üretken AI raporundan dışa aktardığın tarih tablosunu (CSV) Analitik sekmesine yükleyip gösterimleri zaman içinde izleyebilirsin; bu dosyada AI Bakışı ile AI Modu ayrılmıyor. ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’teki görünürlüğü ise RanksUp doğrudan ölçer ([nasıl ölçülür](/rehber/chatgpt-markam-gorunuyor-mu)).',
         },
       ],
     },
@@ -204,7 +204,7 @@ export const article: RehberArticle = {
     },
     {
       q: 'RanksUp AI Bakışı’nı ölçüyor mu?',
-      a: 'Doğrudan değil. Search Console’un Üretken AI raporundan dışa aktardığın tarih tablosunu RanksUp’a yükleyip gösterimleri izleyebilirsin. RanksUp’ın kendi ölçümü ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te yapılır.',
+      a: 'Evet, 16 Kasım 2026’dan beri. Sektörüne dair sorular Türkiye’den Google’da aranır; AI Bakışı ve AI Modu cevabında markanın ya da siten geçiyor mu bakılır. Google bir soruda AI Bakışı göstermezse o soru skora girmez. Search Console’un Üretken AI raporunu da ayrıca yükleyip gösterimleri izleyebilirsin.',
     },
   ],
   sources: [SRC.googleTrBlog, SRC.googleTrHelp, SRC.googleAiGuide, SRC.googleAiFeatures, SRC.googleCrawlers],
