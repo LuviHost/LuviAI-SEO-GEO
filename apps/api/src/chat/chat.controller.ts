@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ChatService } from './chat.service.js';
 import { SendChatMessageDto } from './chat.dto.js';
 import { SessionOnly } from '../auth/session-only.decorator.js';
+import { ASSISTANT_CLOSED_MESSAGE, assistantOpenFor } from './chat-access.js';
 
 /**
  * Panel sohbeti — YALNIZ panel oturumuyla (@SessionOnly, sinif duzeyinde:
@@ -61,6 +62,8 @@ export class ChatController {
     @Body() body: SendChatMessageDto,
   ) {
     const user = (req as any).user;
+    // Asistan musteriye kapali (chat-access.ts): model cagrisindan ONCE reddedilir
+    if (!assistantOpenFor(user?.role)) throw new ForbiddenException(ASSISTANT_CLOSED_MESSAGE);
     return this.chat.sendMessage(siteId, { id: user.id, role: user.role, plan: user.plan }, {
       conversationId: body.conversationId,
       message: body.message,

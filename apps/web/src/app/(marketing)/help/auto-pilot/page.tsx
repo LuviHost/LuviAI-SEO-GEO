@@ -126,8 +126,8 @@ export default function Page() {
         Sitenin <strong>Genel Bakış</strong> sayfasındaki kota kartları:
       </p>
       <ul>
-        <li>Bu ayki makale, AI görünürlük çalıştırması, Asistan mesajı ve site kullanımı, limitleriyle birlikte</li>
-        <li>Aylık AI bütçenin %80&apos;i geçilince uyarı; %100&apos;e ulaşınca makale üretimi (takvimdeki yazılar dahil), makale çevirisi ve Asistan bütçe yenilenene kadar durur. AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz</li>
+        <li>Bu ayki makale, AI görünürlük çalıştırması ve site kullanımı, limitleriyle birlikte</li>
+        <li>Aylık AI bütçenin %80&apos;i geçilince uyarı; %100&apos;e ulaşınca makale üretimi (takvimdeki yazılar dahil) ve makale çevirisi bütçe yenilenene kadar durur. AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz</li>
       </ul>
     </HelpArticle>
   );

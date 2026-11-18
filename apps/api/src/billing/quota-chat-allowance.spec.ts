@@ -64,6 +64,8 @@ describe('sohbet mesaj hakki — sayi plans.ts tek kaynak', () => {
   it('sahibin onayladigi sayilar: deneme 20, Baslangic 100, Profesyonel 500, Ajans 1.500, Kurumsal 5.000', () => {
     expect(Object.fromEntries(BASE_PLANS.map((p) => [p.id, p.chatMessagesPerMonth]))).toEqual({
       trial: 20, starter: 100, pro: 500, agency: 1_500, enterprise: 5_000,
+      // Is ortagi (18.11.2026): 1 marka, mesaj basina en cok ~$0.25 → ayda en cok ~$25
+      partner: 100,
     });
   });
 
@@ -74,7 +76,8 @@ describe('sohbet mesaj hakki — sayi plans.ts tek kaynak', () => {
   });
 
   it('merdiven geriye gitmez: ust planin hakki alt plandan az degil', () => {
-    const sayilar = BASE_PLANS.map((p) => p.chatMessagesPerMonth);
+    // Elle atanan is ortagi plani merdivende degil (satilmaz, ust plan degil)
+    const sayilar = BASE_PLANS.filter((p) => !p.manual).map((p) => p.chatMessagesPerMonth);
     expect([...sayilar].sort((a, b) => a - b)).toEqual(sayilar);
   });
 });

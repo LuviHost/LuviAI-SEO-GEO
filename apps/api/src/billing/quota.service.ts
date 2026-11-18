@@ -134,6 +134,8 @@ export class QuotaService {
     PRO:        { articles: 40,   sites: 5,  publishTargets: 'all' as const,                                  citationTests: 75 },
     AGENCY:     { articles: 100,  sites: 15, publishTargets: 'all' as const,                                  citationTests: 300 },
     ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000 },
+    // Is ortagi (18.11.2026, plans.ts 'partner'): 1 site, 6 makale, haftada 1 x 10 soru
+    PARTNER:    { articles: 6,    sites: 1,  publishTargets: 'all' as const,                                  citationTests: 50 },
   };
 
   /**
@@ -172,6 +174,8 @@ export class QuotaService {
     PRO: 120,
     AGENCY: 200,
     ENTERPRISE: 700,
+    // Is ortagi: 6 makale x en cok ~$1.5 + 100 mesaj x en cok ~$0.25 = ~$34; tavan normal kullanimi kesmesin
+    PARTNER: 40,
   };
 
   constructor(private readonly prisma: PrismaService) {}
@@ -941,7 +945,9 @@ export class QuotaService {
 
   async expireCanceledSubscriptions(now: Date = new Date()): Promise<number> {
     const canceled = await this.prisma.user.findMany({
-      where: { subscriptionStatus: 'CANCELED', plan: { not: 'TRIAL' } },
+      // PARTNER elle atanir ve elle kapatilir (admin/users/:id/plan): eski bir PAID faturanin
+      // donemi bitti diye is ortagi hesabini dusurmek sozlesmeyi bozar.
+      where: { subscriptionStatus: 'CANCELED', plan: { notIn: ['TRIAL', 'PARTNER'] } },
       select: { id: true, plan: true },
     });
     let downgraded = 0;

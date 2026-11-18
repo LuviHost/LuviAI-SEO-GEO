@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -74,7 +76,24 @@ const ACCESS_LABEL: Record<string, string> = {
   Reviews: 'Yorumlar',
 };
 
+/**
+ * 18.11.2026 sahip: "asistan sayfasini gizleyelim". Menude ve komut paletinde yok (lib/site-nav);
+ * sayfa yalniz yoneticiye acilir, musteri Genel Bakis'a yonlenir. Mesaj ucu da musteriye kapali
+ * (api chat/chat-access.ts) — adres elle yazilsa bile model cagrisi olusmaz.
+ */
 export default function ChatPage() {
+  const { site } = useSiteContext();
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  const yonetici = session?.user?.role === 'ADMIN';
+  useEffect(() => {
+    if (status !== 'loading' && !yonetici) router.replace(`/sites/${site.id}`);
+  }, [status, yonetici, router, site.id]);
+  if (!yonetici) return null;
+  return <ChatScreen />;
+}
+
+function ChatScreen() {
   const { site } = useSiteContext();
   const [skills, setSkills] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);

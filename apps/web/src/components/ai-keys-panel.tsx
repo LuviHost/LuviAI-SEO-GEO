@@ -65,6 +65,7 @@ const PROVIDER_HINTS: Record<string, { url: string; example: string; help: strin
  */
 const PLAN_LABELS: Record<string, string> = {
   TRIAL: 'Ücretsiz Deneme', STARTER: 'Başlangıç', PRO: 'Profesyonel', AGENCY: 'Ajans', ENTERPRISE: 'Kurumsal',
+  PARTNER: 'İş Ortağı',
 };
 
 /**

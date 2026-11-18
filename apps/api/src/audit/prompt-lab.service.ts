@@ -21,6 +21,7 @@ import {
 import { formatTrPhone } from './tr-phone.js';
 import { PROMPT_LOCAL_KEY_PREFIX, promptLocalKey } from './prompt-local-key.js';
 import { isErrorProbe as isErrorProbeKurali } from './citation-score.js';
+import { promptsPerSiteFor } from '../billing/plans.js';
 
 /**
  * Prompt Lab — kullanicinin takip ettigi sorulari yonetir ve calistirir.
@@ -100,6 +101,10 @@ export interface LocalRunSummary {
   runAt: string;
 }
 
+/**
+ * Mutlak ust sinir (ADMIN dahil). Planin tavani bundan dusuktur: plans.ts PROMPTS_PER_SITE
+ * (18.11.2026: Deneme ve Baslangic 5; Profesyonel ve Is Ortagi 10; Ajans ve Kurumsal 200).
+ */
 const MAX_PROMPTS_PER_SITE = 200;
 /**
  * Son yerel sonucun kv_store omru — liste ekraninda gosterilir; GeoPromptRun'da
@@ -227,6 +232,27 @@ export class PromptLabService {
     }));
   }
 
+  /** Site sahibinin planina gore aktif soru tavani (ADMIN: mutlak ust sinir) */
+  private async promptCap(siteId: string): Promise<number> {
+    const site = await this.prisma.site.findUnique({
+      where: { id: siteId },
+      select: { user: { select: { plan: true, role: true } } },
+    });
+    if (site?.user?.role === 'ADMIN') return MAX_PROMPTS_PER_SITE;
+    return Math.min(MAX_PROMPTS_PER_SITE, promptsPerSiteFor(site?.user?.plan));
+  }
+
+  /** Tavan AKTIF sorulari sayar: pasife alinan soru yer kaplamaz (eskiden tumu sayiliyordu) */
+  private activePromptCount(siteId: string): Promise<number> {
+    return this.prisma.geoPrompt.count({ where: { siteId, trackedAppId: null, isActive: true } });
+  }
+
+  private promptCapError(cap: number): BadRequestException {
+    return new BadRequestException(
+      `Bu planda site başına en fazla ${cap} aktif soru takip edilebilir. Yeni soru için birini pasife al ya da sil.`,
+    );
+  }
+
   async create(siteId: string, input: {
     text?: string;
     intent?: string;
@@ -236,10 +262,8 @@ export class PromptLabService {
   }) {
     const text = this.validateText(input?.text);
 
-    const count = await this.prisma.geoPrompt.count({ where: { siteId, trackedAppId: null } });
-    if (count >= MAX_PROMPTS_PER_SITE) {
-      throw new BadRequestException(`Site basina en fazla ${MAX_PROMPTS_PER_SITE} prompt takip edilebilir`);
-    }
+    const cap = await this.promptCap(siteId);
+    if ((await this.activePromptCount(siteId)) >= cap) throw this.promptCapError(cap);
 
     // Ayni soru iki kez eklenmesin — normalize edip karsilastir
     const existing = await this.findByNormalizedText(siteId, text);
@@ -270,6 +294,13 @@ export class PromptLabService {
     isActive?: boolean;
   }) {
     const prompt = await this.requirePrompt(siteId, promptId);
+
+    // Pasif soruyu yeniden aktif etmek de tavana sayilir — yoksa sinir "pasife al, ekle,
+    // geri ac" ile asilirdi.
+    if (input.isActive === true && !prompt.isActive && !prompt.trackedAppId) {
+      const cap = await this.promptCap(siteId);
+      if ((await this.activePromptCount(siteId)) >= cap) throw this.promptCapError(cap);
+    }
 
     const data: any = {};
     // create() ile AYNI dogrulama — eskiden update ust siniri uygulamiyordu,
@@ -321,13 +352,14 @@ export class PromptLabService {
       select: { text: true },
     });
     const seen = new Set(existing.map((e) => this.normalize(e.text)));
-    let total = existing.length;
+    const cap = await this.promptCap(siteId);
+    let total = await this.activePromptCount(siteId);
 
     const toCreate: Array<{ siteId: string; text: string; source: string; locale: string }> = [];
     let skipped = 0;
     for (const text of clean) {
       const norm = this.normalize(text);
-      if (seen.has(norm) || total >= MAX_PROMPTS_PER_SITE) { skipped++; continue; }
+      if (seen.has(norm) || total >= cap) { skipped++; continue; }
       seen.add(norm);
       total++;
       toCreate.push({ siteId, text, source: 'brain', locale: site.language === 'en' ? 'en' : 'tr' });
@@ -384,7 +416,8 @@ export class PromptLabService {
       select: { text: true },
     });
     const seen = new Set(existing.map((e) => this.normalize(e.text)));
-    let capacity = MAX_PROMPTS_PER_SITE - existing.length;
+    const cap = await this.promptCap(siteId);
+    let capacity = cap - (await this.activePromptCount(siteId));
     const toCreate: Array<{ siteId: string; text: string; intent: string; locale: string; source: string; tags: string[] }> = [];
     let limitReached = false;
     for (const d of drafts) {
@@ -397,7 +430,7 @@ export class PromptLabService {
     }
     if (toCreate.length) await this.prisma.geoPrompt.createMany({ data: toCreate });
     if (!toCreate.length && limitReached) {
-      throw new BadRequestException(`Site başına en fazla ${MAX_PROMPTS_PER_SITE} soru takip edilebilir`);
+      throw this.promptCapError(cap);
     }
     return { created: toCreate.length, skipped: drafts.length - toCreate.length, limitReached };
   }
@@ -575,9 +608,12 @@ export class PromptLabService {
     onProgress?: (p: { requested: number; done: number; failed: number }) => void;
   } = {}) {
     const rawLimit = typeof opts.limit === 'number' ? opts.limit : parseInt(String(opts.limit ?? ''), 10);
-    const limit = Number.isFinite(rawLimit)
+    const requested = Number.isFinite(rawLimit)
       ? Math.min(Math.max(Math.trunc(rawLimit), 1), MAX_RUN_ALL)
       : 25;
+    // Bir olcum planin site basina soru tavanindan fazlasini kosturmaz: tavandan once eklenmis
+    // fazla aktif sorular (lastRunAt sirasiyla) sonraki haftalara kalir.
+    const limit = Math.min(requested, await this.promptCap(siteId));
 
     const prompts = await this.prisma.geoPrompt.findMany({
       // App sorulari haric — aksi halde lastRunAt=null olduklarindan siralamada

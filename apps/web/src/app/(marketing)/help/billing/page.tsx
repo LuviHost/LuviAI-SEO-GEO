@@ -28,8 +28,8 @@ export const metadata = yardimMeta('billing', 'Plan, fatura, iptal ve kotalar ·
 //  - 11.11.2026 maliyet sinirlari (sahip: "zarar etmeyelim"): AI butcesi AI gorunurluk olcumu
 //    disindaki her AI harcamasini sayar; dolunca makale uretimi (kullanicinin baslattigi +
 //    takvim), ceviri ve Asistan durur (api quota.service SPEND_CAP_USD, enforceAiCostBudget /
-//    aiBudgetBlock). Asistan mesaj hakki api plans.ts chatMessagesPerMonth (deneme toplam,
-//    ucretli planda aylik; QuotaService.consumeChatMessageSlot). public-docs.spec.ts denetler.
+//    aiBudgetBlock). Asistan 18.11.2026'dan beri musteriye kapali (api chat/chat-access.ts):
+//    mesaj hakki maddesi kaldirildi, sayilar plans.ts chatMessagesPerMonth'ta durur.
 export default function Page() {
   return (
     <HelpArticle slug="billing"
@@ -117,8 +117,7 @@ export default function Page() {
         <li><strong>AI görünürlük çalıştırması</strong> — havuzdaki sağlayıcılarla yeni ölçüm başlatılamaz. Otomatik günlük ölçüm olmadığı için grafikler de yeni bir ölçüm yapılana kadar güncellenmez</li>
         <li><strong>RanksUp Video</strong> (Profesyonel ve üstü) — yeni video istenemez; ay başını bekleyebilir ya da planını yükseltebilirsin. Üretilemeyen videonun ve sırada beklerken sildiğin videonun hakkı iade edilir (<a href="/help/video">RanksUp Video rehberi</a>)</li>
         <li><strong>AI bütçesi %80</strong> — panelde uyarı görünür</li>
-        <li><strong>AI bütçesi %100</strong> — makale üretimi (kendi başlattıkların ve takvimdekiler), makale çevirisi ve Asistan bütçe yenilenene kadar durur; görsel alt metni önerisi ve App Store yorum yanıtı taslağı da bekler. AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz. Ücretli planlarda bütçe ay başında sıfırlanır, deneme bütçesi yenilenmez</li>
-        <li><strong>Asistan mesajı</strong> — paneldeki Asistan&apos;a hesap başına ayda Başlangıç&apos;ta 100, Profesyonel&apos;de 500, Kurumsal&apos;da 5.000 mesaj gönderilebilir (ücretsiz denemede toplam 20). Hak dolunca Asistan yeni mesajı cevaplamaz; ay başında yenilenir, deneme hakkı yenilenmez</li>
+        <li><strong>AI bütçesi %100</strong> — makale üretimi (kendi başlattıkların ve takvimdekiler) ve makale çevirisi bütçe yenilenene kadar durur; görsel alt metni önerisi ve App Store yorum yanıtı taslağı da bekler. AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz. Ücretli planlarda bütçe ay başında sıfırlanır, deneme bütçesi yenilenmez</li>
       </ul>
 
       <Tip kind="warn">

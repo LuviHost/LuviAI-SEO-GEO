@@ -1,4 +1,5 @@
-import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { ASSIGNABLE_PLANS, type AssignablePlan } from './plan-assignment.js';
 
 /*
  * NEDEN SINIF DTO: satir ici tipli govde global ValidationPipe'tan denetimsiz
@@ -21,4 +22,10 @@ export class EmailTestDto {
   @IsString()
   @MaxLength(120)
   name?: string;
+}
+
+/** POST /admin/users/:userId/plan — yoneticinin elle plan atamasi (plan-assignment.ts) */
+export class SetUserPlanDto {
+  @IsIn(ASSIGNABLE_PLANS as unknown as string[], { message: 'plan geçersiz' })
+  plan!: AssignablePlan;
 }

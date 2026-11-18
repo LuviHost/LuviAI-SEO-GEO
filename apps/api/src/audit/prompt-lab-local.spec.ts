@@ -10,7 +10,7 @@ import type { CitationResult } from './ai-citation.service.js';
 
 type Row = Record<string, any>;
 
-function fakePrisma(opts: { prompts?: Row[]; kv?: Record<string, string> } = {}) {
+function fakePrisma(opts: { prompts?: Row[]; kv?: Record<string, string>; owner?: { plan: string; role: string } } = {}) {
   const prompts: Row[] = [...(opts.prompts ?? [])];
   const kv = new Map<string, { value: string; expiresAt: Date | null }>(
     Object.entries(opts.kv ?? {}).map(([k, v]) => [k, { value: v, expiresAt: null }]),
@@ -28,7 +28,9 @@ function fakePrisma(opts: { prompts?: Row[]; kv?: Record<string, string> } = {})
         const p = prompts.find((x) => matches(x, where));
         return p ? { ...p, fanouts: [] } : null;
       }),
-      findMany: vi.fn(async ({ where }: any) => prompts.filter((x) => matches(x, where)).map((p) => ({ ...p, _count: { fanouts: 0 } }))),
+      findMany: vi.fn(async ({ where, take }: any) => prompts.filter((x) => matches(x, where)).slice(0, take ?? Infinity).map((p) => ({ ...p, _count: { fanouts: 0 } }))),
+      count: vi.fn(async ({ where }: any) => prompts.filter((x) => matches(x, where)).length),
+      create: vi.fn(async ({ data }: any) => { const row = { id: `p${prompts.length + 1}`, isActive: true, trackedAppId: null, lastRunAt: null, createdAt: new Date(), ...data }; prompts.push(row); return row; }),
       update: vi.fn(async ({ where, data }: any) => Object.assign(prompts.find((x) => x.id === where.id)!, data)),
       createMany: vi.fn(async ({ data }: any) => {
         for (const d of data) prompts.push({ id: `p${prompts.length + 1}`, isActive: true, trackedAppId: null, lastRunAt: null, lastCitedCount: 0, lastTotalCount: 0, createdAt: new Date(), ...d });
@@ -37,7 +39,7 @@ function fakePrisma(opts: { prompts?: Row[]; kv?: Record<string, string> } = {})
       delete: vi.fn(async ({ where }: any) => { prompts.splice(prompts.findIndex((x) => x.id === where.id), 1); }),
     },
     geoPromptRun: { createMany: vi.fn(async ({ data }: any) => { runs.push(...data); return { count: data.length }; }) },
-    site: { findUnique: vi.fn(async () => ({ id: 's1', url: 'https://lavantakuafor.com/' })) },
+    site: { findUnique: vi.fn(async () => ({ id: 's1', url: 'https://lavantakuafor.com/', user: opts.owner ?? { plan: 'PRO', role: 'USER' } })) },
     kvStore: {
       findUnique: vi.fn(async ({ where }: any) => (kv.has(where.key) ? { value: kv.get(where.key)!.value } : null)),
       findMany: vi.fn(async ({ where }: any) => [...kv.entries()].filter(([k]) => where.key.in.includes(k)).map(([key, v]) => ({ key, value: v.value }))),
@@ -234,5 +236,53 @@ describe('PromptLabService.update — yerel konum etiketleri korunur', () => {
     // source 'local' olmasa da yerel etiketli soru yereldir (isLocalPrompt)
     expect(mergePromptTags({ source: 'manual', tags: ['yerel', 'il:Bursa', 'hizmet:oto yıkama'] }, ['x']))
       .toEqual(['yerel', 'il:Bursa', 'hizmet:oto yıkama', 'x']);
+  });
+});
+
+describe('PromptLabService — site basina aktif soru tavani (plans.ts PROMPTS_PER_SITE)', () => {
+  const soru = (i: number, extra: Row = {}) => ({
+    id: `q${i}`, siteId: 's1', trackedAppId: null, text: `Takip sorusu numara ${i}`, intent: 'informational', locale: 'tr',
+    source: 'manual', tags: null, isActive: true, lastRunAt: null, lastCitedCount: 0, lastTotalCount: 0, createdAt: new Date(), ...extra,
+  });
+
+  it('Profesyonel: 10 aktif soruda yeni soru reddedilir; pasif soru yer kaplamaz', async () => {
+    const dolu = fakePrisma({ prompts: Array.from({ length: 10 }, (_, i) => soru(i)) });
+    await expect(service(dolu).svc.create('s1', { text: 'Yeni bir takip sorusu' })).rejects.toThrow(/en fazla 10 aktif soru/);
+
+    const pasifli = fakePrisma({ prompts: Array.from({ length: 10 }, (_, i) => soru(i, { isActive: i > 0 })) });
+    await expect(service(pasifli).svc.create('s1', { text: 'Yeni bir takip sorusu' })).resolves.toMatchObject({ text: 'Yeni bir takip sorusu' });
+  });
+
+  it('pasif soruyu yeniden aktif etmek tavani asamaz', async () => {
+    const prisma = fakePrisma({ prompts: [...Array.from({ length: 10 }, (_, i) => soru(i)), soru(10, { isActive: false })] });
+    await expect(service(prisma).svc.update('s1', 'q10', { isActive: true })).rejects.toThrow(/en fazla 10 aktif soru/);
+    // Metin duzeltmesi tavana takilmaz
+    await expect(service(prisma).svc.update('s1', 'q10', { text: 'Duzeltilmis soru metni' })).resolves.toBeTruthy();
+  });
+
+  it('Baslangic ve deneme 5 soruda durur', async () => {
+    const bes = Array.from({ length: 5 }, (_, i) => soru(i));
+    for (const plan of ['STARTER', 'TRIAL']) {
+      await expect(service(fakePrisma({ prompts: [...bes], owner: { plan, role: 'USER' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' }), plan)
+        .rejects.toThrow(/en fazla 5 aktif soru/);
+    }
+    const dort = Array.from({ length: 4 }, (_, i) => soru(i));
+    await expect(service(fakePrisma({ prompts: dort, owner: { plan: 'STARTER', role: 'USER' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' })).resolves.toBeTruthy();
+  });
+
+  it('ADMIN ve Kurumsal eski tavanda; is ortagi 10', async () => {
+    const onbir = Array.from({ length: 10 }, (_, i) => soru(i));
+    await expect(service(fakePrisma({ prompts: [...onbir], owner: { plan: 'ENTERPRISE', role: 'USER' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' })).resolves.toBeTruthy();
+    await expect(service(fakePrisma({ prompts: [...onbir], owner: { plan: 'PRO', role: 'ADMIN' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' })).resolves.toBeTruthy();
+    await expect(service(fakePrisma({ prompts: [...onbir], owner: { plan: 'PARTNER', role: 'USER' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' })).rejects.toThrow(/en fazla 10/);
+  });
+
+  it('Tumunu calistir tavandan fazla soru kosturmaz (sinirdan once eklenmis fazlalik siraya girer)', async () => {
+    const prisma = fakePrisma({ prompts: Array.from({ length: 25 }, (_, i) => soru(i)) });
+    const { svc } = service(prisma);
+    svc.runPrompt = vi.fn(async () => ({}) as any);
+    await svc.runAll('s1', { limit: 25 });
+    expect(prisma.geoPrompt.findMany.mock.calls.at(-1)![0].take).toBe(10);
+    expect(svc.runPrompt).toHaveBeenCalledTimes(10);
   });
 });

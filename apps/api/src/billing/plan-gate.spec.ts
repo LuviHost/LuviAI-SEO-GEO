@@ -204,8 +204,11 @@ describe('cron plan suzgeci — otomatik uretim de plana bagli', () => {
       (siteWhereForFeature(f).user.plan.in as string[]).slice().sort();
 
     // Profesyonel ozellikleri: pro, agency, enterprise
+    // Is ortagi Profesyonel ozelliklerini almaz (cron'larin AI maliyeti; plans.ts featureRank)
     expect(planlar('agentReadiness')).toEqual(['AGENCY', 'ENTERPRISE', 'PRO']);
     expect(planlar('contentOpportunities')).toEqual(['AGENCY', 'ENTERPRISE', 'PRO']);
+    expect(planlar('articleVideo')).toEqual(['AGENCY', 'ENTERPRISE', 'PRO']);
+    expect(planlar('stuckPages')).toEqual(['AGENCY', 'ENTERPRISE', 'PRO']);
     // Ajans ozelligi: agency, enterprise
     expect(planlar('productRadar')).toEqual(['AGENCY', 'ENTERPRISE']);
     // Kurumsal ozelligi
@@ -308,7 +311,10 @@ describe('satistaki planlar — publicPlans, PURCHASABLE_PLAN_IDS, featureOfferP
     const liste = publicPlans();
     expect(liste.map((p) => p.id)).toEqual(['trial', 'starter', 'pro', 'enterprise']);
     expect(liste.some((p) => p.legacy)).toBe(false);
-    expect(liste).toEqual(BASE_PLANS.filter((p) => !p.legacy));
+    expect(liste).toEqual(BASE_PLANS.filter((p) => !p.legacy && !p.manual));
+    // Is ortagi elle atanir: tanimli, listede ve satin almada yok
+    expect(BASE_PLANS.filter((p) => p.manual).map((p) => p.id)).toEqual(['partner']);
+    expect(PURCHASABLE_PLAN_IDS).not.toContain('partner');
     // Ajans tanimi durur (mevcut hesaplar): BASE_PLANS'te var, listede yok
     expect(findPlan('agency')).toMatchObject({ id: 'agency', legacy: true });
     expect(BASE_PLANS.filter((p) => p.legacy).map((p) => p.id)).toEqual(['agency']);

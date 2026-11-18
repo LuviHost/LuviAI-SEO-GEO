@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { planAssignmentData, type AssignablePlan } from './plan-assignment.js';
 import { attemptEmailHtml, reportOfResult } from '../audit/public-check-report-email.js';
 import { summaryOfResult } from '../audit/public-check-attempt.js';
 import { containsBrand } from '../audit/brand-in-query.js';
@@ -90,6 +91,19 @@ export class AdminService {
       paymentsThisMonth: paidThisMonthAgg._count,
       revenueLast30: Number(paidLast30Agg._sum.amount ?? 0),
     };
+  }
+
+  /** Yoneticinin elle plan atamasi — kurallar plan-assignment.ts; fatura olusturulmaz */
+  async setUserPlan(userId: string, plan: AssignablePlan, adminId: string) {
+    const before = await this.prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
+    if (!before) throw new NotFoundException('Kullanıcı bulunamadı');
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: planAssignmentData(plan),
+      select: { id: true, email: true, plan: true, subscriptionStatus: true, autoRenew: true },
+    });
+    new Logger('AdminPlan').log(`Plan elle atandi: ${userId} ${before.plan} → ${plan} (yonetici ${adminId})`);
+    return user;
   }
 
   async listTenants() {

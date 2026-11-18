@@ -32,7 +32,7 @@ function db(user: { plan: string; videosUsedThisMonth: number; role?: string; ar
 
 describe('VIDEOS_PER_MONTH — tek kaynak, fiyat karti ve kota ayni', () => {
   it('Deneme ve Baslangic 0 (ozellik yok), Profesyonel 20, ust planlar daha fazla', () => {
-    expect(VIDEOS_PER_MONTH).toEqual({ trial: 0, starter: 0, pro: 20, agency: 60, enterprise: 200 });
+    expect(VIDEOS_PER_MONTH).toEqual({ trial: 0, starter: 0, pro: 20, agency: 60, enterprise: 200, partner: 0 });
     for (const p of BASE_PLANS) {
       expect(p.videosPerMonth, p.id).toBe(VIDEOS_PER_MONTH[p.id]);
       // Hak > 0 olan her plan ozelligi de aliyor; hak 0 olan almiyor (kart ve kapi ayni sey der)

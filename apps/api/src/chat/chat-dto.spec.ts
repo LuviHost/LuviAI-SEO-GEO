@@ -21,9 +21,10 @@ describe('chat mesaj govdesi', () => {
   it('controller yalniz uc alani gecirir; kullanici kimligi oturumdan', async () => {
     const sendMessage = vi.fn(async () => ({}));
     const ctl = new ChatController({ sendMessage } as any);
-    await ctl.send('s1', { user: { id: 'u1', role: 'USER', plan: 'PRO' } } as any, { message: 'x', userId: 'baskasi', plan: 'ENTERPRISE' } as any);
+    // Asistan yalniz yoneticiye acik (chat-access.ts); musteri reddi chat-access.spec.ts'te
+    await ctl.send('s1', { user: { id: 'u1', role: 'ADMIN', plan: 'PRO' } } as any, { message: 'x', userId: 'baskasi', plan: 'ENTERPRISE' } as any);
     const [, user, input] = sendMessage.mock.calls[0] as any;
-    expect(user).toEqual({ id: 'u1', role: 'USER', plan: 'PRO' });
+    expect(user).toEqual({ id: 'u1', role: 'ADMIN', plan: 'PRO' });
     expect(Object.keys(input).sort()).toEqual(['conversationId', 'message', 'skill']);
   });
 
