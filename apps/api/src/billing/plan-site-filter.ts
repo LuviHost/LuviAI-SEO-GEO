@@ -1,4 +1,4 @@
-import { FEATURE_MIN_PLAN, PLAN_RANK, planHasFeature, type PlanFeature, type PlanId } from './plans.js';
+import { PLAN_RANK, planHasFeature, type PlanFeature, type PlanId } from './plans.js';
 
 /**
  * Bir plan ozelligini otomatik uretim (cron) tarafinda dayatmak icin
@@ -14,9 +14,9 @@ import { FEATURE_MIN_PLAN, PLAN_RANK, planHasFeature, type PlanFeature, type Pla
  * Ayrica bu bir MALIYET kalemi: her tarama LLM cagrisi demek.
  */
 export function siteWhereForFeature(feature: PlanFeature) {
-  const gerekenSira = PLAN_RANK[FEATURE_MIN_PLAN[feature]];
+  // planHasFeature: siradan fazlasi da var (is ortaginda kapali ozellikler, plans.ts)
   const yeterliPlanlar = (Object.keys(PLAN_RANK) as PlanId[])
-    .filter((p) => PLAN_RANK[p] >= gerekenSira)
+    .filter((p) => planHasFeature(p, feature))
     .map((p) => p.toUpperCase());
   return { user: { plan: { in: yeterliPlanlar as any } } };
 }

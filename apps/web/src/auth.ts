@@ -22,7 +22,7 @@ declare module 'next-auth' {
     user: DefaultSession['user'] & {
       id: string;
       role: 'USER' | 'ADMIN' | 'AGENCY_OWNER';
-      plan: 'TRIAL' | 'STARTER' | 'PRO' | 'AGENCY' | 'ENTERPRISE';
+      plan: 'TRIAL' | 'STARTER' | 'PRO' | 'AGENCY' | 'ENTERPRISE' | 'PARTNER';
       subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED';
       /** Yeni hesap: olusturulma zamani (ms), yalniz kayittan sonraki 24 saat; GA4 sign_up icin (lib/signup-event.ts) */
       signupAt?: number;

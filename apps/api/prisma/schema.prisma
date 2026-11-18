@@ -113,6 +113,10 @@ enum PlanTier {
   PRO
   AGENCY
   ENTERPRISE
+  // Is ortagi (18.11.2026): ajans musterisinin markasi icin dar sinirli plan. Panelde satilmaz,
+  // yonetici atar (admin/users/:id/plan), odeme havale + elle fatura. Sona eklendi: MySQL
+  // ENUM'unda mevcut degerlerin sirasi degismesin (billing/plans.ts 'partner').
+  PARTNER
 }
 
 enum SubscriptionStatus {

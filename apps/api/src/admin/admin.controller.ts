@@ -7,7 +7,7 @@ import { JobQueueService } from '../jobs/job-queue.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { SessionOnly } from '../auth/session-only.decorator.js';
-import { EmailTestDto } from './admin.dto.js';
+import { EmailTestDto, SetUserPlanDto } from './admin.dto.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -291,6 +291,17 @@ export class AdminController {
    * POST /admin/users/:userId/reset-spend
    * Spend cap'i manuel sıfırla (kullanıcı destek talebi sonrası, vs.).
    */
+  /**
+   * POST /admin/users/:userId/plan — plani elle ata (havale / EFT, is ortagi). Fatura olusturmaz;
+   * TRIAL atamak plani kapatir. Kurallar: plan-assignment.ts.
+   */
+  @SessionOnly()
+  @Post('users/:userId/plan')
+  async setUserPlan(@Req() req: Request, @Param('userId') userId: string, @Body() body: SetUserPlanDto) {
+    const admin = assertAdmin(req);
+    return this.admin.setUserPlan(userId, body.plan, admin.id);
+  }
+
   @SessionOnly()
   @Post('users/:userId/reset-spend')
   async resetSpend(@Req() req: Request, @Param('userId') userId: string) {

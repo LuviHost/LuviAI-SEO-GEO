@@ -1953,6 +1953,12 @@ export const api = {
   // Admin
   getAdminOverview: () => request<any>('/admin/overview'),
   getAdminUsers: () => request<any[]>('/admin/users'),
+  /** Plani elle ata (havale / EFT, is ortagi) — api admin/plan-assignment.ts; TRIAL plani kapatir */
+  setAdminUserPlan: (userId: string, plan: string) =>
+    request<{ id: string; plan: string; subscriptionStatus: string }>(
+      `/admin/users/${encodeURIComponent(userId)}/plan`,
+      { method: 'POST', body: JSON.stringify({ plan }) },
+    ),
   getAdminInvoices: (status?: string) =>
     request<any[]>(`/admin/invoices${status ? `?status=${status}` : ''}`),
   getAdminSites: () => request<any[]>('/admin/sites'),

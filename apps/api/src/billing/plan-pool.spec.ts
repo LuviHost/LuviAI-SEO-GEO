@@ -84,6 +84,7 @@ describe('getPlanPool', () => {
       PRO: [40, 5, 75],
       AGENCY: [100, 15, 300],
       ENTERPRISE: [350, 50, 1000],
+      PARTNER: [6, 1, 50],
     });
     expect(LIMITS.TRIAL.publishTargets).toEqual(['MARKDOWN_ZIP', 'WORDPRESS_REST']);
   });

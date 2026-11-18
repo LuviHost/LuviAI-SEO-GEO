@@ -24,7 +24,6 @@ import {
   Image as ImageIcon,
   Lightbulb,
   LineChart,
-  MessageSquare,
   MessagesSquare,
   Network,
   Plug,
@@ -142,7 +141,8 @@ export const SITE_NAV_GROUPS: Array<{ id: SiteNavGroupId; label?: string }> = [
 export const SITE_NAV_ITEMS: SiteNavItem[] = [
   // ── Ust: her gun acilanlar ──
   { route: 'overview', label: 'Genel Bakış', icon: Home, group: 'main', exact: true, hint: 'Sıradaki adım ve özet', keywords: ['overview', 'dashboard', 'ana', 'özet'] },
-  { route: 'chat', label: 'Asistan', icon: MessageSquare, group: 'main', hint: 'Verinin üstünde konuşan asistan', keywords: ['chat', 'asistan', 'skill', 'sor', 'soru'] },
+  // Asistan (route 'chat') 18.11.2026'da menuden ve paletten kaldirildi (sahip: "gizleyelim");
+  // sayfa yalniz yoneticiye acik, mesaj ucu musteriye kapali (api chat/chat-access.ts).
 
   // ── Saglik ──
   { route: 'audit', label: 'Site Skoru', icon: ShieldCheck, group: 'health', hint: 'SEO + GEO 14 kontrol', keywords: ['seo', 'audit', 'skor', 'tarama', 'denetim'] },

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { FileText, Globe, MessageSquare, Sparkles } from 'lucide-react';
+import { FileText, Globe, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatNum } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -74,11 +74,7 @@ export function QuotaMonitor() {
       key: 'sites', icon: Globe, label: 'Site',
       used: data.sites.current, limit: data.sites.limit,
     },
-    // Asistan mesaji hakki (plans.ts chatMessagesPerMonth). ADMIN'de sinir yok: kart gosterilmez.
-    data.chat && !data.chat.unlimited && data.chat.limit > 0 && {
-      key: 'chat', icon: MessageSquare, label: 'Asistan mesajı',
-      used: data.chat.used, limit: data.chat.limit,
-    },
+    // Asistan mesaji karti 18.11.2026'da kalkti: Asistan musteriye kapali (api chat/chat-access.ts)
   ].filter(Boolean) as Array<{ key: string; icon: typeof FileText; label: string; used: number; limit: number }>;
 
   const budget = data.budget;
@@ -103,8 +99,8 @@ export function QuotaMonitor() {
               listesini ve bu metni denetler. */}
           ${budget.used.toFixed(2)} / ${budget.cap.toFixed(2)} ·{' '}
           {budget.hardBlock
-            ? 'Makale üretimi, makale çevirisi ve Asistan durdu; görsel alt metni önerisi ve App Store yorum yanıtı taslağı da bekler. AI görünürlük ölçümü etkilenmez, kendi kotasıyla sürer. Ücretli planlarda bütçe yeni ayda sıfırlanır.'
-            : 'Bütçe dolarsa makale üretimi, makale çevirisi ve Asistan durur; görsel alt metni önerisi ve App Store yorum yanıtı taslağı da bekler. AI görünürlük ölçümü etkilenmez.'}
+            ? 'Makale üretimi ve makale çevirisi durdu; görsel alt metni önerisi ve App Store yorum yanıtı taslağı da bekler. AI görünürlük ölçümü etkilenmez, kendi kotasıyla sürer. Ücretli planlarda bütçe yeni ayda sıfırlanır.'
+            : 'Bütçe dolarsa makale üretimi ve makale çevirisi durur; görsel alt metni önerisi ve App Store yorum yanıtı taslağı da bekler. AI görünürlük ölçümü etkilenmez.'}
         </StatusBanner>
       )}
 

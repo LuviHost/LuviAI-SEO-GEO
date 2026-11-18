@@ -38,6 +38,9 @@ export interface RenewalInput {
 
 export function decideRenewal(i: RenewalInput): RenewalAction {
   if (i.plan === 'TRIAL') return 'none';
+  // Is ortagi plani elle atanir, odemesi havale + elle fatura (plans.ts 'partner'). Hesapta eski bir
+  // PayTR faturasi olsa bile donem hesabi o faturadan yapilir ve plan yanlislikla duserdi.
+  if (i.plan === 'PARTNER') return 'none';
   if (i.status !== 'ACTIVE' && i.status !== 'PAST_DUE') return 'none'; // CANCELED ayri cron'da
   if (i.isAdmin) return 'none';
   if (!i.periodEnd) return 'none'; // faturasiz (elle atanmis) plan — dokunma

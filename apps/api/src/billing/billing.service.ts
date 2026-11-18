@@ -174,8 +174,8 @@ export class BillingService {
       autoRenew: user.autoRenew && !!user.paytrUtoken,
       renewalFailCount: user.renewalFailCount,
       recurringEnabled: process.env.PAYTR_RECURRING_ENABLED === '1',
-      // Yenileme kuralindan muaf (admin) — panel "duşecek" uyarisi gostermesin
-      renewalExempt: user.role === 'ADMIN',
+      // Yenileme kuralindan muaf (admin; elle atanan is ortagi — renewal-policy.ts) — panel "duşecek" uyarisi gostermesin
+      renewalExempt: user.role === 'ADMIN' || user.plan === 'PARTNER',
       trialEndsAt: user.trialEndsAt,
       // Deneme durumu (14 gun, kalan gun, salt okunur mu) — panel bandi ve modali bunu
       // okur, kendisi hesaplamaz. Karar trial-policy.ts trialAccess (sunucu kapisiyla ayni).

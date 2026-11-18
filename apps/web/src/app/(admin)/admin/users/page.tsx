@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,21 @@ const PLAN_VARIANT: Record<string, any> = {
   PRO: 'default',
   AGENCY: 'success',
   ENTERPRISE: 'success',
+  PARTNER: 'success',
 };
+
+/**
+ * Elle atanabilen planlar — api admin/plan-assignment.ts ASSIGNABLE_PLANS ile ayni.
+ * Fatura olusmaz; TRIAL plani kapatir (deneme yeniden baslamaz).
+ */
+const ASSIGNABLE: { value: string; label: string }[] = [
+  { value: 'STARTER', label: 'Başlangıç' },
+  { value: 'PRO', label: 'Profesyonel' },
+  { value: 'PARTNER', label: 'İş Ortağı' },
+  { value: 'ENTERPRISE', label: 'Kurumsal' },
+  { value: 'AGENCY', label: 'Ajans (eski)' },
+  { value: 'TRIAL', label: 'Planı kapat' },
+];
 
 const SUB_VARIANT: Record<string, any> = {
   TRIAL: 'secondary',
@@ -27,6 +42,29 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [secim, setSecim] = useState<Record<string, string>>({});
+  const [kaydediliyor, setKaydediliyor] = useState<string | null>(null);
+
+  const planAta = async (u: any) => {
+    const plan = secim[u.id];
+    if (!plan || plan === u.plan) return;
+    const ad = ASSIGNABLE.find((a) => a.value === plan)?.label ?? plan;
+    const soru = plan === 'TRIAL'
+      ? `${u.email} hesabının planı kapatılsın mı? Hesap salt okunur olur.`
+      : `${u.email} hesabına ${ad} planı atansın mı? Fatura oluşmaz; ödemeyi ayrıca kaydet.`;
+    if (!confirm(soru)) return;
+    setKaydediliyor(u.id);
+    try {
+      const res = await api.setAdminUserPlan(u.id, plan);
+      setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, plan: res.plan, subscriptionStatus: res.subscriptionStatus } : x)));
+      setSecim((s) => { const { [u.id]: _, ...rest } = s; return rest; });
+      toast.success(plan === 'TRIAL' ? 'Plan kapatıldı' : `${ad} planı atandı`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Plan atanamadı');
+    } finally {
+      setKaydediliyor(null);
+    }
+  };
 
   useEffect(() => {
     api.getAdminUsers().then(setUsers).finally(() => setLoading(false));
@@ -77,6 +115,7 @@ export default function AdminUsersPage() {
                     <th className="p-3 text-center">Job</th>
                     <th className="p-3 text-center">Fatura</th>
                     <th className="p-3">Kayıt</th>
+                    <th className="p-3">Plan ata</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -105,11 +144,38 @@ export default function AdminUsersPage() {
                       <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
                         {new Date(u.createdAt).toLocaleDateString('tr-TR')}
                       </td>
+                      <td className="p-3">
+                        {u.role === 'ADMIN' ? (
+                          <span className="text-xs text-muted-foreground">Yönetici</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <select
+                              aria-label={`${u.email} için plan`}
+                              className="h-8 rounded-md border bg-background px-2 text-xs"
+                              value={secim[u.id] ?? ''}
+                              onChange={(e) => setSecim((s) => ({ ...s, [u.id]: e.target.value }))}
+                            >
+                              <option value="">Seç</option>
+                              {ASSIGNABLE.filter((a) => a.value !== u.plan || a.value === 'TRIAL').map((a) => (
+                                <option key={a.value} value={a.value}>{a.label}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="h-8 rounded-md border px-3 text-xs font-medium disabled:opacity-50"
+                              disabled={!secim[u.id] || kaydediliyor === u.id}
+                              onClick={() => planAta(u)}
+                            >
+                              {kaydediliyor === u.id ? 'Atanıyor' : 'Ata'}
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={8} className="p-12 text-center text-muted-foreground">
+                      <td colSpan={9} className="p-12 text-center text-muted-foreground">
                         Kullanıcı bulunamadı.
                       </td>
                     </tr>

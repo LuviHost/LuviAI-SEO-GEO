@@ -1385,9 +1385,11 @@ describe('Panel metinleri = kod', () => {
     for (const dolu of [true, false]) {
       const satir = qm.split('\n').find((l) => l.includes(dolu ? "? 'Makale üretimi" : ": 'Bütçe dolarsa"));
       expect(satir, dolu ? 'dolu metni' : 'uyari metni').toBeDefined();
-      for (const is of ['akale üretimi', 'makale çevirisi', 'Asistan', 'görsel alt metni önerisi', 'App Store yorum yanıtı taslağı']) {
+      for (const is of ['akale üretimi', 'makale çevirisi', 'görsel alt metni önerisi', 'App Store yorum yanıtı taslağı']) {
         expect(satir!, is).toContain(is);
       }
+      // Asistan 18.11.2026'dan beri musteriye kapali (chat/chat-access.ts): uyari onu saymaz
+      expect(satir!).not.toContain('Asistan');
       expect(satir!).toContain('AI görünürlük ölçümü etkilenmez');
     }
     expect(qm).not.toContain('Yeni AI istekleri durduruldu');
@@ -1399,13 +1401,15 @@ describe('Panel metinleri = kod', () => {
     const bill = stripComments(read(path.join(MARKETING, 'help/billing/page.tsx')));
     const butce = bill.split('\n').find((l) => l.includes('<strong>AI bütçesi %100</strong>'));
     expect(butce, 'help/billing AI bütçesi %100 satiri').toBeDefined();
-    for (const is of ['makale üretimi (kendi başlattıkların ve takvimdekiler)', 'makale çevirisi', 'Asistan', 'görsel alt metni önerisi', 'App Store yorum yanıtı taslağı']) {
+    for (const is of ['makale üretimi (kendi başlattıkların ve takvimdekiler)', 'makale çevirisi', 'görsel alt metni önerisi', 'App Store yorum yanıtı taslağı']) {
       expect(butce!, is).toContain(is);
     }
+    expect(butce!).not.toContain('Asistan');
     expect(butce!).toContain('AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz');
     expect(butce!).toContain('Ücretli planlarda bütçe ay başında sıfırlanır, deneme bütçesi yenilenmez');
     const oto = stripComments(read(path.join(MARKETING, 'help/auto-pilot/page.tsx')));
-    expect(oto).toContain('makale üretimi (takvimdeki yazılar dahil), makale çevirisi ve Asistan bütçe yenilenene kadar durur');
+    expect(oto).toContain('makale üretimi (takvimdeki yazılar dahil) ve makale çevirisi bütçe yenilenene kadar durur');
+    expect(oto).not.toContain('Asistan');
     expect(oto).toContain('AI görünürlük ölçümü bu bütçeye sayılmaz ve durmaz');
     for (const sayfa of [bill, oto]) expect(sayfa).not.toMatch(/yorum yanıtı taslağı gibi işlemler durur/);
   });
@@ -1413,26 +1417,19 @@ describe('Panel metinleri = kod', () => {
   // 11.11.2026: panel sohbetinde (Asistan) hesap basina mesaj siniri. Sayi plans.ts'te
   // (chatMessagesPerMonth); yardim sayfasi ve panel karti ayni sayiyi soyler. Asistan baska
   // hicbir musteri metninde anlatilmiyordu; sinir yardim/billing "Aşımda ne olur?" listesinde.
-  it('Asistan mesaj sınırı: yardım metnindeki sayılar plans.ts ile aynı; satıştan kalkan plan anılmıyor', () => {
-    const fmtTr = (n: number) => n.toLocaleString('tr-TR');
+  // 18.11.2026 sahip: "asistan sayfasini gizleyelim" — Asistan musteriye kapali (chat/chat-access.ts).
+  // Kapali bir ozelligin mesaj hakki musteriye anlatilmaz: yardim maddesi ve panel karti kalkti;
+  // menude ve komut paletinde de yok. Sayilar plans.ts chatMessagesPerMonth'ta durur (yeniden acilinca).
+  it('Asistan musteriye kapali: menude, kota kartinda ve yardim metninde anilmaz; sayfa yalniz yoneticiye', () => {
     const bill = stripComments(read(path.join(MARKETING, 'help/billing/page.tsx')));
-    const satir = bill.split('\n').find((l) => l.includes('<strong>Asistan mesajı</strong>'));
-    expect(satir, 'help/billing Asistan mesajı satiri').toBeDefined();
-    const duz = satir!.replace(/&apos;/g, "'");
-    const ucretli = SATISTAKI.filter((p) => p.monthly_usd > 0);
-    expect(ucretli.map((p) => p.id)).toEqual(['starter', 'pro', 'enterprise']);
-    for (const p of ucretli) {
-      // "Başlangıç'ta 100", "Profesyonel'de 500", "Kurumsal'da 5.000"
-      expect(duz, p.id).toMatch(new RegExp(`${p.name_tr}'[td][ae] ${fmtTr(p.chatMessagesPerMonth).replace('.', '\\.')}(?![\\d.])`));
-    }
-    expect(duz).toContain(`ücretsiz denemede toplam ${findPlan('trial')!.chatMessagesPerMonth}`);
-    for (const p of BASE_PLANS.filter((x) => x.legacy)) expect(duz, `${p.id} satista degil`).not.toContain(p.name_tr);
-    expect(duz).toContain('hesap başına ayda');
-    expect(duz).toContain('ay başında yenilenir, deneme hakkı yenilenmez');
-    // Panel karti sayiyi API'den okur (billing.controller getQuota → QuotaService.checkChatQuota), elle yazmaz
+    expect(bill).not.toContain('<strong>Asistan mesajı</strong>');
     const qm = comp('quota-monitor.tsx');
-    expect(qm).toContain("label: 'Asistan mesajı'");
-    expect(qm).toContain('used: data.chat.used, limit: data.chat.limit');
+    expect(qm).not.toContain("label: 'Asistan mesajı'");
+    const nav = stripComments(read(path.join(WEB_SRC, 'lib/site-nav.ts')));
+    expect(nav).not.toMatch(/route: 'chat'/);
+    const sayfa = read(path.join(WEB_SRC, 'app/(dashboard)/sites/[id]/chat/page.tsx'));
+    expect(sayfa).toContain("const yonetici = session?.user?.role === 'ADMIN';");
+    expect(sayfa).toContain('if (!yonetici) return null;');
     const ctl = stripComments(read(path.resolve(HERE, '../billing/billing.controller.ts')));
     expect(ctl).toContain('this.quota.checkChatQuota(userId)');
     // Sohbet sayfasi sinir / butce reddini ham hata bildirimi degil asistan notu olarak gosterir
