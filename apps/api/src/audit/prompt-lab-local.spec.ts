@@ -260,12 +260,13 @@ describe('PromptLabService — site basina aktif soru tavani (plans.ts PROMPTS_P
     await expect(service(prisma).svc.update('s1', 'q10', { text: 'Duzeltilmis soru metni' })).resolves.toBeTruthy();
   });
 
-  it('Baslangic ve deneme 5 soruda durur', async () => {
+  it('Baslangic 5, deneme 3 soruda durur', async () => {
     const bes = Array.from({ length: 5 }, (_, i) => soru(i));
-    for (const plan of ['STARTER', 'TRIAL']) {
-      await expect(service(fakePrisma({ prompts: [...bes], owner: { plan, role: 'USER' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' }), plan)
-        .rejects.toThrow(/en fazla 5 aktif soru/);
-    }
+    await expect(service(fakePrisma({ prompts: [...bes], owner: { plan: 'STARTER', role: 'USER' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' }))
+      .rejects.toThrow(/en fazla 5 aktif soru/);
+    const uc = Array.from({ length: 3 }, (_, i) => soru(i));
+    await expect(service(fakePrisma({ prompts: uc, owner: { plan: 'TRIAL', role: 'USER' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' }))
+      .rejects.toThrow(/en fazla 3 aktif soru/);
     const dort = Array.from({ length: 4 }, (_, i) => soru(i));
     await expect(service(fakePrisma({ prompts: dort, owner: { plan: 'STARTER', role: 'USER' } })).svc.create('s1', { text: 'Yeni bir takip sorusu' })).resolves.toBeTruthy();
   });

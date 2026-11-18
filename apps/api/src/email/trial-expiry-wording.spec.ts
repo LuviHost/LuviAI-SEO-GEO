@@ -36,7 +36,7 @@ describe('deneme bitisi e-postalari — plan daha sik AI olcumu vaat etmiyor', (
         const metin = `${subject} ${html}`;
         expect(metin, ad).not.toContain('AI görünürlük ölçümü');
         expect(metin, ad).not.toMatch(/daha (fazla|sık)[^.]{0,40}ölçüm/i);
-        expect(html, ad).toContain('Daha fazla site ve aylık AI görünürlük çalıştırması için');
+        expect(html, ad).toContain('Daha fazla soru ve aylık AI görünürlük çalıştırması için');
         // Kartla satin alma KAPALIYKEN de plan alinabilir: yazarak, havale / EFT ile (sahip,
         // 16.11.2026). Eskiden "satın alma açılana kadar…" yazip "bir plan seçebilirsin" ile
         // celisiyordu; uc e-posta da artik ayni yolu gosterir.
@@ -51,12 +51,12 @@ describe('deneme bitisi e-postalari — plan daha sik AI olcumu vaat etmiyor', (
         expect(metin, ad).not.toMatch(/daha fazla makale/i);
         expect(metin, ad).not.toMatch(/daha fazla[^.(;]{0,40}makale/i);
         // Makale ureten plan adiyla soylenir (plans.ts)
-        expect(html, ad).toContain(`makale üretimi ${MAKALE_PLANI} ve üzeri planlarda`);
+        expect(html, ad).toContain(`makale üretimi ve birden çok site ${MAKALE_PLANI} ve üzeri planlarda`);
       }
     }
     // d11 onizleme metni de ayni dili kullanir
     expect(render('trial_expiry_d11').html).toContain(
-      `Daha fazla site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda).`,
+      `Daha fazla soru ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin (makale üretimi ve birden çok site ${MAKALE_PLANI} ve üzeri planlarda).`,
     );
   });
 
@@ -69,13 +69,18 @@ describe('deneme bitisi e-postalari — plan daha sik AI olcumu vaat etmiyor', (
     expect(HAVALE_YOLU).not.toMatch(/aynı gün|dakika|saat içinde|hemen/i);
   });
 
-  it('dayanak: satin alinabilir her plan denemeden fazla site ve aylik calistirma verir; makale yalniz e-postanin adini verdigi plandan itibaren; olcum hakki her hesapta ayni pencere', () => {
+  it('dayanak: satin alinabilir her plan denemeden fazla soru ve aylik calistirma verir; birden cok site ve makale yalniz e-postanin adini verdigi plandan itibaren; olcum hakki her hesapta ayni pencere', () => {
     const trial = findPlan('trial')!;
     expect(PURCHASABLE_PLAN_IDS.length).toBeGreaterThan(0);
     for (const id of PURCHASABLE_PLAN_IDS) {
       const plan = findPlan(id)!;
-      expect(plan.sites, id).toBeGreaterThan(trial.sites);
+      expect(plan.promptsPerSite, id).toBeGreaterThan(trial.promptsPerSite);
       expect(plan.aiRunsPerMonth, id).toBeGreaterThan(trial.aiRunsPerMonth);
+    }
+    // 18.11.2026: Baslangic 1 site (denemeyle ayni) — "daha fazla site" yalniz makale planindan itibaren
+    expect(findPlan('starter')!.sites).toBe(trial.sites);
+    for (const p of publicPlans()) {
+      if (p.monthly_usd > 0 && p.articlesPerMonth > 0) expect(p.sites, p.id).toBeGreaterThan(trial.sites);
     }
     // "Daha fazla makale" neden yazilamaz: satin alinabilir planlardan biri (Baslangic) denemeden AZ makale verir
     const makalesiz = PURCHASABLE_PLAN_IDS.filter((id) => findPlan(id)!.articlesPerMonth <= trial.articlesPerMonth);

@@ -144,14 +144,17 @@ export const VIDEOS_PER_MONTH: Record<PlanId, number> = {
  * NEDEN (sahip karari 18.11.2026, "en kotu senaryoyu yasamayalim"; ayni gun Baslangic 5): olcum hesap basina haftada 1;
  * bir olcum eskiden 25 soruya kadar kosuyordu (7 asistanla soru basina ~0.58-0.93 USD). 10 soruyla
  * Profesyonel'in aylik olcum maliyeti en kotu durumda ~40 USD'de kalir (10 x 4.33 hafta x 0.93).
- * Ajans ve Kurumsal eski tavanda (200) — Kurumsal teklifle satilir, sinir sozlesmede konusulur.
+ * Kurumsal 200 (teklifle satilir, sinir sozlesmede konusulur), Ajans 60. Kural: tavan x ayda en fazla 5
+ * olcum <= aylik calistirma hakki (public-docs.spec.ts) — kartta calistirma sayisi yazilmaz.
  */
 export const PROMPTS_PER_SITE: Record<PlanId, number> = {
-  // 18.11.2026 sahip: "baslangic pakette 5 soru, profesyonelde 10". Deneme Baslangic'i gecmez.
-  trial: 5,
+  // 18.11.2026 sahip: "baslangic pakette 5 soru, profesyonelde 10". Deneme Baslangic'i gecmez ve
+  // toplam 3 calistirma hakkindan fazla soru tutmaz (4. soru hic olculemezdi).
+  trial: 3,
   starter: 5,
   pro: 10,
-  agency: 200,
+  // Ajans (satistan kalkti): 300 calistirma / 5 haftalik olcum = 60 — tavan haftalik olcumu kesmesin
+  agency: 60,
   enterprise: 200,
   partner: 10,
 };
@@ -453,8 +456,11 @@ export const BASE_PLANS: BasePlan[] = [
     annual_usd: 990,
     // Makale uretimi bu pakette yok (QuotaService.LIMITS.STARTER.articles ile ayni)
     articlesPerMonth: 0,
-    sites: 2,
-    aiRunsPerMonth: 20,
+    // 18.11.2026 sahip: Baslangic 1 site (eskiden 2). Mevcut 2 siteli hesaplar sitelerini korur;
+    // sinir yalniz yeni site eklerken uygulanir (QuotaService.enforceSiteQuota).
+    sites: 1,
+    // 5 soru x ayda en fazla 5 haftalik olcum = 25: haftalik olcumu tavan hic kesmez (eskiden 20)
+    aiRunsPerMonth: 25,
     aiProviders: STANDARD_ENGINES.length,
     publishTargets: 'all',
     trackedApps: 1,
@@ -465,24 +471,24 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'email',
     features_tr: [
       ENGINES_BULLET,
-      'Haftada 1 ölçüm (hesap başına) · ayda en fazla 20 çalıştırma',
+      `Haftada 1 ölçüm · en fazla ${PROMPTS_PER_SITE.starter} soru`,
       'Rakip ve kaynak takibi — cevapta kim anılıyor, hangi siteler kaynak gösteriliyor',
-      `Prompt Lab — kendi sorularınla ölçüm, site başına en fazla ${PROMPTS_PER_SITE.starter} soru`,
+      'Prompt Lab — kendi sorularınla ölçüm',
       'Site SEO/GEO denetimi — 14 teknik kontrol, PageSpeed önerileri, A+–F GEO notu',
       'Günlük anahtar kelime sıra takibi — Search Console bağlıyken',
       'ASO, 1 uygulama — App Store ve Google Play sıra takibi, metadata önerileri',
-      '2 site · haftalık e-posta raporu',
+      '1 site · haftalık e-posta raporu',
       'Hızlı modellerle ölçüm',
     ],
     features_en: [
       ENGINES_BULLET,
-      '1 measurement a week (per account) · up to 20 runs/mo',
+      `1 measurement a week · up to ${PROMPTS_PER_SITE.starter} questions`,
       'Competitor and source tracking — who gets mentioned and which sites are cited',
-      `Prompt Lab — measure with your own questions, up to ${PROMPTS_PER_SITE.starter} per site`,
+      'Prompt Lab — measure with your own questions',
       'Site SEO/GEO audit — 14 technical checks, PageSpeed suggestions, A+–F GEO grade',
       'Daily keyword rank tracking — once Search Console is connected',
       'ASO, 1 app — App Store and Google Play rank tracking, metadata suggestions',
-      '2 sites · weekly email report',
+      '1 site · weekly email report',
       'Measured with fast models',
     ],
   },
@@ -514,7 +520,7 @@ export const BASE_PLANS: BasePlan[] = [
       // ust model yok) — bu yuzden maddede adlari gecmez. "En gelişmiş" DENMEZ: Claude'da Opus'un
       // ustunde bir sinif var; madde "üst seviye" der. Modeller: audit/ai-citation.service MODELS.
       'ChatGPT, Claude, Grok ve DeepSeek’te üst seviye modeller',
-      `5 site · site başına en fazla ${PROMPTS_PER_SITE.pro} soru · ayda en fazla 75 çalıştırma (ölçüm yine haftada 1)`,
+      `5 site · site başına en fazla ${PROMPTS_PER_SITE.pro} soru · ölçüm yine haftada 1 (hesap başına; her hafta bir site)`,
       'GEO içerik, ayda 40 makale — 5 ajanlı üretim, kalite kapısı, 13 yayın hedefi',
       'İçerik fırsatları — kaybettiğin soruya içerik üretir, sonra yeniden ölçer',
       'Agent Readiness (AXO) — AI bot ve ajan keşif taraması; robots.txt’e önizlemeli ekleme, eksik site haritası',
@@ -526,7 +532,7 @@ export const BASE_PLANS: BasePlan[] = [
     features_en: [
       ENGINES_BULLET,
       'Top-tier models on ChatGPT, Claude, Grok and DeepSeek',
-      `5 sites · up to ${PROMPTS_PER_SITE.pro} questions per site · up to 75 runs/mo (still 1 measurement a week)`,
+      `5 sites · up to ${PROMPTS_PER_SITE.pro} questions per site · still 1 measurement a week (per account; one site a week)`,
       'GEO content, 40 articles/mo — 5-agent pipeline, quality gate, 13 publishing targets',
       'Content opportunities — writes for the questions you lose, then re-measures',
       'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed additions to robots.txt, missing sitemap created',
@@ -558,14 +564,14 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'email',
     inheritsFrom: 'pro',
     features_tr: [
-      `100 AI makale / ay · ayda en fazla 300 çalıştırma (ölçüm yine haftada 1) · 15 site · site başına ${PROMPTS_PER_SITE.agency} soru`,
+      `100 AI makale / ay · 15 site · site başına ${PROMPTS_PER_SITE.agency} soru · ölçüm yine haftada 1 (hesap başına)`,
       'Product Radar — haftalık rakip ses payı ve kategori sırası',
       'GEO Heatmap — çoklu sağlayıcıda görünürlük ısı haritası',
       'Live Crawler — AI botlarının canlı akışı + sunucu logu yutma',
       `RanksUp Video — ayda ${VIDEOS_PER_MONTH.agency} video`,
     ],
     features_en: [
-      `100 AI articles/mo · up to 300 runs/mo (still 1 measurement a week) · 15 sites · ${PROMPTS_PER_SITE.agency} questions per site`,
+      `100 AI articles/mo · 15 sites · ${PROMPTS_PER_SITE.agency} questions per site · still 1 measurement a week (per account)`,
       'Product Radar — weekly competitor share-of-voice and category rank',
       'GEO Heatmap — multi-provider visibility heatmap',
       'Live Crawler — live AI bot stream + server log ingestion',
@@ -595,7 +601,7 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'email',
     inheritsFrom: 'pro',
     features_tr: [
-      `50 site · ayda en fazla 1.000 çalıştırma (ölçüm yine haftada 1) · 350 makale · site başına ${PROMPTS_PER_SITE.enterprise} soru`,
+      `50 site · site başına ${PROMPTS_PER_SITE.enterprise} soru · 350 makale · ölçüm yine haftada 1 (hesap başına)`,
       'Product Radar — haftalık rakip ses payı ve kategori sırası',
       'GEO Heatmap — asistan bazında görünürlük ısı haritası',
       'Live Crawler — AI botlarının canlı akışı, sunucu logu yükleme',
@@ -606,7 +612,7 @@ export const BASE_PLANS: BasePlan[] = [
       `RanksUp Video — ayda ${VIDEOS_PER_MONTH.enterprise} video`,
     ],
     features_en: [
-      `50 sites · up to 1,000 runs/mo (still 1 measurement a week) · 350 articles · ${PROMPTS_PER_SITE.enterprise} questions per site`,
+      `50 sites · ${PROMPTS_PER_SITE.enterprise} questions per site · 350 articles · still 1 measurement a week (per account)`,
       'Product Radar — weekly competitor share-of-voice and category rank',
       'GEO Heatmap — per-assistant visibility heatmap',
       'Live Crawler — live AI bot stream, server log upload',
@@ -642,19 +648,17 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'email',
     features_tr: [
       ENGINES_BULLET,
-      'Haftada 1 ölçüm (hesap başına) · ayda en fazla 50 çalıştırma',
-      `1 site · site başına en fazla ${PROMPTS_PER_SITE.partner} soru`,
+      `Haftada 1 ölçüm · en fazla ${PROMPTS_PER_SITE.partner} soru`,
+      '1 site · haftalık e-posta raporu',
       'Rakip ve kaynak takibi — cevapta kim anılıyor, hangi siteler kaynak gösteriliyor',
       'GEO içerik, ayda 6 makale',
-      'Haftalık e-posta raporu',
     ],
     features_en: [
       ENGINES_BULLET,
-      '1 measurement a week (per account) · up to 50 runs/mo',
-      `1 site · up to ${PROMPTS_PER_SITE.partner} questions per site`,
+      `1 measurement a week · up to ${PROMPTS_PER_SITE.partner} questions`,
+      '1 site · weekly email report',
       'Competitor and source tracking — who gets mentioned and which sites are cited',
       'GEO content, 6 articles/mo',
-      'Weekly email report',
     ],
     manual: true,
   },

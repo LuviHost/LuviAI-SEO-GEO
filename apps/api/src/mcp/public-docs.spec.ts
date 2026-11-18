@@ -1758,8 +1758,12 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
   // Haftalik kuralin kartta ARANAN cekirdegi: "haftada 1 ölçüm" + "hesap başına" ayni maddede
   // (11.11.2026 kisa madde: "Haftada 1 ölçüm (hesap başına) · …"; eskisi "Hesap başına haftada 1
   // AI görünürlük ölçümü — …" idi). Maddenin tam cumlesi degil kural aranir.
-  const haftalikTr = (m: string) => /haftada 1 (?:AI görünürlük )?ölçüm/i.test(m) && /hesap başına/i.test(m);
-  const haftalikEn = (m: string) => /1 (?:AI visibility )?measurement (?:a|per) week|1 (?:AI visibility )?measurement per account per week/i.test(m) && /per account/i.test(m);
+  // 18.11.2026: tek siteli planda (Baslangic, Is Ortagi) "hesap başına" anlamsiz — yalniz birden
+  // cok siteli planda aranir (hak hesap basina: her hafta bir site olculur).
+  const haftalikTr = (m: string, cokSite = true) =>
+    /haftada 1 (?:AI görünürlük )?ölçüm|ölçüm yine haftada 1/i.test(m) && (!cokSite || /hesap başına/i.test(m));
+  const haftalikEn = (m: string, cokSite = true) =>
+    /1 (?:AI visibility )?measurement (?:a|per) week|1 (?:AI visibility )?measurement per account per week/i.test(m) && (!cokSite || /per account/i.test(m));
 
   it('kod sabitleri: pencere 7 gun, hak hesap basina, paneldeki "Tümünü çalıştır" limiti bulunuyor', () => {
     expect(MEASUREMENT_WINDOW_MS, 'pencere degisti: "haftada 1" / "7 günde 1" metinlerini guncelle').toBe(7 * 24 * 60 * 60 * 1000);
@@ -1800,20 +1804,30 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
 
   it('fiyat kartı: haftalık ölçüm her ücretli planda görünüyor (miras zinciriyle), denemede "haftada en fazla 1"', () => {
     for (const p of ucretli) {
-      expect(zincir(p, 'features_tr').some(haftalikTr), `${p.id} TR`).toBe(true);
-      expect(zincir(p, 'features_en').some(haftalikEn), `${p.id} EN`).toBe(true);
+      const cok = p.sites > 1;
+      expect(zincir(p, 'features_tr').some((m) => haftalikTr(m, cok)), `${p.id} TR`).toBe(true);
+      expect(zincir(p, 'features_en').some((m) => haftalikEn(m, cok)), `${p.id} EN`).toBe(true);
     }
     expect(trial.features_tr.join('\n')).toContain(`${trial.aiRunsPerMonth} görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
     expect(trial.features_en.join('\n')).toContain(`${trial.aiRunsPerMonth} visibility runs (at most 1 measurement per week)`);
   });
 
-  it('fiyat kartı: çalıştırma sayısı plans.ts ile aynı ve tavan olarak yazılıyor; birim tanımlı', () => {
-    // Madde basinda buyuk harfle de yazilabilir ("Ayda en fazla 75 çalıştırma", "Up to 75 runs/mo"):
-    // yalniz ilk harfin buyuklugu serbest; "en fazla" / "up to" ve sayi zorunlu
+  it('fiyat kartı: soru sayısı plans.ts ile aynı; aylık çalıştırma tavanı haftalık ölçümü kesmez ve yardımda yazılı; birim tanımlı', () => {
+    // 18.11.2026 sahip: kart "ayda en fazla N çalıştırma" yazmaz (1 siteli Baslangic'ta kafa
+    // karistiriyordu). Kartta soru sayisi durur; aylik tavan bir guvenlik siniridir ve haftalik
+    // Prompt Lab olcumunu HIC kesmeyecek kadar yuksektir (soru x ayda en fazla 5 olcum). Tavan
+    // gizli degil: help/billing plan listesi her planin sayisini yazar.
     const kacis = (s: string) => s.replace(/[.,]/g, '\\$&');
+    const yardim = stripComments(read(path.join(MARKETING, 'help/billing/page.tsx')));
     for (const p of ucretli) {
-      expect(p.features_tr.join('\n'), `${p.id} TR`).toMatch(new RegExp(`[Aa]yda en fazla ${kacis(fmtTr(p.aiRunsPerMonth))} çalıştırma`));
-      expect(p.features_en.join('\n'), `${p.id} EN`).toMatch(new RegExp(`[Uu]p to ${kacis(fmtEn(p.aiRunsPerMonth))} runs/mo`));
+      const kart = zincir(p, 'features_tr').join('\n');
+      expect(kart, `${p.id} soru sayisi`).toMatch(new RegExp(`en fazla ${p.promptsPerSite} soru|${p.promptsPerSite} soru`));
+      expect(p.aiRunsPerMonth, `${p.id}: tavan haftalik olcumu kesiyor`).toBeGreaterThanOrEqual(p.promptsPerSite * ayEnFazla);
+      if (!p.legacy && !p.manual) {
+        const satir = yardim.split('\n').find((l) => l.includes(`<strong>${p.name_tr}</strong>`));
+        expect(satir, `help/billing ${p.id} satiri`).toBeDefined();
+        expect(satir!, `${p.id} tavan yardimda`).toMatch(new RegExp(`ayda en fazla ${kacis(fmtTr(p.aiRunsPerMonth))} çalıştırma`));
+      }
       // Ust plan alicisi yukseltmenin olcum sikligini artirdigini sanmasin
       if (p.inheritsFrom) {
         expect(p.features_tr.join('\n'), `${p.id} TR`).toContain('ölçüm yine haftada 1');
@@ -2243,10 +2257,12 @@ describe('Rehber (/rehber) = ürün', () => {
     expect(publishTargetCatalog().some((e) => /shopify|ikas|ticimax/i.test(e.type))).toBe(false);
     expect(eticaret).toContain('Shopify, ikas ya da Ticimax gibi mağaza altyapılarına doğrudan bağlanmaz');
 
-    // Dort rehber de RanksUp'in kendi urunumuz oldugunu ve olculmeyen yuzeyleri yaziyor
+    // Dort rehber de RanksUp'in kendi urunumuz oldugunu ve olculmeyen yuzeyi yaziyor. Google AI Modu
+    // ve AI Bakisi 16.11.2026'dan beri olculuyor (PR #97): "olculmez" artik yanlis, yalniz Copilot.
     for (const [slug, metin] of [['kobi', kobi], ['e-ticaret', eticaret], ['ajans', ajans], ['turkiye', turkiye]] as const) {
       expect(metin, slug).toContain('bizim ürünümüz');
-      expect(metin, slug).toContain('Google AI Bakışı, AI Modu ve Copilot doğrudan ölçül');
+      expect(metin, slug).toContain('Copilot ölçülmez');
+      expect(metin, slug).not.toContain('Google AI Bakışı, AI Modu ve Copilot doğrudan ölçül');
       // Beyaz etiket satilmiyor (agency whitelabel ayarlari uygulanmiyor): RanksUp icin "var" denmez
       expect(metin, slug).not.toMatch(/RanksUp[^.]{0,80}beyaz etiket[^.]{0,20}(?:sunar|sunuyor|var\b)/);
     }

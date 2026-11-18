@@ -30,10 +30,10 @@ describe('setupMeasurementLimit — sayi plans.ts site sinirindan gelir (kopya y
     }
   });
 
-  it('sahibin onayladigi sayilar: deneme 1, Baslangic 2, Profesyonel 5, Ajans 15, Kurumsal 50', () => {
+  it('sahibin onayladigi sayilar: deneme 1, Baslangic 1 (18.11.2026), Profesyonel 5, Ajans 15, Kurumsal 50', () => {
     // plans.ts site sinirlari degisirse bu sinir da degisir: bilerek yapildigini bu satir sordurur
     expect(Object.fromEntries(['TRIAL', 'STARTER', 'PRO', 'AGENCY', 'ENTERPRISE'].map((p) => [p, setupMeasurementLimit(p)])))
-      .toEqual({ TRIAL: 1, STARTER: 2, PRO: 5, AGENCY: 15, ENTERPRISE: 50 });
+      .toEqual({ TRIAL: 1, STARTER: 1, PRO: 5, AGENCY: 15, ENTERPRISE: 50 });
   });
 
   it('bilinmeyen / bos plan en dar sinira (deneme) duser', () => {

@@ -138,7 +138,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             '**Ne sunuyor:** Her site için ayrı soru seti, rakip listesi ve marka sesi. Müşteri raporu SEO, GEO ve yapay zekâ görünürlük sonuçlarını tek belgede toplar; PDF olarak indirilir ya da 7, 30 ya da 90 gün geçerli bir bağlantıyla paylaşılır. Bağlantı, paylaşıldığı andaki raporu gösterir. İki ölçümü yan yana koyan bir karşılaştırma raporu da var. Haftalık e-posta özeti hesap sahibine gider ve Search Console verisini (tıklama, gösterim, sıra) ile yayınlanan makaleleri içerir; yapay zekâ görünürlük verisi içermez. Profesyonel planda 5 site; Kurumsal planda 50 site, REST API ve MCP sunucusu.',
-            '**Sınırları:** Ölçüm hesap başına 7 günde birdir ve tüm siteler bu hakkı paylaşır; çok müşterili bir ajans için belirleyici sınır budur. Kendi logonla (beyaz etiket) rapor yok; raporda “RanksUp ile hazırlandı” yazar. Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmez.',
+            '**Sınırları:** Ölçüm hesap başına 7 günde birdir ve tüm siteler bu hakkı paylaşır; çok müşterili bir ajans için belirleyici sınır budur. Kendi logonla (beyaz etiket) rapor yok; raporda “RanksUp ile hazırlandı” yazar. Copilot ölçülmez.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility', 'ranksup-panel'],
         },

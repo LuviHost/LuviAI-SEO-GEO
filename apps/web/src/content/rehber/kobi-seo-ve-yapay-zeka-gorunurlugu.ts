@@ -8,7 +8,7 @@ import { SRC } from './sources';
  *
  * Ürün karşılaştırması yapay-zeka-gorunurluk-araclari.ts ile AYNI doğrulanmış bilgileri kullanır
  * (satıcı sayfaları 24.10.2026; RanksUp 11.11.2026) — burada yeni rakip iddiası YOK. RanksUp plan
- * maddeleri api billing/plans.ts ile aynı: Başlangıç 2 site, dört asistan, makale yok; Profesyonel
+ * maddeleri api billing/plans.ts ile aynı: Başlangıç 1 site (18.11.2026'dan beri), dört asistan, makale yok; Profesyonel
  * 5 site, ayda 40 makale. Fiyat ifadeleri public-docs.spec.ts tarafından plans.ts ile karşılaştırılır.
  *
  * Yazılım için "araç" sözcüğü kullanılmaz (sahip tercihi); "ürün", "platform", "yazılım".
@@ -125,9 +125,9 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Başlangıç $99/ay (KDV dahil):** 2 site; ChatGPT, Gemini, Claude ve Perplexity’de ölçüm; kendi sorularınla ölçüm (Prompt Lab); rakip ve kaynak takibi; 14 teknik kontrollü site denetimi; Search Console bağlıyken günlük sıra takibi; haftalık e-posta özeti (Search Console verisi). Bu planda makale üretimi yok.',
+            '**Başlangıç $99/ay (KDV dahil):** 1 site; ChatGPT, Gemini, Claude ve Perplexity’de 5 soruyla haftalık ölçüm; kendi sorularınla ölçüm (Prompt Lab); rakip ve kaynak takibi; 14 teknik kontrollü site denetimi; Search Console bağlıyken günlük sıra takibi; haftalık e-posta özeti (Search Console verisi). Bu planda makale üretimi yok.',
             '**Profesyonel $349/ay (KDV dahil):** 5 site; ölçüme Grok ve DeepSeek eklenir; ayda 40 makale üretimi ve yayın; görünmediğin soruya içerik üretip yeniden ölçen içerik fırsatları.',
-            '**Sınırları:** Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmez. Ölçüm hesap başına 7 günde birdir. Yalnız ölçüm isteyen bir işletme için daha ucuz seçenekler var.',
+            '**Sınırları:** Copilot ölçülmez. Ölçüm hesap başına 7 günde birdir. Yalnız ölçüm isteyen bir işletme için daha ucuz seçenekler var.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility'],
         },

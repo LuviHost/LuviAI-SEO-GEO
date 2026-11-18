@@ -270,11 +270,13 @@ describe('aylik en kotu maliyet — satistaki planin geliri en pahali ayi tasir'
    */
   const enKotuSoru = (planId: PlanId): number => {
     const hak = findPlan(planId)!.aiRunsPerMonth;
+    // "Tümünü çalıştır" bir olcumde en cok planin site basina soru tavanini kosturur (18.11.2026)
+    const tumu = Math.min(MAX_RUN_ALL, findPlan(planId)!.promptsPerSite);
     const siteOlcumu = SITE_SORU * CITATION_TEKRAR_VARSAYILAN;
     let enCok = 0;
     for (let x = 0; x <= eylem; x++) {
       const site = Math.min(eylem - x, hak);
-      const soru = Math.min(MAX_RUN_ALL * x, hak - site);
+      const soru = Math.min(tumu * x, hak - site);
       enCok = Math.max(enCok, soru + siteOlcumu * site);
     }
     return enCok;
@@ -283,21 +285,23 @@ describe('aylik en kotu maliyet — satistaki planin geliri en pahali ayi tasir'
   /** Yillik odeyen hesabin bir aylik net geliri (USD) — en dusuk gelir */
   const netGelir = (planId: PlanId): number => (findPlan(planId)!.annual_usd / 12 / (1 + KDV)) * (1 - ODEME_KOMISYONU);
 
-  it('varsayimlar koddan: 7 gunde 1 eylem → ayda 5; Profesyonel 75, Baslangic 20 calistirma; istek basina 50 soru', () => {
+  it('varsayimlar koddan: 7 gunde 1 eylem → ayda 5; Profesyonel 75, Baslangic 25 calistirma; istek basina 50 soru, plan tavani 10 / 5', () => {
     expect(MEASUREMENT_WINDOW_MS).toBe(7 * GUN_MS);
     expect(eylem).toBe(5);
     expect(findPlan('pro')!.aiRunsPerMonth).toBe(75);
-    expect(findPlan('starter')!.aiRunsPerMonth).toBe(20);
+    expect(findPlan('starter')!.aiRunsPerMonth).toBe(25);
     expect(MAX_RUN_ALL).toBe(50);
+    expect(findPlan('pro')!.promptsPerSite).toBe(10);
+    expect(findPlan('starter')!.promptsPerSite).toBe(5);
     expect(PURCHASABLE_PLAN_IDS).toEqual(['starter', 'pro']);
   });
 
   it('Profesyonel ayda en cok 75 Prompt Lab sorusu olcer: "100 soru, her hafta" hakka sigmaz', () => {
     expect(findPlan('pro')!.aiRunsPerMonth).toBeLessThan(100);
-    // en pahali ay: 2 "Tümünü çalıştır" (72 soru) + 3 site olcumu (3 calistirma, 3 x 15 soru)
-    expect(enKotuSoru('pro')).toBe(72 + 3 * 15);
-    // Baslangic: 1 "Tümünü çalıştır" (16 soru) + 4 site olcumu
-    expect(enKotuSoru('starter')).toBe(16 + 4 * 15);
+    // 18.11.2026: "Tümünü çalıştır" en cok 10 / 5 soru — en pahali ay artik 5 site olcumu (5 x 15 soru);
+    // eskiden 2 "Tümünü çalıştır" (72 soru) + 3 site olcumu = 117 soruydu
+    expect(enKotuSoru('pro')).toBe(5 * 15);
+    expect(enKotuSoru('starter')).toBe(5 * 15);
   });
 
   it('satistaki her plan: en pahali olcum ayi + aylik AI butce tavani, yillik planin aylik net gelirinin icinde', () => {
@@ -313,12 +317,12 @@ describe('aylik en kotu maliyet — satistaki planin geliri en pahali ayi tasir'
   });
 
   // 16.11.2026: Google AI Modu + AI Bakisi soru basina 0.008 USD ekler (iki pakette de)
-  it('sayilar: Profesyonel soru basina ~0.94 USD ve en pahali olcum ayi ~110 USD; Baslangic ~0.10 ve ~7.5 USD', () => {
+  it('sayilar: Profesyonel soru basina ~0.94 USD ve en pahali olcum ayi ~71 USD (18.11.2026 oncesi ~110); Baslangic ~0.10 ve ~7.4 USD', () => {
     expect(soruMaliyeti('pro')).toBeCloseTo(0.9423, 3);
-    expect(enKotuSoru('pro') * soruMaliyeti('pro')).toBeCloseTo(110.3, 0);
+    expect(enKotuSoru('pro') * soruMaliyeti('pro')).toBeCloseTo(70.7, 0);
     expect(soruMaliyeti('starter')).toBeCloseTo(0.0982, 3);
     expect(enKotuSoru('starter') * soruMaliyeti('starter')).toBeCloseTo(7.5, 0);
-    // Yillik Profesyonel hesabin en kotu ayinda kalan pay dar (≈ 6 USD): hak buyutulmeden once fiyat konusulur
+    // Yillik Profesyonel hesabin en kotu ayinda kalan pay ≈ 45 USD (soru tavanindan once ≈ 6): hak buyutulmeden once fiyat konusulur
     expect(netGelir('pro') - (enKotuSoru('pro') * soruMaliyeti('pro') + 120)).toBeGreaterThan(0);
   });
 });

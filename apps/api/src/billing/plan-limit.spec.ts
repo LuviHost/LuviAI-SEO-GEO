@@ -22,8 +22,11 @@ const enterprise = findPlan('enterprise')!;
 
 describe('upgradeOfferFor', () => {
   it('siniri kaldiran EN DUSUK plan onerilir (deneme → Baslangic, Baslangic → Profesyonel)', () => {
-    expect(upgradeOfferFor('TRIAL', (p) => p.sites > 1)).toEqual({ kind: 'buy', planId: 'starter', planName: starter.name_tr });
-    expect(upgradeOfferFor('STARTER', (p) => p.sites > 2)).toEqual({ kind: 'buy', planId: 'pro', planName: pro.name_tr });
+    expect(upgradeOfferFor('TRIAL', (p) => p.aiRunsPerMonth > 3)).toEqual({ kind: 'buy', planId: 'starter', planName: starter.name_tr });
+    expect(upgradeOfferFor('STARTER', (p) => p.sites > 1)).toEqual({ kind: 'buy', planId: 'pro', planName: pro.name_tr });
+    // 18.11.2026: Baslangic da 1 site — denemede site siniri Profesyonel'e gider
+    expect(starter.sites).toBe(1);
+    expect(upgradeOfferFor('TRIAL', (p) => p.sites > 1)).toEqual({ kind: 'buy', planId: 'pro', planName: pro.name_tr });
   });
 
   it('ara plan siniri kaldirmiyorsa atlanir: denemede makale icin Baslangic degil Profesyonel', () => {
@@ -58,8 +61,8 @@ describe('upgradeOfferFor', () => {
   });
 
   it('taninmayan / bos plan deneme sayilir', () => {
-    expect(upgradeOfferFor(undefined, (p) => p.sites > 1)).toMatchObject({ kind: 'buy', planId: 'starter' });
-    expect(upgradeOfferFor('yok-boyle-plan', (p) => p.sites > 1)).toMatchObject({ kind: 'buy', planId: 'starter' });
+    expect(upgradeOfferFor(undefined, (p) => p.aiRunsPerMonth > 3)).toMatchObject({ kind: 'buy', planId: 'starter' });
+    expect(upgradeOfferFor('yok-boyle-plan', (p) => p.aiRunsPerMonth > 3)).toMatchObject({ kind: 'buy', planId: 'starter' });
   });
 
   it('"buy" yalniz kartla alinabilen plan icin doner — her plan x her esik', () => {
@@ -142,7 +145,7 @@ describe('QuotaService plan siniri hatalari kod ve yukseltme yolu tasir', () => 
   });
 
   it('aylik AI calistirma tavani: Baslangic Profesyonel\'e, Profesyonel teklife', async () => {
-    const start = await limitBody(() => new QuotaService(fakePrisma({ plan: 'STARTER', aiCitationTestsThisMonth: 20 })).enforceCitationQuota('u1'));
+    const start = await limitBody(() => new QuotaService(fakePrisma({ plan: 'STARTER', aiCitationTestsThisMonth: starter.aiRunsPerMonth })).enforceCitationQuota('u1'));
     expect(start).toMatchObject({ code: PLAN_LIMIT_CODE, upgrade: { kind: 'buy', planId: 'pro' } });
     const full = await limitBody(() => new QuotaService(fakePrisma({ plan: 'PRO', aiCitationTestsThisMonth: 75 })).enforceCitationQuota('u1'));
     expect(full).toMatchObject({ code: PLAN_LIMIT_CODE, upgrade: { kind: 'quote', planId: 'enterprise' } });
@@ -150,8 +153,9 @@ describe('QuotaService plan siniri hatalari kod ve yukseltme yolu tasir', () => 
 
   it('site sayisi: metin plana gore, eski "Profesyonel veya Kurumsal\'a yükseltin" kalibi yok', async () => {
     const trial = await limitBody(() => new QuotaService(fakePrisma({ plan: 'TRIAL' }, { sites: 1 })).enforceSiteQuota('u1'));
-    expect(trial).toMatchObject({ code: PLAN_LIMIT_CODE, upgrade: { kind: 'buy', planId: 'starter' } });
-    expect(trial.message).toBe(`Planın 1 siteye kadar izin veriyor; şu an 1 siten var. ${starter.name_tr} planında ${starter.sites} siteye kadar ekleyebilirsin.`);
+    // Baslangic da 1 site (18.11.2026): ikinci site icin yol Profesyonel
+    expect(trial).toMatchObject({ code: PLAN_LIMIT_CODE, upgrade: { kind: 'buy', planId: 'pro' } });
+    expect(trial.message).toBe(`Planın 1 siteye kadar izin veriyor; şu an 1 siten var. ${pro.name_tr} planında ${pro.sites} siteye kadar ekleyebilirsin.`);
 
     const full = await limitBody(() => new QuotaService(fakePrisma({ plan: 'PRO' }, { sites: pro.sites })).enforceSiteQuota('u1'));
     expect(full).toMatchObject({ code: PLAN_LIMIT_CODE, upgrade: { kind: 'quote', planId: 'enterprise' } });

@@ -130,7 +130,8 @@ export class QuotaService {
   private readonly LIMITS = {
     TRIAL:      { articles: 2,    sites: 1,  publishTargets: ['MARKDOWN_ZIP', 'WORDPRESS_REST'] as string[], citationTests: 3 },
     // 11.11.2026: Baslangic paketinde makale uretimi yok (plans.ts articlesPerMonth 0)
-    STARTER:    { articles: 0,    sites: 2,  publishTargets: 'all' as const,                                  citationTests: 20 },
+    // 18.11.2026: Baslangic 1 site, 25 calistirma (plans.ts; 5 soru x 5 haftalik olcum)
+    STARTER:    { articles: 0,    sites: 1,  publishTargets: 'all' as const,                                  citationTests: 25 },
     PRO:        { articles: 40,   sites: 5,  publishTargets: 'all' as const,                                  citationTests: 75 },
     AGENCY:     { articles: 100,  sites: 15, publishTargets: 'all' as const,                                  citationTests: 300 },
     ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000 },
@@ -469,7 +470,7 @@ export class QuotaService {
     const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true, plan: true } });
     if (u?.role === 'ADMIN') return;
     // Eski metin her hesaba "Profesyonel veya Kurumsal'a yükseltin" diyordu: denemede yanlis
-    // (Baslangic da 2 site verir), Profesyonel'de anlamsiz (zaten o planda). Plan adi ve
+    // (Baslangic da 1 site verir), Profesyonel'de anlamsiz (zaten o planda). Plan adi ve
     // site sayisi plans.ts'ten (15.11.2026).
     // Yol KULLANIMA gore (limit degil): plani biten hesap sitelerini korur ve limitin
     // ustunde olabilir (deneme duzeyi, 5 site). `p.sites > limit` ona "Başlangıç planında 2
