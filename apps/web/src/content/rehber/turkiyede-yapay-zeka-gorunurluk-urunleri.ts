@@ -146,7 +146,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             '**Ne sunuyor:** ChatGPT, Gemini, Claude ve Perplexity’de ölçüm, Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek; kendi sorularınla ölçüm; rakip ve kaynak takibi; 14 teknik kontrollü site denetimi; Search Console bağlıyken günlük sıra takibi; ASO. Makale üretimi ve yayın Profesyonel ve üstü planlarda.',
-            '**Sınırları:** Ücretli planlar Başlangıç $99/ay’dan başlar (KDV dahil); yalnız ölçüm isteyen biri için bu listede daha düşük fiyatlı seçenekler var. Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmez. Ölçüm hesap başına 7 günde birdir. Kendi logonla (beyaz etiket) rapor yoktur.',
+            '**Sınırları:** Ücretli planlar Başlangıç $99/ay’dan başlar (KDV dahil); yalnız ölçüm isteyen biri için bu listede daha düşük fiyatlı seçenekler var. Copilot ölçülmez. Ölçüm hesap başına 7 günde birdir. Kendi logonla (beyaz etiket) rapor yoktur.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility'],
         },

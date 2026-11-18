@@ -28,7 +28,8 @@ export const DENEME_ASISTANLARI: string = (() => {
 export const MAKALE_PLANI: string = articleOfferPlan().name_tr;
 
 /** Deneme bitisi e-postalarinin ortak cumle parcasi: plan ne kazandirir */
-const PLAN_KAZANCI = `Daha fazla site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda)`;
+// 18.11.2026: Baslangic 1 site (denemeyle ayni) — "daha fazla site" yalniz makale planindan itibaren dogru
+const PLAN_KAZANCI = `Daha fazla soru ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin (makale üretimi ve birden çok site ${MAKALE_PLANI} ve üzeri planlarda)`;
 /** Plan almak icin yazilacak adres — web lib/checkout-availability PURCHASE_CONTACT_EMAIL ile ayni kutu */
 export const PLAN_ILETISIM_EPOSTA = 'destek@luvihost.com';
 
@@ -519,7 +520,7 @@ export class EmailService {
         return yap(
           // Yazim duzeltmesi (16.11.2026): "süreni bitmesine" → "sürenin bitmesine"
           'Deneme sürenin bitmesine 3 gün kaldı',
-          `Daha fazla site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin (makale üretimi ${MAKALE_PLANI} ve üzeri planlarda).`,
+          `Daha fazla soru ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin (makale üretimi ve birden çok site ${MAKALE_PLANI} ve üzeri planlarda).`,
           h(adliBaslik`deneme sürenin bitmesine 3 gün kaldı`) +
             p(`14 günlük ücretsiz denemenin 11 günü doldu. ${PLAN_KAZANCI}; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.`) +
             p(denemeSonu(data.readOnlyAtEnd)) +

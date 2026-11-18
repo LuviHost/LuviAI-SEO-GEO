@@ -45,14 +45,14 @@ export default function Page() {
           hala satiliyordu. */}
       <h2>Planlar</h2>
       <p>
-        Her planda AI görünürlük ölçümü hesap başına 7 günde 1&apos;dir; planlar ölçüm sıklığında değil, aylık çalıştırma tavanında ayrışır
+        Her planda AI görünürlük ölçümü hesap başına 7 günde 1&apos;dir; planlar ölçüm sıklığında değil, site ve soru sayısında ayrışır. Aylık çalıştırma tavanı haftalık ölçümü kesmeyecek kadar yüksektir; dal ölçümü gibi çok çalıştırma kullanan işlerde devreye girer
         (ayrıntı aşağıda, <a href="#kotalar">Kotalar</a> bölümünde).
       </p>
       <ul>
-        <li><strong>Ücretsiz Deneme</strong> — 2 makale + 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) + 4 AI asistanı + 1 site (kart gerekmez)</li>
-        <li><strong>Başlangıç</strong> — makale üretimi yok + ayda en fazla 20 çalıştırma + 4 AI asistanı + 2 site</li>
-        <li><strong>Profesyonel</strong> (en çok tercih edilen) — 40 makale + ayda en fazla 75 çalıştırma + 6 AI asistanı + 5 site, Apple Search Ads ve App Store Connect dahil</li>
-        <li><strong>Kurumsal</strong> (satış ekibiyle, fiyatı teklifle) — 350 makale + ayda en fazla 1.000 çalıştırma + 6 AI asistanı + 50 site, Product Radar, GEO Heatmap, Live Crawler, BYOK, MCP, REST API, AI maliyet ve token muhasebesi</li>
+        <li><strong>Ücretsiz Deneme</strong> — 2 makale + 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) + 4 AI asistanı + 1 site, en fazla 3 soru (kart gerekmez)</li>
+        <li><strong>Başlangıç</strong> — makale üretimi yok + 1 site, en fazla 5 soru + ayda en fazla 25 çalıştırma + 4 AI asistanı</li>
+        <li><strong>Profesyonel</strong> (en çok tercih edilen) — 40 makale + 5 site, site başına en fazla 10 soru + ayda en fazla 75 çalıştırma + 6 AI asistanı, Apple Search Ads ve App Store Connect dahil</li>
+        <li><strong>Kurumsal</strong> (satış ekibiyle, fiyatı teklifle) — 350 makale + 50 site, site başına en fazla 200 soru + ayda en fazla 1.000 çalıştırma + 6 AI asistanı, Product Radar, GEO Heatmap, Live Crawler, BYOK, MCP, REST API, AI maliyet ve token muhasebesi</li>
       </ul>
       <p>
         Güncel fiyatlar için <a href="/pricing">fiyatlandırma sayfasına</a> bakın. Fiyatlar ABD doları

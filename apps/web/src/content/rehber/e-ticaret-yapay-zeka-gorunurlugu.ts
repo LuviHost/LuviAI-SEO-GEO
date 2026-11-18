@@ -166,7 +166,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             '**Yapar:** Senin belirlediğin alıcı sorularını asistanlara sorar; markanın anılıp anılmadığını, sitenin kaynak gösterilip gösterilmediğini ve cevaplarda hangi rakiplerin, hangi kaynak sitelerin geçtiğini gösterir. 14 teknik kontrollü site denetimi ve Search Console bağlıyken günlük sıra takibi Başlangıç planında. Profesyonel ve üstü planlarda makale üretir ve WordPress dahil 13 yayın hedefine yayınlar. Kurumsal planda Ürün Radarı haftalık rakip ses payını ve kategori sırasını izler.',
-            '**Yapmaz:** Shopify, ikas ya da Ticimax gibi mağaza altyapılarına doğrudan bağlanmaz ve ürün beslemesi üretmez. ChatGPT’nin ürün kartlarını ayrı ölçmez; cevap metnini ve kaynakları ölçer. Google AI Bakışı, AI Modu ve Copilot doğrudan ölçülmez.',
+            '**Yapmaz:** Shopify, ikas ya da Ticimax gibi mağaza altyapılarına doğrudan bağlanmaz ve ürün beslemesi üretmez. ChatGPT’nin ürün kartlarını ayrı ölçmez; cevap metnini ve kaynakları ölçer. Copilot ölçülmez.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility'],
         },

@@ -103,7 +103,7 @@ export interface LocalRunSummary {
 
 /**
  * Mutlak ust sinir (ADMIN dahil). Planin tavani bundan dusuktur: plans.ts PROMPTS_PER_SITE
- * (18.11.2026: Deneme ve Baslangic 5; Profesyonel ve Is Ortagi 10; Ajans ve Kurumsal 200).
+ * (18.11.2026: Deneme 3, Baslangic 5; Profesyonel ve Is Ortagi 10; Ajans 60, Kurumsal 200).
  */
 const MAX_PROMPTS_PER_SITE = 200;
 /**
