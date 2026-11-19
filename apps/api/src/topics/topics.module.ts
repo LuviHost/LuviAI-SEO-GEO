@@ -9,6 +9,8 @@ import { AuthModule } from '../auth/auth.module.js';
 import { AuditModule } from '../audit/audit.module.js';
 import { ArticlesModule } from '../articles/articles.module.js';
 import { AnalyticsModule } from '../analytics/analytics.module.js';
+import { AdsModule } from '../ads/ads.module.js';
+import { AdsTermsService } from './ads-terms.service.js';
 
 /**
  * Topic Engine — 4 katmanlı konu motoru:
@@ -19,9 +21,9 @@ import { AnalyticsModule } from '../analytics/analytics.module.js';
  *  - ScorerService: Sonnet AI sıralama (Tier 1/2/3)
  */
 @Module({
-  imports: [AuthModule, AuditModule, ArticlesModule, AnalyticsModule],
+  imports: [AuthModule, AuditModule, ArticlesModule, AnalyticsModule, AdsModule],
   controllers: [TopicsController],
-  providers: [TopicsService, GscService, GeoService, CompetitorService, ScorerService],
+  providers: [TopicsService, GscService, GeoService, CompetitorService, ScorerService, AdsTermsService],
   exports: [TopicsService],
 })
 export class TopicsModule {}

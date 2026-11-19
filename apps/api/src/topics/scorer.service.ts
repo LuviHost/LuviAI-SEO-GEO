@@ -10,6 +10,8 @@ export interface ScorerInput {
   geoGaps: any[];
   competitorMoves: any[];
   existingPages: string[];
+  /** Google Ads'te tiklama / donusum getiren, marka adi gecmeyen arama terimleri (topics/ads-terms.ts) */
+  adsSearchTerms?: any[];
 }
 
 @Injectable()
@@ -25,13 +27,18 @@ export class ScorerService {
       geo_gaps: input.geoGaps,
       competitor_moves: input.competitorMoves,
       existing_pages: input.existingPages,
+      ...(input.adsSearchTerms?.length ? { ads_search_terms: input.adsSearchTerms } : {}),
     }, null, 2);
+    // 18.11.2026: besinci kaynak — reklamda para odenen terimler (yalniz hesap bagliysa gelir)
+    const reklamNotu = input.adsSearchTerms?.length
+      ? '\n\nads_search_terms: Google Ads\'te son 30 günde para ödenen ve tıklama ya da dönüşüm getiren arama terimleri (marka adı geçenler çıkarıldı). Dönüşüm getiren terimler için organik aramada ve AI cevaplarında görünecek içerik yüksek önceliklidir; konu başlığını terimin arama niyetine göre yaz, terimi birebir kopyalama. Mevcut sayfalarda zaten işlenmiş terim için yeni konu açma.'
+      : '';
 
     const result = await this.runner.run({
       agentName: 'topic-ranker',
       agentSystemSuffix: AGENT_TOPIC_RANKER.systemSuffix,
       brainContext: input.brainContext,
-      input: `4 kaynaktan toplanmış ham konu/fırsat verisi aşağıda. JSON skor + tier üret. Sadece JSON çıktı ver.\n\n${inputJson}`,
+      input: `${input.adsSearchTerms?.length ? 5 : 4} kaynaktan toplanmış ham konu/fırsat verisi aşağıda. JSON skor + tier üret. Sadece JSON çıktı ver.${reklamNotu}\n\n${inputJson}`,
       maxTokens: 16384,
     });
 

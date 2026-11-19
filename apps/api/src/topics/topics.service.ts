@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GscService } from './gsc.service.js';
 import { GeoService } from './geo.service.js';
 import { CompetitorService } from './competitor.service.js';
+import { AdsTermsService } from './ads-terms.service.js';
 import { ScorerService } from './scorer.service.js';
 import { GaService } from '../analytics/ga.service.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -21,6 +22,8 @@ export class TopicsService {
     private readonly scorer: ScorerService,
     private readonly ga: GaService,
     private readonly settings: SettingsService,
+    // Opsiyonel: reklam modulu yuklu degilse (elle kurulan servis, testler) konu motoru eskisi gibi
+    @Optional() private readonly adsTerms: AdsTermsService = { fetchContentTerms: async () => [] } as any,
   ) {}
 
   /** Mock topics — AI_GLOBAL_DISABLED iken dummy 6 öneri yazar */
@@ -115,6 +118,10 @@ export class TopicsService {
     const gaUnderperforming = await this.ga.getUnderperformingPages(siteId).catch(() => []);
     this.log.log(`[${siteId}] [5/5] GA: ${gaUnderperforming.length} underperforming sayfa`);
 
+    // Google Ads arama terimleri (yalniz reklam hesabi bagliysa; topics/ads-terms.ts)
+    const adsSearchTerms = await this.adsTerms.fetchContentTerms(siteId).catch(() => []);
+    if (adsSearchTerms.length) this.log.log(`[${siteId}] Reklam: ${adsSearchTerms.length} arama terimi`);
+
     const existingPages = site.articles.map(a => a.slug);
 
     const brainContext: AgentContext = {
@@ -140,6 +147,7 @@ export class TopicsService {
       geoGaps: geoResult.gaps,
       competitorMoves,
       existingPages,
+      adsSearchTerms,
     });
 
     if (!ranked) {
