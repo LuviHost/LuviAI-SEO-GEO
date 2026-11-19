@@ -168,6 +168,32 @@ export interface GunKosumu {
   asistanlar: Record<string, GorunmeSayaci>;
   tekrar: number;
   soruSayisi: number;
+  /**
+   * Saglayici → soru anahtari (sorguAnahtari) → sayac. Eski kayit yolunda yoksa haftalik kiyas
+   * asistan duzeyinde yapilir (18.11.2026 oncesi davranis).
+   */
+  sorular?: Record<string, Record<string, GorunmeSayaci>>;
+}
+
+/**
+ * Soru anahtari — citation-run-compare.ts sorguAnahtari ile AYNI kural (iki kiyas ayni soruyu
+ * ayni sayar). Buyuk/kucuk harf ve bas/son bosluk farki ayni soru.
+ */
+export function soruAnahtari(q: unknown): string {
+  return String(q ?? '').trim().toLowerCase();
+}
+
+/** Bir saglayicinin probe'larini soru anahtarina gore sayaclara boler */
+export function soruSayaclari(probes: Array<ScorableProbe & { query?: unknown }>): Record<string, GorunmeSayaci> {
+  const gruplar = new Map<string, Array<ScorableProbe & { query?: unknown }>>();
+  for (const p of probes) {
+    const k = soruAnahtari(p.query);
+    if (!k) continue;
+    const g = gruplar.get(k) ?? [];
+    g.push(p);
+    gruplar.set(k, g);
+  }
+  return Object.fromEntries([...gruplar].map(([k, ps]) => [k, gorunmeSayaci(ps)]));
 }
 
 /** Trend satirinin bu hesaba giren alanlari (citation-history-trend.ts ProviderTrend) */
@@ -194,8 +220,17 @@ export interface OlcumBelirsizligi {
    * olcumlerinin birlesik araligi — skorun yanindaki "±X".
    */
   manset: { gorunme: GorunmeAraligi | null; olcumSayisi: number };
-  /** Manset penceresi vs onceki pencere (genel bakis kutusundaki fark) — yalniz iki pencerede de olculen asistanlar */
-  haftalik: AralikKarsilastirmasi;
+  /**
+   * Manset penceresi vs onceki pencere (genel bakis kutusundaki fark) — yalniz iki pencerede de
+   * olculen asistanlar ve (18.11.2026) iki pencerede de SORULAN sorular. ortakSoru: kiyasa giren
+   * soru sayisi (soru kaydi olmayan eski kosumlarda yok).
+   */
+  haftalik: AralikKarsilastirmasi & { ortakSoru?: number };
+  /**
+   * Son olcumun soru seti bir onceki olcumle kiyasla (18.11.2026): soru eklendiyse / cikarildiysa
+   * grafik "soru seti degisti" der. Onceki olcum ya da soru kaydi yoksa null.
+   */
+  soruSeti: { ortak: number; eklenen: number; cikan: number } | null;
   /** "RanksUp Etkisi": kiyaslanabilir asistanlarin baslangic olcumu vs son olcumu */
   etki: AralikKarsilastirmasi;
   /** Asistan bazinda trend (ilk → son) karari */
@@ -204,6 +239,42 @@ export interface OlcumBelirsizligi {
 
 const DAY_MS = 86_400_000;
 const dayIndex = (date: string) => Math.floor(Date.parse(`${date}T00:00:00Z`) / DAY_MS);
+
+/**
+ * Iki pencerede de sorulan (saglayici, soru) ciftleri uzerinden birlesik sayac. Kosumlarin hepsinde
+ * soru kaydi yoksa null (cagiran asistan duzeyine duser). Soru degistirmek haftalik farki yapay
+ * olarak oynatmasin: yeni soru ilk haftasinda kiyasa girmez, cikarilan sorunun gecmisi sayilmaz.
+ */
+function ortakSoruKapsami(once: GunKosumu[], sonra: GunKosumu[]): { once: GorunmeSayaci; sonra: GorunmeSayaci; ortakSoru: number } | null {
+  if (![...once, ...sonra].every((g) => g.sorular)) return null;
+  const birlesik = (gunler: GunKosumu[]) => {
+    const m = new Map<string, GorunmeSayaci>();
+    for (const g of gunler) {
+      for (const [p, sorular] of Object.entries(g.sorular!)) {
+        for (const [k, s] of Object.entries(sorular)) {
+          if (!(s.olculen > 0)) continue;
+          const anahtar = `${p}\u0000${k}`;
+          m.set(anahtar, sayacTopla([m.get(anahtar), s]));
+        }
+      }
+    }
+    return m;
+  };
+  const a = birlesik(once);
+  const b = birlesik(sonra);
+  const ortak = [...a.keys()].filter((k) => b.has(k));
+  if (ortak.length === 0) return null;
+  const sorular = new Set(ortak.map((k) => k.split('\u0000')[1]));
+  return { once: sayacTopla(ortak.map((k) => a.get(k))), sonra: sayacTopla(ortak.map((k) => b.get(k))), ortakSoru: sorular.size };
+}
+
+/** Bir kosumun soru anahtarlari (tum saglayicilar) */
+function soruKumesi(g: GunKosumu): Set<string> | null {
+  if (!g.sorular) return null;
+  const s = new Set<string>();
+  for (const sorular of Object.values(g.sorular)) for (const k of Object.keys(sorular)) s.add(k);
+  return s;
+}
 
 /** Pencerelerde iki tarafta da olculen asistanlar uzerinden birlesik sayac (AYNI KAPSAM) */
 function ortakKapsam(once: GunKosumu[], sonra: GunKosumu[]): { once: GorunmeSayaci; sonra: GorunmeSayaci } | null {
@@ -255,7 +326,16 @@ export function olcumBelirsizligi(gunler: GunKosumu[], trends: TrendRef[], windo
 
   // Manset ve haftalik: son olcumun yontemiyle, son olcum gunune gore pencereler
   let manset: OlcumBelirsizligi['manset'] = { gorunme: null, olcumSayisi: 0 };
-  let haftalik: AralikKarsilastirmasi = BOS;
+  let haftalik: AralikKarsilastirmasi & { ortakSoru?: number } = BOS;
+  let soruSeti: OlcumBelirsizligi['soruSeti'] = null;
+  if (sonGun && sirali.length > 1) {
+    const simdi = soruKumesi(sonGun);
+    const onceki = soruKumesi(sirali[sirali.length - 2]);
+    if (simdi && onceki) {
+      const ortak = [...simdi].filter((k) => onceki.has(k)).length;
+      soruSeti = { ortak, eklenen: simdi.size - ortak, cikan: onceki.size - ortak };
+    }
+  }
   if (sonGun) {
     const surum = sonGun.matchVersion;
     const anchor = dayIndex(sonGun.date);
@@ -271,8 +351,16 @@ export function olcumBelirsizligi(gunler: GunKosumu[], trends: TrendRef[], windo
     // Onceki pencerede eski yontemli olcum varsa kiyas yok (versionedHeadline ile ayni kural)
     const eskiYontem = sirali.some((g) => g.matchVersion !== surum && dayIndex(g.date) >= anchor - 2 * windowDays + 1);
     if (!eskiYontem && prev.length > 0) {
-      const k = ortakKapsam(prev, cur);
-      haftalik = k ? karsilastir(k.once, k.sonra) : BOS;
+      const ks = ortakSoruKapsami(prev, cur);
+      if (ks) {
+        haftalik = { ...karsilastir(ks.once, ks.sonra), ortakSoru: ks.ortakSoru };
+      } else if ([...prev, ...cur].every((g) => g.sorular)) {
+        // Soru kaydi var ama iki pencerede ortak soru yok (set tamamen degisti): kiyas yok
+        haftalik = BOS;
+      } else {
+        const k = ortakKapsam(prev, cur);
+        haftalik = k ? karsilastir(k.once, k.sonra) : BOS;
+      }
     }
   }
 
@@ -302,5 +390,5 @@ export function olcumBelirsizligi(gunler: GunKosumu[], trends: TrendRef[], windo
   // kalanlarla verilen karar baska bir kapsami anlatirdi → kiyas yok
   const etki = etkiOnce.length > 0 && !etkiEksik ? karsilastir(sayacTopla(etkiOnce), sayacTopla(etkiSonra)) : BOS;
 
-  return { son, manset, haftalik, etki, asistanlar };
+  return { son, manset, haftalik, soruSeti, etki, asistanlar };
 }

@@ -119,7 +119,7 @@ export const LIMIT_COPY = {
   nextMeasurement: (when: string) => `Sonraki ölçüm ${when}`,
   /** Haftalik olcum hakki: bos kutularda ve ipuclarinda yazan tam cumle */
   measurementUsed: (when: string) =>
-    `Bu haftaki AI ölçüm hakkını kullandın. Her hesap 7 günde 1 ölçüm yapabilir; sonraki ölçüm ${when} itibarıyla açılır.`,
+    `Bu site için ölçüm hakkını kullandın. Her site 7 günde 1, ayda en fazla 4 kez ölçülür; sonraki ölçüm ${when} itibarıyla açılır.`,
   /** Hicbir planin kaldirmadigi sinir ('wait'): satis yok, dugme pasif */
   atLimit: 'Sınıra ulaştın',
 } as const;

@@ -15,7 +15,7 @@ export function MeasurementLimitNote({ className }: { className?: string }) {
     <p role="status" className={cn('flex items-start gap-1.5 text-xs text-muted-foreground', className)}>
       <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
       <span>
-        Bu haftaki AI ölçüm hakkını kullandın. Her hesap 7 günde 1 ölçüm yapabilir; sonraki ölçüm{' '}
+        Bu site için ölçüm hakkını kullandın. Her site 7 günde 1, ayda en fazla 4 kez ölçülür; sonraki ölçüm{' '}
         <span className="font-medium text-foreground">{nextLabel}</span> itibarıyla açılır.
       </span>
     </p>

@@ -902,6 +902,14 @@ export interface GbpPerformans {
   yolTarifi: number;
 }
 
+/** GET/POST /admin/users/:id/limits yaniti (api admin/account-limits.ts accountLimitsView) */
+export type AdminUserLimits = {
+  plan: string;
+  exempt: boolean;
+  engines: Array<{ id: string; label: string; enabled: boolean }>;
+  promptsPerSite: { override: number | null; planDefault: number };
+};
+
 export const api = {
   // Generic raw request (custom endpoints icin)
   request: <T = any>(path: string, options?: RequestInit) => request<T>(path, options),
@@ -933,13 +941,16 @@ export const api = {
     }>(`/billing/users/${userId}/quota`),
 
   /** Haftalik AI olcum hakki — hesap basina 7 gunde 1 (ADMIN: limited=false) */
-  getMeasurementAllowance: () =>
+  /** siteId verilirse o sitenin hakki (18.11.2026: hak site basina, ayda en fazla 4) */
+  getMeasurementAllowance: (siteId?: string | null) =>
     request<{
       limited: boolean;
       allowed: boolean;
       lastMeasuredAt: string | null;
       nextAvailableAt: string | null;
-    }>('/billing/measurement-allowance'),
+      monthlyUsed?: number;
+      monthlyLimit?: number;
+    }>(`/billing/measurement-allowance${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ''}`),
 
   detectNiche: (url: string) =>
     request<{
@@ -1953,6 +1964,11 @@ export const api = {
   // Admin
   getAdminOverview: () => request<any>('/admin/overview'),
   getAdminUsers: () => request<any[]>('/admin/users'),
+  /** Hesap ayarlari: planin asistanlari (acik/kapali) ve site basina soru tavani — api admin/account-limits.ts */
+  getAdminUserLimits: (userId: string) =>
+    request<AdminUserLimits>(`/admin/users/${encodeURIComponent(userId)}/limits`),
+  setAdminUserLimits: (userId: string, body: { disabledEngines: string[]; promptsPerSite: number | null }) =>
+    request<AdminUserLimits>(`/admin/users/${encodeURIComponent(userId)}/limits`, { method: 'POST', body: JSON.stringify(body) }),
   /** Plani elle ata (havale / EFT, is ortagi) — api admin/plan-assignment.ts; TRIAL plani kapatir */
   setAdminUserPlan: (userId: string, plan: string) =>
     request<{ id: string; plan: string; subscriptionStatus: string }>(

@@ -194,7 +194,7 @@ const dictionary = {
     // 11.11.2026 paket yapisi: asistan sayisi plana bagli (Baslangic 4, Profesyonel ve ustu 6),
     // makale ve yayin hedefleri Profesyonel ve ustunde. Calistirma birimi artik kart maddesinde
     // yazmiyor; kartlarin altindaki bu not tanimlar (public-docs.spec.ts denetler).
-    'land.pric.footer_note': 'Her planda haftada 1 AI görünürlük ölçümü; hangi asistanların ölçüldüğü kartlarda · çalıştırma birimi: AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma · makale üretimi Profesyonel ve üstünde: 13 yayın hedefi (denemede WordPress), Türkçe ve İngilizce makale',
+    'land.pric.footer_note': 'Her planda her site haftada 1 ölçülür (ayda en fazla 4); hangi asistanların ölçüldüğü kartlarda · çalıştırma birimi: AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma · makale üretimi Profesyonel ve üstünde: 13 yayın hedefi (denemede WordPress), Türkçe ve İngilizce makale',
     // Plan adlari burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Özel',
 
@@ -494,7 +494,7 @@ const dictionary = {
     // Bullet text comes from plans.ts — do not keep a second copy here.
     'land.pric.cta_free': 'Choose plan',
     'land.pric.cta_contact': 'Contact us',
-    'land.pric.footer_note': 'On every plan: 1 AI visibility measurement per week; the cards show which assistants each plan measures · run unit: an AI test is 1 run, each Prompt Lab question or branch is 1 · article generation on Professional and up: 13 publishing targets (trial: WordPress), articles in Turkish and English',
+    'land.pric.footer_note': 'On every plan each site is measured once a week (up to 4 a month); the cards show which assistants each plan measures · run unit: an AI test is 1 run, each Prompt Lab question or branch is 1 · article generation on Professional and up: 13 publishing targets (trial: WordPress), articles in Turkish and English',
     // Plan names are NOT kept here — single source is apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Custom',
 

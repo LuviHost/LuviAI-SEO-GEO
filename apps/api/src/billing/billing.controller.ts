@@ -36,8 +36,11 @@ export class BillingController {
    * olcum hakki. Panel butonlari bunu okuyup kilitlenir; asil kapi sunucuda.
    */
   @Get('measurement-allowance')
-  measurementAllowance(@Req() req: Request) {
-    return this.measurement.status((req as any).user);
+  measurementAllowance(@Req() req: Request, @Query('siteId') siteId?: string) {
+    // Hak site basina (18.11.2026): panel site sayfasindan siteId ile sorar. Anahtar kullanici
+    // kimligini de icerdigi icin baskasinin site kimligi yalniz bos (kendi) bir hak dondurur.
+    const sid = typeof siteId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(siteId) ? siteId : null;
+    return this.measurement.status((req as any).user, sid);
   }
 
   /**

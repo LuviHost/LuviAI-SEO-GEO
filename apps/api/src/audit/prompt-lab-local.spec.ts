@@ -287,3 +287,35 @@ describe('PromptLabService — site basina aktif soru tavani (plans.ts PROMPTS_P
     expect(svc.runPrompt).toHaveBeenCalledTimes(10);
   });
 });
+
+describe('PromptLabService — olculmus sorunun metni degisirse yeni soru (18.11.2026)', () => {
+  const soru = (extra: Row = {}) => ({
+    id: 'q1', siteId: 's1', trackedAppId: null, text: 'Izmir rulman distributoru kim', intent: 'commercial', locale: 'tr',
+    source: 'manual', tags: null, isActive: true, lastRunAt: null, lastCitedCount: 0, lastTotalCount: 0, createdAt: new Date(), ...extra,
+  });
+
+  it('hic olculmemis soru yerinde duzelir', async () => {
+    const prisma = fakePrisma({ prompts: [soru()] });
+    const out: any = await service(prisma).svc.update('s1', 'q1', { text: 'Izmir rulman bayisi kim' });
+    expect(out.id).toBe('q1');
+    expect(prisma.prompts).toHaveLength(1);
+    expect(prisma.prompts[0].text).toBe('Izmir rulman bayisi kim');
+  });
+
+  it('olculmus soru: eski pasife alinir, yeni metin yeni soru olur; gecmis eski soruda kalir', async () => {
+    const prisma = fakePrisma({ prompts: [soru({ lastRunAt: new Date('2026-11-10') })] });
+    const out: any = await service(prisma).svc.update('s1', 'q1', { text: 'Izmir rulman bayisi kim' });
+    expect(out.replacedPromptId).toBe('q1');
+    expect(out.id).not.toBe('q1');
+    const eski = prisma.prompts.find((p) => p.id === 'q1')!;
+    expect(eski).toMatchObject({ isActive: false, text: 'Izmir rulman distributoru kim' });
+    expect(prisma.prompts.find((p) => p.id === out.id)).toMatchObject({ isActive: true, text: 'Izmir rulman bayisi kim', intent: 'commercial' });
+  });
+
+  it('yalniz buyuk / kucuk harf ya da bosluk farki yeni soru acmaz', async () => {
+    const prisma = fakePrisma({ prompts: [soru({ lastRunAt: new Date('2026-11-10') })] });
+    const out: any = await service(prisma).svc.update('s1', 'q1', { text: 'IZMIR rulman distributoru kim' });
+    expect(out.id).toBe('q1');
+    expect(prisma.prompts).toHaveLength(1);
+  });
+});

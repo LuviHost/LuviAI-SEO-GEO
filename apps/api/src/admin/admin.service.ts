@@ -1,5 +1,7 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { planAssignmentData, type AssignablePlan } from './plan-assignment.js';
+import { accountLimitsView, normalizeAccountLimits } from './account-limits.js';
 import { attemptEmailHtml, reportOfResult } from '../audit/public-check-report-email.js';
 import { summaryOfResult } from '../audit/public-check-attempt.js';
 import { containsBrand } from '../audit/brand-in-query.js';
@@ -104,6 +106,29 @@ export class AdminService {
     });
     new Logger('AdminPlan').log(`Plan elle atandi: ${userId} ${before.plan} → ${plan} (yonetici ${adminId})`);
     return user;
+  }
+
+  /** Hesap ayarlari gorunumu — account-limits.ts */
+  async getUserLimits(userId: string) {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true, role: true, disabledEngines: true, promptsPerSiteOverride: true },
+    });
+    if (!u) throw new NotFoundException('Kullanıcı bulunamadı');
+    return accountLimitsView(u);
+  }
+
+  async setUserLimits(userId: string, input: { disabledEngines: string[]; promptsPerSite: number | null }, adminId: string) {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
+    if (!u) throw new NotFoundException('Kullanıcı bulunamadı');
+    const data = normalizeAccountLimits(u.plan, input);
+    const saved = await this.prisma.user.update({
+      where: { id: userId },
+      data: { disabledEngines: data.disabledEngines ?? Prisma.DbNull, promptsPerSiteOverride: data.promptsPerSiteOverride },
+      select: { plan: true, role: true, disabledEngines: true, promptsPerSiteOverride: true },
+    });
+    new Logger('AdminLimits').log(`Hesap ayari: ${userId} kapali=[${(data.disabledEngines ?? []).join(',')}] soru=${data.promptsPerSiteOverride ?? 'plan'} (yonetici ${adminId})`);
+    return accountLimitsView(saved);
   }
 
   async listTenants() {

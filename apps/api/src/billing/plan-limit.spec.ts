@@ -147,7 +147,7 @@ describe('QuotaService plan siniri hatalari kod ve yukseltme yolu tasir', () => 
   it('aylik AI calistirma tavani: Baslangic Profesyonel\'e, Profesyonel teklife', async () => {
     const start = await limitBody(() => new QuotaService(fakePrisma({ plan: 'STARTER', aiCitationTestsThisMonth: starter.aiRunsPerMonth })).enforceCitationQuota('u1'));
     expect(start).toMatchObject({ code: PLAN_LIMIT_CODE, upgrade: { kind: 'buy', planId: 'pro' } });
-    const full = await limitBody(() => new QuotaService(fakePrisma({ plan: 'PRO', aiCitationTestsThisMonth: 75 })).enforceCitationQuota('u1'));
+    const full = await limitBody(() => new QuotaService(fakePrisma({ plan: 'PRO', aiCitationTestsThisMonth: pro.aiRunsPerMonth })).enforceCitationQuota('u1'));
     expect(full).toMatchObject({ code: PLAN_LIMIT_CODE, upgrade: { kind: 'quote', planId: 'enterprise' } });
   });
 
@@ -237,10 +237,13 @@ describe('durustluk kurali: onerilen plan duvari GERCEKTEN kaldirir', () => {
     expect(dusen.upgrade).toEqual({ kind: 'quote', planId: 'enterprise', planName: enterprise.name_tr });
     expect(dusen.message).not.toContain(starter.name_tr);
     expect(dusen.message).toContain('şu an 5 siten var');
-    // 3 sitesi olan dusen hesap: Baslangic (2) atlanir, Profesyonel (5) onerilir
+    // 18.11.2026: Baslangic 1, Profesyonel 2 site. 3 sitesi olan dusen hesabi Profesyonel de kaldirmaz → teklif
     const uc = await limitBody(() => new QuotaService(fakePrisma({ plan: 'TRIAL' }, { sites: 3 })).enforceSiteQuota('u1'));
-    expect(uc.upgrade).toEqual({ kind: 'buy', planId: 'pro', planName: pro.name_tr });
-    expect(uc.message).toContain(`${pro.name_tr} planında ${pro.sites} siteye kadar`);
+    expect(uc.upgrade).toEqual({ kind: 'quote', planId: 'enterprise', planName: enterprise.name_tr });
+    // 1 sitesi olan dusen hesap: Baslangic (1) atlanir, Profesyonel (2) onerilir
+    const bir = await limitBody(() => new QuotaService(fakePrisma({ plan: 'TRIAL' }, { sites: 1 })).enforceSiteQuota('u1'));
+    expect(bir.upgrade).toEqual({ kind: 'buy', planId: 'pro', planName: pro.name_tr });
+    expect(bir.message).toContain(`${pro.name_tr} planında ${pro.sites} siteye kadar`);
   });
 
   it('uygulama siniri da kullanima gore', async () => {
@@ -395,7 +398,9 @@ describe('sinir cumlesi yola ve hesaba gore', () => {
     expect(otuz.upgrade).toEqual({ kind: 'buy', planId: 'pro', planName: pro.name_tr });
     expect(otuz.message).toContain(`(30/3); bu hak yenilenmez. Devam etmek için ${pro.name_tr} plana geçebilirsin.`);
     expect(otuz.message).not.toContain(starter.name_tr);
-    const seksen = await limitBody(() => new QuotaService(fakePrisma({ plan: 'TRIAL', aiCitationTestsThisMonth: 80 }, { everPaid: true })).enforceCitationQuota('u1'));
+    // 18.11.2026: Profesyonel 200 calistirma — 250 kullanan hesaba Profesyonel duvari kaldirmaz
+    expect(pro.aiRunsPerMonth).toBeLessThan(250);
+    const seksen = await limitBody(() => new QuotaService(fakePrisma({ plan: 'TRIAL', aiCitationTestsThisMonth: 250 }, { everPaid: true })).enforceCitationQuota('u1'));
     expect(seksen.upgrade).toEqual({ kind: 'quote', planId: 'enterprise', planName: enterprise.name_tr });
     expect(seksen.message).toContain(`Devam etmek için ${enterprise.name_tr} planı teklifle sunuluyor.`);
     // Gercek deneme (3/3): son cumle dugmenin soyledigi plani soyler ("bir plan seçebilirsin" degil)
@@ -433,19 +438,20 @@ describe('sinir cumlesi yola ve hesaba gore', () => {
   });
 
   it('gereken calistirma kalan haktan fazlaysa onerilen plan o calistirmayi kaldirmali; plan okunamazsa oneri yok', async () => {
-    // Baslangic 20 hak, 18 kullanilmis, 60 soruluk is: Profesyonel (75) 18 + 60 = 78'i kaldirmaz
+    // Baslangic 20 hak, 18 kullanilmis, 80 soruluk is: Profesyonel (80) 18 + 80 = 98'i kaldirmaz
+    expect(pro.aiRunsPerMonth).toBe(80);
     const q = new QuotaService(fakePrisma({ plan: 'STARTER' }));
-    expect(await q.citationUpgradeFor('u1', 20, 18 + 60 - 1)).toEqual({ kind: 'quote', planId: 'enterprise', planName: enterprise.name_tr });
+    expect(await q.citationUpgradeFor('u1', 20, 18 + 80 - 1)).toEqual({ kind: 'quote', planId: 'enterprise', planName: enterprise.name_tr });
     expect(await q.citationUpgradeFor('u1', 20, 18 + 5 - 1)).toEqual({ kind: 'buy', planId: 'pro', planName: pro.name_tr });
     expect(await new QuotaService(fakePrisma({ plan: 'STARTER' }, { userHata: true })).citationUpgradeFor('u1', 20)).toEqual(WAIT);
   });
 
   it('isi haritasi / uygulama soru laboratuvari: hak bitince plan siniri, kendi anahtar (BYOK) vaadi yok', async () => {
-    const err = await new QuotaService(fakePrisma({ plan: 'PRO' })).citationQuotaError('u1', { limit: 75, used: 75 }, { byokNote: false });
+    const err = await new QuotaService(fakePrisma({ plan: 'PRO' })).citationQuotaError('u1', { limit: 200, used: 200 }, { byokNote: false });
     const body = err.getResponse() as { message: string; code: string; upgrade: UpgradeOffer };
     expect(body.code).toBe(PLAN_LIMIT_CODE);
     expect(body.upgrade).toMatchObject({ kind: 'quote', planId: 'enterprise' });
-    expect(body.message).toBe(`Aylık 75 AI görünürlük çalıştırması hakkın doldu (75/75). Hak yeni ayda yenilenir. Daha fazlası için ${enterprise.name_tr} planı teklifle sunuluyor.`);
+    expect(body.message).toBe(`Aylık 200 AI görünürlük çalıştırması hakkın doldu (200/200). Hak yeni ayda yenilenir. Daha fazlası için ${enterprise.name_tr} planı teklifle sunuluyor.`);
     expect(body.message).not.toMatch(/BYOK/);
   });
 });

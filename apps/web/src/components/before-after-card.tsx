@@ -46,7 +46,7 @@ export function BeforeAfterCard({ data }: { data: any }) {
         <p className="text-sm text-muted-foreground mt-1.5">
           Şu an <strong>{g.enginesNow}/{g.totalEngines}</strong> AI asistanının cevabında görünüyorsun (markan anılıyor ya da sitene atıf var)
           {g.lastAvg !== null && <>, ort. skor <strong>{g.lastAvg}</strong></>}. Bu senin <strong>başlangıç noktan</strong>.
-          Yeni ölçüm yaptıkça (her hesap 7 günde 1 AI ölçümü yapabilir) değişimi burada göreceksin.
+          Yeni ölçüm yaptıkça (her site 7 günde 1, ayda en fazla 4 kez ölçülür) değişimi burada göreceksin.
         </p>
       </div>
     );

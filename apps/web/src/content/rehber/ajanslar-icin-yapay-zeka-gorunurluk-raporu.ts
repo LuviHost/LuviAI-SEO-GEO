@@ -16,7 +16,7 @@ import { SRC } from './sources';
  *  - Beyaz etiket YOK: agency whitelabel ayarlari kaydediliyor ama uygulanmiyor ve satilmiyor (glossary.ts notu).
  *  - Olcum hesap basina 7 gunde 1 ve TUM siteler ayni hakki paylasir (billing/measurement-allowance.ts,
  *    /faq); gunluk otomatik olcum uretimde kapali. Ajans icin belirleyici sinir — acikca yaziyor.
- *  - Profesyonel 5 site, Kurumsal 50 site + REST API + MCP (plans.ts). Kurumsal fiyati YAZILMAZ (teklifle).
+ *  - Profesyonel 2 site, Kurumsal 50 site + REST API + MCP (plans.ts). Kurumsal fiyati YAZILMAZ (teklifle).
  * Ekip koltugu / musteri girisi hakkinda iddia YOK (agency daveti kodda var, satilan planda dogrulanmadi).
  */
 export const article: RehberArticle = {
@@ -88,7 +88,7 @@ export const article: RehberArticle = {
           caption: 'Ajanslar için özellikler (satıcı sayfaları; erişim tarihleri kaynak satırında)',
           head: ['Ürün', 'Ajanslar için yazdığı', 'Fiyat (satıcı sayfası)'],
           rows: [
-            ['RanksUp (bizim ürünümüz)', 'Profesyonel planda 5 site, Kurumsal planda 50 site. Müşteri raporu PDF ve süreli paylaşım bağlantısıyla (tüm planlarda). Raporda “RanksUp ile hazırlandı” yazar, kendi logonla rapor yok. Ölçüm hakkı hesap başına haftada bir; siteler paylaşır. REST API ve MCP Kurumsal planda', 'Profesyonel $349/ay, KDV dahil; Kurumsal teklifle'],
+            ['RanksUp (bizim ürünümüz)', 'Profesyonel planda 2 site, Kurumsal planda 50 site. Müşteri raporu PDF ve süreli paylaşım bağlantısıyla (tüm planlarda). Raporda “RanksUp ile hazırlandı” yazar, kendi logonla rapor yok. Ölçüm hakkı site başına haftada bir, ayda en fazla 4. REST API ve MCP Kurumsal planda', 'Profesyonel $349/ay, KDV dahil; Kurumsal teklifle'],
             ['AIWATCH', 'Profesyonel pakette 5 markaya kadar, HTML ve PDF raporlar; Kurumsal pakette API erişimi ve white-label rapor', 'Fiyat yayımlanmıyor; teklifle'],
             ['GEON', 'Enterprise kartı “Ajanslar & Çoklu marka”: sınırsız çalışma alanı (prompt kredisi ortak), günlük tarama ve rapor', 'Enterprise fiyat kartında $259/ay, 200 prompt/ay'],
             ['Geovium', 'Ajans paketi: 10 çalışma alanı, 10 kullanıcı, çalışma alanı başına 25 takip edilen soru; raporlar ve CSV dışa aktarım', 'Ajans paketi 29.990 TL + KDV/ay'],
@@ -137,8 +137,8 @@ export const article: RehberArticle = {
         {
           t: 'ul',
           items: [
-            '**Ne sunuyor:** Her site için ayrı soru seti, rakip listesi ve marka sesi. Müşteri raporu SEO, GEO ve yapay zekâ görünürlük sonuçlarını tek belgede toplar; PDF olarak indirilir ya da 7, 30 ya da 90 gün geçerli bir bağlantıyla paylaşılır. Bağlantı, paylaşıldığı andaki raporu gösterir. İki ölçümü yan yana koyan bir karşılaştırma raporu da var. Haftalık e-posta özeti hesap sahibine gider ve Search Console verisini (tıklama, gösterim, sıra) ile yayınlanan makaleleri içerir; yapay zekâ görünürlük verisi içermez. Profesyonel planda 5 site; Kurumsal planda 50 site, REST API ve MCP sunucusu.',
-            '**Sınırları:** Ölçüm hesap başına 7 günde birdir ve tüm siteler bu hakkı paylaşır; çok müşterili bir ajans için belirleyici sınır budur. Kendi logonla (beyaz etiket) rapor yok; raporda “RanksUp ile hazırlandı” yazar. Copilot ölçülmez.',
+            '**Ne sunuyor:** Her site için ayrı soru seti, rakip listesi ve marka sesi. Müşteri raporu SEO, GEO ve yapay zekâ görünürlük sonuçlarını tek belgede toplar; PDF olarak indirilir ya da 7, 30 ya da 90 gün geçerli bir bağlantıyla paylaşılır. Bağlantı, paylaşıldığı andaki raporu gösterir. İki ölçümü yan yana koyan bir karşılaştırma raporu da var. Haftalık e-posta özeti hesap sahibine gider ve Search Console verisini (tıklama, gösterim, sıra) ile yayınlanan makaleleri içerir; yapay zekâ görünürlük verisi içermez. Profesyonel planda 2 site; Kurumsal planda 50 site, REST API ve MCP sunucusu.',
+            '**Sınırları:** Her site 7 günde bir, ayda en fazla 4 kez ölçülür; çok müşterili bir ajans için belirleyici sınır plandaki site sayısıdır. Kendi logonla (beyaz etiket) rapor yok; raporda “RanksUp ile hazırlandı” yazar. Copilot ölçülmez.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility', 'ranksup-panel'],
         },

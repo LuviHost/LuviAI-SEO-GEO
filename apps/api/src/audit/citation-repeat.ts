@@ -62,7 +62,14 @@
  *    AI_BUDGET_ANTHROPIC_USD ile buyutulur.
  */
 
-export const CITATION_TEKRAR_VARSAYILAN = 3;
+/**
+ * 18.11.2026 sahip karari (3 → 1): "ayni sorulari ayda 4 kere soracagiz, bu yeterli degil mi?" —
+ * hak site basina haftada 1 oldugunda tekrar haftalar arasinda birikir; 3 tekrar Profesyonel'in
+ * (o gunku) 5 sitesinde ayda 300 sorgu (en kotu ~283 USD) demekti, 1 tekrarla 100 (~94 USD); Profesyonel
+ * ayni gun 2 siteye indi. Env ile
+ * (CITATION_TEKRAR) yine 1–5 arasi degistirilebilir.
+ */
+export const CITATION_TEKRAR_VARSAYILAN = 1;
 export const CITATION_TEKRAR_MIN = 1;
 export const CITATION_TEKRAR_MAX = 5;
 

@@ -8,7 +8,7 @@ import { AiCitationService } from './ai-citation.service.js';
 import { siteMeasurementVersion } from './host-match.js';
 import { ownerEngines } from '../billing/plan-engines.js';
 import {
-  gorunmeAraligi, gorunmeSayaci, olcumBelirsizligi, soruSayisi, tekrarSayisi, wilsonAraligi,
+  gorunmeAraligi, gorunmeSayaci, olcumBelirsizligi, soruSayaclari, soruSayisi, tekrarSayisi, wilsonAraligi,
   type GorunmeAraligi, type GorunmeSayaci, type GunKosumu, type OlcumBelirsizligi, type TrendRef,
 } from './visibility-interval.js';
 
@@ -25,6 +25,7 @@ const gunNo = (date: string) => Math.floor(Date.parse(`${date}T00:00:00Z`) / DAY
 function gunKosumuOf(date: string, runAt: Date, matchVersion: number, providers: unknown): GunKosumu {
   const list = Array.isArray(providers) ? (providers as Array<Partial<RunProvider>>) : [];
   const asistanlar: Record<string, GorunmeSayaci> = {};
+  const sorular: Record<string, Record<string, GorunmeSayaci>> = {};
   let tekrar = 1;
   const tumProbe: RunProvider['probes'] = [];
   for (const p of list) {
@@ -32,9 +33,10 @@ function gunKosumuOf(date: string, runAt: Date, matchVersion: number, providers:
     const probes = Array.isArray(p.probes) ? p.probes : [];
     tumProbe.push(...probes);
     asistanlar[p.provider] = gorunmeSayaci(probes);
+    sorular[p.provider] = soruSayaclari(probes as any);
     tekrar = Math.max(tekrar, typeof p.tekrar === 'number' ? p.tekrar : tekrarSayisi(probes));
   }
-  return { date, runAt: runAt.toISOString(), matchVersion, asistanlar, tekrar, soruSayisi: soruSayisi(tumProbe) };
+  return { date, runAt: runAt.toISOString(), matchVersion, asistanlar, sorular, tekrar, soruSayisi: soruSayisi(tumProbe) };
 }
 
 /**
@@ -396,7 +398,7 @@ export class AiCitationTrackerService {
     try {
       const site = await (this.prisma as any).site?.findUnique?.({
         where: { id: siteId },
-        select: { user: { select: { plan: true, role: true } } },
+        select: { user: { select: { plan: true, role: true, disabledEngines: true } } },
       });
       if (!site?.user) return null;
       return new Set<string>(ownerEngines(site.user));
@@ -465,7 +467,11 @@ export class AiCitationTrackerService {
       const ayniSurum = surum === null ? 0 : await this.prisma.aiCitationRun.count({ where: { siteId, matchVersion: surum } });
 
       return {
-        olcum: { ...olcumBelirsizligi(gunKosumlari, trends), onSonuc: ayniSurum === 1 },
+        // Ön sonuç: guncel yontemle tek olcum VAR ya da soru seti tamamen degisti (ortak soru yok)
+        olcum: (() => {
+          const ob = olcumBelirsizligi(gunKosumlari, trends);
+          return { ...ob, onSonuc: ayniSurum === 1 || (ob.soruSeti !== null && ob.soruSeti.ortak === 0) };
+        })(),
         gunTekrar: new Map(gunKosumlari.map((g) => [g.date, g.tekrar])),
       };
     } catch (err: any) {

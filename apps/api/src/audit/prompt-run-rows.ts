@@ -1,0 +1,49 @@
+import { citationMatchVersion } from './host-match.js';
+import { sourceColumns } from './citation-sources.js';
+import { isErrorProbe } from './citation-score.js';
+import type { CitationProbe } from './ai-citation.service.js';
+
+/**
+ * GeoPromptRun satirlari — TEK YER (18.11.2026). Prompt Lab'in kendi olcumu (prompt-lab.service
+ * persistRuns) ve GEO Lab sorularini soran site olcumu ("Yeniden Test", ai-citation.service
+ * runForSite) ayni satiri yazar: GEO Lab'deki son sonuc, soru gecmisi ve icerik firsatlari iki
+ * olcumu de gorur. Hata probe'u (ve Google'in cevap gostermedigi 'YOK:') satir olmaz.
+ */
+export function promptRunRows(
+  siteId: string,
+  promptId: string,
+  fanoutId: string | null,
+  date: Date,
+  rows: Array<{ provider: string; probe: CitationProbe }>,
+  tier?: 'standard' | 'premium',
+) {
+  return rows
+    .filter((r) => !isErrorProbe(r.probe))
+    .map(({ provider, probe }) => ({
+      siteId,
+      promptId,
+      fanoutId,
+      provider,
+      date,
+      cited: !!probe.cited,
+      brandMentioned: !!probe.brandMentioned,
+      // Sorunun KENDISINDE marka geciyorsa bu satir manset gorunurluk metriklerine girmez.
+      // Deger buildProbe'un damgasindan gelir — kural tek kod yolunda yasar.
+      brandInQuery: probe.brandInQuery ?? false,
+      position: probe.position ?? null,
+      sentiment: probe.sentiment ?? null,
+      excerpt: probe.excerpt?.slice(0, 2000) ?? null,
+      citedPages: probe.citedPages?.length ? probe.citedPages : undefined,
+      competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
+      // Alintilanan dis kaynaklar (GEO Faz 2) — bkz. citation-sources.ts
+      ...sourceColumns(probe),
+      // Kademe de surumde (hizli model = +100): kademesi farkli iki satir kiyaslanmaz
+      matchVersion: citationMatchVersion(tier),
+    }));
+}
+
+/** Soru ozeti (GeoPrompt.lastCitedCount / lastTotalCount) — gecerli probe'lardan */
+export function promptRunSummary(rows: Array<{ probe: CitationProbe }>): { cited: number; total: number } {
+  const valid = rows.filter((r) => !isErrorProbe(r.probe));
+  return { cited: valid.filter((r) => r.probe.cited).length, total: valid.length };
+}

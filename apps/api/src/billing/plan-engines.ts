@@ -30,7 +30,17 @@ import {
  */
 export const FREE_TEST_ENGINES: readonly MeasurementEngine[] = STANDARD_ENGINES;
 
-type Owner = { plan?: string | null; role?: string | null } | null | undefined;
+type Owner = { plan?: string | null; role?: string | null; disabledEngines?: unknown } | null | undefined;
+
+/**
+ * Yoneticinin bu hesapta KAPATTIGI asistanlar (User.disabledEngines, 18.11.2026). Yalniz cikarir:
+ * planin kapsaminda olmayan bir asistan buradan acilamaz. Bozuk / bos deger = hicbiri kapali.
+ */
+export function disabledEnginesOf(raw: unknown): MeasurementEngine[] {
+  if (!Array.isArray(raw)) return [];
+  const bilinen = new Set<string>([...BASE_ENGINES, ...CONDITIONAL_ENGINES]);
+  return raw.filter((e): e is MeasurementEngine => typeof e === 'string' && bilinen.has(e));
+}
 
 function planIdOf(owner: Owner): PlanId | null {
   const id = String(owner?.plan ?? '').toLowerCase();
@@ -41,7 +51,9 @@ function planIdOf(owner: Owner): PlanId | null {
 export function ownerEngines(owner: Owner): MeasurementEngine[] {
   if (owner?.role === 'ADMIN') return [...BASE_ENGINES, ...CONDITIONAL_ENGINES];
   const plan = planIdOf(owner);
-  return plan ? planEngines(plan) : [...STANDARD_ENGINES, ...GOOGLE_SURFACES];
+  const kapsam = plan ? planEngines(plan) : [...STANDARD_ENGINES, ...GOOGLE_SURFACES];
+  const kapali = new Set<string>(disabledEnginesOf(owner?.disabledEngines));
+  return kapali.size ? kapsam.filter((e) => !kapali.has(e)) : kapsam;
 }
 
 /** Bu sahibin olcumlerinde kullanilan model kademesi */

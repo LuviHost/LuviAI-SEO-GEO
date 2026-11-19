@@ -30,10 +30,10 @@ describe('setupMeasurementLimit — sayi plans.ts site sinirindan gelir (kopya y
     }
   });
 
-  it('sahibin onayladigi sayilar: deneme 1, Baslangic 1 (18.11.2026), Profesyonel 5, Ajans 15, Kurumsal 50', () => {
+  it('sahibin onayladigi sayilar: deneme 1, Baslangic 1, Profesyonel 2 (18.11.2026), Ajans 15, Kurumsal 50', () => {
     // plans.ts site sinirlari degisirse bu sinir da degisir: bilerek yapildigini bu satir sordurur
     expect(Object.fromEntries(['TRIAL', 'STARTER', 'PRO', 'AGENCY', 'ENTERPRISE'].map((p) => [p, setupMeasurementLimit(p)])))
-      .toEqual({ TRIAL: 1, STARTER: 1, PRO: 5, AGENCY: 15, ENTERPRISE: 50 });
+      .toEqual({ TRIAL: 1, STARTER: 1, PRO: 2, AGENCY: 15, ENTERPRISE: 50 });
   });
 
   it('bilinmeyen / bos plan en dar sinira (deneme) duser', () => {
@@ -67,22 +67,22 @@ describe('decideSetupMeasurement — hesap tavani (kayan 30 gunde N)', () => {
     const birAnGenc = [{ host: 'eski.com', at: ago(30 * DAY - 1) }];
     expect(decideSetupMeasurement(NOW, birAnGenc, 'TRIAL', 'USER', 'yeni.com'))
       .toEqual({ allowed: false, reason: 'account', limit: 1, used: 1 });
-    // Karisik: 5 kayittan 2'si pencere disinda → Profesyonel'de (5) yer var
-    const karisik = [...kayitlar(3, 2), ...kayitlar(2, 45).map((r, i) => ({ ...r, host: `eski${i}.com` }))];
+    // Karisik: 3 kayittan 2'si pencere disinda → Profesyonel'de (2) yer var
+    const karisik = [...kayitlar(1, 2), ...kayitlar(2, 45).map((r, i) => ({ ...r, host: `eski${i}.com` }))];
     expect(decideSetupMeasurement(NOW, karisik, 'PRO', 'USER', 'yeni.com').allowed).toBe(true);
   });
 
   it('paket yukselince tavan da yukselir (ayni kayitlar, yeni plan)', () => {
-    const iki = kayitlar(2);
-    expect(decideSetupMeasurement(NOW, iki, 'STARTER', 'USER', 'yeni.com').allowed).toBe(false);
-    expect(decideSetupMeasurement(NOW, iki, 'PRO', 'USER', 'yeni.com').allowed).toBe(true);
+    const bir = kayitlar(1);
+    expect(decideSetupMeasurement(NOW, bir, 'STARTER', 'USER', 'yeni.com').allowed).toBe(false);
+    expect(decideSetupMeasurement(NOW, bir, 'PRO', 'USER', 'yeni.com').allowed).toBe(true);
   });
 });
 
 describe('decideSetupMeasurement — ayni alan adi 30 gunde bir kez (sil + yeniden ekle olcturmez)', () => {
   it('tavanin altinda olsa da ayni alan adi kesilir; baska alan adi kesilmez', () => {
     const r = [kayit('ornek.com', 3)];
-    expect(decideSetupMeasurement(NOW, r, 'PRO', 'USER', 'ornek.com')).toEqual({ allowed: false, reason: 'domain', limit: 5, used: 1 });
+    expect(decideSetupMeasurement(NOW, r, 'PRO', 'USER', 'ornek.com')).toEqual({ allowed: false, reason: 'domain', limit: 2, used: 1 });
     expect(decideSetupMeasurement(NOW, r, 'PRO', 'USER', 'baska.com')).toEqual({ allowed: true, exempt: false });
   });
 

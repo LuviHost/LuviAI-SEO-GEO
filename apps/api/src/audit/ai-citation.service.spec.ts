@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AI_COST_KV_TTL_DAYS, AiCitationService, noPoolKeyReason } from './ai-citation.service.js';
 import { COST_PER_PROBE_USD, DAILY_BUDGET_DEFAULT_USD, PER_USER_BUDGET_SHARE, costPerProbe } from './citation-providers.js';
+import { CITATION_TEKRAR_VARSAYILAN } from './citation-repeat.js';
 
 /** Perplexity'de bir kiracinin gunluk payi (USD) — tavan ve pay degisirse testler kendiliginden uyar */
 const PERPLEXITY_PAYI = DAILY_BUDGET_DEFAULT_USD.perplexity * PER_USER_BUDGET_SHARE;
@@ -344,8 +345,20 @@ describe('runForSite — her soru her asistana N kez (CITATION_TEKRAR)', () => {
   const perplexityCagrilari = (f: ReturnType<typeof perplexityCevaplari>) =>
     f.mock.calls.filter((c) => String(c[0]).includes('api.perplexity.ai'));
 
-  it('varsayilan N=3: soru basina 3 ayri istek; probe damgali, skor ve aralik tum tekrarlardan', async () => {
+  it('varsayilan N=1 (18.11.2026: 3 → 1): ucretli planda soru basina tek istek, probe damgasiz, aralik yine doner', async () => {
     delete process.env.CITATION_TEKRAR;
+    expect(CITATION_TEKRAR_VARSAYILAN).toBe(1);
+    const f = perplexityCevaplari();
+    const pr = (await olcumServisi('PRO').svc.runForSite('s1', 5, { trigger: 'system' })).find((r) => r.provider === 'perplexity')!;
+    expect(perplexityCagrilari(f)).toHaveLength(SORULAR.length);
+    expect(pr).toMatchObject({ available: true, tekrar: 1 });
+    expect(pr.probes).toHaveLength(SORULAR.length);
+    expect(pr.probes.every((p) => p.tekrar === undefined)).toBe(true);
+    expect(pr.gorunme).toMatchObject({ olculen: SORULAR.length });
+  });
+
+  it('CITATION_TEKRAR=3: soru basina 3 ayri istek; probe damgali, skor ve aralik tum tekrarlardan', async () => {
+    process.env.CITATION_TEKRAR = '3';
     const f = perplexityCevaplari();
     const { svc, prisma } = olcumServisi('PRO');
     const res = await svc.runForSite('s1', 5, { trigger: 'system' });
@@ -396,7 +409,7 @@ describe('runForSite — her soru her asistana N kez (CITATION_TEKRAR)', () => {
   });
 
   it('kiraci payi 3 turu kaldirmiyor: tekrar sigan kadar duser (asistan dusmez)', async () => {
-    delete process.env.CITATION_TEKRAR;
+    process.env.CITATION_TEKRAR = '3';
     const bugun = new Date().toISOString().slice(0, 10);
     // perplexity kiraci payi = gunluk tavan x pay (citation-providers); bir tur = 2 soru x tavan.
     // Kalan pay 1.5 turluk birakilir → yalniz 1 tur sigar (sayilar citation-providers tablosundan)

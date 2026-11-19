@@ -5,6 +5,7 @@ import { GeoHeatmapService } from './geo-heatmap.service.js';
 import { POOL_ENV_KEY, costPerProbe } from './citation-providers.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { AsoPromptLabService } from '../aso/aso-prompt-lab.service.js';
+import { findPlan } from '../billing/plans.js';
 
 /**
  * GEO heatmap ve App Prompt Lab aylik calistirma tavanina ve gunluk havuz
@@ -156,7 +157,7 @@ describe('App Prompt Lab — sorulan soru basina 1 calistirma + kiraci butcesi',
 
   it('hak bittiyse saglayici cagrilmadan 403', async () => {
     process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
-    const d = db({ plan: 'PRO', used: 75 });
+    const d = db({ plan: 'PRO', used: findPlan('pro')!.aiRunsPerMonth });
     const spy = vi.fn(async (_k: string, _h: string, _b: string, qs: string[]) => okProbe(qs[0]!));
     (d.citation as any).probeAnthropic = spy;
     const svc = new AsoPromptLabService(d.prisma as any, d.citation, {} as any);

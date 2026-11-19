@@ -7,7 +7,7 @@ import { JobQueueService } from '../jobs/job-queue.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { SessionOnly } from '../auth/session-only.decorator.js';
-import { EmailTestDto, SetUserPlanDto } from './admin.dto.js';
+import { EmailTestDto, SetUserLimitsDto, SetUserPlanDto } from './admin.dto.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -300,6 +300,21 @@ export class AdminController {
   async setUserPlan(@Req() req: Request, @Param('userId') userId: string, @Body() body: SetUserPlanDto) {
     const admin = assertAdmin(req);
     return this.admin.setUserPlan(userId, body.plan, admin.id);
+  }
+
+  /** GET /admin/users/:userId/limits — planin asistanlari (acik/kapali) ve soru tavani */
+  @Get('users/:userId/limits')
+  async userLimits(@Req() req: Request, @Param('userId') userId: string) {
+    assertAdmin(req);
+    return this.admin.getUserLimits(userId);
+  }
+
+  /** POST /admin/users/:userId/limits — asistan kapatma ve soru tavani (account-limits.ts) */
+  @SessionOnly()
+  @Post('users/:userId/limits')
+  async setUserLimits(@Req() req: Request, @Param('userId') userId: string, @Body() body: SetUserLimitsDto) {
+    const admin = assertAdmin(req);
+    return this.admin.setUserLimits(userId, body, admin.id);
   }
 
   @SessionOnly()

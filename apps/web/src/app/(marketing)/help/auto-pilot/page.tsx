@@ -98,7 +98,7 @@ export default function Page() {
       <h3>AI görünürlük ölçümü otomatik değil</h3>
       <p>
         Otomatik günlük ölçüm yoktur. Site eklenirken bir başlangıç ölçümü alınır (hesap başına 30 günde plandaki site sayısı kadar, aynı alan adı için bir kez); sonraki ölçümleri AI Görünürlük
-        sayfasındaki <strong>&ldquo;Yeniden Test&rdquo;</strong> ile sen başlatırsın. Hesap başına 7 günde bir AI ölçümü yapılabilir.
+        sayfasındaki <strong>&ldquo;Yeniden Test&rdquo;</strong> ile sen başlatırsın. Her site 7 günde bir, ayda en fazla 4 kez ölçülebilir.
         Ayrıntılar: <a href="/help/ai-visibility">AI Görünürlük rehberi</a>.
       </p>
 

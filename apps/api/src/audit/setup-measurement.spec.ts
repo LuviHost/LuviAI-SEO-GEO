@@ -108,7 +108,7 @@ describe('reserveSetupMeasurement — karar + kayit tek kosullu yazimda', () => 
 
   it('ayni alan adi 30 gun icinde ikinci kez olculmez (sil + yeniden ekle); baska alan adi olculur', async () => {
     const kv = kvTable(onceki(['ornek.com'], 3));
-    expect(await ayir(kv, 'ornek.com')).toEqual({ allowed: false, reason: 'domain', limit: 5 });
+    expect(await ayir(kv, 'ornek.com')).toEqual({ allowed: false, reason: 'domain', limit: 2 });
     expect(kv.kayitlar()).toHaveLength(1);
     expect((await ayir(kv, 'baska.com')).allowed).toBe(true);
     expect(kv.kayitlar().map((r) => r.host)).toEqual(['ornek.com', 'baska.com']);
@@ -135,10 +135,10 @@ describe('reserveSetupMeasurement — karar + kayit tek kosullu yazimda', () => 
   });
 
   it('ES ZAMANLI kurulumlar tavani asamaz: son yer icin yarisan iki isten yalniz biri olcer', async () => {
-    const kv = kvTable(onceki(['a.com', 'b.com', 'c.com', 'd.com'])); // Profesyonel: 1 yer kaldi
+    const kv = kvTable(onceki(['a.com'])); // Profesyonel (2 site): 1 yer kaldi
     const [r1, r2] = await Promise.all([ayir(kv, 'x.com'), ayir(kv, 'y.com')]);
     expect([r1.allowed, r2.allowed].filter(Boolean)).toHaveLength(1);
-    expect(kv.kayitlar()).toHaveLength(5);
+    expect(kv.kayitlar()).toHaveLength(2);
   });
 
   it('ES ZAMANLI ilk kurulumlar (satir henuz yok): deneme hesabinda (1) ucunden yalniz biri olcer', async () => {
@@ -252,7 +252,7 @@ describe('runSetupMeasurement — kurulumun tek otomatik olcumu', () => {
     expect(r).toEqual({
       skipped: {
         code: 'SETUP_MEASUREMENT_LIMIT',
-        message: 'Otomatik kurulum ölçümü sınırı doldu (30 günde en fazla 5 site); ilk ölçümü haftalık ölçüm hakkınla başlatabilirsin.',
+        message: 'Otomatik kurulum ölçümü sınırı doldu (30 günde en fazla 2 site); ilk ölçümü haftalık ölçüm hakkınla başlatabilirsin.',
         nextAvailableAt: null,
       },
     });
@@ -268,8 +268,8 @@ describe('runSetupMeasurement — kurulumun tek otomatik olcumu', () => {
     const yeniden = kurulum({ kv, site: { url: 'https://www.Ornek.com/' } });
     const r = await runSetupMeasurement({ prisma: yeniden.prisma as any, tracker: yeniden.tracker as any, log: sessiz }, 's-yeni', { now: new Date(NOW.getTime() + 5 * DAY) });
     expect(yeniden.tracker.snapshotSite).not.toHaveBeenCalled();
-    expect(r).toEqual({ skipped: setupLimitSkip('domain', 5) });
-    expect((r as any).skipped.message).toBe(setupLimitMessage('domain', 5));
+    expect(r).toEqual({ skipped: setupLimitSkip('domain', 2) });
+    expect((r as any).skipped.message).toBe(setupLimitMessage('domain', 2));
     // 30 gun dolunca ayni alan adi yeniden olculur
     const sonra = kurulum({ kv, site: { url: 'https://ornek.com' } });
     await runSetupMeasurement({ prisma: sonra.prisma as any, tracker: sonra.tracker as any, log: sessiz }, 's-yeni2', { now: new Date(NOW.getTime() + 31 * DAY) });
@@ -369,7 +369,7 @@ describe('runSetupMeasurement — ayni kurulumun yeniden denemesi olcmez', () =>
   it('kosum okunamazsa yok sayilir; sinir yine de ikinci olcumu keser', async () => {
     const t = kurulum({ kv: kvTable(onceki(['ornek.com'], 0)) });
     t.prisma.aiCitationRun.findFirst.mockImplementation(async () => { throw new Error('db'); });
-    expect(await t.olc()).toEqual({ skipped: setupLimitSkip('domain', 5) });
+    expect(await t.olc()).toEqual({ skipped: setupLimitSkip('domain', 2) });
     expect(t.tracker.snapshotSite).not.toHaveBeenCalled();
   });
 });
@@ -409,7 +409,7 @@ describe('runAudit opts.aiOlcumu — kurulumda denetim asistanlara kendisi sorma
 
   it('sinir doldu: skor null + neden (0 degil, hata degil); ai_citation_low uretilmez; denetimin geri kalani yazilir', async () => {
     const t = denetim();
-    const skipped = setupLimitSkip('account', 5);
+    const skipped = setupLimitSkip('account', 2);
     await t.svc.runAudit('s1', { trigger: 'system', aiOlcumu: async () => ({ skipped }) });
     expect(t.aiCitation.runForSite).not.toHaveBeenCalled();
     expect(t.ai().score).toBeNull();
@@ -493,7 +493,7 @@ describe('kurulum zinciri — TEK olcum hem gecmise hem denetime yazilir', () =>
     expect(t.motor.runForSite).not.toHaveBeenCalled();
     expect(t.runs).toEqual([]);
     expect(t.snapshots).toEqual([]);
-    expect(t.d.ai().skipped).toEqual(setupLimitSkip('domain', 5));
+    expect(t.d.ai().skipped).toEqual(setupLimitSkip('domain', 2));
     expect(t.d.ai().score).toBeNull();
   });
 

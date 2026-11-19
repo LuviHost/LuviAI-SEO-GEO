@@ -38,9 +38,9 @@ describe('enforceCitationQuota mesaji', () => {
   const byokPlan = findPlan(FEATURE_MIN_PLAN.byok)!.name_tr;
 
   it('kota dolunca BYOK icin dogru plani ve haftalik hakki soyler, "sinirsiz" vaat etmez', async () => {
-    const quota = new QuotaService(fakePrisma({ plan: 'STARTER', aiCitationTestsThisMonth: 25 }));
+    const quota = new QuotaService(fakePrisma({ plan: 'STARTER', aiCitationTestsThisMonth: 20 }));
     const msg = await forbiddenMessage(() => quota.enforceCitationQuota('u1'));
-    expect(msg).toContain('(25/25)');
+    expect(msg).toContain('(20/20)');
     expect(msg).toContain(`${byokPlan} planda`);
     expect(msg).toContain('haftalık ölçüm hakkı');
     expect(msg).toContain('yeni ayda yenilenir');
@@ -49,7 +49,7 @@ describe('enforceCitationQuota mesaji', () => {
 
   it('kota dolmadan hata yok, kalan hak doner', async () => {
     const quota = new QuotaService(fakePrisma({ plan: 'PRO', aiCitationTestsThisMonth: 10 }));
-    await expect(quota.enforceCitationQuota('u1')).resolves.toEqual({ remaining: 65, limit: 75 });
+    await expect(quota.enforceCitationQuota('u1')).resolves.toEqual({ remaining: 70, limit: 80 });
   });
 });
 

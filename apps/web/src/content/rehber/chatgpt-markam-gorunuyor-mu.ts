@@ -113,14 +113,14 @@ export const article: RehberArticle = {
       id: 'ranksup-nasil-olcuyor',
       h2: 'RanksUp bunu nasıl ölçüyor?',
       blocks: [
-        { t: 'p', text: 'RanksUp benzer bir yöntemi altı asistanda otomatik uygular. Elle testte önerdiğimiz gibi ücretli planlarda her soru her asistana 3 kez, birbirinden bağımsız sorulur; ücretsiz denemede bir kez. Ölçüm şöyle çalışır:' },
+        { t: 'p', text: 'RanksUp benzer bir yöntemi asistanlarda otomatik uygular: aynı sorular her site için her hafta yeniden sorulur (ayda en fazla 4 ölçüm); bir ölçümde her soru her asistana bir kez sorulur, tekrar haftalar boyunca birikir. Ölçüm şöyle çalışır:' },
         {
           t: 'ul',
           items: [
             'Siten için seçilen en fazla 5 soruyu ChatGPT, Gemini, Claude, Perplexity, Grok ve DeepSeek’e sorar. Ücretsiz denemede ve Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity ölçülür; Grok ve DeepSeek Profesyonel ve üstü planlarda eklenir.',
             'Altı asistanın hepsi ölçümde web’de arama yaparak cevap verir; Perplexity kendi arama altyapısını kullanır.',
             'Puanlama: siten kaynak gösterildiyse 100, marka yalnız anıldıysa 50, hiç geçmiyorsa 0. Marka adı geçen sorular puana girmez.',
-            'Ölçümü sen başlatırsın. Hesap başına 7 günde bir ölçüm yapılır ve tüm sitelerin bu hakkı paylaşır.',
+            'Ölçümü sen başlatırsın. Her site 7 günde bir, ayda en fazla 4 kez ölçülür.',
           ],
           kaynak: ['ranksup-ai-visibility'],
         },

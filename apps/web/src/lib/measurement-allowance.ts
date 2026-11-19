@@ -1,47 +1,54 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 
 /**
  * Haftalik AI olcum hakki — WEB TARAFI SADECE GOSTERIR.
  *
  * Kural ve asil kapi sunucuda (apps/api/src/billing/measurement-allowance.ts):
- * hesap basina 7 gunde 1 olcum; AI testi, Prompt Lab, urun radari, isi
- * haritasi... hepsi ayni hakki paylasir. Buradaki kilit yalnizca kullanicinin
- * 429 almadan once durumu gormesi icin.
+ * 18.11.2026'dan beri hak SITE basina — her site 7 gunde 1, takvim ayinda en fazla 4 kez
+ * olculur; o sitedeki AI testi, Prompt Lab, urun radari, isi haritasi... ayni hakki paylasir.
+ * Buradaki kilit yalnizca kullanicinin 429 almadan once durumu gormesi icin.
  *
- * entitlements.ts ile ayni desen: modul ici tek promise (oturumda tek istek,
- * sonradan mount olan bilesen beklemeden deger alir) + bir olcumden sonra
- * TUM butonlarin birlikte kilitlenmesi icin abone listesi.
+ * Site kimligi adresten okunur (/sites/[id]/...): her site sayfasi kendi sitesinin hakkini
+ * gosterir. Site disinda (adres siteye ait degilse) hesap anahtari sorulur.
+ *
+ * entitlements.ts ile ayni desen: site basina modul ici tek promise + bir olcumden sonra
+ * o sitedeki TUM butonlarin birlikte kilitlenmesi icin abone listesi.
  */
 export type MeasurementAllowance = Awaited<ReturnType<typeof api.getMeasurementAllowance>>;
 
 export const WEEKLY_MEASUREMENT_LIMIT_CODE = 'WEEKLY_MEASUREMENT_LIMIT';
 
-let cache: Promise<MeasurementAllowance | null> | null = null;
-let latest: MeasurementAllowance | null = null;
-const listeners = new Set<(a: MeasurementAllowance | null) => void>();
+const HESAP = '__hesap__';
+const cache = new Map<string, Promise<MeasurementAllowance | null>>();
+const latest = new Map<string, MeasurementAllowance | null>();
+const listeners = new Map<string, Set<(a: MeasurementAllowance | null) => void>>();
 
-function load(): Promise<MeasurementAllowance | null> {
-  if (!cache) {
-    cache = api
-      .getMeasurementAllowance()
+function load(key: string): Promise<MeasurementAllowance | null> {
+  let p = cache.get(key);
+  if (!p) {
+    p = api
+      .getMeasurementAllowance(key === HESAP ? null : key)
       // Hata yutulur: durum bilinmiyorsa kilit gosterilmez, sunucu yine korur.
       .catch(() => null)
       .then((a) => {
-        latest = a;
-        listeners.forEach((fn) => fn(a));
+        latest.set(key, a);
+        listeners.get(key)?.forEach((fn) => fn(a));
         return a;
       });
+    cache.set(key, p);
   }
-  return cache;
+  return p;
 }
 
-/** Bir olcum bittikten (ya da 429 alindiktan) sonra durumu tazele. */
+/** Bir olcum bittikten (ya da 429 alindiktan) sonra durumu tazele — butun siteler. */
 export function refreshMeasurementAllowance(): void {
-  cache = null;
-  void load();
+  const keys = [...listeners.keys()];
+  cache.clear();
+  for (const k of keys) void load(k);
 }
 
 /** Sunucunun haftalik limit hatasi mi? */
@@ -70,16 +77,23 @@ export type UseMeasurementAllowance = {
 };
 
 export function useMeasurementAllowance(): UseMeasurementAllowance {
-  const [allowance, setAllowance] = useState<MeasurementAllowance | null>(latest);
+  const params = useParams<{ id?: string | string[] }>();
+  const raw = params?.id;
+  const siteId = typeof raw === 'string' && raw ? raw : null;
+  const key = siteId ?? HESAP;
+  const [allowance, setAllowance] = useState<MeasurementAllowance | null>(latest.get(key) ?? null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    listeners.add(setAllowance);
-    void load().then(setAllowance);
+    let set = listeners.get(key);
+    if (!set) { set = new Set(); listeners.set(key, set); }
+    set.add(setAllowance);
+    setAllowance(latest.get(key) ?? null);
+    void load(key).then(setAllowance);
     return () => {
-      listeners.delete(setAllowance);
+      listeners.get(key)?.delete(setAllowance);
     };
-  }, []);
+  }, [key]);
 
   const nextMs = allowance?.nextAvailableAt ? Date.parse(allowance.nextAvailableAt) : NaN;
   const blocked = !!allowance?.limited && !allowance.allowed && Number.isFinite(nextMs) && nextMs > now;

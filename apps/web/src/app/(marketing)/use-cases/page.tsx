@@ -15,7 +15,7 @@ import { VitrinBand, VitrinHero, VITRIN_CELL, VITRIN_GRID } from '@/components/v
 // kodda ve operasyonda karsiligi yoktu.
 // 11.11.2026 paket yapisi (api billing/plans.ts): Ajans plani satistan kalkti; Urun Radari ve
 // GEO isi haritasi yeni musteride Kurumsal planda (featureOfferPlan). "Ajans" karti bir KITLE
-// (ajanslar) olarak durur; plan sayilari satistaki planlardan (Profesyonel 5 site / 40 makale,
+// (ajanslar) olarak durur; plan sayilari satistaki planlardan (Profesyonel 2 site / 40 makale,
 // Kurumsal 50 site / 350 makale). Asistan sayisi plana bagli: Baslangic 4, Profesyonel ve ustu 6.
 // public-docs.spec.ts denetler.
 const USE_CASES = {
@@ -52,7 +52,7 @@ const USE_CASES = {
         title: 'Ajans',
         bullets: [
           'Müşteri sitesi başına ayrı marka beyni ve marka sesi',
-          'Profesyonel planda 5 site ve ayda 40 makale; Kurumsal planda 50 site ve ayda 350 makale',
+          'Profesyonel planda 2 site ve ayda 40 makale; Kurumsal planda 50 site ve ayda 350 makale',
           'Ürün Radarı ve GEO ısı haritası (Kurumsal planı)',
           'Haftalık e-posta performans raporu',
         ],
@@ -125,7 +125,7 @@ const USE_CASES = {
         title: 'Agency',
         bullets: [
           'Separate brand brain and brand voice per client site',
-          '5 sites and 40 articles a month on the Professional plan; 50 sites and 350 articles a month on the Enterprise plan',
+          '2 sites and 40 articles a month on the Professional plan; 50 sites and 350 articles a month on the Enterprise plan',
           'Product Radar and GEO Heatmap (Enterprise plan)',
           'Weekly performance report by email',
         ],

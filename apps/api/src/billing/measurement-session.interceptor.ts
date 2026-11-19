@@ -16,10 +16,12 @@ export class MeasurementSessionInterceptor implements NestInterceptor {
   constructor(@Inject(MeasurementAllowanceService) private readonly allowance: MeasurementAllowanceService) {}
 
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const user = ctx.switchToHttp().getRequest<{ user?: { id?: string; role?: string } }>().user;
+    const req = ctx.switchToHttp().getRequest<{ user?: { id?: string; role?: string }; params?: Record<string, string> }>();
+    // Hak site basina (18.11.2026): olcum uclari sites/:siteId/... altinda; site yoksa hesap anahtari
+    const siteId = typeof req.params?.siteId === 'string' && req.params.siteId ? req.params.siteId : null;
     // next.handle() handler'i abone olununca calistirir; abonelik run()'in
     // baglami icinde oldugu icin handler ve alt cagrilari baglami gorur.
-    return from(this.allowance.run(user, () => lastValueFrom(next.handle(), { defaultValue: undefined })));
+    return from(this.allowance.run(req.user, () => lastValueFrom(next.handle(), { defaultValue: undefined }), siteId));
   }
 }
 

@@ -33,7 +33,7 @@ export default function Page() {
       intro="Kullanıcılar artık soruları yapay zekâ asistanlarına da soruyor. RanksUp, sitene uygun sorularda markanın anılıp anılmadığını ve sitenin kaynak gösterilip gösterilmediğini ölçer; duygu, ses payı ve öneri sunar."
       steps={[
         { name: 'AI Görünürlük sayfasına git', text: 'Site menüsü → AI Görünürlük. Üstte AI görünürlük geçmişi grafiği yer alır.' },
-        { name: 'Ölçümü başlat', text: '"Yeniden Test" butonu: planındaki AI asistanlarına (Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity; Profesyonel ve üstünde ayrıca Grok ve DeepSeek) en fazla 5 soru sorulur. Hesap başına haftada bir AI ölçümü yapılabilir.' },
+        { name: 'Ölçümü başlat', text: '"Yeniden Test" butonu: planındaki AI asistanlarına (Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity; Profesyonel ve üstünde ayrıca Grok ve DeepSeek) en fazla 5 soru sorulur. Her site haftada bir, ayda en fazla 4 kez ölçülebilir.' },
         { name: 'Sonuçları incele', text: 'Her asistan için ayrı kart: skor, duygu (olumlu / nötr / olumsuz), ses payı (rakipler) ve markanın cevapta kaçıncı paragrafta geçtiği.' },
         { name: 'GEO yol haritası al', text: 'GEO yol haritası bölümündeki "AI önerisi al" alıntı testini çalıştırır ve 5 uygulanabilir öneri üretir. Bu da haftalık ölçüm hakkını kullanır.' },
         { name: 'Haftalık karşılaştır', text: 'Otomatik günlük ölçüm yoktur. "Yeniden Test" ile aldığın her ölçüm kaydedilir ve grafiğe eklenir; iki ölçümü yan yana karşılaştırabilirsin.' },
@@ -46,17 +46,17 @@ export default function Page() {
 
       <h2>Nasıl çalışır?</h2>
       <p>
-        RanksUp marka beynindeki sorulardan en fazla 5 tanesini (örn. <em>&ldquo;en iyi KOBİ muhasebe yazılımı nedir?&rdquo;</em>)
+        RanksUp, GEO Lab&apos;de takip sorun varsa o soruları (planına göre site başına 5 ya da 10), yoksa marka beynindeki sorulardan en fazla 5 tanesini (örn. <em>&ldquo;en iyi KOBİ muhasebe yazılımı nedir?&rdquo;</em>)
         <strong> AI asistanlarına</strong> sorar: ücretsiz denemede ve Başlangıç planında 4 asistana (ChatGPT, Gemini, Claude, Perplexity),
         Profesyonel ve üstü planlarda 6 asistana (ayrıca Grok ve DeepSeek).
         Cevapta marka adının geçip geçmediği, site adresinin kaynak gösterilip gösterilmediği ve rakiplerin anılıp anılmadığı ölçülür.
       </p>
       <p>
-        Ölçümü sen başlatırsın. Hesap başına 7 günde bir AI ölçümü yapılabilir; AI testi, yol haritası, Prompt Lab ve diğer ölçümler
+        Ölçümü sen başlatırsın. Her site 7 günde bir, ayda en fazla 4 kez ölçülebilir; o sitedeki AI testi, yol haritası, Prompt Lab ve diğer ölçümler
         bu haftalık hakkı paylaşır. Hak kullanıldıysa butonun altında bir sonraki ölçümün açılacağı tarih yazar.
       </p>
       <p>
-        Hak hesap başınadır: tüm sitelerin aynı haftalık hakkı paylaşır. Panelden yeniden başlattığın site taramasındaki AI testi de bu hakka
+        Hak site başınadır: her sitenin kendi haftalık hakkı vardır. Panelden yeniden başlattığın site taramasındaki AI testi de bu hakka
         sayılır; hak o hafta kullanıldıysa tarama AI adımı olmadan tamamlanır. Planına göre ayrıca aylık bir görünürlük çalıştırması tavanı
         vardır: AI testi 1, Prompt Lab&apos;de her soru ve her dal 1 çalıştırma sayılır (<a href="/help/billing">Faturalama</a>).
       </p>
@@ -71,9 +71,9 @@ export default function Page() {
 
       <h3>Tekrar ve güven aralığı</h3>
       <p>
-        AI asistanlarının cevapları aynı soruda bile turdan tura değişir; tek turluk ölçüm kesin sonuç değildir. Bu yüzden ücretli
-        planlarda her soru her asistana birden fazla kez (3 tekrar), birbirinden bağımsız sorulur; ücretsiz denemede bir kez.
-        Skor tüm tekrarlardan hesaplanır. Tekrar sayısı haftalık ölçüm hakkını ve aylık çalıştırma sayacını değiştirmez: bir ölçüm yine 1 sayılır.
+        AI asistanlarının cevapları aynı soruda bile turdan tura değişir; tek turluk ölçüm kesin sonuç değildir. Bu yüzden aynı
+        sorular her site için her hafta yeniden sorulur (ayda en fazla 4 ölçüm); bir ölçümde her soru her asistana bir kez sorulur.
+        Sonucu tek ölçüme değil, haftalar boyunca biriken ölçümlere bakarak değerlendir.
       </p>
       <p>
         Skorun yanındaki <strong>±</strong> değeri, markanın görünme sıklığı (anılma ya da kaynak gösterilme) için %95 güven aralığının

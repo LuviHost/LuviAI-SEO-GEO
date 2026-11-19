@@ -102,7 +102,7 @@ export class PromptLabRunAllJobs {
           job.ran = p.done - p.failed;
         },
       });
-    });
+    }, siteId);
 
     run.then(
       (res) => {
