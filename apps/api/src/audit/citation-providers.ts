@@ -172,6 +172,12 @@ export const PER_USER_BUDGET_SHARE = 0.5;
  * yazilabilecegini sinirlayan frendir. Hesap basi maliyeti bu tavan degil, haftalik olcum hakki
  * ve aylik calistirma hakki sinirlar.
  *
+ * 18.11.2026 GUNCELLEME (hak site basina; "Tümünü çalıştır" dalsiz; site olcumu 1 tekrar): Profesyonel
+ * bir gunde her sitesini bir kez olcebilir. Bir olcumde bir asistana en cok 13 soru gider (site olcumu
+ * 5 x 1; Prompt Lab tavani 10 soru; tek soru + 12 dal = 13). En agir gun: kayit olcumu (5) + 2 site x 13
+ * = 31 soru, HER asistanda (5 siteyken 70). (Yoneticinin hesaba verdigi soru tavani 13'u gecerse
+ * bu hesap kurali o hesap icin gecmez.)
+ *
  * KURAL (11.11.2026, bagimsiz inceleme): kiraci payi (tavan x PER_USER_BUDGET_SHARE), satistaki
  * en yuksek planin (Profesyonel) BIR GUNDE hakki olan en buyuk isi tasimak zorunda:
  *   kurulum / site olcumu (5 soru x 3 tekrar = 15 soru)
@@ -197,7 +203,8 @@ export const PER_USER_BUDGET_SHARE = 0.5;
  */
 export const DAILY_BUDGET_DEFAULT_USD: Readonly<Record<Provider, number>> = {
   anthropic: 60,
-  gemini: 20,
+  // 20 → 16 (18.11.2026): en agir gun 90 → 70 soru; tavan ihtiyacin 1.5 katini gecmesin (spec)
+  gemini: 16,
   openai: 100,
   perplexity: 5,
   xai: 70,

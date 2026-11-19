@@ -1,8 +1,6 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { safeFetchText } from '../common/safe-fetch.js';
-import { citationMatchVersion } from './host-match.js';
-import { sourceColumns } from './citation-sources.js';
 import { AiCitationService, PROVIDER_LABELS, type CitationProbe, type CitationResult, type Provider } from './ai-citation.service.js';
 import { buildLatestRun, type LatestRunView } from './prompt-latest-run.js';
 import { hostOf } from './source-domain-types.js';
@@ -22,6 +20,7 @@ import { formatTrPhone } from './tr-phone.js';
 import { PROMPT_LOCAL_KEY_PREFIX, promptLocalKey } from './prompt-local-key.js';
 import { isErrorProbe as isErrorProbeKurali } from './citation-score.js';
 import { promptsPerSiteFor } from '../billing/plans.js';
+import { promptRunRows } from './prompt-run-rows.js';
 
 /**
  * Prompt Lab — kullanicinin takip ettigi sorulari yonetir ve calistirir.
@@ -232,13 +231,18 @@ export class PromptLabService {
     }));
   }
 
-  /** Site sahibinin planina gore aktif soru tavani (ADMIN: mutlak ust sinir) */
+  /**
+   * Site sahibinin aktif soru tavani: yoneticinin hesaba verdigi deger (User.promptsPerSiteOverride,
+   * 18.11.2026) yoksa planin degeri. ADMIN: mutlak ust sinir.
+   */
   private async promptCap(siteId: string): Promise<number> {
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      select: { user: { select: { plan: true, role: true } } },
+      select: { user: { select: { plan: true, role: true, promptsPerSiteOverride: true } } },
     });
     if (site?.user?.role === 'ADMIN') return MAX_PROMPTS_PER_SITE;
+    const ozel = site?.user?.promptsPerSiteOverride;
+    if (typeof ozel === 'number' && Number.isInteger(ozel) && ozel > 0) return Math.min(MAX_PROMPTS_PER_SITE, ozel);
     return Math.min(MAX_PROMPTS_PER_SITE, promptsPerSiteFor(site?.user?.plan));
   }
 
@@ -306,6 +310,31 @@ export class PromptLabService {
     // create() ile AYNI dogrulama — eskiden update ust siniri uygulamiyordu,
     // create'in reddettigi 10 KB'lik metin PATCH ile iceri giriyordu.
     if (input.text !== undefined) data.text = this.validateText(input.text);
+
+    // OLCULMUS sorunun metni degisirse (18.11.2026): eski soru pasife alinir, yeni metin YENI soru
+    // olarak kaydedilir. Neden: soru bazli karsilastirma (haftalik degisim ortak sorulardan) eski
+    // cevaplari yeni sorunun gecmisi gibi gosterirdi. Hic olculmemis sorunun metni yerinde duzelir.
+    if (data.text !== undefined && prompt.lastRunAt && this.normalize(data.text) !== this.normalize(prompt.text)) {
+      const ayni = await this.findByNormalizedText(siteId, data.text);
+      if (ayni && ayni.id !== prompt.id) {
+        throw new BadRequestException(
+          ayni.isActive ? 'Bu soru zaten takip listesinde' : 'Bu soru pasif olarak kayitli — listeden yeniden aktive edebilirsin',
+        );
+      }
+      const yeni = await this.prisma.geoPrompt.create({
+        data: {
+          siteId,
+          text: data.text,
+          intent: data.intent ?? prompt.intent,
+          locale: prompt.locale,
+          tags: input.tags !== undefined ? mergePromptTags(prompt, input.tags) : (prompt.tags ?? undefined),
+          source: prompt.source,
+          isActive: input.isActive ?? prompt.isActive,
+        },
+      });
+      await this.prisma.geoPrompt.update({ where: { id: promptId }, data: { isActive: false } });
+      return { ...yeni, replacedPromptId: promptId };
+    }
     if (input.intent !== undefined) data.intent = String(input.intent).slice(0, 40);
     if (input.tags !== undefined) data.tags = mergePromptTags(prompt, input.tags);
     if (input.isActive !== undefined) data.isActive = !!input.isActive;
@@ -635,7 +664,11 @@ export class PromptLabService {
     progress();
     for (const p of prompts) {
       try {
-        summaries.push(await this.runPrompt(siteId, p.id, { withFanout: opts.withFanout }));
+        // Dal (fan-out) "Tümünü çalıştır"da KAPALI (18.11.2026): hak site basina oldugundan bir hesap
+        // her siteyi ayni gun olcebilir; dallarla bir istek ayin butun calistirma hakkini ChatGPT /
+        // Claude / Gemini'de tek gunde yakiyordu (soru basina 12 dala kadar). Panel zaten dalsiz
+        // cagirir; dal olcumu tek soruda (runPrompt) acik kalir. Gunluk havuz tavani buna gore.
+        summaries.push(await this.runPrompt(siteId, p.id, { withFanout: false }));
       } catch (err: any) {
         this.log.warn(`Prompt calistirilamadi (${p.id}): ${err.message}`);
         failed.push({ promptId: p.id, error: err.message?.slice(0, 200) ?? 'bilinmeyen hata' });
@@ -944,35 +977,11 @@ export class PromptLabService {
     /** Olcumun model kademesi (runQueries sonucundan); yontem surumu buna gore damgalanir */
     tier?: 'standard' | 'premium',
   ) {
-    const valid = rows.filter((r) => !this.isErrorProbe(r.probe));
-    if (valid.length === 0) return;
+    const data = promptRunRows(siteId, promptId, fanoutId, date, rows, tier);
+    if (data.length === 0) return;
     try {
-      await this.prisma.geoPromptRun.createMany({
-        data: valid.map(({ provider, probe }) => ({
-          siteId,
-          promptId,
-          fanoutId,
-          provider,
-          date,
-          cited: !!probe.cited,
-          brandMentioned: !!probe.brandMentioned,
-          // Sorunun KENDISINDE marka geciyorsa bu satir manset gorunurluk
-          // metriklerine girmez. Deger buildProbe'un damgasindan gelir —
-          // burada yeniden hesaplamak ayni kurali iki kod yolunda yasatmakti:
-          // ikisi ayrisirsa ayni kosum snapshot'ta bir turlu, KPI'da baska
-          // turlu suzulurdu ve hicbir sey gurultuyle patlamazdi.
-          brandInQuery: probe.brandInQuery ?? false,
-          position: probe.position ?? null,
-          sentiment: probe.sentiment ?? null,
-          excerpt: probe.excerpt?.slice(0, 2000) ?? null,
-          citedPages: probe.citedPages?.length ? probe.citedPages : undefined,
-          competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
-          // Alintilanan dis kaynaklar (GEO Faz 2) — bkz. citation-sources.ts
-          ...sourceColumns(probe),
-          // Kademe de surumde (hizli model = +100): kademesi farkli iki satir kiyaslanmaz
-          matchVersion: citationMatchVersion(tier),
-        })),
-      });
+      // Satir kurali tek yerde (prompt-run-rows.ts): site olcumu GEO Lab sorularini sorunca ayni satiri yazar
+      await this.prisma.geoPromptRun.createMany({ data });
     } catch (err: any) {
       // Yazma basarisiz olsa bile ozet bellekten uretildigi icin yanit dogru kalir;
       // sadece gecmis eksilir. Sessizce yutmuyoruz, gorunur log biraliyoruz.

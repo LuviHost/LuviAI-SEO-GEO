@@ -51,7 +51,7 @@ export default function Page() {
       </Step>
       <Step n={4} title="Ölçümler senin anahtarınla yapılır">
         Sonraki AI görünürlük ölçümlerinde o sağlayıcı için senin anahtarın kullanılır. Aylık görünürlük çalıştırması kotan dolsa bile
-        anahtar bağlı sağlayıcılarla ölçüm sürer. Hesap başına haftada bir AI ölçümü kuralı BYOK&apos;ta da geçerlidir.
+        anahtar bağlı sağlayıcılarla ölçüm sürer. Her sitenin haftada bir (ayda en fazla 4) ölçüm kuralı BYOK&apos;ta da geçerlidir.
       </Step>
 
       <h2>Güvenlik</h2>

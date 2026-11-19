@@ -45,13 +45,13 @@ export default function Page() {
           hala satiliyordu. */}
       <h2>Planlar</h2>
       <p>
-        Her planda AI görünürlük ölçümü hesap başına 7 günde 1&apos;dir; planlar ölçüm sıklığında değil, site ve soru sayısında ayrışır. Aylık çalıştırma tavanı haftalık ölçümü kesmeyecek kadar yüksektir; dal ölçümü gibi çok çalıştırma kullanan işlerde devreye girer
+        Her planda her site 7 günde 1, ayda en fazla 4 kez ölçülür; planlar ölçüm sıklığında değil, site ve soru sayısında ayrışır. Aylık çalıştırma tavanı haftalık ölçümü kesmeyecek kadar yüksektir; dal ölçümü gibi çok çalıştırma kullanan işlerde devreye girer
         (ayrıntı aşağıda, <a href="#kotalar">Kotalar</a> bölümünde).
       </p>
       <ul>
         <li><strong>Ücretsiz Deneme</strong> — 2 makale + 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) + 4 AI asistanı + 1 site, en fazla 3 soru (kart gerekmez)</li>
-        <li><strong>Başlangıç</strong> — makale üretimi yok + 1 site, en fazla 5 soru + ayda en fazla 25 çalıştırma + 4 AI asistanı</li>
-        <li><strong>Profesyonel</strong> (en çok tercih edilen) — 40 makale + 5 site, site başına en fazla 10 soru + ayda en fazla 75 çalıştırma + 6 AI asistanı, Apple Search Ads ve App Store Connect dahil</li>
+        <li><strong>Başlangıç</strong> — makale üretimi yok + 1 site, en fazla 5 soru + ayda en fazla 20 çalıştırma + 4 AI asistanı</li>
+        <li><strong>Profesyonel</strong> (en çok tercih edilen) — 40 makale + 2 site, site başına en fazla 10 soru + ayda en fazla 80 çalıştırma + 6 AI asistanı, Apple Search Ads ve App Store Connect dahil</li>
         <li><strong>Kurumsal</strong> (satış ekibiyle, fiyatı teklifle) — 350 makale + 50 site, site başına en fazla 200 soru + ayda en fazla 1.000 çalıştırma + 6 AI asistanı, Product Radar, GEO Heatmap, Live Crawler, BYOK, MCP, REST API, AI maliyet ve token muhasebesi</li>
       </ul>
       <p>
@@ -102,7 +102,7 @@ export default function Page() {
         Site kotası sabittir — plan limitini aşan yeni site eklenemez.
       </p>
       <p>
-        Aylık kotalardan ayrı olarak hesap başına 7 günde 1 AI ölçümü yapılabilir ve tüm sitelerin bu hakkı paylaşır. AI testi, yol haritası,
+        Aylık kotalardan ayrı olarak her site 7 günde 1, ayda en fazla 4 kez ölçülebilir; her sitenin hakkı ayrıdır. AI testi, yol haritası,
         Prompt Lab, panelden başlattığın site taramasındaki AI testi ve diğer ölçümler bu haftalık hakka sayılır; sonuç vermeyen ölçüm hakkı yakmaz.
       </p>
       <p>

@@ -25,6 +25,13 @@ model User {
 
   // Subscription state (PayTR)
   plan               PlanTier           @default(TRIAL)
+  // Yonetici hesap ayarlari (18.11.2026, sahip: "adminden kisiye hangi AI modelleri kullanabilir
+  // tanimlayabilelim", "bu limiti de adminden belirleyelim"). disabledEngines: bu hesapta
+  // SORULMAYAN asistanlar (planin kapsamindan cikarilir, eklenmez; billing/plan-engines.ts
+  // ownerEngines). promptsPerSiteOverride: site basina aktif soru tavani (null = plan degeri;
+  // audit/prompt-lab.service.ts promptCap).
+  disabledEngines        Json?
+  promptsPerSiteOverride Int?
   trialEndsAt        DateTime?
   subscriptionId     String?            @unique // PayTR subscription ID
   subscriptionStatus SubscriptionStatus @default(TRIAL)

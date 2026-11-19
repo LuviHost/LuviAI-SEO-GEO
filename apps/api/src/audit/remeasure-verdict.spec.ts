@@ -98,7 +98,10 @@ describe('sameMethodForBeforeAfter — oncesi / sonrasi yalniz ayni yontemle kiy
     const sayfa = readFileSync(new URL('../../../web/src/app/(dashboard)/sites/[id]/opportunities/page.tsx', import.meta.url), 'utf8');
     expect(sayfa).toContain('(öncesiyle kıyaslanamaz — ölçüm yöntemi değişti)');
     const lab = readFileSync(new URL('./prompt-lab.service.ts', import.meta.url), 'utf8');
-    expect(lab).toContain('matchVersion: citationMatchVersion(tier),');
+    // 18.11.2026: satir kurali prompt-run-rows.ts'e tasindi (site olcumu da ayni satiri yazar)
+    const satir = readFileSync(new URL('./prompt-run-rows.ts', import.meta.url), 'utf8');
+    expect(satir).toContain('matchVersion: citationMatchVersion(tier),');
+    expect(lab).toContain('const data = promptRunRows(siteId, promptId, fanoutId, date, rows, tier);');
     expect(lab).toContain('await this.persistRuns(siteId, promptId, null, today, mainProbeRows, mainResults[0]?.modelTier);');
     expect(lab).toContain('await this.persistRuns(siteId, promptId, branch.id, today, rows, res[0]?.modelTier);');
     expect(lab).not.toContain('matchVersion: CITATION_MATCH_VERSION');

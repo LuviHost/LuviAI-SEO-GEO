@@ -130,9 +130,9 @@ export class QuotaService {
   private readonly LIMITS = {
     TRIAL:      { articles: 2,    sites: 1,  publishTargets: ['MARKDOWN_ZIP', 'WORDPRESS_REST'] as string[], citationTests: 3 },
     // 11.11.2026: Baslangic paketinde makale uretimi yok (plans.ts articlesPerMonth 0)
-    // 18.11.2026: Baslangic 1 site, 25 calistirma (plans.ts; 5 soru x 5 haftalik olcum)
-    STARTER:    { articles: 0,    sites: 1,  publishTargets: 'all' as const,                                  citationTests: 25 },
-    PRO:        { articles: 40,   sites: 5,  publishTargets: 'all' as const,                                  citationTests: 75 },
+    // 18.11.2026: Baslangic 1 site, 20 calistirma; Profesyonel 2 site, 80 (site basina hak: site x 4 x soru)
+    STARTER:    { articles: 0,    sites: 1,  publishTargets: 'all' as const,                                  citationTests: 20 },
+    PRO:        { articles: 40,   sites: 2,  publishTargets: 'all' as const,                                  citationTests: 80 },
     AGENCY:     { articles: 100,  sites: 15, publishTargets: 'all' as const,                                  citationTests: 300 },
     ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000 },
     // Is ortagi (18.11.2026, plans.ts 'partner'): 1 site, 6 makale, haftada 1 x 10 soru

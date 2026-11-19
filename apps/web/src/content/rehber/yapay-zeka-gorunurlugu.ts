@@ -229,10 +229,10 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             'Siten için seçilen en fazla 5 markasız soruyu ChatGPT, Gemini, Claude, Perplexity, Grok ve DeepSeek’e sorar; altı asistan da web’de arama yaparak cevap verir. Ücretsiz denemede ve Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity ölçülür; Grok ve DeepSeek Profesyonel ve üstü planlarda eklenir.',
-            'Ücretli planlarda her soru her asistana 3 kez, birbirinden bağımsız sorulur; ücretsiz denemede bir kez.',
+            'Aynı sorular her site için her hafta yeniden sorulur (ayda en fazla 4 ölçüm); bir ölçümde her soru her asistana bir kez sorulur.',
             'Puanlama: siten kaynak gösterildiyse 100, marka yalnız anıldıysa 50, hiç geçmiyorsa 0. Marka adı geçen sorular puana girmez.',
             'Skorun yanında güven aralığı gösterilir; iki ölçüm arasındaki fark ancak aralıklar örtüşmüyorsa “arttı” ya da “azaldı” diye yazılır.',
-            'Duygu, konum ve rakiplere göre ses payı da ölçülür. Ölçümü sen başlatırsın; hesap başına 7 günde bir ölçüm yapılır.',
+            'Duygu, konum ve rakiplere göre ses payı da ölçülür. Ölçümü sen başlatırsın; her site 7 günde bir, ayda en fazla 4 kez ölçülür.',
           ],
           kaynak: ['ranksup-ai-visibility'],
         },

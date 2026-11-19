@@ -8,6 +8,11 @@ import { withUpgradePath } from '../billing/plan-limit.js';
 import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
 import { FREE_TEST_ENGINES, ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
 import type { ModelTier } from '../billing/plans.js';
+import { promptsPerSiteFor } from '../billing/plans.js';
+import { promptRunRows, promptRunSummary } from './prompt-run-rows.js';
+
+/** Bir olcumde en cok takip sorusu — prompt-lab.service MAX_RUN_ALL ile ayni (dongusel import olmasin diye kopya) */
+const TAKIP_SORU_UST_SINIR = 50;
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
 import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
@@ -337,7 +342,7 @@ export class AiCitationService {
   /**
    * UI icin: bu site/plan kombinasyonunda hangi provider havuzda, hangisi BYOK gerektiriyor?
    */
-  async getProviderStatus(siteId: string, plan: string, role?: string): Promise<Array<{
+  async getProviderStatus(siteId: string, plan: string, role?: string, disabledEngines?: unknown): Promise<Array<{
     provider: Provider;
     label: string;
     inPool: boolean;
@@ -354,7 +359,7 @@ export class AiCitationService {
     // ile ayni kural); yoksa kota karari "BYOK var, devam" deyip havuzsuz
     // calistirmaya izin verir ya da olculemeyecek saglayiciyi bekler.
     const byokOn = this.byokAllowed(plan, role);
-    const kapsam = new Set<Provider>(ownerEngines({ plan, role }));
+    const kapsam = new Set<Provider>(ownerEngines({ plan, role, disabledEngines }));
 
     const providers: Provider[] = ALL_PROVIDERS.filter((p) => kurulumdaVar(p));
     return providers.map(provider => {
@@ -671,7 +676,7 @@ export class AiCitationService {
 
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      include: { brain: true, user: { select: { id: true, plan: true, role: true } } },
+      include: { brain: true, user: { select: { id: true, plan: true, role: true, disabledEngines: true } } },
     });
     if (!site) return [];
 
@@ -681,7 +686,7 @@ export class AiCitationService {
 
     // Plan kapsami (11.11.2026): Baslangic ve deneme dort asistanla olculur; cagiranin
     // istedigi liste de (Prompt Lab dallari, fan-out) kapsamla kesisir.
-    const kapsam = new Set<Provider>(ownerEngines({ plan, role: site.user.role }));
+    const kapsam = new Set<Provider>(ownerEngines({ plan, role: site.user.role, disabledEngines: site.user.disabledEngines }));
     const istenen: Provider[] = opts.providers?.length
       ? opts.providers
       : [...ALL_PROVIDERS];
@@ -692,7 +697,7 @@ export class AiCitationService {
     // vardi; yani sayac artiyordu ama limit hicbir zaman bloklamiyordu ve
     // kotasi dolmus kullanici Prompt Lab uzerinden sinirsiz LLM cagrisi
     // yapabiliyordu (operatorun havuz butcesinden).
-    const status = await this.getProviderStatus(siteId, plan, site.user.role).catch(() => []);
+    const status = await this.getProviderStatus(siteId, plan, site.user.role, site.user.disabledEngines).catch(() => []);
     const poolProviders = new Set(
       status.filter((s: any) => s.effectiveSource === 'pool').map((s: any) => s.provider),
     );
@@ -728,7 +733,7 @@ export class AiCitationService {
 
     const results = await this.measured(trigger, site.user, () => Promise.all(
       effectiveProviders.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors, site.userId, site.user.role)),
-    ));
+    ), siteId);
 
     // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis; sistem kosumu saymaz)
     if (trigger === 'user' && results.some(r => r.source === 'pool' && this.hasRealProbes(r))) {
@@ -756,6 +761,39 @@ export class AiCitationService {
    *   varsayilan 3; deneme planinda 1 — gerekce orada). Tekrar sayisi kota ve
    *   haftalik hakki DEGISTIRMEZ (olcum basina 1); havuz butcesi tur basina sayilir.
    */
+  /**
+   * GEO Lab'deki aktif takip sorulari (uygulama sorulari haric), planin / hesabin soru tavani kadar.
+   * Okunamazsa bos liste: olcum marka beynine duser, kesilmez.
+   */
+  private async trackedQueries(
+    siteId: string,
+    user: { plan?: string | null; role?: string | null; promptsPerSiteOverride?: number | null },
+  ): Promise<Array<{ id: string; text: string }>> {
+    try {
+      const ozel = user?.promptsPerSiteOverride;
+      const tavan = user?.role === 'ADMIN'
+        ? TAKIP_SORU_UST_SINIR
+        : Math.min(TAKIP_SORU_UST_SINIR, typeof ozel === 'number' && ozel > 0 ? ozel : promptsPerSiteFor(user?.plan));
+      const rows = await (this.prisma as any).geoPrompt.findMany({
+        where: { siteId, isActive: true, trackedAppId: null },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, text: true },
+        take: tavan,
+      });
+      const gorulen = new Set<string>();
+      const out: Array<{ id: string; text: string }> = [];
+      for (const r of (rows ?? []) as Array<{ id: string; text: string }>) {
+        const text = String(r.text ?? '').trim();
+        if (!text || gorulen.has(text)) continue;
+        gorulen.add(text);
+        out.push({ id: r.id, text });
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
   async runForSite(
     siteId: string,
     maxProbes = 5,
@@ -774,7 +812,7 @@ export class AiCitationService {
 
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      include: { brain: true, user: { select: { id: true, plan: true, role: true } } },
+      include: { brain: true, user: { select: { id: true, plan: true, role: true, disabledEngines: true, promptsPerSiteOverride: true } } },
     });
     if (!site) return [];
 
@@ -800,9 +838,9 @@ export class AiCitationService {
     //    anahtari olanlar (kullanicinin kendi parasi) calismaya devam eder.
     //    Calistirilabilecek hicbir saglayici kalmiyorsa hata disari firlatilir
     //    ki kullanici sessiz bos sonuc yerine net bir kota mesaji gorsun.
-    const status = await this.getProviderStatus(siteId, plan, site.user.role);
+    const status = await this.getProviderStatus(siteId, plan, site.user.role, site.user.disabledEngines);
     // Plan kapsami (11.11.2026): Baslangic ve deneme dort asistan (billing/plan-engines.ts)
-    const kapsam = new Set<Provider>(ownerEngines({ plan, role: site.user.role }));
+    const kapsam = new Set<Provider>(ownerEngines({ plan, role: site.user.role, disabledEngines: site.user.disabledEngines }));
     let providers: Provider[] = ([...ALL_PROVIDERS] as Provider[])
       .filter((p) => kapsam.has(p) && kurulumdaVar(p));
 
@@ -844,14 +882,19 @@ export class AiCitationService {
         `${site.niche} konusunda en kapsamli rehberler nereden okunabilir?`,
       );
     }
-    const probeQueries = Array.from(new Set(queries)).slice(0, maxProbes);
+    // 18.11.2026 (sahip: "GEO Lab'e soru eklediyse oradan kullansin"): sitenin GEO Lab'de AKTIF takip
+    // sorusu varsa olcum ONLARI sorar (planin / hesabin site basina soru tavani kadar, eklenme
+    // sirasiyla); yoksa marka beyninin ilk `maxProbes` sorusu. Soru seti degisince haftalik kiyas
+    // yalniz ortak sorulardan yapilir (visibility-interval.ts ortakSoruKapsami).
+    const takip = await this.trackedQueries(siteId, site.user);
+    const probeQueries = takip.length > 0 ? takip.map((t) => t.text) : Array.from(new Set(queries)).slice(0, maxProbes);
 
     const uniqueCompetitors = await this.resolveCompetitors(siteId, site.brain, brand);
     const tekrar = opts.tekrar ?? tekrarSayisiFor(plan);
 
     const results = await this.measured(trigger, site.user, () => Promise.all(
       providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors, userId, site.user.role, { tekrar })),
-    ));
+    ), siteId);
 
     // Havuz kullanan en az bir basarili test varsa kota +1.
     // Sistem tetikli calistirmalar sayaci ARTIRMAZ — yukaridaki (1) numarali not.
@@ -862,7 +905,51 @@ export class AiCitationService {
 
     // Kayit yazanlar yontem surumunu kademeden damgalar (host-match siteMeasurementVersion)
     const modelTier = ownerModelTier({ plan, role: site.user.role });
+    if (takip.length > 0) await this.recordTrackedRuns(siteId, takip, results, modelTier);
     return results.map((r) => ({ ...r, modelTier }));
+  }
+
+  /**
+   * GEO Lab sorulariyla yapilan site olcumunu GEO Lab'e de yazar (18.11.2026): soru basina
+   * GeoPromptRun satirlari + son sonuc ozeti. Boylece GEO Lab ekrani, soru gecmisi ve icerik
+   * firsatlari "Yeniden Test"i de gorur — iki olcum tek takip listesi olur. Yazma hatasi olcumu
+   * bozmaz (sonuc bellekten doner), gorunur log birakir.
+   */
+  private async recordTrackedRuns(
+    siteId: string,
+    takip: Array<{ id: string; text: string }>,
+    results: CitationResult[],
+    tier: ModelTier,
+  ): Promise<void> {
+    try {
+      const idByText = new Map(takip.map((t) => [t.text.trim().toLowerCase(), t.id]));
+      const byPrompt = new Map<string, Array<{ provider: string; probe: CitationProbe }>>();
+      for (const r of results) {
+        for (const probe of r.probes ?? []) {
+          const id = idByText.get(String(probe.query ?? '').trim().toLowerCase());
+          if (!id) continue;
+          const list = byPrompt.get(id) ?? [];
+          list.push({ provider: r.provider, probe });
+          byPrompt.set(id, list);
+        }
+      }
+      const now = new Date();
+      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      for (const [promptId, rows] of byPrompt) {
+        const data = promptRunRows(siteId, promptId, null, today, rows, tier);
+        if (data.length === 0) continue;
+        await (this.prisma as any).geoPromptRun.createMany({ data });
+        const ozet = promptRunSummary(rows);
+        if (ozet.total > 0) {
+          await (this.prisma as any).geoPrompt.update({
+            where: { id: promptId },
+            data: { lastRunAt: now, lastCitedCount: ozet.cited, lastTotalCount: ozet.total },
+          });
+        }
+      }
+    } catch (err: any) {
+      this.log.error(`[${siteId}] Site olcumu GEO Lab'e yazilamadi: ${err?.message ?? err}`);
+    }
   }
 
   // ────────────────────────────────────────────────────────────
@@ -1682,8 +1769,9 @@ export class AiCitationService {
     trigger: 'user' | 'system',
     user: { id: string; role?: string | null },
     fn: () => Promise<T>,
+    siteId?: string,
   ): Promise<T> {
-    const reservation = trigger === 'user' ? await this.allowance.reserveOutsideSession(user) : null;
+    const reservation = trigger === 'user' ? await this.allowance.reserveOutsideSession(user, siteId) : null;
     let results: T;
     try {
       results = await fn();

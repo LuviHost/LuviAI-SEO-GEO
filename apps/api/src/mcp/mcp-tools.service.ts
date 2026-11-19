@@ -573,7 +573,7 @@ export class McpToolsService {
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           // Haftalik AI olcum hakki — panel uclariyla ayni kural (measurement-allowance.ts)
-          const out = await this.measurement.run(user, () => this.promptLab.runPrompt(site.id, String(args.prompt_id), {}));
+          const out = await this.measurement.run(user, () => this.promptLab.runPrompt(site.id, String(args.prompt_id), {}), site.id);
           // Alintilanan kaynak listeleri ajan baglamina girmez (citation-sources.ts providersWithoutSources)
           return { ...out, providers: providersWithoutSources(out.providers) };
         },

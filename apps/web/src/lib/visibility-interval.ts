@@ -43,7 +43,10 @@ export interface CitationOlcum {
     asistanlar: Record<string, GorunmeAraligi | null>;
   } | null;
   manset: { gorunme: GorunmeAraligi | null; olcumSayisi: number };
-  haftalik: AralikKarsilastirmasi;
+  /** ortakSoru: haftalik kiyasa giren (iki pencerede de sorulan) soru sayisi — 18.11.2026 */
+  haftalik: AralikKarsilastirmasi & { ortakSoru?: number };
+  /** Son olcumun soru seti bir onceki olcumle kiyasla; yoksa null (api visibility-interval.ts) */
+  soruSeti?: { ortak: number; eklenen: number; cikan: number } | null;
   etki: AralikKarsilastirmasi;
   asistanlar: Record<string, AralikKarsilastirmasi>;
   /** Güncel yöntemle tek ölçüm var */

@@ -270,22 +270,31 @@ export function CitationHistoryChart({
               Ölçüm sağlayıcıların API&apos;si üzerinden yapılır; tüketici uygulamalarındaki reklamlar ölçüme girmez. OpenAI&apos;a göre ChatGPT&apos;de gösterilen reklamlar cevabın altında, ayrı ve etiketli durur ve cevapları etkilemez — yani reklam vermek cevapta kaynak gösterilmeyi sağlamaz.
             </p>
             {/*
-              Hangi sorular soruluyor: test Prompt Lab'den BAGIMSIZ, site profilindeki (brain)
-              ilk 5 soruyu her olcumde ayni sorar — egilim kiyaslanabilir kalsin diye (sahip
-              karari 02.11.2026). Musteri "Prompt Lab bos, neye gore olcuyor?" diye soruyordu.
+              Hangi sorular soruluyor (18.11.2026 sahip karari; 02.11.2026 kararinin yerine): GEO Lab'de
+              aktif takip sorusu varsa test ONLARI sorar (planin soru tavani kadar); yoksa site
+              profilindeki (marka beyni) ilk 5 soru. Soru seti degisince haftalik kiyas yalniz iki
+              olcumde de sorulan sorulardan yapilir (api visibility-interval.ts ortakSoruKapsami).
             */}
             {testQueries.length > 0 && (
               <details className="mt-1.5 max-w-2xl text-xs text-muted-foreground">
                 <summary className="cursor-pointer select-none hover:text-foreground">
-                  Bu test hangi soruları soruyor? ({testQueries.length} soru, her ölçümde aynı)
+                  Bu test hangi soruları soruyor? ({testQueries.length} soru)
                 </summary>
                 <ol className="mt-1 ml-4 list-decimal space-y-0.5">
                   {testQueries.map((q) => <li key={q}>{q}</li>)}
                 </ol>
                 <p className="mt-1">
-                  Sorular sitenin profilinden gelir ve her ölçümde aynı kalır; böylece değişim kıyaslanabilir.
-                  Kendi sorularını <Link href={`/sites/${siteId}/geo-lab`} className="underline hover:text-foreground">GEO Lab → Prompt Lab</Link>&apos;de ayrıca ölçebilirsin; o sorular bu skoru değiştirmez.
+                  <Link href={`/sites/${siteId}/geo-lab`} className="underline hover:text-foreground">GEO Lab</Link>&apos;de takip sorun varsa test o soruları sorar; yoksa sitenin profilinden çıkarılan sorular sorulur.
+                  Bir soruyu değiştirirsen haftalık değişim yalnız iki ölçümde de sorulan sorulardan hesaplanır; yeni soru ilk haftasında kendi başlangıç değerini alır.
                 </p>
+                {olcum?.soruSeti && (olcum.soruSeti.eklenen > 0 || olcum.soruSeti.cikan > 0) && (
+                  <p className="mt-1">
+                    Soru seti değişti: son ölçümde {olcum.soruSeti.eklenen} soru eklendi, {olcum.soruSeti.cikan} soru çıkarıldı.
+                    {olcum.soruSeti.ortak > 0
+                      ? ` Haftalık değişim ${olcum.soruSeti.ortak} ortak sorudan hesaplanır.`
+                      : ' Ortak soru olmadığı için bu ölçüm yeni bir başlangıçtır.'}
+                  </p>
+                )}
               </details>
             )}
           </div>

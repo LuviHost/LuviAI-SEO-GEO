@@ -9,7 +9,7 @@ import {
 } from '../billing/plans.js';
 import { planFeatures } from '../billing/billing.service.js';
 import { FREE_TEST_ENGINES } from '../billing/plan-engines.js';
-import { MEASUREMENT_WINDOW_MS } from '../billing/measurement-allowance.js';
+import { MEASUREMENT_WINDOW_MS, MONTHLY_MEASUREMENTS_PER_SITE } from '../billing/measurement-allowance.js';
 import { SETUP_MEASUREMENT_WINDOW_DAYS, decideSetupMeasurement, setupMeasurementLimit } from '../audit/setup-measurement-limit.js';
 import { TRIAL_DAYS } from '../billing/trial-policy.js';
 import { RANKSUP_BOT_UA } from '../common/safe-fetch.js';
@@ -204,13 +204,18 @@ describe.each([
     }
   });
 
-  it('haftalik olcum kurali ve calistirma birimi fiyat bolumunde (hesap basina, siteler ortak)', () => {
+  it('haftalik olcum kurali ve calistirma birimi fiyat bolumunde (site basina 7 gunde 1, ayda en fazla 4)', () => {
     // Eski aciklama "Gorunurluk calistirmasi: AI atif testi ya da Prompt Lab
     // olcumu; ikisi ayni aylik haktan duser" idi: haftalik kural yoktu ve tek
     // Prompt Lab olcumunun soru basina calistirma harcadigi yazmiyordu.
+    // 18.11.2026: hak SITE basina (ai-olcum:<userId>:<siteId>) + sitenin aylik sayaci (en fazla 4)
     expect(MEASUREMENT_WINDOW_MS).toBe(7 * 24 * 60 * 60 * 1000);
-    expect(bolum).toContain('hesap başına 7 günde 1');
-    expect(bolum).toContain('tüm siteler bu hakkı paylaşır');
+    expect(MONTHLY_MEASUREMENTS_PER_SITE).toBe(4);
+    expect(bolum).toContain(`site başına 7 günde 1'dir ve bir site ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülür`);
+    expect(bolum).toContain('o sitenin haftalık hakkına sayılır');
+    // Eski hesap basina kural geri gelmesin (belgenin hicbir yerinde)
+    expect(doc).not.toMatch(/[Hh]esap başına (?:7 günde|haftada) (?:1|bir)/);
+    expect(doc).not.toMatch(/siteler (?:bu hakkı )?paylaşır/);
     expect(bolum).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma");
     expect(bolum).toContain('sonuç vermeyen ölçüm hakkı yakmaz');
     expect(bolum).not.toContain('ikisi aynı aylık haktan düşer');
@@ -1758,17 +1763,27 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
   // Haftalik kuralin kartta ARANAN cekirdegi: "haftada 1 ölçüm" + "hesap başına" ayni maddede
   // (11.11.2026 kisa madde: "Haftada 1 ölçüm (hesap başına) · …"; eskisi "Hesap başına haftada 1
   // AI görünürlük ölçümü — …" idi). Maddenin tam cumlesi degil kural aranir.
-  // 18.11.2026: tek siteli planda (Baslangic, Is Ortagi) "hesap başına" anlamsiz — yalniz birden
-  // cok siteli planda aranir (hak hesap basina: her hafta bir site olculur).
+  // 18.11.2026: hak SITE basina. Birden cok siteli planda madde bunu soyler ("her site için" /
+  // "for each site"); tek siteli planda (Baslangic, Is Ortagi) gerekmez. "hesap başına" artik yanlis.
   const haftalikTr = (m: string, cokSite = true) =>
-    /haftada 1 (?:AI görünürlük )?ölçüm|ölçüm yine haftada 1/i.test(m) && (!cokSite || /hesap başına/i.test(m));
+    /haftada 1 (?:AI görünürlük )?ölçüm|ölçüm yine haftada 1/i.test(m) && (!cokSite || /her site için/i.test(m)) && !/hesap başına/i.test(m);
   const haftalikEn = (m: string, cokSite = true) =>
-    /1 (?:AI visibility )?measurement (?:a|per) week|1 (?:AI visibility )?measurement per account per week/i.test(m) && (!cokSite || /per account/i.test(m));
+    /1 (?:AI visibility )?measurement (?:a|per) week/i.test(m) && (!cokSite || /for each site/i.test(m)) && !/per account/i.test(m);
 
-  it('kod sabitleri: pencere 7 gun, hak hesap basina, paneldeki "Tümünü çalıştır" limiti bulunuyor', () => {
+  it('kod sabitleri: pencere 7 gun, hak site basina (ayda en fazla 4), paneldeki "Tümünü çalıştır" limiti bulunuyor', () => {
     expect(MEASUREMENT_WINDOW_MS, 'pencere degisti: "haftada 1" / "7 günde 1" metinlerini guncelle').toBe(7 * 24 * 60 * 60 * 1000);
-    expect(allowanceSvc, 'hak anahtari artik kullanici basina degil: "hesap başına" metinlerini guncelle').toMatch(/return `ai-olcum:\$\{userId\}`;/);
+    // 18.11.2026: hak site basina; siteye bagli olmayan olcum (kayitta alan adi testi) hesap anahtarindan
+    expect(allowanceSvc, 'hak anahtari artik site basina degil: "her site" metinlerini guncelle')
+      .toContain('return siteId ? `ai-olcum:${userId}:${siteId}` : `ai-olcum:${userId}`;');
+    expect(allowanceSvc, 'aylik site sayaci degisti: "ayda en fazla 4" metinlerini guncelle')
+      .toContain('return `ai-olcum-ay:${userId}:${siteId}:${istanbulMonthKey(now)}`;');
+    expect(MONTHLY_MEASUREMENTS_PER_SITE, 'aylik site siniri degisti: "ayda en fazla 4" metinlerini guncelle').toBe(4);
+    // Kayan pencere 31 gunde 5'e izin verirdi; metinlerdeki "ayda en fazla 4" aylik sayactan gelir
     expect(ayEnFazla).toBe(5);
+    expect(MONTHLY_MEASUREMENTS_PER_SITE).toBeLessThan(ayEnFazla);
+    // Olcum uclari hakki URL'deki siteden ayirir; "Tümünü çalıştır" isi de siteyi verir
+    expect(read(path.resolve(HERE, '../billing/measurement-session.interceptor.ts'))).toContain('this.allowance.run(req.user, () => lastValueFrom(next.handle(), { defaultValue: undefined }), siteId)');
+    expect(read(path.resolve(HERE, '../audit/prompt-lab-run-all-jobs.ts'))).toMatch(/this\.allowance\.run\(user, async \(\) => \{[\s\S]*?\}, siteId\);/);
     expect(Number.isInteger(tumuLimit) && tumuLimit > 0, 'prompt-lab-panel runAllPrompts limiti bulunamadi').toBe(true);
   });
 
@@ -1798,7 +1813,8 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
     expect(llmsFull).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1, GEO ısı haritasında ölçülen her soru 1, App Prompt Lab'de her soru 1 çalıştırma sayılır");
     expect(llmsFull).not.toContain('ısı haritası çalıştırma saymaz');
     expect(llmsFull).toContain(`"Tümünü çalıştır" tek ölçümde en fazla ${tumuLimit} soruyu`);
-    expect(llmsFull).toContain(`hesap başına 7 günde 1 ölçüm, yani ayda en fazla ${ayEnFazla}`);
+    expect(llmsFull).toContain(`site başına 7 günde 1'dir ve bir site ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülür`);
+    expect(llmsFull).not.toMatch(/[Hh]esap başına 7 günde (?:1|bir)/);
     expect(llmsFull).toContain("Ürün Radarı'nın haftalık otomatik taraması bu hakka sayılmaz");
   });
 
@@ -1808,6 +1824,15 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
       expect(zincir(p, 'features_tr').some((m) => haftalikTr(m, cok)), `${p.id} TR`).toBe(true);
       expect(zincir(p, 'features_en').some((m) => haftalikEn(m, cok)), `${p.id} EN`).toBe(true);
     }
+    // Aylik site siniri kartta (miras zinciriyle): "ayda en fazla 4" / "up to 4 a month"
+    for (const p of ucretli) {
+      expect(zincir(p, 'features_tr').join('\n'), `${p.id} TR aylik`).toContain(`ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE})`);
+      expect(zincir(p, 'features_en').join('\n'), `${p.id} EN aylik`).toContain(`up to ${MONTHLY_MEASUREMENTS_PER_SITE} a month)`);
+    }
+    for (const p of BASE_PLANS) {
+      for (const m of p.features_tr) expect(m, `${p.id}: ${m}`).not.toMatch(/hesap başına/i);
+      for (const m of p.features_en) expect(m, `${p.id}: ${m}`).not.toMatch(/per account/i);
+    }
     expect(trial.features_tr.join('\n')).toContain(`${trial.aiRunsPerMonth} görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
     expect(trial.features_en.join('\n')).toContain(`${trial.aiRunsPerMonth} visibility runs (at most 1 measurement per week)`);
   });
@@ -1815,14 +1840,25 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
   it('fiyat kartı: soru sayısı plans.ts ile aynı; aylık çalıştırma tavanı haftalık ölçümü kesmez ve yardımda yazılı; birim tanımlı', () => {
     // 18.11.2026 sahip: kart "ayda en fazla N çalıştırma" yazmaz (1 siteli Baslangic'ta kafa
     // karistiriyordu). Kartta soru sayisi durur; aylik tavan bir guvenlik siniridir ve haftalik
-    // Prompt Lab olcumunu HIC kesmeyecek kadar yuksektir (soru x ayda en fazla 5 olcum). Tavan
-    // gizli degil: help/billing plan listesi her planin sayisini yazar.
+    // Prompt Lab olcumunu HIC kesmeyecek kadar yuksektir. 18.11.2026: hak site basina — tavan
+    // site x ayda en fazla 4 olcum x soru (Kurumsal ve eski Ajans bunu tasimaz; kartlari tavani
+    // "ayda en fazla N çalıştırma" diye acikca yazar). Tavan gizli degil: help/billing her planin
+    // sayisini yazar.
     const kacis = (s: string) => s.replace(/[.,]/g, '\\$&');
     const yardim = stripComments(read(path.join(MARKETING, 'help/billing/page.tsx')));
     for (const p of ucretli) {
       const kart = zincir(p, 'features_tr').join('\n');
       expect(kart, `${p.id} soru sayisi`).toMatch(new RegExp(`en fazla ${p.promptsPerSite} soru|${p.promptsPerSite} soru`));
-      expect(p.aiRunsPerMonth, `${p.id}: tavan haftalik olcumu kesiyor`).toBeGreaterThanOrEqual(p.promptsPerSite * ayEnFazla);
+      const tamHafta = p.sites * MONTHLY_MEASUREMENTS_PER_SITE * p.promptsPerSite;
+      if (p.id === 'enterprise' || p.id === 'agency') {
+        // Tavan haftalik olcumu kesebilir: kart bunu sayiyla soyler (TR + EN)
+        expect(p.aiRunsPerMonth, `${p.id}: tavan artik haftalik olcumu tasiyor — istisnayi kaldir`).toBeLessThan(tamHafta);
+        expect(p.features_tr.join('\n'), `${p.id} TR tavan`).toMatch(new RegExp(`ayda en fazla ${kacis(fmtTr(p.aiRunsPerMonth))} çalıştırma`));
+        expect(p.features_en.join('\n'), `${p.id} EN tavan`).toMatch(new RegExp(`up to ${kacis(fmtEn(p.aiRunsPerMonth))} runs/mo`));
+      } else {
+        expect(p.aiRunsPerMonth, `${p.id}: tavan haftalik olcumu kesiyor (${p.sites} site x ${MONTHLY_MEASUREMENTS_PER_SITE} x ${p.promptsPerSite} soru)`).toBeGreaterThanOrEqual(tamHafta);
+        expect(p.features_tr.join('\n'), `${p.id}: kart calistirma yazmaz`).not.toMatch(/çalıştırma/);
+      }
       if (!p.legacy && !p.manual) {
         const satir = yardim.split('\n').find((l) => l.includes(`<strong>${p.name_tr}</strong>`));
         expect(satir, `help/billing ${p.id} satiri`).toBeDefined();
@@ -1830,8 +1866,8 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
       }
       // Ust plan alicisi yukseltmenin olcum sikligini artirdigini sanmasin
       if (p.inheritsFrom) {
-        expect(p.features_tr.join('\n'), `${p.id} TR`).toContain('ölçüm yine haftada 1');
-        expect(p.features_en.join('\n'), `${p.id} EN`).toContain('still 1 measurement a week');
+        expect(p.features_tr.join('\n'), `${p.id} TR`).toContain('ölçüm yine haftada 1, her site için');
+        expect(p.features_en.join('\n'), `${p.id} EN`).toContain('still 1 measurement a week, for each site');
       }
     }
     const tr = BASE_PLANS.flatMap((p) => p.features_tr);
@@ -1880,7 +1916,10 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
   it('llms.txt: AI görünürlük modülü haftalık kuralı söylüyor', () => {
     const geo = llms.split('\n').find((l) => l.startsWith('- **AI görünürlük (GEO)**'));
     expect(geo, 'llms.txt GEO satiri').toBeDefined();
-    expect(geo!).toContain('hesap başına 7 günde 1');
+    // 18.11.2026: hak site basina
+    expect(geo!).toMatch(/her site 7 günde 1|site başına 7 günde 1/i);
+    expect(geo!).toContain(`ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE}`);
+    expect(geo!).not.toMatch(/hesap başına/i);
   });
 
   it('SSS: deneme cevabı haftalık sınırı, "ayda kaç ölçüm" sorusu kuralı kodla aynı yazıyor', () => {
@@ -1895,12 +1934,13 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
     expect(cevap("q: 'How much can I use for free?'")).toContain(`${trial.aiRunsPerMonth} AI visibility runs (at most 1 measurement per week)`);
     const tr = cevap("q: 'Ayda kaç AI görünürlük ölçümü yapabilirim?'");
     const en = cevap("q: 'How many AI visibility measurements can I run per month?'");
-    expect(tr).toContain('hesap başına 7 günde 1');
-    expect(tr).toContain(`ayda en fazla ${ayEnFazla}`);
+    // 18.11.2026: hak site basina, aylik sayac 4
+    expect(tr).toContain(`Her planda her site 7 günde 1, ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülür; her sitenin hakkı ayrıdır`);
+    expect(tr).not.toMatch(/hesap başına 7 günde|tüm siteler/);
     expect(tr).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma");
     expect(tr).toContain('sonuç vermeyen ölçüm hakkı yakmaz');
-    expect(en).toContain('every 7 days per account');
-    expect(en).toContain(`at most ${ayEnFazla} a month`);
+    expect(en).toContain(`each site can be measured once every 7 days, up to ${MONTHLY_MEASUREMENTS_PER_SITE} times a month; each site has its own allowance`);
+    expect(en).not.toMatch(/every 7 days per account|all sites share/);
     expect(en).toContain('an AI test counts as 1 run and each Prompt Lab question or branch as 1');
     // Plan sayilari SSS'de yazilmaz (bayatliyordu): cevap fiyat sayfasina yonlendirir
     for (const p of BASE_PLANS) {
@@ -2000,28 +2040,48 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
         ? `${p.aiRunsPerMonth} AI görünürlük çalıştırması (haftada en fazla 1 ölçüm)`
         : `ayda en fazla ${fmtTr(p.aiRunsPerMonth)} çalıştırma`);
     }
-    expect(bill).toContain('hesap başına 7 günde 1');
-    expect(bill).toContain('tüm sitelerin');
+    // 18.11.2026: hak site basina, aylik sayac 4
+    expect(bill).toContain(`Her planda her site 7 günde 1, ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülür`);
+    expect(bill).toContain(`her site 7 günde 1, ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülebilir; her sitenin hakkı ayrıdır`);
+    expect(bill).not.toMatch(/hesap başına 7 günde|tüm sitelerin/);
     expect(bill).toContain(`tek ölçümde en fazla ${tumuLimit} soruyu`);
     const ai = sayfa('help/ai-visibility/page.tsx');
-    expect(ai).toContain('tüm sitelerin');
+    expect(ai).toContain(`Her site 7 günde bir, ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülebilir`);
+    expect(ai).toContain('Hak site başınadır: her sitenin kendi haftalık hakkı vardır');
+    expect(ai).not.toMatch(/[Hh]esap başına haftada|tüm sitelerin/);
     expect(ai).toContain('site taramasındaki AI testi');
     expect(ai).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma");
   });
 
   it('landing fiyat dipnotu ve /compare haftalık kuralı söylüyor; EN metin ölçümü "run" diye anmıyor', () => {
     const satirlar = (k: string) => i18n.split('\n').filter((l) => l.includes(`'${k}':`));
+    // 18.11.2026: hak site basina, ayda en fazla 4 (gosterilen dipnot: land.pric.footer_note)
+    const [notTr, notEn] = satirlar('land.pric.footer_note');
+    expect(notTr).toContain(`her site haftada 1 ölçülür (ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE})`);
+    expect(notEn).toContain(`each site is measured once a week (up to ${MONTHLY_MEASUREMENTS_PER_SITE} a month)`);
+    // land.pricing.footer_note hicbir sayfada kullanilmiyor; yine de hesap basina kural yazmaz
     for (const k of ['land.pric.footer_note', 'land.pricing.footer_note']) {
       const [tr, en] = satirlar(k);
-      expect(tr, k).toContain('haftada 1 AI görünürlük ölçümü');
-      expect(en, k).toContain('1 AI visibility measurement per week');
+      expect(tr, k).toMatch(/haftada 1 (?:AI görünürlük )?ölçüm|haftada 1 ölçülür/);
+      expect(en, k).toMatch(/1 AI visibility measurement per week|measured once a week/);
+      expect(tr, k).not.toMatch(/hesap başına/);
+      expect(en, k).not.toMatch(/per account/);
     }
     const cmp = sayfa('compare/compare-view.tsx');
-    expect(cmp).toContain('ölçümü sen başlatırsın, hesap başına 7 günde 1');
-    expect(cmp).toContain('you start each measurement, once every 7 days per account');
+    expect(cmp).toMatch(/ölçümü sen başlatırsın, her site 7 günde 1/);
+    expect(cmp).toMatch(/you start each measurement, each site once every 7 days/);
+    expect(cmp).not.toMatch(/hesap başına (?:7 günde 1|haftada bir)|per account\)?/);
     // EN kartlarda "run" aylik calistirma birimi; olcum eylemine "run" denmez
     expect(cmp).not.toMatch(/you start each run\b/);
     expect(sayfa('faq/page.tsx')).not.toMatch(/Every run is stored|any two runs can be compared/);
+  });
+
+  // 18.11.2026: hak hesap basina degil SITE basina (ai-olcum:<userId>:<siteId>, ayda en fazla 4).
+  // Eski "hesap başına 7 günde 1 / tüm siteler paylaşır" anlatimi hicbir musteri metninde kalmaz.
+  it('hiçbir müşteri metni haftalık hakkı hesap başına / siteler arasında ortak anlatmıyor', () => {
+    const eski = /[Hh]esap başına (?:7 günde|haftada) (?:1|bir)|siteler (?:bu hakkı )?paylaşır|tüm sitelerin (?:ortak|paylaştığı)|(?:once a week|every 7 days|7 days) per account|per account per week|all sites share/;
+    const kart: Source[] = [{ rel: 'plans.ts', text: BASE_PLANS.flatMap((p) => [...p.features_tr, ...p.features_en]).join('\n') }];
+    expect(offenders([...webSources, ...mobileSources, ...docSources, ...kart], eski)).toEqual([]);
   });
 
   it('hiçbir müşteri metni aylık çalıştırmayı "en fazla"sız, ölçüm hakkı gibi satmıyor', () => {
@@ -2242,11 +2302,14 @@ describe('Rehber (/rehber) = ürün', () => {
     expect(kobi).toContain(`ayda ${pro.articlesPerMonth} makale üretimi`);
     expect(kobi).toContain(`${TRIAL_DAYS} gün boyunca ${trial.sites} site, ${trial.articlesPerMonth} yapay zekâ makalesi ve ${trial.aiRunsPerMonth} görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
 
-    // Ajans: site sayilari; Kurumsal fiyati yazilmaz (teklifle); olcum hakki hesap basina ve siteler paylasir
+    // Ajans: site sayilari; Kurumsal fiyati yazilmaz (teklifle); olcum hakki site basina (18.11.2026)
     expect(ent.contactSales).toBe(true);
     expect(ajans).toContain(`${pro.name_tr} planda ${pro.sites} site, ${ent.name_tr} planda ${ent.sites} site`);
     expect(ajans).toContain(`${pro.name_tr} $${pro.monthly_usd}/ay, KDV dahil; ${ent.name_tr} teklifle`);
-    expect(ajans).toContain('Ölçüm hesap başına 7 günde birdir ve tüm siteler bu hakkı paylaşır');
+    expect(ajans).toContain(`Her site 7 günde bir, ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülür; çok müşterili bir ajans için belirleyici sınır plandaki site sayısıdır`);
+    for (const [slug, metin] of [['kobi', kobi], ['ajans', ajans], ['turkiye', turkiye]] as const) {
+      expect(metin, slug).toMatch(new RegExp(`Her site 7 günde bir, ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülür`));
+    }
     expect(turkiye).toContain(`${pro.name_tr} planda ${pro.sites} site`);
 
     // E-ticaret: yayin hedefi sayisi katalogla ayni; Urun Radari'ni satan plan
@@ -2310,13 +2373,18 @@ describe('Rehber (/rehber) = ürün', () => {
     expect(mobil).toContain(`${planAdi('ascEnabled')} ve üstü planlarındaki App Store Connect`);
   });
 
-  it(`deneme ${TRIAL_DAYS} gün ve kart istemez; ölçüm hesap başına 7 günde 1 (measurement-allowance)`, () => {
+  it(`deneme ${TRIAL_DAYS} gün ve kart istemez; ölçüm site başına 7 günde 1, ayda en fazla 4 (measurement-allowance)`, () => {
     expect(MEASUREMENT_WINDOW_MS).toBe(7 * 24 * 60 * 60 * 1000);
     expect(findPlan('trial')!.features_tr.join(' ')).toContain('Kredi kartı istemez');
     const araclar = dosya('yapay-zeka-gorunurluk-araclari');
     expect(araclar).toContain(`RanksUp ${TRIAL_DAYS} gün ücretsiz deneme veriyor ve kart istemiyor`);
-    expect(araclar).toContain('hesap başına 7 günde 1 ölçüm');
-    expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain('Hesap başına 7 günde bir ölçüm yapılır');
+    // 18.11.2026: hak site basina (ai-olcum:<userId>:<siteId>) ve sitenin aylik sayaci
+    const yeniKural = new RegExp(`[Hh]er site 7 günde (?:1|bir), ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülür`);
+    expect(araclar).toMatch(yeniKural);
+    expect(dosya('chatgpt-markam-gorunuyor-mu')).toContain(`Her site 7 günde bir, ayda en fazla ${MONTHLY_MEASUREMENTS_PER_SITE} kez ölçülür.`);
+    expect(dosya('yapay-zeka-gorunurlugu')).toMatch(yeniKural);
+    // Eski hesap basina kural hicbir rehberde kalmadi
+    expect(offenders(tum, /[Hh]esap başına (?:7 günde|haftada) (?:1|bir)|siteler (?:bu hakkı )?paylaşır/)).toEqual([]);
     const cta = read(path.join(WEB_SRC, 'components/rehber/rehber-article.tsx'));
     expect(cta).toContain(`${TRIAL_DAYS} gün ücretsiz dene · Kart gerekmez`);
   });

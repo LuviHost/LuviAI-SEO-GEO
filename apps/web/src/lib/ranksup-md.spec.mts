@@ -138,7 +138,7 @@ describe('/ranksup.md', () => {
 
   it('aylik calistirma her yerde "en fazla" ile; haftalik olcum kurali yazili', () => {
     expect(md).not.toMatch(/(?<!en fazla )(?<![\d.,])\d[\d.]*\s+(?:AI\s+)?görünürlük çalıştırması\s*\/\s*ay\b/);
-    expect(md).toContain('hesap başına 7 günde 1 AI görünürlük ölçümü');
+    expect(md).toContain('her planda her site 7 günde 1, ayda en fazla 4 kez ölçülür');
   });
 
   it('gorunur tarih ozetin kendi metin tarihi ile /pricing tarihinin yenisi; plan verisinin alindigi an ayrica', () => {

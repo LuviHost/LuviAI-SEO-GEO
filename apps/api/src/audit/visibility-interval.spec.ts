@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   aralikKarari, gorunmeAraligi, gorunmeSayaci, karsilastir, olcumBelirsizligi, sayacTopla,
-  soruSayisi, tekrarSayisi, wilsonAraligi, type GunKosumu,
+  soruAnahtari, soruSayaclari, soruSayisi, tekrarSayisi, wilsonAraligi, type GunKosumu,
 } from './visibility-interval.js';
 
 /**
@@ -175,8 +175,58 @@ describe('olcumBelirsizligi', () => {
       son: null,
       manset: { gorunme: null, olcumSayisi: 0 },
       haftalik: { karar: null, once: null, sonra: null },
+      soruSeti: null,
       etki: { karar: null, once: null, sonra: null },
       asistanlar: {},
     });
+  });
+});
+
+// ─── 18.11.2026: soru seti degisince haftalik kiyas ortak sorulardan ───
+
+describe('olcumBelirsizligi — soru bazli haftalik kiyas', () => {
+  const s = (gorunen: number, olculen: number) => ({ gorunen, olculen });
+  const kos = (date: string, sorular: Record<string, { gorunen: number; olculen: number }>) => {
+    const toplam = sayacTopla(Object.values(sorular));
+    return kosum(date, { openai: toplam }, { tekrar: 1, soruSayisi: Object.keys(sorular).length, sorular: { openai: sorular } });
+  };
+
+  it('1 soru degisti: haftalik fark 9 ortak sorudan; yeni sorunun iyi sonucu farki sisirmez', () => {
+    const ortak = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`soru ${i}`, s(0, 1)]));
+    const r = olcumBelirsizligi([
+      kos(gun(8), { ...ortak, 'eski soru': s(0, 1) }),
+      // yeni soru anildi, ortaklar degismedi → kiyas "artti" diyemez
+      kos(gun(1), { ...ortak, 'yeni soru': s(1, 1) }),
+    ], []);
+    expect(r.soruSeti).toEqual({ ortak: 9, eklenen: 1, cikan: 1 });
+    expect(r.haftalik.ortakSoru).toBe(9);
+    expect(r.haftalik.once).toEqual(r.haftalik.sonra);
+    expect(r.haftalik.karar).not.toBe('artti');
+  });
+
+  it('soru seti tamamen degisti: haftalik kiyas yok', () => {
+    const r = olcumBelirsizligi([kos(gun(8), { a: s(0, 1) }), kos(gun(1), { b: s(1, 1) })], []);
+    expect(r.soruSeti).toEqual({ ortak: 0, eklenen: 1, cikan: 1 });
+    expect(r.haftalik).toEqual({ karar: null, once: null, sonra: null });
+  });
+
+  it('soru kaydi olmayan eski kosum: asistan duzeyinde kiyas (onceki davranis), soruSeti null', () => {
+    const r = olcumBelirsizligi([
+      kosum(gun(8), { openai: s(0, 15) }),
+      kosum(gun(1), { openai: s(15, 15) }),
+    ], []);
+    expect(r.soruSeti).toBeNull();
+    expect(r.haftalik.karar).toBe('artti');
+  });
+
+  it('soru anahtari: buyuk / kucuk harf ve bosluk farki ayni soru; probe sayaclari soruya gore', () => {
+    expect(soruAnahtari('  Izmir Rulman ')).toBe(soruAnahtari('izmir rulman'));
+    const sc = soruSayaclari([
+      { query: 'A', cited: true, brandMentioned: true, brandInQuery: false } as any,
+      { query: ' a ', cited: false, brandMentioned: false, brandInQuery: false } as any,
+      { query: 'B', cited: false, brandMentioned: false, brandInQuery: false } as any,
+    ]);
+    expect(Object.keys(sc).sort()).toEqual(['a', 'b']);
+    expect(sc.a.olculen).toBe(2);
   });
 });

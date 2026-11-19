@@ -80,9 +80,9 @@ describe('getPlanPool', () => {
     expect(counts).toEqual({
       TRIAL: [2, 1, 3],
       // 11.11.2026: Baslangic'ta makale uretimi yok (plans.ts articlesPerMonth 0); site ve calistirma ayni
-      // 18.11.2026: Baslangic 1 site, 25 calistirma
-      STARTER: [0, 1, 25],
-      PRO: [40, 5, 75],
+      // 18.11.2026: Baslangic 1 site, 20 calistirma; Profesyonel 2 site, 80 (site basina haftalik olcum: 2 x 4 x 10)
+      STARTER: [0, 1, 20],
+      PRO: [40, 2, 80],
       AGENCY: [100, 15, 300],
       ENTERPRISE: [350, 50, 1000],
       PARTNER: [6, 1, 50],

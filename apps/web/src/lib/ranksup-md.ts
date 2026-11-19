@@ -156,7 +156,7 @@ export function buildRanksupMd(plans: readonly SummaryPlan[], fetchedAt: Date = 
       // Google AI Modu / AI Bakisi asistan sayisina girmez (16.11.2026); listede adiyla durur
       ...asistanGruplari.map((g) => `- ${g.planlar.join(', ')}: ${g.adlar.join(', ')} (${g.adlar.filter((a) => !a.startsWith('Google AI')).length} asistan)`),
       '',
-      'Ölçümü kullanıcı başlatır: her planda hesap başına 7 günde 1 AI görünürlük ölçümü yapılır ve tüm siteler bu hakkı paylaşır. Planlar ölçüm sıklığında değil, aylık görünürlük çalıştırması tavanında ayrışır (AI testi 1, Prompt Lab\'de her soru ve her dal 1 çalıştırma).',
+      'Ölçümü kullanıcı başlatır: her planda her site 7 günde 1, ayda en fazla 4 kez ölçülür. Planlar ölçüm sıklığında değil, site ve soru sayısında ayrışır (AI testi 1, Prompt Lab\'de her soru ve her dal 1 çalıştırma sayılır).',
       '',
     );
   }

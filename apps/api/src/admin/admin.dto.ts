@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { ASSIGNABLE_PLANS, type AssignablePlan } from './plan-assignment.js';
 
 /*
@@ -28,4 +28,22 @@ export class EmailTestDto {
 export class SetUserPlanDto {
   @IsIn(ASSIGNABLE_PLANS as unknown as string[], { message: 'plan geçersiz' })
   plan!: AssignablePlan;
+}
+
+/**
+ * POST /admin/users/:userId/limits — yoneticinin hesap ayarlari (18.11.2026):
+ * kapali asistanlar ve site basina soru tavani. promptsPerSite null = plan degeri.
+ */
+export class SetUserLimitsDto {
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(40, { each: true })
+  disabledEngines!: string[];
+
+  @ValidateIf((_o, v) => v !== null)
+  @IsInt({ message: 'soru sınırı tam sayı olmalı' })
+  @Min(1)
+  @Max(200)
+  promptsPerSite!: number | null;
 }

@@ -32,7 +32,7 @@ export default function Page() {
         { name: 'Hesap aç', text: 'Landing\'de "Ücretsiz başla" ya da "Ücretsiz hesap aç" → "Google ile devam et". Web\'de kayıt Google hesabıyla yapılır; mobil uygulamada Google ya da iPhone\'da Apple ile giriş yapılır. Kart istenmez; ilk 14 gün ücretsiz, 2 makale.' },
         { name: 'Siteni ekle', text: 'Panelde "Site ekle" (sonradan sol menüde "Yeni site ekle") → alan adını yaz → "Analizi başlat". AI sitenin sektörünü tahmin eder; gerekirse site ayarlarından değiştirirsin.' },
         { name: 'İlk bulguları gör', text: 'Kurulum ekranında aşamalar bittikçe ilk bulgular görünür: platform, hedef persona, rakipler, site skoru, ilk düzeltilecek madde ve ilk yazılacak içerik.' },
-        { name: 'AI görünürlük ölçümü ve yol haritası', text: 'Sol menü → AI Görünürlük → "AI önerisi al": planındaki AI asistanlarına (deneme ve Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity; Profesyonel ve üstünde ayrıca Grok ve DeepSeek) en fazla 5 soru sorulur ve sonuca göre 5 uygulanabilir öneri üretilir. Hesap başına haftada bir AI ölçümü yapılabilir; kurulum sırasında alınan ilk ölçüm haftalık hakkından düşmez.' },
+        { name: 'AI görünürlük ölçümü ve yol haritası', text: 'Sol menü → AI Görünürlük → "AI önerisi al": planındaki AI asistanlarına (deneme ve Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity; Profesyonel ve üstünde ayrıca Grok ve DeepSeek) en fazla 5 soru sorulur ve sonuca göre 5 uygulanabilir öneri üretilir. Her site haftada bir, ayda en fazla 4 kez ölçülebilir; kurulum sırasında alınan ilk ölçüm haftalık hakkından düşmez.' },
         { name: 'İlk makaleni üret', text: 'İçerikler → AI\'ın önerdiği bir konunun yanındaki "Üret" butonu. Makale 5 ajanlı üretim hattından ve yayın öncesi kalite kapısından geçer.' },
       ]}
     >
@@ -70,7 +70,7 @@ export default function Page() {
       <Step n={2} title={'Haftalık ölçüm: "AI önerisi al"'}>
         <strong>GEO yol haritası</strong> bölümündeki <strong>&ldquo;AI önerisi al&rdquo;</strong> butonuna bas: planındaki AI asistanlarına
         (deneme ve Başlangıç planında ChatGPT, Gemini, Claude ve Perplexity; Profesyonel ve üstünde ayrıca Grok ve DeepSeek) en fazla 5 soru sorulur, markanın anılıp anılmadığı ve sitenin kaynak gösterilip gösterilmediği ölçülür ve sonuca göre
-        5 uygulanabilir öneri üretilir (örn. &ldquo;sık sorulan soruları sayfada görünür biçimde yanıtla&rdquo;). Hesap başına haftada bir AI ölçümü yapılabilir: grafikteki
+        5 uygulanabilir öneri üretilir (örn. &ldquo;sık sorulan soruları sayfada görünür biçimde yanıtla&rdquo;). Her site haftada bir, ayda en fazla 4 kez ölçülebilir: grafikteki
         <strong> &ldquo;Yeniden Test&rdquo;</strong> de aynı hakkı kullanır, sonucu ölçüm geçmişine kaydeder. Aynı hafta ikisinden birini seç.
       </Step>
       <Step n={3} title="İlk makaleni üret">

@@ -47,7 +47,7 @@ export interface Entitlements {
  * tutuyor; haklar yalniz plana bakinca panel admin'e calisan ozelligi kilitli
  * gosteriyordu. Ayni kural burada: ADMIN'de her ozellik acik, `plan` gercek plan.
  */
-export function entitlementsFor(rawPlan: string, role?: string | null): Entitlements {
+export function entitlementsFor(rawPlan: string, role?: string | null, disabledEngines?: unknown): Entitlements {
   const plan = (rawPlan ?? 'trial').toLowerCase() as PlanId;
   const features = {} as Record<PlanFeature, boolean>;
   const required = {} as Entitlements['required'];
@@ -68,7 +68,7 @@ export function entitlementsFor(rawPlan: string, role?: string | null): Entitlem
   }
 
   const measured = measuredEngines();
-  const engines = ownerEngines({ plan, role }).filter((e) => measured.includes(e));
+  const engines = ownerEngines({ plan, role, disabledEngines }).filter((e) => measured.includes(e));
 
   return { plan, features, engines, required };
 }

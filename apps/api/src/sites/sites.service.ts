@@ -177,7 +177,7 @@ export class SitesService {
     try {
       const site = await this.prisma.site.findUnique({
         where: { id: siteId },
-        select: { user: { select: { plan: true, role: true } } },
+        select: { user: { select: { plan: true, role: true, disabledEngines: true } } },
       });
       if (!site?.user) return null;
       const measured = measuredEngines();

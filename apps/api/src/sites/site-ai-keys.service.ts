@@ -54,7 +54,7 @@ export class SiteAiKeysService {
   async getStatus(siteId: string) {
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      select: { id: true, userId: true, user: { select: { plan: true, role: true } } },
+      select: { id: true, userId: true, user: { select: { plan: true, role: true, disabledEngines: true } } },
     });
     if (!site) throw new NotFoundException('Site bulunamadi');
 

@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { Fragment, useEffect, useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { AccountLimitsRow } from './account-limits-row';
 
 const PLAN_VARIANT: Record<string, any> = {
   TRIAL: 'secondary',
@@ -44,6 +45,7 @@ export default function AdminUsersPage() {
   const [q, setQ] = useState('');
   const [secim, setSecim] = useState<Record<string, string>>({});
   const [kaydediliyor, setKaydediliyor] = useState<string | null>(null);
+  const [ayarAcik, setAyarAcik] = useState<string | null>(null);
 
   const planAta = async (u: any) => {
     const plan = secim[u.id];
@@ -116,11 +118,13 @@ export default function AdminUsersPage() {
                     <th className="p-3 text-center">Fatura</th>
                     <th className="p-3">Kayıt</th>
                     <th className="p-3">Plan ata</th>
+                    <th className="p-3">Ayarlar</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((u) => (
-                    <tr key={u.id} className="border-t hover:bg-muted/30">
+                    <Fragment key={u.id}>
+                    <tr className="border-t hover:bg-muted/30">
                       <td className="p-3">
                         <div className="font-medium">{u.email}</div>
                         {u.name && <div className="text-xs text-muted-foreground">{u.name}</div>}
@@ -171,11 +175,23 @@ export default function AdminUsersPage() {
                           </div>
                         )}
                       </td>
+                      <td className="p-3">
+                        <button
+                          type="button"
+                          aria-expanded={ayarAcik === u.id}
+                          className="h-8 rounded-md border px-3 text-xs font-medium"
+                          onClick={() => setAyarAcik((a) => (a === u.id ? null : u.id))}
+                        >
+                          {ayarAcik === u.id ? 'Kapat' : 'Asistan ve soru'}
+                        </button>
+                      </td>
                     </tr>
+                    {ayarAcik === u.id && <AccountLimitsRow userId={u.id} colSpan={10} />}
+                    </Fragment>
                   ))}
                   {filtered.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={9} className="p-12 text-center text-muted-foreground">
+                      <td colSpan={10} className="p-12 text-center text-muted-foreground">
                         Kullanıcı bulunamadı.
                       </td>
                     </tr>

@@ -99,7 +99,7 @@ export const article: RehberArticle = {
             ['Ölçümle birlikte makale üretimi', 'RanksUp (Profesyonel ve üstü), SEOYEN, Visby (plan karşılaştırma tablosuna göre Starter’da ayda 5, Growth’ta 15, Enterprise’da 25 makale); rankzupAI içerik planını taslak makaleye dönüştürüyor'],
             ['Mağaza bağlantısı (Shopify, Google Merchant Center)', 'Geovium ve Visby ikisini de yazıyor; rankzupAI’nin Shopify eklentisi var; Yanıt IO abonelikte mağaza bağlantısı sunuyor'],
             ['Mobil uygulama (ASO) ile birlikte', 'RanksUp'],
-            ['Ajanslar için çoklu marka', 'rankzupAI (Agency paketi), Geovium (Ajans paketi), GEON (Enterprise), SEOYEN (Pro paketinde 20 proje); RanksUp’ta Profesyonel planda 5 site'],
+            ['Ajanslar için çoklu marka', 'rankzupAI (Agency paketi), Geovium (Ajans paketi), GEON (Enterprise), SEOYEN (Pro paketinde 20 proje); RanksUp’ta Profesyonel planda 2 site, Kurumsal planda 50 site'],
           ],
           kaynak: ['ranksup-pricing', 'aiwatch', 'geon', 'geovium', 'rankzup', 'rankzup-pricing', 'seoyen', 'seoyen-pricing', 'visby-pricing', 'yanit-pricing'],
         },
@@ -146,7 +146,7 @@ export const article: RehberArticle = {
           t: 'ul',
           items: [
             '**Ne sunuyor:** ChatGPT, Gemini, Claude ve Perplexity’de ölçüm, Profesyonel ve üstü planlarda ayrıca Grok ve DeepSeek; kendi sorularınla ölçüm; rakip ve kaynak takibi; 14 teknik kontrollü site denetimi; Search Console bağlıyken günlük sıra takibi; ASO. Makale üretimi ve yayın Profesyonel ve üstü planlarda.',
-            '**Sınırları:** Ücretli planlar Başlangıç $99/ay’dan başlar (KDV dahil); yalnız ölçüm isteyen biri için bu listede daha düşük fiyatlı seçenekler var. Copilot ölçülmez. Ölçüm hesap başına 7 günde birdir. Kendi logonla (beyaz etiket) rapor yoktur.',
+            '**Sınırları:** Ücretli planlar Başlangıç $99/ay’dan başlar (KDV dahil); yalnız ölçüm isteyen biri için bu listede daha düşük fiyatlı seçenekler var. Copilot ölçülmez. Her site 7 günde bir, ayda en fazla 4 kez ölçülür. Kendi logonla (beyaz etiket) rapor yoktur.',
           ],
           kaynak: ['ranksup-pricing', 'ranksup-terms', 'ranksup-ai-visibility'],
         },
