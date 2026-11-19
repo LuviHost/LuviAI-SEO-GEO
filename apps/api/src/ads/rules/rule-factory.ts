@@ -63,7 +63,9 @@ HESAP SNAPSHOT'I:
 ${JSON.stringify(trimmedSnap, null, 2)}
 
 KURAL:
+- Snapshot yalnız hesaptan OKUNAN alanları içerir; burada olmayan alan bilinmiyor demektir (kapalı/yok DEĞİL).
 - Snapshot'ta bu kuralı değerlendirecek veri YOKSA "na" döndür.
+- Tutarlar hesabın para birimindedir (currency); monthlySpendUsd yalnız hesap USD ise vardır.
 - Snapshot'ta belirsizse en kötü senaryoyu değil EN OLASI senaryoyu seç.
 - recommendation Türkçe ve aksiyon-odaklı olmalı (max 30 kelime).
 - finding 1-2 cümle, hangi göstergeyi gördüğünü/göremediğini söyle.
@@ -72,39 +74,53 @@ KURAL:
 {"verdict": "pass" | "warning" | "fail" | "na", "finding": "...", "recommendation": "..."}`;
 }
 
-function trimSnapshotForPrompt(snap: AccountSnapshot, platform: 'google' | 'meta'): any {
-  // Çok büyük snapshot'ı küçült: campaigns first 5, samples first 10 vs.
-  const trimmed: any = { monthlySpendUsd: snap.monthlySpendUsd };
+/** Yalniz tanimli (hesaptan okunmus) alanlar; undefined anahtar hic yazilmaz */
+function definedOnly(o: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null));
+}
+
+/**
+ * LLM'e giden kucuk snapshot. YALNIZ hesaptan okunmus alanlar girer: eskiden
+ * toplayicinin uydurdugu varsayilanlar ('people_in', adStrength 'average',
+ * sitelink 0 ...) modele gercek veri gibi gidiyordu.
+ */
+export function trimSnapshotForPrompt(snap: AccountSnapshot, platform: 'google' | 'meta'): Record<string, unknown> {
+  const common = {
+    currency: snap.currency,
+    monthlySpend: snap.monthlySpend,
+    monthlySpendUsd: snap.monthlySpendUsd,
+  };
 
   if (platform === 'google') {
-    if (snap.campaigns) trimmed.campaigns = snap.campaigns.slice(0, 5);
-    if (snap.pmaxCampaigns) trimmed.pmaxCampaigns = snap.pmaxCampaigns.slice(0, 3);
-    if (snap.searchTerms) trimmed.searchTermsSample = snap.searchTerms.slice(0, 10);
-    if (snap.negativeKeywordLists) trimmed.negativeKeywordLists = snap.negativeKeywordLists;
-    if (snap.conversionActions) trimmed.conversionActions = snap.conversionActions;
-    trimmed.enhancedConversionsActive = snap.enhancedConversionsActive;
-    trimmed.consentModeV2 = snap.consentModeV2;
-    trimmed.ga4Linked = snap.ga4Linked;
-    trimmed.searchTermLastReviewedAt = snap.searchTermLastReviewedAt;
-    if (snap.campaignNamingSamples) trimmed.campaignNamingSamples = snap.campaignNamingSamples.slice(0, 10);
-    if (snap.adCopySamples) trimmed.adCopySamples = snap.adCopySamples.slice(0, 8);
-    if (snap.landingPageThemes) trimmed.landingPageThemes = snap.landingPageThemes.slice(0, 5);
-  } else {
-    if (snap.metaCampaigns) {
-      trimmed.metaCampaigns = snap.metaCampaigns.slice(0, 3).map(c => ({
-        ...c,
-        adSets: c.adSets?.slice(0, 3),
-      }));
-    }
-    trimmed.pixel = snap.pixel;
-    trimmed.capi = snap.capi;
-    trimmed.emq = snap.emq;
-    trimmed.aem = snap.aem;
-    trimmed.attributionWindow = snap.attributionWindow;
-    trimmed.domainVerified = snap.domainVerified;
+    return definedOnly({
+      ...common,
+      campaigns: snap.campaigns?.slice(0, 5).map(c => definedOnly(c as Record<string, unknown>)),
+      pmaxCampaigns: snap.pmaxCampaigns?.slice(0, 3),
+      searchTermsSample: snap.searchTerms?.slice(0, 10),
+      negativeKeywordLists: snap.negativeKeywordLists,
+      conversionActions: snap.conversionActions,
+      enhancedConversionsActive: snap.enhancedConversionsActive,
+      consentModeV2: snap.consentModeV2,
+      ga4Linked: snap.ga4Linked,
+      searchTermLastReviewedAt: snap.searchTermLastReviewedAt,
+      campaignNamingSamples: snap.campaignNamingSamples?.slice(0, 10),
+      adCopySamples: snap.adCopySamples?.slice(0, 8),
+      landingPageThemes: snap.landingPageThemes?.slice(0, 5),
+    });
   }
-
-  return trimmed;
+  return definedOnly({
+    ...common,
+    metaCampaigns: snap.metaCampaigns?.slice(0, 3).map(c => definedOnly({
+      ...c,
+      adSets: c.adSets?.slice(0, 3),
+    })),
+    pixel: snap.pixel,
+    capi: snap.capi,
+    emq: snap.emq,
+    aem: snap.aem,
+    attributionWindow: snap.attributionWindow,
+    domainVerified: snap.domainVerified,
+  });
 }
 
 /**

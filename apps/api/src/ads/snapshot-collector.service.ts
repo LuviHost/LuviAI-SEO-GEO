@@ -1,127 +1,90 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { FxService } from '../billing/fx.service.js';
 import { GoogleAdsClientService } from './google-ads-client.service.js';
 import { MetaAdsClientService } from './meta-ads-client.service.js';
-import type { AccountSnapshot, Platform } from './rules/types.js';
+import { GOOGLE_SNAPSHOT_QUERIES, buildGoogleSnapshot } from './google-snapshot-map.js';
+import { buildMetaSnapshot } from './meta-snapshot-map.js';
+import { definedSnapshotFields } from './rules/requires.js';
+import type { AccountSnapshot, AuditDataStatus, Platform } from './rules/types.js';
+
+export interface CollectedSnapshot {
+  snapshot: AccountSnapshot;
+  source: AuditDataStatus['source'];
+  /** Okunamayan parcalar (kisa, musteriye gosterilebilir) */
+  readErrors: string[];
+}
 
 /**
- * Reklam hesabı için audit'in ihtiyaç duyduğu structured snapshot'ı toplar.
+ * Kampanya Skoru icin reklam hesabinin snapshot'i — YALNIZ musteri hesabindan
+ * okunan veriyle (Google Ads GAQL / Meta Graph API, yalniz okuma).
  *
- * Şu an yarı entegre: AdCampaign tablosu + Google/Meta client'tan toplanabilen
- * temel alanları doldurur, henüz API'ye konmamış alanlar için makul default'lar verir.
- * Gelecekte snapshot'a daha fazla veri eklendikçe kurallar otomatik daha doğru sonuç verir.
+ * NEDEN: eskiden snapshot RanksUp'in kendi `adCampaign` tablosundan
+ * (yalniz RanksUp'tan acilan kampanyalar; kampanya acma kaldirildigi icin
+ * musteride bos) kuruluyor, okunmayan alanlar varsayilanla doluyordu
+ * (geoTargeting 'people_in', rsa.count 1, adStrength 'average', bidStrategy
+ * 'unknown', sitelink 0 ...). Kurallar bu uydurma degerleri hesabin gercegi
+ * gibi puanliyordu. Artik okunmayan her alan undefined; kural 'na' doner.
  */
 @Injectable()
 export class AdsSnapshotCollectorService {
   private readonly log = new Logger(AdsSnapshotCollectorService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly google: GoogleAdsClientService,
     private readonly meta: MetaAdsClientService,
+    // Opsiyonel: kur servisi yoksa (elle kurulan servis, testler) TRY hesapta USD esikli kurallar 'na' kalir
+    @Optional() @Inject(FxService) private readonly fx?: FxService,
   ) {}
 
-  async collect(siteId: string, platform: Platform): Promise<AccountSnapshot> {
-    const campaigns = await this.prisma.adCampaign.findMany({
-      where: { siteId, platform: platform === 'google' ? 'google_ads' : 'meta_ads' },
-    });
-
-    // Aggregate metrics
-    const monthlySpendUsd = campaigns.reduce((a, c) => a + Number(c.spend ?? 0), 0);
-    const totalImpressions = campaigns.reduce((a, c) => a + c.impressions, 0);
-    const totalClicks = campaigns.reduce((a, c) => a + c.clicks, 0);
-    const totalConversions = campaigns.reduce((a, c) => a + c.conversions, 0);
-
-    if (platform === 'google') {
-      const namingSamples = campaigns.map(c => c.name);
-      const adCopySamples = campaigns
-        .flatMap(c => Array.isArray(c.headlines) ? (c.headlines as any[]).map(h => ({ headline: h.text ?? String(h) })) : [])
-        .slice(0, 30);
-
-      // Google client'tan extra data (varsa)
-      const enriched = await this.tryEnrichGoogle(siteId).catch(() => null);
-
-      return {
-        monthlySpendUsd,
-        ga4Linked: enriched?.ga4Linked,
-        enhancedConversionsActive: enriched?.enhancedConversionsActive,
-        consentModeV2: enriched?.consentModeV2,
-        conversionActions: enriched?.conversionActions,
-        searchTerms: enriched?.searchTerms,
-        searchTermLastReviewedAt: enriched?.searchTermLastReviewedAt,
-        negativeKeywordLists: enriched?.negativeKeywordLists,
-        campaigns: campaigns.map(c => ({
-          id: c.id,
-          name: c.name,
-          objective: c.objective ?? undefined,
-          budget: Number(c.budgetAmount ?? 0),
-          spendToday: Number(c.spend ?? 0),
-          bidStrategy: (c.performanceMetrics as any)?.bidStrategy ?? 'unknown',
-          learningStatus: (c.performanceMetrics as any)?.learningStatus,
-          qualityScore: (c.performanceMetrics as any)?.qualityScore,
-          network: (c.performanceMetrics as any)?.network,
-          geoTargeting: (c.performanceMetrics as any)?.geoTargeting ?? 'people_in',
-          sitelinks: (c.performanceMetrics as any)?.sitelinks ?? 0,
-          callouts: (c.performanceMetrics as any)?.callouts ?? 0,
-          structuredSnippets: (c.performanceMetrics as any)?.structuredSnippets ?? 0,
-          rsa: {
-            count: 1,
-            headlines: Array.isArray(c.headlines) ? c.headlines.length : 0,
-            descriptions: Array.isArray(c.descriptions) ? c.descriptions.length : 0,
-            adStrength: (c.performanceMetrics as any)?.adStrength ?? 'average',
-          },
-        })),
-        pmaxCampaigns: enriched?.pmaxCampaigns ?? [],
-        campaignNamingSamples: namingSamples,
-        adCopySamples,
-        landingPageThemes: enriched?.landingPageThemes,
-      };
-    } else {
-      const enriched = await this.tryEnrichMeta(siteId).catch(() => null);
-
-      return {
-        monthlySpendUsd,
-        pixel: enriched?.pixel,
-        capi: enriched?.capi,
-        emq: enriched?.emq,
-        domainVerified: enriched?.domainVerified,
-        aem: enriched?.aem,
-        attributionWindow: enriched?.attributionWindow,
-        metaCampaigns: campaigns.map(c => ({
-          id: c.id,
-          budget: Number(c.budgetAmount ?? 0),
-          cbo: (c.performanceMetrics as any)?.cbo ?? false,
-          adSets: (c.performanceMetrics as any)?.adSets ?? [{
-            learningStatus: 'active' as const,
-            frequency7d: c.impressions > 0 ? totalImpressions / Math.max(totalClicks, 1) : 0,
-            creatives: ((c.creativeAssets as any[]) ?? []).map(a => ({
-              format: a.type === 'video' ? 'video' as const : 'image' as const,
-              ageDays: c.createdAt ? Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000) : 30,
-              ctr: c.ctr,
-              isUgc: false,
-            })),
-            audienceOverlap: (c.performanceMetrics as any)?.audienceOverlap,
-          }],
-        })),
-      };
+  /**
+   * USD esikli kurallar (G06, G16) icin kur (18.11.2026): USD hesapta 1, TRY hesapta TCMB kuru
+   * (FxService — fiyatlarda kullanilan kaynak). Baska birim ya da kur okunamazsa usdPerUnit yok.
+   */
+  private async applyFx(snapshot: AccountSnapshot): Promise<void> {
+    try {
+      let birim: number | undefined;
+      if (snapshot.currency === 'USD') birim = 1;
+      else if (snapshot.currency === 'TRY' && this.fx) {
+        const kur = await this.fx.getUsdToTryRate();
+        if (Number.isFinite(kur) && kur > 0) birim = 1 / kur;
+      }
+      if (birim === undefined) return;
+      snapshot.usdPerUnit = birim;
+      if (typeof snapshot.monthlySpend === 'number') snapshot.monthlySpendUsd = Math.round(snapshot.monthlySpend * birim * 100) / 100;
+    } catch (err: any) {
+      this.log.warn(`Kur okunamadi; USD esikli kontroller 'na' kalir: ${String(err?.message ?? err).slice(0, 120)}`);
     }
   }
 
-  private async tryEnrichGoogle(siteId: string): Promise<Partial<AccountSnapshot> | null> {
-    // İleride: Google Ads client'tan customers + GAQL ile detay çek
-    // Şu an conservative defaults
-    return {
-      ga4Linked: undefined,
-      enhancedConversionsActive: undefined,
-      consentModeV2: undefined,
-    };
+  async collect(siteId: string, platform: Platform): Promise<CollectedSnapshot> {
+    try {
+      return platform === 'google' ? await this.collectGoogle(siteId) : await this.collectMeta(siteId);
+    } catch (err: any) {
+      // Okuma hatasi denetimi dusurmez: hicbir sey okunamadi, kurallar 'na'
+      this.log.warn(`[${siteId}] ${platform} snapshot okunamadi: ${String(err?.message ?? err).slice(0, 200)}`);
+      return { snapshot: {}, source: 'none', readErrors: ['Reklam hesabı okunamadı'] };
+    }
   }
 
-  private async tryEnrichMeta(siteId: string): Promise<Partial<AccountSnapshot> | null> {
-    return {
-      pixel: undefined,
-      capi: undefined,
-      emq: undefined,
-    };
+  private async collectGoogle(siteId: string): Promise<CollectedSnapshot> {
+    const r = await this.google.queryEach(siteId, GOOGLE_SNAPSHOT_QUERIES);
+    if (!r.ok) return { snapshot: {}, source: 'none', readErrors: [r.error] };
+    const { snapshot, readErrors } = buildGoogleSnapshot(r.results);
+    await this.applyFx(snapshot);
+    return this.finish(siteId, 'google_ads_api', snapshot, readErrors);
+  }
+
+  private async collectMeta(siteId: string): Promise<CollectedSnapshot> {
+    const r = await this.meta.readAccountForAudit(siteId);
+    if (!r.ok) return { snapshot: {}, source: 'none', readErrors: [r.error] };
+    const { snapshot, readErrors } = buildMetaSnapshot(r);
+    await this.applyFx(snapshot);
+    return this.finish(siteId, 'meta_graph_api', snapshot, readErrors);
+  }
+
+  private finish(siteId: string, source: AuditDataStatus['source'], snapshot: AccountSnapshot, readErrors: string[]): CollectedSnapshot {
+    const fields = definedSnapshotFields(snapshot);
+    if (readErrors.length > 0) this.log.warn(`[${siteId}] snapshot eksik okundu: ${readErrors.join(', ')}`);
+    return { snapshot, source: fields.length > 0 ? source : 'none', readErrors };
   }
 }

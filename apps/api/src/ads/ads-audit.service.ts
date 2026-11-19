@@ -7,19 +7,70 @@ import { GOOGLE_RULES } from './rules/google-rules.js';
 import { META_RULES } from './rules/meta-rules.js';
 import { buildFullRuleSet } from './rules/rule-factory.js';
 import { scoreAudit } from './scoring/scorer.js';
-import type { AuditRule, AccountSnapshot, AuditScore, Industry, Platform, Verdict } from './rules/types.js';
+import { NO_CAMPAIGN_FINDING, NO_DATA_FINDING, definedSnapshotFields, firstMissingRequirement } from './rules/requires.js';
+import type { AuditRule, AccountSnapshot, AuditDataStatus, AuditScore, Industry, Platform, Verdict } from './rules/types.js';
 
 interface RawResult {
   rule: AuditRule;
   verdict: Verdict;
   finding: string;
   recommendation: string;
+  /** Kontrol icin gereken veri hesaptan okunamadi */
+  noData?: boolean;
+}
+
+const CONNECT_HINT = 'Reklam hesabını Bağlantılar sayfasındaki Reklam Hesapları kartından bağla ya da yeniden bağla.';
+
+/**
+ * Kuralin `requires` alanlari okunmamissa 'na' sonucu; okunmussa null.
+ * Ust dizi okunmus ama bossa (hesapta etkin kampanya yok) 'na' ama veri
+ * eksikligi sayilmaz.
+ */
+export function requirementResult(rule: AuditRule, snap: AccountSnapshot): RawResult | null {
+  const gap = firstMissingRequirement(snap, rule.requires);
+  if (!gap) return null;
+  if (gap.reason === 'empty') return { rule, verdict: 'na', finding: NO_CAMPAIGN_FINDING, recommendation: '' };
+  return { rule, verdict: 'na', finding: NO_DATA_FINDING, recommendation: '', noData: true };
+}
+
+/** Deterministik kural: once requires, sonra check() (veri okunmamissa check cagrilmaz) */
+export function evaluateDeterministic(rule: AuditRule, snap: AccountSnapshot, industry: Industry): RawResult {
+  const gap = requirementResult(rule, snap);
+  if (gap) return gap;
+  const r = rule.check(snap, industry);
+  if (!r) return { rule, verdict: 'na', finding: 'Veri yok', recommendation: '' };
+  return {
+    rule,
+    verdict: normalizeVerdict(r.verdict),
+    finding: r.finding ?? '',
+    recommendation: r.recommendation ?? '',
+  };
+}
+
+/**
+ * Snapshot'ta hesaptan okunmus gercek veri var mi? Para birimi tek basina
+ * sayilmaz. Yoksa LLM asamasi hic calismaz (maliyet yok, kurallar 'na').
+ */
+export function hasAccountData(snap: AccountSnapshot): boolean {
+  return definedSnapshotFields(snap).some((k) => k !== 'currency');
 }
 
 /** Varsayilan hakem modeli — eski kodun niyeti ('opus' → agent-runner MODEL_MAP) */
 export const ADS_AUDIT_DEFAULT_MODEL = 'claude-opus-5';
 
 /** LLM kurali icin model: ADS_AUDIT_MODEL, yoksa varsayilan (makale ajan ayarlari etkilemez) */
+/**
+ * Bir denetimin model asamasi icin USD tavani (18.11.2026, sahip: "limit 5 dolar"). Env
+ * ADS_AUDIT_MAX_USD ile degisir; gecersiz deger varsayilana duser. Tavana yaklasinca kalan kurallar
+ * modele sorulmaz, 'na' + "maliyet tavani" notu alir (skora girmez).
+ */
+export const ADS_AUDIT_MAX_USD_DEFAULT = 5;
+export function adsAuditMaxUsd(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number(env.ADS_AUDIT_MAX_USD);
+  return Number.isFinite(n) && n > 0 ? n : ADS_AUDIT_MAX_USD_DEFAULT;
+}
+export const COST_CAP_FINDING = 'Denetimin maliyet tavanı doldu; bu kontrol değerlendirilmedi';
+
 export function adsAuditModel(env: NodeJS.ProcessEnv = process.env): string {
   return env.ADS_AUDIT_MODEL?.trim() || ADS_AUDIT_DEFAULT_MODEL;
 }
@@ -72,14 +123,14 @@ export class AdsAuditService {
     this.log.log(`[${siteId}] Ads audit başlıyor — platform=${platform} industry=${industry}`);
     const t0 = Date.now();
 
-    const snapshot = await this.collector.collect(siteId, platform);
+    const { snapshot, source, readErrors } = await this.collector.collect(siteId, platform);
     // Tam kural seti: deterministik manuel kurallar + claude-ads JSON'dan üretilen LLM kuralları
     const rules = platform === 'google'
       ? buildFullRuleSet<any>(GOOGLE_RULES, 'google')
       : buildFullRuleSet<any>(META_RULES, 'meta');
     this.log.log(`[${siteId}] ${rules.length} kural değerlendirilecek (det: ${rules.filter(r => !r.llm).length}, llm: ${rules.filter(r => r.llm).length})`);
 
-    // 1) Deterministik kurallar — paralel
+    // 1) Deterministik kurallar — veri okunmamissa check() hic cagrilmaz
     const detResults: RawResult[] = [];
     const llmRules: AuditRule[] = [];
 
@@ -89,21 +140,10 @@ export class AdsAuditService {
         continue;
       }
       try {
-        const r = rule.check(snapshot, industry);
-        if (r) {
-          detResults.push({
-            rule,
-            verdict: r.verdict,
-            finding: r.finding ?? '',
-            recommendation: r.recommendation ?? '',
-          });
-        } else {
-          // Deterministik check null döndü → veri yok, na
-          detResults.push({ rule, verdict: 'na', finding: 'Veri yok', recommendation: '' });
-        }
+        detResults.push(evaluateDeterministic(rule, snapshot, industry));
       } catch (err: any) {
         this.log.warn(`Rule ${rule.id} hatası: ${err.message}`);
-        detResults.push({ rule, verdict: 'na', finding: `Kontrol hatası: ${err.message}`, recommendation: '' });
+        detResults.push({ rule, verdict: 'na', finding: 'Kontrol hatası', recommendation: '' });
       }
     }
 
@@ -111,7 +151,17 @@ export class AdsAuditService {
     const llmResults = await this.runLlmRules(llmRules, snapshot, siteId);
 
     const allResults = [...detResults, ...llmResults];
-    const score = scoreAudit(platform, allResults);
+    const dataStatus: AuditDataStatus = {
+      source,
+      noDataCount: allResults.filter((r) => r.noData).length,
+      readFields: definedSnapshotFields(snapshot),
+      readErrors: readErrors.slice(0, 10),
+      ...(snapshot.currency ? { currency: snapshot.currency } : {}),
+    };
+    const score: AuditScore = { ...scoreAudit(platform, allResults), dataStatus };
+    if (dataStatus.noDataCount > 0) {
+      this.log.log(`[${siteId}] ${dataStatus.noDataCount}/${allResults.length} kontrol için hesaptan veri okunamadı (kaynak=${source})`);
+    }
 
     // 3) DB'ye yaz
     await this.prisma.adsAudit.create({
@@ -123,7 +173,8 @@ export class AdsAuditService {
         grade: score.grade,
         byCategory: score.byCategory as any,
         findings: score.findings as any,
-        summary: score.summary as any,
+        // Sema degismeden: veri durumu ozet JSON'unda saklanir (getLatest ayirir)
+        summary: { ...score.summary, dataStatus } as any,
         durationMs: Date.now() - t0,
       },
     });
@@ -139,6 +190,7 @@ export class AdsAuditService {
     });
     if (!audit) return null;
     const findings = (audit.findings as any[]) ?? [];
+    const { dataStatus, ...summary } = ((audit.summary as any) ?? {}) as AuditScore['summary'] & { dataStatus?: AuditDataStatus };
     return {
       platform,
       total: audit.totalScore,
@@ -146,14 +198,37 @@ export class AdsAuditService {
       byCategory: audit.byCategory as any,
       findings,
       quickWins: findings.filter((f: any) => f.isQuickWin),
-      summary: audit.summary as any,
+      summary,
+      ...(dataStatus ? { dataStatus } : {}),
       ranAt: audit.ranAt,
       industry: audit.industry,
     };
   }
 
-  private async runLlmRules(rules: AuditRule[], snap: AccountSnapshot, siteId: string): Promise<RawResult[]> {
-    if (rules.length === 0) return [];
+  private async runLlmRules(allRules: AuditRule[], snap: AccountSnapshot, siteId: string): Promise<RawResult[]> {
+    if (allRules.length === 0) return [];
+
+    // Hesaptan hicbir sey okunamadiysa model hic cagrilmaz: tum kurallar "veri okunamadı"
+    if (!hasAccountData(snap)) {
+      this.log.warn(`[${siteId}] Hesaptan veri okunamadı — ${allRules.length} LLM kuralı atlandı`);
+      return allRules.map(r => ({
+        rule: r,
+        verdict: 'na' as Verdict,
+        finding: NO_DATA_FINDING,
+        recommendation: CONNECT_HINT,
+        noData: true,
+      }));
+    }
+
+    // requires'i olan LLM kurali (G05 kampanya adlari vb.) verisi yoksa modele gitmez
+    const gated: RawResult[] = [];
+    const rules: AuditRule[] = [];
+    for (const r of allRules) {
+      const gap = requirementResult(r, snap);
+      if (gap) gated.push(gap);
+      else rules.push(r);
+    }
+    if (rules.length === 0) return gated;
 
     // Snapshot'ın kullanışlı içerik düzeyini ölç — boş hesapsa LLM'e bedava sormaya gerek yok
     const totalDataPoints =
@@ -167,27 +242,42 @@ export class AdsAuditService {
 
     if (totalDataPoints < 3) {
       this.log.warn(`Snapshot çok seyrek (${totalDataPoints} data point) — tüm LLM kuralları "na" döndürülüyor`);
-      return rules.map(r => ({
+      return [...gated, ...rules.map(r => ({
         rule: r,
         verdict: 'na' as Verdict,
-        finding: 'Hesap snapshot\'ı yetersiz — değerlendirme atlandı',
-        recommendation: 'Google Ads / Meta hesabını bağla, performance sync 6 saat sonra veriyi getirir.',
-      }));
+        finding: 'Hesapta değerlendirilecek kadar kampanya verisi yok — değerlendirme atlandı',
+        recommendation: '',
+      }))];
     }
 
-    const out: RawResult[] = [];
+    const out: RawResult[] = [...gated];
     // Paralel batch: 5'erli (Anthropic rate limit'e dikkat)
     const BATCH_SIZE = 5;
+    // Maliyet freni: harcanan + (bir sonraki partinin gorulen en pahali cagriyla tahmini) tavani
+    // asacaksa durulur; kalan kurallar modele gitmez. Ilk parti tahminsiz gider (5 kisa cagri).
+    const tavan = adsAuditMaxUsd();
+    let harcanan = 0;
+    let enPahali = 0;
     for (let i = 0; i < rules.length; i += BATCH_SIZE) {
       const chunk = rules.slice(i, i + BATCH_SIZE);
+      if (i > 0 && harcanan + chunk.length * enPahali > tavan) {
+        this.log.warn(`[${siteId}] Denetim maliyet tavani (${tavan} USD): ${harcanan.toFixed(2)} USD harcandi, ${rules.length - i} kural degerlendirilmedi`);
+        out.push(...rules.slice(i).map((rule) => ({ rule, verdict: 'na' as const, finding: COST_CAP_FINDING, recommendation: '' })));
+        break;
+      }
       const results = await Promise.all(chunk.map(r => this.judgeOne(r, snap, siteId)));
-      out.push(...results);
+      for (const r of results) {
+        harcanan += r.costUsd ?? 0;
+        enPahali = Math.max(enPahali, r.costUsd ?? 0);
+      }
+      out.push(...results.map(({ costUsd: _c, ...r }) => r));
       this.log.debug(`LLM batch ${i / BATCH_SIZE + 1}/${Math.ceil(rules.length / BATCH_SIZE)} tamamlandı`);
     }
+    this.log.log(`[${siteId}] Denetim model asamasi: ${harcanan.toFixed(2)} USD (tavan ${tavan})`);
     return out;
   }
 
-  private async judgeOne(rule: AuditRule, snap: AccountSnapshot, siteId: string): Promise<RawResult> {
+  private async judgeOne(rule: AuditRule, snap: AccountSnapshot, siteId: string): Promise<RawResult & { costUsd?: number }> {
     if (!rule.llm || !rule.llmPrompt) {
       return { rule, verdict: 'na', finding: 'LLM prompt yok', recommendation: '' };
     }
@@ -205,8 +295,11 @@ export class AdsAuditService {
         effort: 'low',
       });
       const json = parseJsonFromLlm<any>(result.output);
-      if (!json || typeof json !== 'object' || Array.isArray(json)) throw new Error('JSON nesnesi yok');
+      if (!json || typeof json !== 'object' || Array.isArray(json)) {
+        return { rule, verdict: 'na', finding: `LLM değerlendirme hatası`, recommendation: '', costUsd: result.costUsd };
+      }
       return {
+        costUsd: result.costUsd,
         rule,
         verdict: normalizeVerdict(json.verdict),
         finding: typeof json.finding === 'string' ? json.finding.slice(0, 600) : '',

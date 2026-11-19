@@ -18,6 +18,8 @@ interface RawResult {
   verdict: Verdict;
   finding: string;
   recommendation: string;
+  /** Kontrol icin gereken veri hesaptan okunamadi */
+  noData?: boolean;
 }
 
 export function scoreAudit(platform: Platform, results: RawResult[]): AuditScore {
@@ -34,7 +36,22 @@ export function scoreAudit(platform: Platform, results: RawResult[]): AuditScore
     summary.total++;
     summary[r.verdict]++;
 
-    if (r.verdict === 'na') continue;
+    // 'na' skora girmez ama bulgularda kalir: panel "Veri yok" diye gosterir
+    if (r.verdict === 'na') {
+      findings.push({
+        ruleId: r.rule.id,
+        name: r.rule.name,
+        category: r.rule.category,
+        severity: r.rule.severity,
+        verdict: 'na',
+        finding: r.finding,
+        recommendation: r.recommendation,
+        fixTimeMinutes: r.rule.fixTimeMinutes,
+        isQuickWin: false,
+        ...(r.noData ? { noData: true } : {}),
+      });
+      continue;
+    }
 
     const wSev = SEVERITY_WEIGHT[r.rule.severity];
     const wCat = (catWeights as any)[r.rule.category] ?? 0.1;

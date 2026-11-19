@@ -637,3 +637,51 @@ describe('Meta donusum aileleri (A/B emniyeti)', () => {
     expect(metaCount('-1')).toBeNull();
   });
 });
+
+describe('Meta readAccountForAudit (Kampanya Skoru, yalniz okuma)', () => {
+  it('para birimi, etkin kampanyalar (tum sayfalar) ve 30 gun harcama; yalniz GET', async () => {
+    const methods: string[] = [];
+    const urls: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any, init?: any) => {
+      const u = String(input);
+      methods.push(init?.method ?? 'GET');
+      urls.push(u);
+      if (u.includes('fields=currency')) return json(200, { currency: 'TRY' });
+      if (u.includes('/act_1/campaigns') && !u.includes('after=')) {
+        return json(200, { data: [{ id: '10', effective_status: 'ACTIVE', daily_budget: '5000' }], paging: { next: `${GRAPH}/act_1/campaigns?after=x` } });
+      }
+      if (u.includes('after=x')) return json(200, { data: [{ id: '11', effective_status: 'ACTIVE' }] });
+      if (u.includes('/act_1/insights')) return json(200, { data: [{ spend: '321.5' }] });
+      return json(404, {});
+    });
+    const r = await new MetaAdsClientService(prismaFor()).readAccountForAudit('s1');
+    expect(r).toEqual({
+      ok: true,
+      currency: 'TRY',
+      campaigns: [{ id: '10', effective_status: 'ACTIVE', daily_budget: '5000' }, { id: '11', effective_status: 'ACTIVE' }],
+      spend30d: 321.5,
+    });
+    expect(methods.every((m) => m === 'GET')).toBe(true);
+    expect(urls.some((u) => u.includes('date_preset=last_30d'))).toBe(true);
+  });
+
+  it('kampanya listesi okunamazsa campaigns null (bos liste sayilmaz)', async () => {
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+      const u = String(input);
+      if (u.includes('fields=currency')) return json(200, { currency: 'USD' });
+      if (u.includes('/campaigns')) return json(500, { error: { message: 'x' } });
+      return json(200, { data: [] });
+    });
+    const r = await new MetaAdsClientService(prismaFor()).readAccountForAudit('s1');
+    expect(r).toEqual({ ok: true, currency: 'USD', campaigns: null, spend30d: 0 });
+  });
+
+  it('token yoksa istek gitmez', async () => {
+    const f = vi.spyOn(globalThis, 'fetch');
+    const prisma = { site: { findUniqueOrThrow: vi.fn(async () => ({ id: 's1' })) } } as any;
+    const r = await new MetaAdsClientService(prisma).readAccountForAudit('s1');
+    expect(r.ok).toBe(false);
+    expect(f).not.toHaveBeenCalled();
+  });
+});

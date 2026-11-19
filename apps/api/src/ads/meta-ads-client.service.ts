@@ -317,6 +317,62 @@ export class MetaAdsClientService {
   }
 
   /**
+   * Kampanya Skoru icin yalniz OKUMA: hesabin para birimi, etkin kampanyalari
+   * (id, name, objective, effective_status, daily_budget, lifetime_budget —
+   * Campaign alanlari, butceler en kucuk birimde; bkz. readBudgetPlan) ve son
+   * 30 gun harcamasi (Ad Account insights, spend; getCampaignInsights ile ayni
+   * date_preset). Her parca bagimsiz: okunamayan null doner (alan 'na' kalir).
+   * Baglanti yoksa { ok: false, error } (musteriye gosterilebilir).
+   */
+  async readAccountForAudit(siteId: string): Promise<
+    | { ok: true; currency: string | null; campaigns: any[] | null; spend30d: number | null }
+    | { ok: false; error: string }
+  > {
+    const NOT_CONNECTED = 'Meta Ads bağlı değil; Bağlantılar sayfasındaki Reklam Hesapları kartından bağla.';
+    let token: string | null;
+    let accountId: string;
+    try {
+      token = await this.getToken(siteId);
+      const site: any = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+      accountId = String(site.metaAdsAccountId ?? '').replace(/^act_/, '');
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Meta hesap okunamadi: ${String(err?.message ?? err).slice(0, 160)}`);
+      return { ok: false, error: NOT_CONNECTED };
+    }
+    if (!token) return { ok: false, error: NOT_CONNECTED };
+    if (!META_ID.test(accountId)) return { ok: false, error: 'Meta reklam hesabı seçilmemiş; Bağlantılar sayfasındaki Reklam Hesapları kartından bir hesap seç.' };
+
+    const currency = await this.getAccountCurrency(siteId);
+    const base = `${GRAPH_HOST}${this.apiVersion}/act_${accountId}`;
+    const active = encodeURIComponent(JSON.stringify(['ACTIVE']));
+    let campaigns: any[] | null = null;
+    try {
+      const rows = await this.readAllMetaPages(siteId, `act_${accountId}`,
+        `${base}/campaigns?fields=id,name,objective,effective_status,daily_budget,lifetime_budget` +
+        `&effective_status=${active}&limit=${META_PAGE_LIMIT}&access_token=${token}`, 'kampanya listesi');
+      campaigns = rows;
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Meta kampanya listesi alinamadi: ${String(err?.message ?? err).slice(0, 160)}`);
+    }
+    let spend30d: number | null = null;
+    try {
+      const res = await fetch(`${base}/insights?fields=spend&date_preset=last_30d&access_token=${token}`);
+      if (res.ok) {
+        const body: any = await res.json();
+        if (Array.isArray(body?.data)) {
+          const v = Number.parseFloat(body.data[0]?.spend ?? '0');
+          spend30d = Number.isFinite(v) && v >= 0 ? v : null;
+        }
+      } else {
+        this.log.warn(`[${siteId}] Meta hesap harcamasi alinamadi: ${await this.describeMetaError(res)}`);
+      }
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Meta hesap harcamasi alinamadi: ${String(err?.message ?? err).slice(0, 160)}`);
+    }
+    return { ok: true, currency, campaigns, spend30d };
+  }
+
+  /**
    * Kampanya metrikleri (insights) — son 30g.
    */
   async getCampaignInsights(siteId: string, campaignId: string) {
