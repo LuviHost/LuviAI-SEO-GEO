@@ -7,13 +7,8 @@
      Herkese acik sayfalarin koyu vitrini (asagidaki .vitrin blogu) artik panelin
      de dili: notr zemin (lacivert/slate tonu YOK), ince cizgi, golge yok, 8px
      yaricap, tek doygun turuncu. Koyu tema vitrinle AYNI degerleri tasir; acik
-     tema ayni dilin beyaz zeminli karsiligidir (secenek olarak kalir).
-
-     .rapor-kagit: musteri raporu belgesi koyu temali panelde de ACIK tema
-     token'lariyla cizilir ve basilir (kagit belge). Ayni bildirim blogu: acik
-     degerler tek yerde kalir, html.dark'in degerlerini belgenin alt agacinda ezer. */
-  :root,
-  .rapor-kagit {
+     tema ayni dilin beyaz zeminli karsiligidir (secenek olarak kalir). */
+  :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 7%;
 
@@ -68,7 +63,13 @@
     color-scheme: light;
   }
 
-  .dark {
+  /* .rapor-kagit: musteri raporu belgesi (19.11.2026) panelin temasindan
+     bagimsiz HER ZAMAN koyu vitrin dilinde cizilir ve basilir — acik temali
+     panelde de. Ayni bildirim blogu: koyu degerler tek yerde kalir, acik
+     :root degerlerini belgenin alt agacinda ezer. (Eskiden tersiydi: belge
+     koyu panelde de beyaz kagitti.) */
+  .dark,
+  .rapor-kagit {
     /* Vitrinle ayni sahne: #090909 zemin, #111 kart, %17 cizgi */
     --background: 0 0% 3.5%;
     --foreground: 0 0% 97%;
@@ -528,11 +529,18 @@
    sayfalarinda (.rapor-yeni-sayfa); sonraki bolumler kaldigi sayfada devam
    eder (.rapor-devam) — her bolum yeni sayfadan baslayinca kisa bolum
    sonlari neredeyse bos sayfalar birakiyordu. Kart/satir bolunmez, baslik
-   ilk blogundan ayrilmaz, renkli cubuklar murekkepte de gorunur. */
+   ilk blogundan ayrilmaz.
+
+   KOYU KAGIT (19.11.2026): belge vitrin ve panelle ayni siyah sahnede; baskida
+   da siyah kalir. Tarayicinin "Arka plan grafikleri" secenegi kapaliyken de
+   zeminler basilsin diye belgenin TUM alt agaci print-color-adjust: exact
+   tasir; sayfa kenarlari (kenar bosluklari dahil) kok ogenin (html/body)
+   rengini alir — kenarda beyaz serit kalmaz. */
 
 .rapor-kagit {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+  color-scheme: dark;
 }
 
 .rapor-baski {
@@ -552,6 +560,19 @@
 @media print {
   body:has(> .rapor-baski) > *:not(.rapor-baski) {
     display: none !important;
+  }
+
+  /* Sayfa kutusu (kenar bosluklari dahil) kok ogenin zemininden boyanir: genel baski
+     kuralinin beyazini (html, body) yalniz rapor basilirken ezer. Deger
+     .rapor-kagit'in --background'u (#090909); html'in kendi token'i acik temali
+     panelde beyaz oldugu icin degisken okunmaz. */
+  html:has(> body > .rapor-baski),
+  body:has(> .rapor-baski) {
+    background: #090909 !important;
+    color: #f8f8f8 !important;
+    color-scheme: dark;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .rapor-baski {
@@ -590,9 +611,9 @@
     break-after: avoid;
   }
 
-  .rapor-baski .rapor-cubuk,
-  .rapor-baski .rapor-cubuk *,
-  .rapor-baski [class*='bg-'] {
+  /* Koyu kagit: zeminler, kartlar, cubuklar ve rozetler murekkepte de gorunur */
+  .rapor-baski,
+  .rapor-baski * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -601,9 +622,9 @@
 @page rapor {
   size: A4;
   margin: 16mm 14mm 18mm;
-  /* Kenar bosluklari da beyaz: koyu temada (color-scheme: dark) sayfa kutusunun
-     varsayilan zemini koyu; "Arka plan grafikleri" acik basilinca kenarlar siyah cikiyordu. */
-  background: #fff;
+  /* Kenar bosluklari da koyu kagitla ayni siyah (#090909 = .rapor-kagit
+     --background): sayfa kenarinda beyaz cerceve kalmaz. */
+  background: #090909;
 
   /* BOS ama tanimli ust kenar kutusu: Chrome, yazarin kenar kutusu tanimladigi
      kenarda kendi ust/alt bilgisini basmaz. Alt kenarda bizim kutularimiz zaten
@@ -619,13 +640,14 @@
   @bottom-left {
     content: 'RanksUp · Site Raporu';
     font-size: 8pt;
-    color: hsl(215 16% 47%);
+    /* Koyu kagitta sonuk gri (.rapor-kagit --muted-foreground) */
+    color: hsl(30 4% 64%);
   }
 
   @bottom-right {
     content: counter(page) ' / ' counter(pages);
     font-size: 8pt;
-    color: hsl(215 16% 47%);
+    color: hsl(30 4% 64%);
   }
 }
 

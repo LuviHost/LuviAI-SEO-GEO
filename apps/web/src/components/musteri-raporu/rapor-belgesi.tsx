@@ -20,14 +20,18 @@ import {
  * yazdir) disaridaki istemci bilesenlerinde; tek istemci parcasi panelin
  * SiteFavicon'u (favicon yuklenemezse bas harfler).
  *
- * Kagit: `.rapor-kagit` acik tema token'larini yeniden tanimlar (globals.css) —
- * koyu temali panelde de belge beyaz kagit gibi gorunur ve oyle basilir.
+ * Kagit (19.11.2026): belge HER ZAMAN koyu vitrin dilinde — vitrinin siyah zemini,
+ * bir ton acik kart, ince cizgi, golge ve gecis yok, 8px yaricap, tek turuncu, Geist
+ * basliklar, kucuk etiketler mono serit (`v-rail`). `.rapor-kagit` koyu tema
+ * token'larini belgenin alt agacinda yeniden tanimlar (globals.css), acik
+ * temali panelde de belge siyah cizilir ve oyle basilir. Koktaki `dark` sinifi
+ * `dark:` varyantlarini da belgeye acar: ornegin siyah Grok / OpenAI isaretleri
+ * (vendor-logo DARK_GLYPH) koyu kagitta beyaza doner.
  * Kapak ve ozet kagitta kendi sayfalarinda; sonraki bolumler kaldigi
  * sayfada devam eder (raporBolumleri.yeniSayfa, globals.css baski kurallari).
  * Grafikler yalniz veri varsa cizilir; renkler chart-colors token'larindan.
- * Rozetler ui/badge DEGIL yerel `Rozet`: badge'in secondary/outline
- * varyantlari `dark:` sinifi tasiyor ve koyu temada `.rapor-kagit` icinde
- * acik kagida koyu rozet basiyordu.
+ * Rozetler ui/badge DEGIL yerel `Rozet`: belge kendi tonlarini tasir, panelin
+ * rozet varyantlarina bagli kalmaz.
  */
 export function RaporBelgesi({
   rapor,
@@ -45,7 +49,7 @@ export function RaporBelgesi({
   const bolumler = raporBolumleri(rapor);
   const no = (id: RaporBolumu['id']) => bolumler.filter((b) => b.id !== 'kapak').findIndex((b) => b.id === id) + 1;
   return (
-    <article lang="tr" className={cn('rapor-kagit text-foreground', className)} aria-label={`${rapor.site.ad} site raporu`}>
+    <article lang="tr" className={cn('rapor-kagit dark bg-background text-foreground', className)} aria-label={`${rapor.site.ad} site raporu`}>
       {bolumler.map((b) => (
         <section
           key={b.id}
@@ -73,21 +77,22 @@ export function RaporBelgesi({
 
 // ─── Ortak parcalar ─────────────────────────────────────────────────
 
+/* Koyu kagitta %10 dolgu tek basina zeminle karisir: ayni tonda ince cerceve rozetin sinirini cizer */
 const ROZET_TONU = {
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  danger: 'bg-danger/10 text-danger',
-  info: 'bg-info/10 text-info',
-  brand: 'bg-brand/10 text-brand',
-  notr: 'bg-muted text-muted-foreground',
-  cerceve: 'border border-border text-muted-foreground',
+  success: 'border-success/40 bg-success/10 text-success',
+  warning: 'border-warning/40 bg-warning/10 text-warning',
+  danger: 'border-danger/40 bg-danger/10 text-danger',
+  info: 'border-info/40 bg-info/10 text-info',
+  brand: 'border-brand/50 bg-brand/10 text-brand',
+  notr: 'border-border bg-muted text-muted-foreground',
+  cerceve: 'border-border text-muted-foreground',
 } as const;
 type RozetTonu = keyof typeof ROZET_TONU;
 
-/** Yalniz token renkleri — koyu tema sinifi tasimaz (kagit her zaman acik) */
+/** Yalniz token renkleri — kagit her zaman koyu */
 function Rozet({ ton, children, className }: { ton: RozetTonu; children: ReactNode; className?: string }) {
   return (
-    <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-px text-label font-semibold', ROZET_TONU[ton], className)}>
+    <span className={cn('inline-flex shrink-0 items-center whitespace-nowrap rounded border px-1.5 py-px text-label font-medium', ROZET_TONU[ton], className)}>
       {children}
     </span>
   );
@@ -95,24 +100,29 @@ function Rozet({ ton, children, className }: { ton: RozetTonu; children: ReactNo
 
 function BolumBasligi({ id, no, baslik, veriTarihi }: { id: string; no: number; baslik: string; veriTarihi: string | null }) {
   return (
-    <div className="rapor-bolum-baslik mb-5 flex items-end justify-between gap-4 border-b border-border pb-3">
-      <h2 id={id} className="font-brand text-h6 font-semibold tracking-tight">
-        <span className="mr-2 tabular-nums text-brand">{String(no).padStart(2, '0')}</span>
+    <div className="rapor-bolum-baslik mb-6 flex items-end justify-between gap-4 border-b border-border pb-3">
+      <h2 id={id} className="flex items-baseline text-h5 font-medium tracking-tight">
+        <span className="mr-3 font-mono text-sm font-normal tabular-nums text-brand">{String(no).padStart(2, '0')}</span>
         {baslik}
       </h2>
-      {veriTarihi && <p className="shrink-0 text-label text-muted-foreground">Veri: {trTarih(veriTarihi)}</p>}
+      {veriTarihi && <p className="v-rail shrink-0">Veri: {trTarih(veriTarihi)}</p>}
     </div>
   );
 }
 
 function AltBaslik({ children }: { children: ReactNode }) {
-  return <h3 className="mb-2 mt-6 text-sm font-semibold first:mt-0">{children}</h3>;
+  return (
+    <h3 className="mb-2.5 mt-7 flex items-center gap-2.5 text-sm font-medium first:mt-0">
+      <span className="h-1.5 w-1.5 shrink-0 bg-brand" aria-hidden />
+      {children}
+    </h3>
+  );
 }
 
 /** Olculmeyen alan: neden ile — sifir gibi gorunmez */
 function OlculmediKutusu({ olcum, baslik }: { olcum: Olculemedi; baslik?: string }) {
   return (
-    <div className="rapor-blok flex items-start gap-2 rounded-md border border-dashed border-border p-3 text-sm">
+    <div className="rapor-blok flex items-start gap-2 rounded-lg border border-dashed border-border p-3 text-sm">
       <CircleDashed className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       <p className="leading-relaxed">
         <span className="font-medium">{baslik ? `${baslik}: ` : ''}Henüz ölçülmedi.</span>{' '}
@@ -140,7 +150,7 @@ const TON_RENGI = {
 function Cubuk({ deger, renk, etiket }: { deger: number; renk: string; etiket: string }) {
   const w = Math.max(0, Math.min(100, deger));
   return (
-    <div className="rapor-cubuk h-2 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={etiket}>
+    <div className="rapor-cubuk h-1.5 w-full overflow-hidden rounded-full bg-white/10" role="img" aria-label={etiket}>
       <div className="h-full rounded-full" style={{ width: `${w}%`, background: renk }} />
     </div>
   );
@@ -152,9 +162,9 @@ function Kutu({ etiket, deger, sonek, ipucu, ton = 'muted', kucuk = false }: {
   kucuk?: boolean;
 }) {
   return (
-    <div className="rapor-blok rounded-lg border border-border p-3.5">
-      <p className="text-label text-muted-foreground">{etiket}</p>
-      <p className={cn('mt-1.5 font-brand tabular-nums', kucuk ? 'text-metric' : 'text-metric-lg')}>
+    <div className="rapor-blok rounded-lg border border-border bg-card p-3.5">
+      <p className="v-rail">{etiket}</p>
+      <p className={cn('mt-2 tabular-nums', kucuk ? 'text-metric' : 'text-metric-lg')}>
         <span className={deger === '—' ? 'text-muted-foreground' : TON_SINIFI[ton] === 'text-muted-foreground' ? '' : TON_SINIFI[ton]}>{deger}</span>
         {sonek && <span className="ml-0.5 text-sm font-normal text-muted-foreground">{sonek}</span>}
       </p>
@@ -184,42 +194,46 @@ function DurumIkonu({ durum }: { durum: KontrolDurumu }) {
 function Kapak({ rapor, paylasimSonu }: { rapor: MusteriRaporu; paylasimSonu: string | null }) {
   return (
     <div className="flex min-h-[34rem] flex-col justify-between gap-10 py-6 print:min-h-[247mm] print:py-0">
-      <div className="flex items-center justify-between gap-4">
-        <BrandWordmark size={20} />
-        <p className="text-label text-muted-foreground">RanksUp ile hazırlandı</p>
+      <div className="flex items-center justify-between gap-4 border-b border-border pb-5">
+        <BrandWordmark size={20} reversed accent="hsl(var(--brand-vivid))" />
+        <p className="v-rail flex items-center gap-2.5">
+          <span className="h-1.5 w-1.5 shrink-0 bg-brand" aria-hidden />
+          RanksUp ile hazırlandı
+        </p>
       </div>
 
       <div>
         <div className="flex items-center gap-4">
           {/* Panelle ayni favicon bileseni: yuklenemezse bas harfler (onError) — kirik gorsel basilmaz.
               eager: baski kopyasi ekranda gizli durur; tembel yuklenen gorsel orada hic istenmiyor,
-              PDF kapaginda kutu BOS cikiyordu (labenko.com, 12.11.2026). */}
-          <SiteFavicon url={rapor.site.url} name={rapor.site.ad} size="lg" className="h-16 w-16" eager />
+              PDF kapaginda kutu BOS cikiyordu (labenko.com, 12.11.2026).
+              Beyaz karo: musterinin favicon'u siyah isaret olabilir (mukellef.co); koyu kartta kayboluyordu. */}
+          <SiteFavicon url={rapor.site.url} name={rapor.site.ad} size="lg" className="h-16 w-16 border-transparent bg-white text-black/70 dark:bg-white" eager />
           <div className="min-w-0">
-            <p className="font-brand text-h4 font-semibold leading-tight tracking-tight">{rapor.site.ad}</p>
-            <p className="mt-1 break-all text-sm text-muted-foreground">{rapor.site.url}</p>
+            <p className="text-h4 font-medium leading-tight tracking-tight">{rapor.site.ad}</p>
+            <p className="mt-1 break-all font-mono text-sm text-muted-foreground">{rapor.site.url}</p>
           </div>
         </div>
-        <h1 className="mt-10 font-brand text-h3 font-semibold tracking-tight">Site Raporu</h1>
-        <p className="mt-2 text-body text-muted-foreground">SEO · GEO · AI görünürlük</p>
-        <p className="mt-6 text-sm">
-          Rapor tarihi: <span className="font-semibold">{trTarih(rapor.generatedAt)}</span>
+        <h1 className="mt-14 text-h1 font-medium">Site Raporu</h1>
+        <p className="mt-2 text-h3 font-medium text-dim">SEO · GEO · AI görünürlük</p>
+        <p className="mt-10 text-sm text-muted-foreground">
+          Rapor tarihi: <span className="font-medium text-foreground">{trTarih(rapor.generatedAt)}</span>
         </p>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-border pt-4 text-sm sm:grid-cols-3">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border pt-5 text-sm sm:grid-cols-3 print:grid-cols-3">
         <div>
-          <dt className="text-label text-muted-foreground">Site taraması</dt>
-          <dd>{rapor.kaynaklar.tarama ? trTarih(rapor.kaynaklar.tarama) : 'Henüz yapılmadı'}</dd>
+          <dt className="v-rail">Site taraması</dt>
+          <dd className="mt-1">{rapor.kaynaklar.tarama ? trTarih(rapor.kaynaklar.tarama) : 'Henüz yapılmadı'}</dd>
         </div>
         <div>
-          <dt className="text-label text-muted-foreground">AI görünürlük ölçümü</dt>
-          <dd>{rapor.kaynaklar.aiOlcum ? trTarih(rapor.kaynaklar.aiOlcum) : 'Henüz ölçülmedi'}</dd>
+          <dt className="v-rail">AI görünürlük ölçümü</dt>
+          <dd className="mt-1">{rapor.kaynaklar.aiOlcum ? trTarih(rapor.kaynaklar.aiOlcum) : 'Henüz ölçülmedi'}</dd>
         </div>
         {paylasimSonu && (
           <div>
-            <dt className="text-label text-muted-foreground">Bağlantı geçerliliği</dt>
-            <dd>{trTarih(paylasimSonu)} tarihine kadar</dd>
+            <dt className="v-rail">Bağlantı geçerliliği</dt>
+            <dd className="mt-1">{trTarih(paylasimSonu)} tarihine kadar</dd>
           </div>
         )}
       </dl>
@@ -241,8 +255,8 @@ function Ozet({ rapor }: { rapor: MusteriRaporu }) {
           return <Kutu key={k.anahtar} etiket={k.etiket} deger={m.deger} sonek={m.sonek} ipucu={k.ipucu} ton={KPI_TONU(k.anahtar, k.deger)} />;
         })}
       </div>
-      <div className="rapor-blok rounded-md bg-muted/50 p-4">
-        <p className="mb-2 text-label font-semibold uppercase tracking-wide text-muted-foreground">Özet</p>
+      <div className="rapor-blok rounded-lg border border-border bg-card p-4">
+        <p className="v-rail mb-2.5 flex items-center gap-2.5"><span className="h-1.5 w-1.5 shrink-0 bg-brand" aria-hidden />Özet</p>
         <div className="space-y-2 text-sm leading-relaxed">
           {rapor.ozet.metin.map((c) => <p key={c}>{c}</p>)}
         </div>
@@ -278,8 +292,8 @@ function SeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
           ipucu={`${seo.bulgu.toplam} bulgu · ${seo.bulgu.kritik} kritik`}
           ton={ton}
         />
-        <div className="rapor-blok rounded-lg border border-border p-3.5">
-          <p className="text-label text-muted-foreground">{seo.sayac.toplam} kontrol noktası</p>
+        <div className="rapor-blok rounded-lg border border-border bg-card p-3.5">
+          <p className="v-rail">{seo.sayac.toplam} kontrol noktası</p>
           {/* Grafik: kontrollerin durum dagilimi — her kare bir kontrol */}
           <div className="mt-2.5 flex gap-1" role="img" aria-label={`${seo.sayac.gecti} geçti, ${seo.sayac.kritik} kritik, ${seo.sayac.uyari} uyarı`}>
             {seo.kontroller.map((k) => (
@@ -287,16 +301,16 @@ function SeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
             ))}
           </div>
           <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-label">
-            <span><span className="font-semibold text-success">{seo.sayac.gecti}</span> geçti</span>
-            <span><span className="font-semibold text-danger">{seo.sayac.kritik}</span> kritik</span>
-            <span><span className="font-semibold text-warning">{seo.sayac.uyari}</span> uyarı</span>
-            {seo.sayac.dogrulanamadi > 0 && <span><span className="font-semibold">{seo.sayac.dogrulanamadi}</span> doğrulanamadı</span>}
+            <span><span className="font-medium text-success">{seo.sayac.gecti}</span> geçti</span>
+            <span><span className="font-medium text-danger">{seo.sayac.kritik}</span> kritik</span>
+            <span><span className="font-medium text-warning">{seo.sayac.uyari}</span> uyarı</span>
+            {seo.sayac.dogrulanamadi > 0 && <span><span className="font-medium">{seo.sayac.dogrulanamadi}</span> doğrulanamadı</span>}
           </div>
         </div>
       </div>
 
       {seo.guncelDegil && (
-        <p className="rapor-blok mt-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
+        <p className="rapor-blok mt-4 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
           <span><span className="font-medium">Skor güncel değil. </span>{seo.guncelDegil}</span>
         </p>
@@ -306,28 +320,30 @@ function SeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
       {sorunlu.length === 0 ? (
         <p className="text-sm text-muted-foreground">Tüm kontroller geçti.</p>
       ) : (
-        <ul className="divide-y divide-border rounded-md border border-border">
+        // rounded-md BILINCLI: genel baski kurali `.rounded-lg` ogelerini bolunmez yapar; uzun liste
+        // butun halinde sonraki sayfaya atlar, onceki sayfa bos kalirdi. Satirlar (li) tek tek bolunmez.
+        <ul className="divide-y divide-border rounded-md border border-border bg-card">
           {sorunlu.map((k) => (
             <li key={k.id} className="rapor-blok p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <DurumIkonu durum={k.durum} />
-                  <span className="text-sm font-semibold">{k.ad}</span>
+                  <span className="text-sm font-medium">{k.ad}</span>
                   <Rozet ton={DURUM_ROZETI[k.durum]}>{DURUM_ETIKETI[k.durum]}</Rozet>
                   {k.otomatik && <Rozet ton="brand">RanksUp düzeltebilir</Rozet>}
                 </div>
-                <span className={cn('shrink-0 text-sm font-semibold tabular-nums', TON_SINIFI[skorTonu(k.skor)])}>
+                <span className={cn('shrink-0 text-sm font-medium tabular-nums', TON_SINIFI[skorTonu(k.skor)])}>
                   {k.skor === null ? '—' : `${k.skor}/100`}
                 </span>
               </div>
               {k.bulgu && <p className="mt-1.5 text-sm leading-relaxed">{k.bulgu}</p>}
               <dl className="mt-2 grid gap-1.5 text-sm leading-relaxed sm:grid-cols-2 print:grid-cols-2">
                 <div>
-                  <dt className="text-label font-semibold text-muted-foreground">Neden önemli</dt>
+                  <dt className="text-label font-medium text-muted-foreground">Neden önemli</dt>
                   <dd>{k.neden}</dd>
                 </div>
                 <div>
-                  <dt className="text-label font-semibold text-muted-foreground">Önerilen düzeltme</dt>
+                  <dt className="text-label font-medium text-muted-foreground">Önerilen düzeltme</dt>
                   <dd>{k.oneri}</dd>
                 </div>
               </dl>
@@ -364,12 +380,12 @@ function SeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
           {seo.sayfaSorunlari.map((s) => {
             const kalan = kalanOrnek(s);
             return (
-              <div key={s.tur} className="rapor-blok rounded-md border border-border p-3">
+              <div key={s.tur} className="rapor-blok rounded-lg border border-border bg-card p-3">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-semibold">{s.baslik}</p>
+                  <p className="text-sm font-medium">{s.baslik}</p>
                   <div className="flex shrink-0 items-center gap-2">
                     <Rozet ton={ONEM_ROZETI[s.onem]}>{ONEM_ETIKETI[s.onem]}</Rozet>
-                    <span className="text-sm font-semibold tabular-nums">{s.sayi === null ? '—' : `${trSayi(s.sayi)} ${s.birim}`}</span>
+                    <span className="text-sm font-medium tabular-nums">{s.sayi === null ? '—' : `${trSayi(s.sayi)} ${s.birim}`}</span>
                   </div>
                 </div>
                 {s.ornekler.length > 0 && (
@@ -508,7 +524,7 @@ function GeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
       </div>
 
       <AltBaslik>AI tarayıcıları için dosyalar</AltBaslik>
-      <ul className="rapor-blok divide-y divide-border rounded-md border border-border">
+      <ul className="rapor-blok divide-y divide-border rounded-lg border border-border bg-card">
         <DosyaSatiri ad="llms.txt" durum={geo.llmsTxt} not="İsteğe bağlı; büyük AI sağlayıcıları kullanacağını taahhüt etmiyor, faydası küçük." />
         <DosyaSatiri ad="Site haritası (sitemap.xml)" durum={geo.sitemap} />
         {geo.robots.olculemedi ? (
@@ -627,11 +643,11 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
           <AltBaslik>Asistan bazında sonuç</AltBaslik>
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-label text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">Asistan</th>
-                <th className="py-2 pr-3 font-medium">Sonuç</th>
-                <th className="w-40 py-2 pr-3 font-medium">Skor</th>
-                <th className="py-2 text-right font-medium">Markasız sorularda</th>
+              <tr className="border-b border-border text-left font-mono text-vitrin-rail text-muted-foreground">
+                <th className="py-2 pr-3 font-normal">Asistan</th>
+                <th className="py-2 pr-3 font-normal">Sonuç</th>
+                <th className="w-40 py-2 pr-3 font-normal">Skor</th>
+                <th className="py-2 text-right font-normal">Markasız sorularda</th>
               </tr>
             </thead>
             <tbody>
@@ -672,9 +688,9 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border text-label text-muted-foreground">
-                      <th className="py-2 pr-3 text-left font-medium">Soru</th>
+                      <th className="py-2 pr-3 text-left align-bottom font-mono text-vitrin-rail font-normal">Soru</th>
                       {o.asistanlar.map((a) => (
-                        <th key={a.saglayici} className="px-1 py-2 text-center font-medium" title={a.ad}>
+                        <th key={a.saglayici} className="px-1 py-2 text-center align-bottom font-medium" title={a.ad}>
                           <span className="inline-flex flex-col items-center gap-0.5">
                             <EngineLogo provider={a.saglayici} size={14} />
                             <span className="text-label">{asistanAdi(a.saglayici, a.ad)}</span>
@@ -741,7 +757,7 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
         <div className="rapor-blok space-y-2">
           {ai.rakipler.sesPayiListesi.liste.slice(0, 8).map((e, i) => (
             <div key={e.ad} className="grid grid-cols-[minmax(0,1fr)_10rem_3rem] items-center gap-3 text-sm">
-              <span className={cn('truncate', e.marka && 'font-semibold')}>{e.ad}{e.marka ? ' (siz)' : ''}</span>
+              <span className={cn('truncate', e.marka && 'font-medium')}>{e.ad}{e.marka ? ' (siz)' : ''}</span>
               <Cubuk deger={e.yuzde} renk={e.marka ? CHART[1] : CHART[((i % 6) + 2) as 2 | 3 | 4 | 5 | 6 | 7]} etiket={`${e.ad}: %${e.yuzde}`} />
               <span className="text-right tabular-nums">%{e.yuzde}</span>
             </div>
@@ -765,11 +781,12 @@ function AksiyonBolumu({ rapor }: { rapor: MusteriRaporu }) {
   return (
     <ol className="space-y-3">
       {rapor.aksiyonlar.map((a, i) => (
-        <li key={`${a.baslik}-${i}`} className="rapor-blok flex gap-3 rounded-md border border-border p-3">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand/10 text-sm font-semibold tabular-nums text-brand">{i + 1}</span>
+        <li key={`${a.baslik}-${i}`} className="rapor-blok flex gap-3 rounded-lg border border-border bg-card p-3">
+          {/* Turuncu ustunde metin siyah (vitrin dugmesiyle ayni kural) */}
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-brand font-mono text-sm tabular-nums text-black">{i + 1}</span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <p className="mr-1 text-sm font-semibold">{a.baslik}</p>
+              <p className="mr-1 text-sm font-medium">{a.baslik}</p>
               <Rozet ton={ETKI_ROZETI[a.etki]}>{ETKI_ETIKETI[a.etki]}</Rozet>
               {a.efor && <Rozet ton="cerceve">{EFOR_ETIKETI[a.efor]}</Rozet>}
               {a.durum === 'in_progress' && <Rozet ton="info">Devam ediyor</Rozet>}
@@ -794,22 +811,22 @@ function YontemBolumu({ rapor, paylasimSonu }: { rapor: MusteriRaporu; paylasimS
       {/* Tarihler ve imza tek blok: kagitta imza satiri tek basina sayfaya dusmez */}
       <div className="rapor-blok space-y-4">
         <dl className="grid grid-cols-1 gap-2 border-t border-border pt-3 text-sm sm:grid-cols-2 print:grid-cols-2">
-          <div><dt className="text-label text-muted-foreground">Rapor oluşturma</dt><dd>{trTarih(rapor.generatedAt)}</dd></div>
-          <div><dt className="text-label text-muted-foreground">Site taraması</dt><dd>{rapor.kaynaklar.tarama ? trTarih(rapor.kaynaklar.tarama) : 'Henüz yapılmadı'}</dd></div>
-          <div><dt className="text-label text-muted-foreground">AI görünürlük ölçümü</dt><dd>{rapor.kaynaklar.aiOlcum ? trTarih(rapor.kaynaklar.aiOlcum) : 'Henüz ölçülmedi'}</dd></div>
+          <div><dt className="v-rail">Rapor oluşturma</dt><dd>{trTarih(rapor.generatedAt)}</dd></div>
+          <div><dt className="v-rail">Site taraması</dt><dd>{rapor.kaynaklar.tarama ? trTarih(rapor.kaynaklar.tarama) : 'Henüz yapılmadı'}</dd></div>
+          <div><dt className="v-rail">AI görünürlük ölçümü</dt><dd>{rapor.kaynaklar.aiOlcum ? trTarih(rapor.kaynaklar.aiOlcum) : 'Henüz ölçülmedi'}</dd></div>
           <div>
-            <dt className="text-label text-muted-foreground">Anılma oranı ve ses payı penceresi</dt>
+            <dt className="v-rail">Anılma oranı ve ses payı penceresi</dt>
             <dd>{trTarih(rapor.kaynaklar.aiOranlari.baslangic)} – {trTarih(rapor.kaynaklar.aiOranlari.bitis)}</dd>
           </div>
           <div>
-            <dt className="text-label text-muted-foreground">AI bot ziyaret penceresi</dt>
+            <dt className="v-rail">AI bot ziyaret penceresi</dt>
             <dd>{trTarih(rapor.kaynaklar.botZiyaret.baslangic)} – {trTarih(rapor.kaynaklar.botZiyaret.bitis)}</dd>
           </div>
-          {paylasimSonu && <div><dt className="text-label text-muted-foreground">Bağlantı geçerliliği</dt><dd>{trTarih(paylasimSonu)}</dd></div>}
+          {paylasimSonu && <div><dt className="v-rail">Bağlantı geçerliliği</dt><dd>{trTarih(paylasimSonu)}</dd></div>}
         </dl>
         <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-          <BrandWordmark size={16} />
-          <p className="text-label text-muted-foreground">Bu rapor RanksUp ile hazırlandı.</p>
+          <BrandWordmark size={16} reversed accent="hsl(var(--brand-vivid))" />
+          <p className="v-rail">Bu rapor RanksUp ile hazırlandı.</p>
         </div>
       </div>
     </div>

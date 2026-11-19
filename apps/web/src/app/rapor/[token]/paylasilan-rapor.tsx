@@ -13,8 +13,9 @@ type Durum = { tur: 'yukleniyor' } | { tur: 'yok' } | { tur: 'hata'; mesaj: stri
 
 /**
  * Paylasilan raporun istemci gorunumu: dondurulmus govdeyi API'den okur ve
- * paneldeki AYNI belge bilesenini cizer. Sayfa her zaman acik tema
- * (`.rapor-kagit`): musteri raporu bir kagit belge gibi gorunmeli.
+ * paneldeki AYNI belge bilesenini cizer. Sayfa her zaman koyu vitrin dilinde
+ * (`.rapor-kagit` + `dark`, 19.11.2026): ziyaretcinin temasindan bagimsiz,
+ * ana sayfa ve panelle ayni siyah sahne.
  */
 export function PaylasilanRaporGorunumu({ token }: { token: string }) {
   const [durum, setDurum] = useState<Durum>({ tur: 'yukleniyor' });
@@ -33,10 +34,10 @@ export function PaylasilanRaporGorunumu({ token }: { token: string }) {
   }, [token]);
 
   return (
-    <div className="rapor-kagit min-h-screen bg-muted/40">
-      <div className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur print:hidden">
+    <div className="rapor-kagit dark min-h-screen bg-background">
+      <div className="sticky top-0 z-10 border-b border-border bg-background print:hidden">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
-          <BrandWordmark size={18} />
+          <BrandWordmark size={18} reversed accent="hsl(var(--brand-vivid))" />
           {durum.tur === 'hazir' && (
             <Button size="sm" onClick={yazdir}>
               <FileDown className="h-4 w-4" aria-hidden /> PDF indir
@@ -68,7 +69,7 @@ export function PaylasilanRaporGorunumu({ token }: { token: string }) {
             <RaporBelgesi
               rapor={durum.veri.rapor}
               paylasimSonu={durum.veri.paylasim.sonGecerlilik}
-              className="rounded-md border border-border p-5 shadow-sm sm:p-10"
+              className="rounded-lg border border-border p-5 sm:p-10"
             />
             <RaporBaskiKopyasi rapor={durum.veri.rapor} paylasimSonu={durum.veri.paylasim.sonGecerlilik} />
           </>

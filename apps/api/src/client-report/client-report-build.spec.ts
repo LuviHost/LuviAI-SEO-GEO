@@ -382,3 +382,86 @@ describe('kucuk yardimcilar', () => {
     expect(kontrolDurumu({ found: true, valid: true, issues: [{ severity: 'info' }] })).toBe('gecti');
   });
 });
+
+describe('takip edilen sorular (Prompt Lab) raporda', () => {
+  const T = '2026-11-19T00:00:00.000Z';
+  const satir = (soru: string, provider: string, cited: boolean, brandMentioned: boolean, sources: unknown = [], extra: Record<string, unknown> = {}) =>
+    ({ soru, sira: 0, provider, tarih: T, cited, brandMentioned, brandInQuery: false, sources, ...extra });
+
+  function takipli() {
+    const g = mukellefGirdisi();
+    g.takipSorulari = [
+      // Soru A: ChatGPT kaynak, Gemini ad, digerleri yok
+      satir('Yapay zekâ destekli ön muhasebe programı önerir misin?', 'openai', true, true, [{ host: 'parasut.com' }, { host: 'www.mukellef.co' }, { host: 'google.com' }]),
+      satir('Yapay zekâ destekli ön muhasebe programı önerir misin?', 'gemini', false, true),
+      satir('Yapay zekâ destekli ön muhasebe programı önerir misin?', 'anthropic', false, false),
+      satir('Yapay zekâ destekli ön muhasebe programı önerir misin?', 'perplexity', false, false),
+      // Soru B: dort asistanda olculdu, hicbirinde yok; kaynaklar dis alan adlari
+      ...['openai', 'gemini', 'anthropic', 'perplexity'].map((p) => satir('E-fatura ve ön muhasebeyi birlikte sunan program hangisi?', p, false, false,
+        [{ url: 'https://www.parasut.com/x' }, { host: 'logo.com.tr' }, { host: 'youtube.com' }], { sira: 1 })),
+      // Site olcumunde olmayan asistan: tabloya kolon acmaz, yok sayilir
+      satir('Yapay zekâ destekli ön muhasebe programı önerir misin?', 'google_ai_mode', true, true),
+    ];
+    return g;
+  }
+
+  it('takip sorulari tabloya site olcumunun ardindan eklenir; kaynaklar sitenin kendisi ve araci alan adlari haric', () => {
+    const r = build(takipli());
+    expect(r.ai.olcum.olculemedi).toBe(false);
+    if (r.ai.olcum.olculemedi) return;
+    const once = build().ai.olcum as Extract<MusteriRaporu['ai']['olcum'], { olculemedi: false }>;
+    expect(r.ai.olcum.sorgular).toHaveLength(once.sorgular.length + 2);
+    expect(r.ai.olcum.takipSoru).toBe(2);
+    const [a, b] = r.ai.olcum.sorgular.slice(-2);
+    expect(a.soru).toBe('Yapay zekâ destekli ön muhasebe programı önerir misin?');
+    expect(a.kaynak).toBe('takip');
+    expect(a.kaynaklar).toEqual(['parasut.com']);
+    expect(b.kaynaklar).toEqual(['logo.com.tr', 'parasut.com']);
+    const kolon = (p: string) => r.ai.olcum.olculemedi ? -1 : r.ai.olcum.asistanlar.findIndex((x) => x.saglayici === p);
+    expect(a.sonuclar[kolon('openai')]).toBe('alinti');
+    expect(a.sonuclar[kolon('gemini')]).toBe('anilma');
+    expect(a.sonuclar[kolon('xai')]).toBe('olculemedi');
+    expect(r.ai.olcum.asistanlar.map((x) => x.saglayici)).not.toContain('google_ai_mode');
+  });
+
+  it('asistan skoru iki kaynagin butun yanitlarindan (100/50/0), manset asistan ortalamasi', () => {
+    const r = build(takipli());
+    if (r.ai.olcum.olculemedi) throw new Error('olculmeli');
+    const openai = r.ai.olcum.asistanlar.find((x) => x.saglayici === 'openai')!;
+    // site olcumu: 3 markasiz yanit (1 kaynak, 1 ad) = 150 puan; takip: 2 yanit (1 kaynak) = 100 → 250 / 5
+    expect(openai).toMatchObject({ skor: 50, alintiSayisi: 2, anilmaSayisi: 1, olculenSoru: 5, soruSayisi: 5 });
+    const gemini = r.ai.olcum.asistanlar.find((x) => x.saglayici === 'gemini')!;
+    // site: 3 yanit hepsi ad = 150; takip: 1 ad + 1 yok = 50 → 200 / 5 = 40
+    expect(gemini.skor).toBe(40);
+    const skorlar = r.ai.olcum.asistanlar.map((x) => x.skor).filter((x): x is number => x !== null);
+    expect(r.ai.olcum.skor).toBe(Math.round(skorlar.reduce((t, x) => t + x, 0) / skorlar.length));
+    expect(r.ai.olcum.skorTuru).toBe('son-olcum');
+    expect(r.ai.olcum.tarih).toBe(T);
+    expect(r.yontem.join(' ')).toContain('takip edilen 2 soru');
+  });
+
+  it('site olcumunde zaten olan soru tekrar eklenmez; marka adi gecen takip sorusu skora girmez', () => {
+    const g = mukellefGirdisi();
+    const ilk = (build().ai.olcum as any).sorgular[0].soru as string;
+    g.takipSorulari = [
+      satir(ilk, 'openai', true, true),
+      satir('Mükellef güvenilir mi?', 'openai', true, true, [], { brandInQuery: true }),
+    ];
+    const r = build(g);
+    if (r.ai.olcum.olculemedi) throw new Error('olculmeli');
+    expect(r.ai.olcum.takipSoru).toBe(1);
+    expect(r.ai.olcum.sorgular.at(-1)).toMatchObject({ soru: 'Mükellef güvenilir mi?', markali: true });
+    expect(r.ai.olcum.asistanlar.find((x) => x.saglayici === 'openai')!.skor).toBe(50);
+  });
+
+  it('ozet: takip sorulari varsa soru sayisi + guclu sorular + bosluklar (kaynaklarla); yoksa eski metin', () => {
+    const m = build(takipli()).ozet.metin;
+    expect(m.join('\n')).toContain('marka adı geçmeyen');
+    expect(m.find((x) => x.startsWith('Boşluklar:'))).toBe(
+      'Boşluklar: "E-fatura ve ön muhasebeyi birlikte sunan program hangisi?" sorusunda ölçülen 4 asistanın hiçbirinde marka geçmiyor; cevaplarda öne çıkan kaynaklar logo.com.tr ve parasut.com.',
+    );
+    expect(m.at(-1)).toMatch(/^Öncelikli ilk adım:/);
+    expect(m.length).toBeLessThanOrEqual(7);
+    expect(build().ozet.metin.join(' ')).not.toMatch(/Boşluklar|Güçlü olduğunuz/);
+  });
+});
