@@ -7,6 +7,7 @@ import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
 import { XCurationService } from './x-curation.service.js';
 import { INTEL_SOURCES, type SourceKind } from './source-registry.js';
+import { R10_USER_AGENT, parseR10ForumList, r10ForumUrl } from './r10.js';
 
 /**
  * Toplayici — kaynak katalogundaki akislari ceker, tekillestirir, ham
@@ -49,6 +50,8 @@ const THROTTLE_MS: Partial<Record<SourceKind, number>> = {
   // ard arda cekildiginde ikincisi 429 aliyordu. Reset suresinin ustunde
   // bekliyoruz.
   reddit: 35_000,
+  // R10: alt forumlar ard arda cekilir; sitenin uzerine binmemek icin 5 sn
+  r10: 5000,
   rss: 1500,
   github: 1000,
   hn: 1000,
@@ -244,6 +247,8 @@ export class IntelCollectorService {
         return this.fetchFeed(`https://github.com/${target}/releases.atom`);
       case 'reddit':
         return this.fetchReddit(target);
+      case 'r10':
+        return this.fetchR10(target);
       case 'hn':
         return this.fetchHackerNews(target);
       case 'x':
@@ -331,6 +336,16 @@ export class IntelCollectorService {
   private async fetchReddit(subreddit: string): Promise<RawItem[]> {
     const items = await this.fetchFeed(`https://www.reddit.com/r/${subreddit}/new.rss`);
     return items.map((it) => ({ ...it, meta: { subreddit } }));
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  R10.NET — alt forum listesi (HTML). Satis ilanlari parseR10ForumList
+  //  icinde elenir; konu metnini analist acar (bkz. r10.ts).
+  // ────────────────────────────────────────────────────────────
+
+  private async fetchR10(forum: string): Promise<RawItem[]> {
+    const res = await this.httpText(r10ForumUrl(forum), 0, R10_USER_AGENT);
+    return parseR10ForumList(res.text, forum);
   }
 
   // ────────────────────────────────────────────────────────────
@@ -455,7 +470,7 @@ export class IntelCollectorService {
    *
    * SSRF korumali (common/safe-fetch.ts): hedef panelden elle girilebiliyor.
    */
-  private async httpText(url: string, attempt = 0): Promise<SafeTextResult> {
+  private async httpText(url: string, attempt = 0, userAgent?: string): Promise<SafeTextResult> {
     let res: SafeTextResult;
     try {
       res = await safeFetchText(url, {
@@ -465,11 +480,13 @@ export class IntelCollectorService {
         // Eski davranis: content-type'a bakmadan okunur — octet-stream ile
         // sunulan feed'ler de var. Tavan zaten sinirliyor.
         skipBinary: false,
+        // Yalniz kaynaga ozel kimlik gerekiyorsa (R10); yoksa varsayilan bot UA
+        ...(userAgent ? { userAgent } : {}),
       });
     } catch (err) {
       if (attempt === 0 && isRetryableFetchError(err)) {
         await sleep(RETRY_DELAY_MS);
-        return this.httpText(url, attempt + 1);
+        return this.httpText(url, attempt + 1, userAgent);
       }
       throw err;
     }
@@ -477,7 +494,7 @@ export class IntelCollectorService {
     // 429/503 gecici; 404/403 kalici — kalicida retry zaman kaybi
     if ((res.status === 429 || res.status === 503) && attempt === 0) {
       await sleep(retryDelayMs(res.headers));
-      return this.httpText(url, attempt + 1);
+      return this.httpText(url, attempt + 1, userAgent);
     }
     if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
     if (res.truncated) this.log.warn(`${url} ${MAX_FEED_BYTES} bayt tavaninda kesildi`);
