@@ -9,7 +9,7 @@ import { QuotaService } from '../billing/quota.service.js';
 import { loadPlanLockedIds } from '../articles/plan-lock.js';
 import { unbrandedOnly } from '../audit/brand-in-query.js';
 import { rivalsFromCompetitors, shareOfVoiceList } from '../audit/share-of-voice.js';
-import { buildClientReport, type RaporGirdisi } from './client-report-build.js';
+import { buildClientReport, type RaporGirdisi, type TakipSorusuSatiri } from './client-report-build.js';
 import {
   PAYLASIM_ONEKI, SITE_BASINA_PAYLASIM, anahtarCoz, gecerliGun, gecerliToken, paylasimAnahtari, snapshotSigdir,
   tokenOneki, yeniToken, type PaylasimKaydi,
@@ -74,7 +74,7 @@ export class ClientReportService {
       });
 
     const [
-      audit, erisim, manset, kosum, kpi, botSatirlari, botVarMi, yayinda, takvimde, plan, sovSatirlari, duzeltilen, envanterVar, hazirlik,
+      audit, erisim, manset, kosum, kpi, botSatirlari, botVarMi, yayinda, takvimde, plan, sovSatirlari, duzeltilen, envanterVar, hazirlik, takip,
     ] = await Promise.all([
       yut(this.audit.getLatest(siteId), null, 'audit'),
       yut(readCrawlAccess(this.prisma, siteId), null, 'crawl-access'),
@@ -94,6 +94,7 @@ export class ClientReportService {
       yut(this.prisma.siteImage.count({ where: { siteId, status: { in: DUZELTILMIS_GORSEL } } }), 0, 'images-fixed'),
       yut(this.prisma.siteImage.findFirst({ where: { siteId }, select: { id: true } }), null, 'images-any'),
       yut(this.readinessWithDate(siteId), null, 'agent-readiness'),
+      yut(this.takipSorulari(siteId, d30), [], 'prompt-lab'),
     ]);
 
     // Musteriye giden sayi DOGRULANMIS ziyaret (IP saglayicinin resmi listesinde;
@@ -150,7 +151,45 @@ export class ClientReportService {
       rakipler: { tanimli: tanimliRakipler(site.brain?.competitors, site.name), sesPayi: sov },
       gorselDuzeltilen: envanterVar ? duzeltilen : null,
       ajanHazirligi: hazirlik,
+      takipSorulari: takip,
     };
+  }
+
+  /**
+   * Prompt Lab'de takip edilen sorularin (aktif, uygulama sorusu degil) SON olcum gunu:
+   * soru x asistan basina o gunun ana-soru satirlari (fan-out dallari haric). Rapor bu
+   * sorulari site olcumunun yanina ekler (client-report-build takipSorulariniEkle).
+   * NEDEN son gun: ayni soru farkli gunlerde olculduyse eski cevap yenisinin sayisini sismesin.
+   */
+  private async takipSorulari(siteId: string, since: Date): Promise<TakipSorusuSatiri[]> {
+    const prompts = await this.prisma.geoPrompt.findMany({
+      where: { siteId, isActive: true, trackedAppId: null },
+      select: { id: true, text: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (prompts.length === 0) return [];
+    const runs = await this.prisma.geoPromptRun.findMany({
+      where: { siteId, fanoutId: null, date: { gte: since }, promptId: { in: prompts.map((x) => x.id) } },
+      select: { promptId: true, provider: true, date: true, cited: true, brandMentioned: true, brandInQuery: true, sources: true },
+    });
+    const sonGun = new Map<string, number>();
+    for (const r of runs) {
+      const k = `${r.promptId}|${r.provider}`;
+      sonGun.set(k, Math.max(sonGun.get(k) ?? 0, r.date.getTime()));
+    }
+    const metin = new Map(prompts.map((x) => [x.id, x.text]));
+    return runs
+      .filter((r) => r.date.getTime() === sonGun.get(`${r.promptId}|${r.provider}`))
+      .map((r) => ({
+        soru: metin.get(r.promptId) ?? '',
+        sira: prompts.findIndex((x) => x.id === r.promptId),
+        provider: r.provider,
+        tarih: r.date.toISOString(),
+        cited: r.cited,
+        brandMentioned: r.brandMentioned,
+        brandInQuery: r.brandInQuery,
+        sources: r.sources,
+      }));
   }
 
   /**

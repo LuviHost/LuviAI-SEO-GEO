@@ -20,6 +20,7 @@ import { isUnverifiedCheck } from '../audit/audit-checks.service.js';
 import { aiCitationsOlculdu } from '../audit/audit.service.js';
 import { headlineOfProviders, outcomeOf, type RunProbe, type RunProvider } from '../audit/citation-run-compare.js';
 import { isErrorProbe } from '../audit/citation-score.js';
+import { asHostname } from '../audit/citation-sources.js';
 import { unbrandedOnly } from '../audit/brand-in-query.js';
 import { fixRouteFor, fixRouteForIssue } from '../audit/fix-routes.js';
 import {
@@ -79,6 +80,21 @@ export interface RaporGirdisi {
   gorselDuzeltilen: number | null;
   /** latestReadinessKpi; hic tarama yoksa null */
   ajanHazirligi: { score: number | null; measured: boolean; reason: string | null; ranAt: string | null } | null;
+  /** Prompt Lab'de takip edilen sorularin son olcum gunu (soru x asistan satirlari); eski cagiranlarda yok */
+  takipSorulari?: TakipSorusuSatiri[];
+}
+
+export interface TakipSorusuSatiri {
+  soru: string;
+  /** Prompt Lab'deki sirasi (eklenme sirasi) — tabloda bu sirayla durur */
+  sira: number;
+  provider: string;
+  tarih: string;
+  cited: boolean;
+  brandMentioned: boolean;
+  brandInQuery: boolean;
+  /** GeoPromptRun.sources (CitationSource[]: { url, host, ... }) */
+  sources: unknown;
 }
 
 // ─── Yardimcilar ────────────────────────────────────────────────────
@@ -606,6 +622,92 @@ function aiMatrisi(providers: RunProvider[]): { asistanlar: RaporAiAsistan[]; so
   return { asistanlar, sorgular, tekrar };
 }
 
+// ─── Takip edilen sorular (Prompt Lab) ──────────────────────────────
+
+/** Ozette "kaynak" diye sayilmayan araci alan adlari (arama yonlendirmesi, video) */
+const ARACI_KAYNAK = new Set(['google.com', 'youtube.com', 'vertexaisearch.cloud.google.com', 'bing.com']);
+
+function kaynakAlanAdi(s: unknown): string | null {
+  const o = nesne(s);
+  const ham = typeof o.host === 'string' && o.host ? o.host : typeof o.url === 'string' ? o.url : typeof s === 'string' ? s : null;
+  let host: string | null = null;
+  if (ham && /^https?:\/\//i.test(ham)) { try { host = new URL(ham).hostname; } catch { host = null; } }
+  else if (ham) host = asHostname(ham) ?? ham;
+  return host ? host.replace(/^www\./, '').toLowerCase() : null;
+}
+
+/**
+ * Prompt Lab sorularini site olcumunun matrisine ekler. NEDEN: kurulum / Yeniden Test
+ * yalniz sistemin urettigi 5 soruyu sorar; musteriye asil sorulari (Prompt Lab'de
+ * takip edilenler) raporda gostermek gerekiyordu (19.11.2026 sahip karari).
+ * Site olcumunde zaten olan soru tekrar eklenmez. Asistan satirlari ve skor iki
+ * kaynagin TUM gecerli yanitlarindan yeniden hesaplanir (100 / 50 / 0 ortalamasi —
+ * AI_SKOR_YONTEMI ile ayni kural); marka adi gecen soru skora girmez.
+ */
+function takipSorulariniEkle(
+  asistanlar: RaporAiAsistan[], sorgular: RaporAiSorgu[], satirlar: TakipSorusuSatiri[], host: string,
+): { eklenen: number; sonTarih: string | null } {
+  const sira = new Map(asistanlar.map((a, i) => [a.saglayici, i]));
+  const mevcut = new Set(sorgular.map((q) => q.soru.trim().toLocaleLowerCase('tr')));
+  const gruplar = new Map<string, TakipSorusuSatiri[]>();
+  for (const r of satirlar) {
+    const soru = r.soru.trim();
+    if (!soru || mevcut.has(soru.toLocaleLowerCase('tr')) || !sira.has(r.provider)) continue;
+    gruplar.set(soru, [...(gruplar.get(soru) ?? []), r]);
+  }
+  const kendi = host.replace(/^www\./, '').toLowerCase();
+  // Asistan basina eklenen yanitlar (skor yeniden hesabi icin)
+  const ek = asistanlar.map(() => ({ yanit: 0, puan: 0, alinti: 0, anilma: 0, soru: 0, alintiSoru: 0, anilmaSoru: 0 }));
+  let sonTarih: string | null = null;
+  const yeni = [...gruplar.entries()].sort((a, b) => a[1][0].sira - b[1][0].sira);
+  for (const [soru, rows] of yeni) {
+    const markali = rows.some((r) => r.brandInQuery);
+    const ayrinti = asistanlar.map(() => ({ yanit: 0, alinti: 0, anilma: 0 }));
+    const sayac = new Map<string, number>();
+    for (const r of rows) {
+      const o = ayrinti[sira.get(r.provider)!];
+      o.yanit++;
+      if (r.cited) o.alinti++;
+      else if (r.brandMentioned) o.anilma++;
+      if (!sonTarih || r.tarih > sonTarih) sonTarih = r.tarih;
+      for (const src of Array.isArray(r.sources) ? r.sources : []) {
+        const d = kaynakAlanAdi(src);
+        if (d && d !== kendi && !d.endsWith(`.${kendi}`) && !ARACI_KAYNAK.has(d)) sayac.set(d, (sayac.get(d) ?? 0) + 1);
+      }
+    }
+    if (!markali) {
+      ayrinti.forEach((o, i) => {
+        if (o.yanit === 0) return;
+        const e = ek[i];
+        e.yanit += o.yanit; e.alinti += o.alinti; e.anilma += o.anilma; e.puan += o.alinti * 100 + o.anilma * 50;
+        e.soru++; if (o.alinti > 0) e.alintiSoru++; else if (o.anilma > 0) e.anilmaSoru++;
+      });
+    }
+    const kaynaklar = [...sayac.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 4).map(([d]) => d);
+    sorgular.push({ soru, markali, sonuclar: ayrinti.map(ozetSonucu), ayrinti, kaynak: 'takip', ...(kaynaklar.length ? { kaynaklar } : {}) });
+  }
+  asistanlar.forEach((a, i) => {
+    const e = ek[i];
+    if (e.yanit === 0) return;
+    // Site olcumunde gecerli yanit vermeyen asistanin (skor null) eski sayilari sifir sayilir
+    const bos = a.skor === null;
+    const eskiYanit = bos ? 0 : a.olculenSoru;
+    // Eski puan sayaclardan (AI_SKOR_YONTEMI: kaynak 100, yalniz ad 50) — kayitli skorla ayni kural
+    const eskiPuan = bos ? 0 : a.alintiSayisi * 100 + a.anilmaSayisi * 50;
+    a.skor = Math.round((eskiPuan + e.puan) / (eskiYanit + e.yanit));
+    a.alintiSayisi += e.alinti;
+    a.anilmaSayisi += e.anilma;
+    a.olculenSoru = eskiYanit + e.yanit;
+    a.soruSayisi = (bos ? 0 : a.soruSayisi ?? 0) + e.soru;
+    a.alintiSoru = (bos ? 0 : a.alintiSoru ?? 0) + e.alintiSoru;
+    a.anilmaSoru = (bos ? 0 : a.anilmaSoru ?? 0) + e.anilmaSoru;
+    if (bos) { a.alintiSayisi = e.alinti; a.anilmaSayisi = e.anilma; }
+    a.sonuc = a.alintiSayisi > 0 ? 'alinti' : a.anilmaSayisi > 0 ? 'anilma' : 'yok';
+    a.neden = null;
+  });
+  return { eklenen: yeni.length, sonTarih };
+}
+
 function aiDerle(g: RaporGirdisi): RaporAi {
   const auditAi = nesne(nesne(g.audit?.checks).aiCitations);
   const auditOlculdu = aiCitationsOlculdu(auditAi);
@@ -623,6 +725,7 @@ function aiDerle(g: RaporGirdisi): RaporAi {
     olcum = olculemedi(typeof atlama.message === 'string' && atlama.message ? `${OLCULMEDI}. ${atlama.message}` : OLCULMEDI);
   } else {
     const { asistanlar, sorgular, tekrar } = aiMatrisi(kaynak.providers);
+    const takip = takipSorulariniEkle(asistanlar, sorgular, g.takipSorulari ?? [], hostOf(g.site.url));
     // Manset sayisi panelle AYNI kaynaktan (KpiRow: headline ?? olculen tarama skoru)
     let skor: number | null = null;
     let skorTuru: 'rolling' | 'first-run' | 'son-olcum' = 'son-olcum';
@@ -634,7 +737,15 @@ function aiDerle(g: RaporGirdisi): RaporAi {
     } else {
       skor = headlineOfProviders(kaynak.providers);
     }
-    olcum = { olculemedi: false, tarih: kaynak.tarih, skor, skorTuru, asistanlar, sorgular, tekrar };
+    let tarih = kaynak.tarih;
+    if (takip.eklenen > 0) {
+      // Takip sorulari eklendiyse manset bu raporun BUTUN sorularinin asistan ortalamasi
+      const skorlar = asistanlar.map((a) => a.skor).filter((x): x is number => typeof x === 'number');
+      skor = skorlar.length ? Math.round(skorlar.reduce((t, x) => t + x, 0) / skorlar.length) : skor;
+      skorTuru = 'son-olcum';
+      if (takip.sonTarih && takip.sonTarih > tarih) tarih = takip.sonTarih;
+    }
+    olcum = { olculemedi: false, tarih, skor, skorTuru, asistanlar, sorgular, tekrar, ...(takip.eklenen > 0 ? { takipSoru: takip.eklenen } : {}) };
   }
 
   const k = g.kpi;
@@ -800,7 +911,7 @@ function noktasiz(s: string): string {
 }
 
 /**
- * Yonetici ozeti — 3-5 cumle, YALNIZ sablon. Ayni govde her zaman ayni metni
+ * Yonetici ozeti — 3-5 cumle (takip sorulari varsa soru bulgulariyla en fazla 7), YALNIZ sablon. Ayni govde her zaman ayni metni
  * uretir (LLM yok, saat yok, rastgelelik yok); olculmeyen alan "olculmedi"
  * diye soylenir, tahmin edilmez.
  */
@@ -855,7 +966,10 @@ export function ozetMetni(r: Omit<MusteriRaporu, 'ozet'>): string[] {
     const gorunen = olculen.filter((a) => a.sonuc === 'alinti' || a.sonuc === 'anilma');
     const tur = ai.olcum.skorTuru === 'rolling' ? 'son 7 ölçüm gününün ortalaması' : ai.olcum.skorTuru === 'first-run' ? 'ilk ölçüm' : 'son ölçüm';
     const skorMetni = ai.olcum.skor === null ? 'AI görünürlük skoru hesaplanamadı' : `AI görünürlük skoru ${ai.olcum.skor}/100 (${tur})`;
-    let cumle = `${skorMetni}: ${trTarih(ai.olcum.tarih)} ölçümünde ${olculen.length} AI asistanının ${gorunen.length} tanesinde site kaynak gösterildi ya da marka adı geçti.`;
+    const soruSayisi = ai.olcum.sorgular.filter((q) => !q.markali).length;
+    let cumle = (ai.olcum.takipSoru ?? 0) > 0
+      ? `${skorMetni}: ${trTarih(ai.olcum.tarih)} itibarıyla marka adı geçmeyen ${soruSayisi} soruda ${olculen.length} AI asistanının ${gorunen.length} tanesinde site kaynak gösterildi ya da marka adı geçti.`
+      : `${skorMetni}: ${trTarih(ai.olcum.tarih)} ölçümünde ${olculen.length} AI asistanının ${gorunen.length} tanesinde site kaynak gösterildi ya da marka adı geçti.`;
     const eksik = [ai.anilmaOrani.olculemedi ? 'anılma oranı' : null, ai.sesPayi.olculemedi ? 'ses payı' : null].filter(Boolean);
     if (eksik.length === 2) cumle += ' Anılma oranı ve ses payı henüz ölçülmedi.';
     else if (eksik.length === 1) cumle += ` ${eksik[0] === 'anılma oranı' ? 'Anılma oranı' : 'Ses payı'} henüz ölçülmedi.`;
@@ -873,8 +987,55 @@ export function ozetMetni(r: Omit<MusteriRaporu, 'ozet'>): string[] {
       : takvim ? `RanksUp ile henüz içerik yayınlanmadı; ${takvim}.` : 'RanksUp ile henüz içerik yayınlanmadı.');
   }
   const cekirdek = out.slice(0, 4);
+  // Soru bazinda bulgular yalniz takip (Prompt Lab) sorulari varken: o zaman sorular
+  // musterinin kendi sorulari ve "nerede gucluyuz / nerede yokuz" soylenebilir
+  if (!ai.olcum.olculemedi && (ai.olcum.takipSoru ?? 0) > 0) cekirdek.push(...soruBulgulari(ai.olcum.sorgular));
   if (r.aksiyonlar.length > 0) cekirdek.push(`Öncelikli ilk adım: ${noktasiz(r.aksiyonlar[0].baslik)}.`);
-  return cekirdek.slice(0, 5);
+  return cekirdek.slice(0, 7);
+}
+
+/** "A", "B" ve "C" */
+function veListesi(xs: string[]): string {
+  return xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} ve ${xs[xs.length - 1]}`;
+}
+
+/**
+ * Guclu sorular (olculen asistanlarin en az yarisinda kaynak ya da ad) ve bosluklar
+ * (en az 3 asistanda olculup hicbirinde gecmeyen). Her biri en fazla iki soru; ayni
+ * veri ayni metni uretir (siralama sayi, esitlikte tablo sirasi).
+ */
+export function soruBulgulari(sorgular: RaporAiSorgu[]): string[] {
+  const satirlar = sorgular
+    .map((q, i) => {
+      const olculen = q.sonuclar.filter((x) => x !== 'olculemedi').length;
+      const gorunen = q.sonuclar.filter((x) => x === 'alinti' || x === 'anilma').length;
+      return { q, i, olculen, gorunen };
+    })
+    .filter((x) => !x.q.markali && x.olculen > 0);
+  const out: string[] = [];
+  const guclu = satirlar
+    .filter((x) => x.gorunen >= 2 && x.gorunen * 2 >= x.olculen)
+    .sort((a, b) => b.gorunen / b.olculen - a.gorunen / a.olculen || a.i - b.i)
+    .slice(0, 2);
+  if (guclu.length === 1) {
+    const [a] = guclu;
+    out.push(`Güçlü olduğunuz soru: "${noktasiz(a.q.soru)}" sorusunda ölçülen ${a.olculen} asistanın ${a.gorunen} tanesinde site kaynak gösterildi ya da marka anıldı.`);
+  } else if (guclu.length === 2) {
+    const [a, b] = guclu;
+    out.push(`Güçlü olduğunuz sorular: "${noktasiz(a.q.soru)}" sorusunda ölçülen ${a.olculen} asistanın ${a.gorunen} tanesinde, "${noktasiz(b.q.soru)}" sorusunda ${b.olculen} asistanın ${b.gorunen} tanesinde site kaynak gösterildi ya da marka anıldı.`);
+  }
+  const bosluk = satirlar
+    .filter((x) => x.gorunen === 0 && x.olculen >= 3)
+    .sort((a, b) => (b.q.kaynaklar?.length ? 1 : 0) - (a.q.kaynaklar?.length ? 1 : 0) || a.i - b.i)
+    .slice(0, 2);
+  if (bosluk.length > 0) {
+    const parca = bosluk.map((x) => {
+      const k = x.q.kaynaklar?.slice(0, 3) ?? [];
+      return `"${noktasiz(x.q.soru)}" sorusunda ölçülen ${x.olculen} asistanın hiçbirinde marka geçmiyor${k.length ? `; cevaplarda öne çıkan kaynaklar ${veListesi(k)}` : ''}`;
+    });
+    out.push(`Boşluklar: ${parca.join('. ')}.`);
+  }
+  return out;
 }
 
 // ─── KPI ────────────────────────────────────────────────────────────
@@ -950,6 +1111,9 @@ export function buildClientReport(g: RaporGirdisi, now: Date): MusteriRaporu {
     'Taramadan türetilen aksiyonların etki ve efor etiketleri kural tabanlıdır: etki çoğunlukla bulgunun önem düzeyinden gelir, görünürlüğe etkisi sınırlı adımlar (ör. robots.txt dosyasının yokluğu) “düşük etki” olarak işaretlenir; efor düzeltme yolundan gelir (RanksUp’ın otomatik düzeltebildiği dosyalar “kolay”).',
     '“Henüz ölçülmedi” yazan alanlarda veri yoktur; bu alanlar sıfır olarak yorumlanmamalıdır.',
   ];
+  if (!ai.olcum.olculemedi && (ai.olcum.takipSoru ?? 0) > 0) {
+    yontem.splice(3, 0, `Soru tablosunda site ölçümünün sorularına ek olarak takip edilen ${ai.olcum.takipSoru} soru yer alır; bu soruların her biri için her asistanın son ölçüm günündeki yanıtı kullanıldı. Asistan skorları ve genel skor bu raporun bütün sorularından hesaplanır, bu yüzden paneldeki AI görünürlük skorundan farklı olabilir.`);
+  }
   if (!ai.olcum.olculemedi && (ai.olcum.tekrar ?? 1) > 1) {
     // AI_SKOR_YONTEMI'nden hemen sonra: "15 yanıt" sayisinin nereden geldigi
     // "en fazla": gunluk butce payi dar kalan asistan daha az tekrarla sorulabilir (citation-repeat.ts)

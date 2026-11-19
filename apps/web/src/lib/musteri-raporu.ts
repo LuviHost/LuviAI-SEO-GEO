@@ -127,9 +127,15 @@ export interface RaporAi {
       sonuclar: AiSonuc[];
       /** Asistan sirasiyla: gecerli yanit sayisi ve kacinda kaynak / yalniz marka adi; eski kayitlarda yok */
       ayrinti?: Array<{ yanit: number; alinti: number; anilma: number }>;
+      /** 'takip' = Prompt Lab'de takip edilen soru; yoksa site olcumu */
+      kaynak?: 'takip';
+      /** Bu sorunun cevaplarinda en cok kaynak gosterilen dis alan adlari; eski kayitlarda yok */
+      kaynaklar?: string[];
     }>;
     /** Bir sorunun bir asistana en fazla kac kez soruldugu (1 = tek tur); eski kayitlarda yok */
     tekrar?: number;
+    /** Tabloya eklenen takip (Prompt Lab) sorusu sayisi; yoksa yalniz site olcumu */
+    takipSoru?: number;
   }>;
   anilmaOrani: Olculebilir<{ deger: number; markasizOlcum: number }>;
   sesPayi: Olculebilir<{ deger: number }>;

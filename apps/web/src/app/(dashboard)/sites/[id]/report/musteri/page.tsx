@@ -21,7 +21,7 @@ import { RaporPaylasim } from '@/components/musteri-raporu/rapor-paylasim';
  * Veri kayitli son olcumlerden gelir (GET /client-report); bu sayfa tarama ya
  * da AI olcumu BASLATMAZ — tum planlarda ve suresi dolan denemede acik.
  * "PDF indir" tarayicinin yazdir penceresidir (A4, bolum basina yeni sayfa,
- * acik tema; globals.css "Musteri raporu"). "Bağlantı paylaş" raporun o anki
+ * koyu vitrin kagidi; globals.css "Musteri raporu"). "Bağlantı paylaş" raporun o anki
  * halini dondurur (rapor-paylasim.tsx).
  */
 export default function MusteriRaporuPage() {
@@ -83,7 +83,7 @@ export default function MusteriRaporuPage() {
       ) : rapor ? (
         <>
           <div className="mx-auto max-w-4xl rounded-lg border border-border bg-muted p-2 sm:p-4 print:hidden">
-            <RaporBelgesi rapor={rapor} className="rounded-md border border-border p-5 sm:p-10" />
+            <RaporBelgesi rapor={rapor} className="rounded-lg border border-border p-5 sm:p-10" />
           </div>
           <RaporBaskiKopyasi rapor={rapor} />
         </>

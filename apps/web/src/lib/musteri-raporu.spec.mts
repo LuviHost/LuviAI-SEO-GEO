@@ -58,15 +58,34 @@ describe('baski kurallari (globals.css)', () => {
     expect(devam?.[1]).toBeDefined();
     expect(devam![1]).not.toContain('break-before');
   });
-  it('tarayicinin ust bilgisi (tarih-saat + sayfa basligi) basilmaz: ust kenar kutusu tanimli; kenarlar beyaz', () => {
+  it('tarayicinin ust bilgisi (tarih-saat + sayfa basligi) basilmaz: ust kenar kutusu tanimli; kenarlar koyu kagitla ayni siyah', () => {
     const sayfa = css.slice(css.indexOf('@page rapor'));
     // Chrome, yazarin kenar kutusu tanimladigi kenarda kendi ust/alt bilgisini basmaz
     expect(sayfa).toMatch(/@top-left\s*\{\s*content: '';\s*\}/);
     expect(sayfa).toMatch(/@bottom-left\s*\{\s*content: 'RanksUp · Site Raporu';/);
-    expect(sayfa).toMatch(/@page rapor\s*\{[^@]*background: #fff;/);
+    // Sayfa kenarinda beyaz cerceve kalmaz (#090909 = koyu kagidin zemini)
+    expect(sayfa).toMatch(/@page rapor\s*\{[^@]*background: #090909;/);
+    expect(sayfa).not.toMatch(/@page rapor\s*\{[^@]*background: #fff;/);
+    // Alt bilgi siyah kagitta okunur: sonuk gri (koyu --muted-foreground), eski koyu lacivert-gri degil
+    const altBilgi = sayfa.slice(0, sayfa.indexOf('pg-spin'));
+    expect(altBilgi.match(/color: hsl\(30 4% 64%\);/g)?.length).toBe(2);
+    expect(altBilgi).not.toContain('hsl(215 16% 47%)');
   });
-  it('belge acik tema token larini tasir (koyu temada da beyaz kagit)', () => {
-    expect(css).toMatch(/:root,\s*\.rapor-kagit\s*\{\s*--background: 0 0% 100%;/);
+  it('belge her zaman koyu tema token larini tasir (acik temali panelde de siyah kagit)', () => {
+    const blok = css.slice(css.search(/\.dark,\s*\.rapor-kagit\s*\{/));
+    expect(blok.length).toBeLessThan(css.length);
+    const govde = blok.slice(0, blok.indexOf('}'));
+    expect(govde).toContain('--background: 0 0% 3.5%;');
+    expect(govde).toContain('--card: 0 0% 6.5%;');
+    expect(govde).toContain('--border: 0 0% 17%;');
+    expect(govde).toContain('color-scheme: dark;');
+    // Acik :root blogu artik belgeyi kapsamaz
+    expect(css).not.toMatch(/:root,\s*\.rapor-kagit/);
+  });
+  it('koyu zeminler baskida da basilir: tum belge print-color-adjust exact, kok zemin rapor basilirken siyah', () => {
+    const baski = css.slice(css.indexOf('MUSTERI RAPORU'));
+    expect(baski).toMatch(/\.rapor-baski,\s*\.rapor-baski \*\s*\{\s*-webkit-print-color-adjust: exact;\s*print-color-adjust: exact;/);
+    expect(baski).toMatch(/html:has\(> body > \.rapor-baski\),\s*body:has\(> \.rapor-baski\)\s*\{\s*background: #090909 !important;[^}]*print-color-adjust: exact;/);
   });
 });
 
@@ -153,6 +172,19 @@ describe('rapor belgesi: musteriye yanlis okunan etiketler', () => {
     expect(belge).toMatch(/<SiteFavicon[^>]*\beager\b/);
     const ikon = readFileSync(new URL('../components/site-favicon.tsx', import.meta.url), 'utf8');
     expect(ikon).toContain("loading={eager ? 'eager' : 'lazy'}");
+  });
+
+  it('koyu vitrin dili: kok sinif `dark` (siyah Grok/OpenAI isaretleri beyaza doner), Geist basliklar, golge yok, turuncu ustu metin siyah', () => {
+    expect(belge).toContain("'rapor-kagit dark bg-background text-foreground'");
+    expect(belge).not.toContain('font-brand');
+    expect(belge).not.toMatch(/\bshadow-/);
+    expect(belge).not.toMatch(/\bbg-gradient-|\bfrom-/);
+    expect(belge).toMatch(/bg-brand [^"']*text-black/);
+    // Logo koyu zeminde: ters (beyaz) yazi + sayfanin turuncusu
+    expect(belge.match(/<BrandWordmark [^>]*reversed accent="hsl\(var\(--brand-vivid\)\)"/g)?.length).toBe(2);
+    const paylasim = readFileSync(new URL('../app/rapor/[token]/paylasilan-rapor.tsx', import.meta.url), 'utf8');
+    expect(paylasim).toContain('rapor-kagit dark');
+    expect(paylasim).not.toMatch(/\bshadow-/);
   });
 
   it('bilgi amacli kontroller ayri listelenir', () => {
