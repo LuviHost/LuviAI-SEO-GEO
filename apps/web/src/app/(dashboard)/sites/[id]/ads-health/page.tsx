@@ -10,8 +10,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { RelatedLinks } from '@/components/empty-state';
 import {
   Target, RefreshCw, TrendingUp, AlertTriangle, CheckCircle2, XCircle,
-  Zap, Sparkles, Megaphone, Settings, ChevronDown, ChevronRight, Award,
+  Zap, Sparkles, Megaphone, Settings, ChevronDown, ChevronRight, Award, Info,
 } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { SectionHeader } from '@/components/ui/section-header';
 import { SEVERITY_LABEL, label } from '@/lib/labels';
@@ -114,12 +115,24 @@ export default function AdsHealthPage() {
   const categories = Object.entries(audit?.byCategory ?? {}) as [string, { score: number; weight: number }][];
   const summary = audit?.summary ?? { pass: 0, warning: 0, fail: 0, na: 0, total: 0 };
 
+  // 'na' bulgular skora girmez; kategoride ayri "Veri yok" satirinda listelenir
   const groupedFindings: Record<string, any[]> = {};
+  const naFindings: Record<string, any[]> = {};
   for (const f of findings) {
-    if (f.verdict === 'na') continue;
-    groupedFindings[f.category] = groupedFindings[f.category] ?? [];
-    groupedFindings[f.category].push(f);
+    const bucket = f.verdict === 'na' ? naFindings : groupedFindings;
+    bucket[f.category] = bucket[f.category] ?? [];
+    bucket[f.category].push(f);
   }
+  // Yalniz 'na' bulgusu olan kategori skorlanmaz ama listede "Veri yok" diye gorunur
+  const categoryRows: [string, { score: number; weight: number } | null][] = [
+    ...categories,
+    ...Object.keys(naFindings).filter((cat) => !audit?.byCategory?.[cat]).map((cat) => [cat, null] as [string, null]),
+  ];
+  const scored = summary.pass + summary.warning + summary.fail;
+  const dataStatus = audit?.dataStatus as
+    | { source: 'google_ads_api' | 'meta_graph_api' | 'none'; noDataCount: number; readErrors?: string[] }
+    | undefined;
+  const platformName = platform === 'google' ? 'Google Ads' : 'Meta';
 
   return (
     <div className="space-y-5">
@@ -199,15 +212,45 @@ export default function AdsHealthPage() {
 
       {audit && (
         <>
+          {/* Veri durumu: skor yalniz hesaptan okunan veriyle hesaplanir */}
+          {dataStatus && (dataStatus.source === 'none' || dataStatus.noDataCount > 0) && (
+            <Card className="border-warning/25 bg-warning/5">
+              <CardContent className="flex items-start gap-3 p-4">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+                <div className="min-w-0 flex-1 space-y-1 text-sm">
+                  <p className="font-medium">
+                    {dataStatus.source === 'none'
+                      ? `${platformName} hesabından veri okunamadı; kontroller değerlendirilmedi.`
+                      : `${dataStatus.noDataCount} kontrol için hesaptan veri okunamadı.`}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Kampanya Skoru yalnız reklam hesabından okuduğu veriyle puan verir; okunamayan kontroller “Veri yok” olarak gösterilir ve skora girmez.
+                    {dataStatus.source === 'none' && (
+                      <> Hesabı <Link href={`/sites/${site.id}/connections`} className="underline underline-offset-2 hover:text-foreground">Bağlantılar</Link> sayfasından bağlayıp yeniden tara.</>
+                    )}
+                  </p>
+                  {(dataStatus.readErrors?.length ?? 0) > 0 && (
+                    <p className="text-xs text-muted-foreground">Okunamayan: {dataStatus.readErrors!.join(', ')}</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Skor halkası + sub stats */}
           <Card>
             <CardContent className="p-5">
               <div className="grid md:grid-cols-3 gap-4 items-center">
                 <div className="md:col-span-1 flex items-center gap-4">
-                  <ScoreRing value={audit.total ?? 0} grade={audit.grade ?? 'F'} />
+                  <ScoreRing value={scored > 0 ? audit.total ?? 0 : 0} grade={scored > 0 ? audit.grade ?? 'F' : '—'} />
                   <div>
                     <p className="v-rail">Kampanya Skoru</p>
-                    <p className="mt-1 text-metric-lg tabular-nums">{audit.total}<span className="text-base tracking-normal text-muted-foreground">/100</span></p>
+                    {scored > 0 ? (
+                      <p className="mt-1 text-metric-lg tabular-nums">{audit.total}<span className="text-base tracking-normal text-muted-foreground">/100</span></p>
+                    ) : (
+                      // Hicbir kontrol puanlanmadiysa 0/100 F yaniltir
+                      <p className="mt-1 text-sm text-muted-foreground">Skor hesaplanamadı</p>
+                    )}
                     <p className="v-rail mt-1">
                       {audit.ranAt ? new Date(audit.ranAt).toLocaleString('tr-TR') : ''}
                     </p>
@@ -264,10 +307,11 @@ export default function AdsHealthPage() {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden /> Kategori Dağılımı
               </p>
               <div className="space-y-2">
-                {categories.map(([cat, c]) => {
+                {categoryRows.map(([cat, c]) => {
                   const expanded = expandedCat === cat;
                   const items = groupedFindings[cat] ?? [];
-                  const color = c.score >= 75 ? 'bg-success' : c.score >= 50 ? 'bg-warning' : 'bg-danger';
+                  const naItems = naFindings[cat] ?? [];
+                  const color = !c ? 'bg-muted' : c.score >= 75 ? 'bg-success' : c.score >= 50 ? 'bg-warning' : 'bg-danger';
                   return (
                     <div key={cat} className="overflow-hidden rounded-md border">
                       <button
@@ -277,11 +321,13 @@ export default function AdsHealthPage() {
                       >
                         {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                         <span className="text-sm font-medium">{CATEGORY_LABELS[cat] ?? cat}</span>
-                        <span className="v-rail hidden sm:inline">ağırlık %{(c.weight * 100).toFixed(0)}</span>
+                        {c && <span className="v-rail hidden sm:inline">ağırlık %{(c.weight * 100).toFixed(0)}</span>}
                         <div className="flex-1 max-w-xs ml-auto h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className={`h-full ${color}`} style={{ width: `${c.score}%` }} />
+                          <div className={`h-full ${color}`} style={{ width: `${c?.score ?? 0}%` }} />
                         </div>
-                        <span className="w-10 text-right text-sm font-medium tabular-nums">{c.score}</span>
+                        {c
+                          ? <span className="w-10 text-right text-sm font-medium tabular-nums">{c.score}</span>
+                          : <span className="whitespace-nowrap text-right text-xs text-muted-foreground">Veri yok</span>}
                       </button>
                       {expanded && (
                         <div className="divide-y border-t px-3 py-1">
@@ -310,7 +356,26 @@ export default function AdsHealthPage() {
                               </div>
                             </div>
                           ))}
-                          {items.length === 0 && (
+                          {naItems.length > 0 && (
+                            <details className="group py-2.5">
+                              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                                {VERDICT_ICON.na}
+                                <span className="font-medium">Veri yok</span>
+                                <span>— {naItems.length} kontrol değerlendirilmedi</span>
+                                <ChevronRight className="ml-auto h-4 w-4 transition-transform group-open:rotate-90" aria-hidden />
+                              </summary>
+                              <ul className="mt-2 space-y-1.5 pl-6">
+                                {naItems.map((f) => (
+                                  <li key={f.ruleId} className="text-xs text-muted-foreground">
+                                    <span className="v-rail mr-2">{f.ruleId}</span>
+                                    <span className="text-foreground/80">{f.name}</span>
+                                    {f.finding && <span> — {f.finding}</span>}
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                          {items.length === 0 && naItems.length === 0 && (
                             <p className="py-3 text-sm text-muted-foreground text-center">Bu kategoride bulgu yok.</p>
                           )}
                         </div>
@@ -341,7 +406,9 @@ function ScoreRing({ value, grade }: { value: number; grade: string }) {
   const c = 2 * Math.PI * r;
   const offset = c - (value / 100) * c;
   // Durum token'lari (globals.css): 75+ iyi, 40-74 dikkat, alti kotu — sabit renk kodu yok
-  const color = value >= 75 ? 'hsl(var(--success))' : value >= 40 ? 'hsl(var(--warning))' : 'hsl(var(--danger))';
+  // grade '—': hicbir kontrol puanlanmadi (veri okunamadi) — notr renk
+  const color = grade === '—' ? 'hsl(var(--muted-foreground))'
+    : value >= 75 ? 'hsl(var(--success))' : value >= 40 ? 'hsl(var(--warning))' : 'hsl(var(--danger))';
   return (
     <svg width="80" height="80" viewBox="0 0 80 80">
       <circle cx="40" cy="40" r={r} stroke="currentColor" strokeWidth="6" fill="none" className="text-muted" />

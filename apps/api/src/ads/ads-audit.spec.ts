@@ -22,7 +22,7 @@ const SNAPSHOT: AccountSnapshot = {
 
 function setup(chat: (req: any) => Promise<{ output: string }>) {
   const prisma: any = { adsAudit: { create: vi.fn(async () => ({})) } };
-  const collector: any = { collect: vi.fn(async () => SNAPSHOT) };
+  const collector: any = { collect: vi.fn(async () => ({ snapshot: SNAPSHOT, source: 'google_ads_api', readErrors: [] })) };
   const llm: any = { chat: vi.fn(chat) };
   return { svc: new AdsAuditService(prisma, collector, llm), prisma, llm };
 }
@@ -78,16 +78,60 @@ describe('AdsAuditService — LLM kurallari gercek karar alir', () => {
     });
     const score = await svc.run('s1', 'google');
     expect(score.findings.filter((f) => f.verdict === 'warning').length).toBeGreaterThan(5);
-    // na olanlar bulgulara girmez; ozet sayar
+    // na olanlar skora girmez; ozet sayar, bulgularda "Veri yok" diye kalir
     expect(score.summary.na).toBeGreaterThanOrEqual(2);
     expect(Number.isFinite(score.total)).toBe(true);
   });
 
   it('seyrek hesapta model hic cagrilmaz', async () => {
     const { svc, llm } = setup(async () => ({ output: '{}' }));
-    (svc as any).collector.collect.mockResolvedValue({ monthlySpendUsd: 0, campaigns: [] });
+    (svc as any).collector.collect.mockResolvedValue({ snapshot: { monthlySpendUsd: 0, campaigns: [] }, source: 'google_ads_api', readErrors: [] });
     await svc.run('s1', 'google');
     expect(llm.chat).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdsAuditService — yalniz hesaptan okunan veri', () => {
+  it('hesaptan hicbir sey okunamadiysa model hic cagrilmaz; tum kurallar na + veri okunamadi', async () => {
+    const { svc, llm, prisma } = setup(async () => ({ output: '{"verdict":"fail"}' }));
+    (svc as any).collector.collect.mockResolvedValue({ snapshot: {}, source: 'none', readErrors: ['Google Ads bağlı değil'] });
+    const score = await svc.run('s1', 'google');
+    expect(llm.chat).not.toHaveBeenCalled();
+    expect(score.summary.na).toBe(score.summary.total);
+    expect(score.summary.pass + score.summary.warning + score.summary.fail).toBe(0);
+    expect(score.dataStatus).toMatchObject({ source: 'none', noDataCount: score.summary.total, readFields: [], readErrors: ['Google Ads bağlı değil'] });
+    // na bulgular "Veri yok" icin listede kalir
+    expect(score.findings.every((f) => f.verdict === 'na' && f.noData && f.finding === 'Bu kontrol için hesaptan veri okunamadı')).toBe(true);
+    expect(score.quickWins).toEqual([]);
+    // sema degismeden ozet JSON'unda saklanir
+    const saved = prisma.adsAudit.create.mock.calls[0][0].data;
+    expect(saved.summary.dataStatus.noDataCount).toBe(score.summary.total);
+  });
+
+  it('deterministik kurallar okunmayan veride fail vermez (G42 / G43 / G45)', async () => {
+    const { svc } = setup(async () => ({ output: '{"verdict":"pass","finding":"ok"}' }));
+    const score = await svc.run('s1', 'google');
+    for (const id of ['G42', 'G43', 'G45', 'G-CT2', 'G13', 'G14']) {
+      const f = score.findings.find((x) => x.ruleId === id);
+      expect(f, id).toMatchObject({ verdict: 'na', noData: true });
+    }
+    expect(score.dataStatus?.noDataCount).toBeGreaterThan(0);
+    expect(score.dataStatus?.source).toBe('google_ads_api');
+  });
+
+  it('getLatest veri durumunu ozetten ayirir', async () => {
+    const prisma: any = {
+      adsAudit: {
+        findFirst: vi.fn(async () => ({
+          totalScore: 0, grade: 'F', byCategory: {}, findings: [], industry: 'saas', ranAt: new Date(0),
+          summary: { pass: 0, warning: 0, fail: 0, na: 3, total: 3, dataStatus: { source: 'none', noDataCount: 3, readFields: [], readErrors: [] } },
+        })),
+      },
+    };
+    const svc = new AdsAuditService(prisma, {} as any, {} as any);
+    const r = await svc.getLatest('s1', 'google');
+    expect(r?.summary).toEqual({ pass: 0, warning: 0, fail: 0, na: 3, total: 3 });
+    expect(r?.dataStatus).toMatchObject({ source: 'none', noDataCount: 3 });
   });
 });
 

@@ -38,18 +38,33 @@ export interface AccountSnapshot {
   searchTermLastReviewedAt?: string; // ISO
   negativeKeywordLists?: { name: string; appliedScope: 'account' | 'campaign' | null }[];
   campaigns?: {
-    id: string; name: string; objective?: string; budget: number; spendToday?: number;
-    bidStrategy: string; matchTypeMix?: { exact: number; phrase: number; broad: number };
+    /** objective: Google'da advertising_channel_type (SEARCH, PERFORMANCE_MAX, DISPLAY ...) */
+    id: string; name: string; objective?: string;
+    /** Gunluk butce, hesabin para biriminde; okunamazsa undefined */
+    budget?: number; spendToday?: number;
+    bidStrategy?: string;
+    /** Gosterim alan anahtar kelimelerin eslesme turu payi (yuzde, sayim bazli) */
+    matchTypeMix?: { exact: number; phrase: number; broad: number };
     learningStatus?: 'learning' | 'learning_limited' | 'eligible';
     qualityScore?: { weighted: number; criticalPct: number };
     network?: { search: boolean; searchPartners: boolean; display: boolean };
     geoTargeting?: 'people_in' | 'interest';
     sitelinks?: number; callouts?: number; structuredSnippets?: number;
-    rsa?: { count: number; headlines: number; descriptions: number; adStrength: 'poor' | 'average' | 'good' | 'excellent' };
+    rsa?: { count: number; headlines: number; descriptions: number; adStrength?: 'poor' | 'average' | 'good' | 'excellent' };
   }[];
   pmaxCampaigns?: { id: string; assetGroups: number; images: number; logos: number; videos: number; brandExclusions: boolean }[];
   ga4Linked?: boolean;
+  /**
+   * Son 30 gun harcamasi USD. USD hesapta dogrudan; TRY hesapta TCMB kuruyla (usdPerUnit,
+   * snapshot-collector). Baska birimde ya da kur okunamazsa undefined; USD esikli kurallar 'na'.
+   */
   monthlySpendUsd?: number;
+  /** 1 birim hesap para birimi kac USD (USD = 1; TRY = 1 / TCMB kuru). Bilinmiyorsa undefined. */
+  usdPerUnit?: number;
+  /** Son 30 gun harcamasi, hesabin kendi para biriminde */
+  monthlySpend?: number;
+  /** Hesabin para birimi (ISO 4217); okunamazsa undefined */
+  currency?: string;
 
   // Meta Ads alan örnekleri
   pixel?: { installed: boolean; coverage: number };
@@ -59,8 +74,10 @@ export interface AccountSnapshot {
   aem?: { configured: boolean; topEvents: number };
   attributionWindow?: '1d_click' | '7d_click_1d_view' | 'unconfigured';
   metaCampaigns?: {
-    id: string; budget: number; cbo: boolean;
-    adSets: {
+    /** budget: kampanya seviyesindeki gunluk butce (CBO), hesabin para biriminde; yoksa undefined */
+    id: string; name?: string; objective?: string; budget?: number; cbo: boolean;
+    /** Reklam setleri okunmadiysa undefined (bos dizi = okundu, reklam seti yok) */
+    adSets?: {
       learningStatus?: 'learning' | 'learning_limited' | 'active';
       frequency7d?: number;
       creatives: { format: 'image' | 'video' | 'carousel'; ageDays: number; ctr?: number; isUgc?: boolean }[];
@@ -74,12 +91,25 @@ export interface AccountSnapshot {
   landingPageThemes?: { adGroupTheme: string; lpH1: string; lpUrl: string }[];
 }
 
+/**
+ * Snapshot alan yolu: 'conversionActions' (alan okunmus olmali; bos dizi de
+ * okunmus veridir) ya da 'campaigns[].qualityScore' (en az bir kampanyada alan
+ * okunmus olmali). Yol okunmamissa kural calismaz, 'na' doner.
+ */
+export type SnapshotPath = string;
+
 export interface AuditRule<C = string> {
   id: string;            // 'G42', 'M03'
   name: string;
   category: C;
   severity: Severity;
   fixTimeMinutes?: number; // Quick Wins (≤15 min + critical/high)
+  /**
+   * Deterministik kuralin dayandigi snapshot alanlari. Biri okunmamissa
+   * (undefined) check() hic cagrilmaz: verdict 'na', "veri okunamadı"
+   * (ads-audit.service evaluateDeterministic).
+   */
+  requires?: SnapshotPath[];
   /**
    * Deterministik kural: snapshot'tan çek, verdict döndür.
    * LLM kuralı: null döner (LLM phase ayrı çalıştırılır)
@@ -101,6 +131,21 @@ export interface AuditFinding {
   recommendation: string;
   fixTimeMinutes?: number;
   isQuickWin: boolean;
+  /** true: kontrol icin gereken veri hesaptan okunamadigi icin 'na' */
+  noData?: boolean;
+}
+
+/** Denetimin hangi veriyle yapildigi — panel "X kontrol için veri okunamadı" der */
+export interface AuditDataStatus {
+  /** Snapshot'in kaynagi; 'none' = hesaptan hicbir sey okunamadi */
+  source: 'google_ads_api' | 'meta_graph_api' | 'none';
+  /** Verisi okunamadigi icin 'na' olan kural sayisi */
+  noDataCount: number;
+  /** Okunan snapshot alanlari (kisa liste) */
+  readFields: string[];
+  /** Basarisiz okumalar (kisa, musteriye gosterilebilir) */
+  readErrors: string[];
+  currency?: string;
 }
 
 export interface AuditScore {
@@ -111,6 +156,7 @@ export interface AuditScore {
   findings: AuditFinding[];
   quickWins: AuditFinding[];
   summary: { pass: number; warning: number; fail: number; na: number; total: number };
+  dataStatus?: AuditDataStatus;
 }
 
 // Severity → ağırlık (claude-ads/scoring-system.md)

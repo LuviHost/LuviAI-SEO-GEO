@@ -1,3 +1,4 @@
+import { BillingModule } from '../billing/billing.module.js';
 import { Module } from '@nestjs/common';
 import { AdsController } from './ads.controller.js';
 import { CampaignOrchestratorService } from './campaign-orchestrator.service.js';
@@ -31,7 +32,7 @@ import { LLMModule } from '../llm/llm.module.js';
  * 3. parti SaaS yok (Ryze AI MCP kaldirildi). Sifir aboneligi.
  */
 @Module({
-  imports: [AuditModule, LLMModule],
+  imports: [AuditModule, LLMModule, BillingModule],
   controllers: [AdsController],
   providers: [
     CampaignOrchestratorService,

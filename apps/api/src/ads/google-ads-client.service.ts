@@ -216,6 +216,41 @@ export class GoogleAdsClientService {
     return this.searchWith(ctx, gaqlQuery);
   }
 
+  /**
+   * Yalniz OKUMA: ayni erisimle (tek token yenileme) birden cok GAQL. Her
+   * sorgu bagimsizdir; biri duserse yalniz onun sonucu null olur (neden loga
+   * gider), digerleri etkilenmez (Kampanya Skoru snapshot'i,
+   * google-snapshot-map.ts). Erisim yoksa (bagli degil / hesap secilmemis /
+   * izin yenilenemedi) { ok: false, error }: error musteriye gosterilebilir.
+   * Her sorgu tek sayfa okur (Google'da sayfa boyu sabit 10.000 satir).
+   */
+  async queryEach<K extends string>(
+    siteId: string,
+    queries: Record<K, string>,
+  ): Promise<{ ok: true; results: Record<K, any[] | null> } | { ok: false; error: string }> {
+    let ctx: SiteContext;
+    try {
+      ctx = await this.siteContext(siteId);
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Google Ads erisimi kurulamadi: ${String(err?.message ?? err).slice(0, 160)}`);
+      return { ok: false, error: NOT_CONNECTED };
+    }
+    if (!ctx.ok) return { ok: false, error: ctx.error };
+    const access = ctx;
+    const keys = Object.keys(queries) as K[];
+    const rows = await Promise.all(keys.map(async (k) => {
+      try {
+        return await this.searchWith(access, queries[k]);
+      } catch (err: any) {
+        this.log.warn(`[${siteId}] GAQL okuma '${k}' basarisiz: ${String(err?.message ?? err).slice(0, 200)}`);
+        return null;
+      }
+    }));
+    const results = {} as Record<K, any[] | null>;
+    keys.forEach((k, i) => { results[k] = rows[i]; });
+    return { ok: true, results };
+  }
+
   /** Mutate istegi; hata loglanir ve musteriye gosterilebilir neden (varsa) doner */
   private async mutate(
     ctx: { accessToken: string; customerId: string },

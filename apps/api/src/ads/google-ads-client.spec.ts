@@ -687,3 +687,28 @@ describe('otopilot ve panel', () => {
     expect(((await ctrl2.pause('s1', 'c1')) as any).error).not.toContain('Neden:');
   });
 });
+
+describe('queryEach (Kampanya Skoru snapshot okumasi)', () => {
+  it('tek token yenileme; her sorgu bagimsiz: dusen sorgu null, digerleri satir doner; yalniz search ucu', async () => {
+    const g = fakeGoogle((c) => (c.body?.query?.includes('conversion_action')
+      ? json(400, failure({ queryError: 'PROHIBITED_RESOURCE_TYPE_IN_SELECT_CLAUSE' }))
+      : json(200, { results: [{ customer: { currencyCode: 'TRY' } }] })));
+    const svc = new GoogleAdsClientService(prismaWith());
+    const r = await svc.queryEach('s1', {
+      currency: 'SELECT customer.currency_code FROM customer LIMIT 1',
+      conversions: 'SELECT conversion_action.id FROM conversion_action',
+    });
+    expect(r).toEqual({ ok: true, results: { currency: [{ customer: { currencyCode: 'TRY' } }], conversions: null } });
+    expect(g.tokenBodies).toHaveLength(1);
+    expect(g.calls().every((c) => c.url.endsWith('/googleAds:search'))).toBe(true);
+  });
+
+  it('baglanti yoksa istek gitmez, musteriye gosterilebilir neden doner', async () => {
+    const g = fakeGoogle(() => json(200, { results: [] }));
+    const svc = new GoogleAdsClientService(prismaWith({ googleAdsRefreshToken: null }));
+    const r = await svc.queryEach('s1', { a: 'SELECT customer.id FROM customer' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('Google Ads bağlı değil');
+    expect(g.calls()).toHaveLength(0);
+  });
+});

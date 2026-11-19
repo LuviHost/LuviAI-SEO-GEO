@@ -4,10 +4,17 @@
  */
 import type { AuditRule, MetaCategory, AccountSnapshot } from './types.js';
 
+/**
+ * Her deterministik kuralin `requires` listesi var: alan hesaptan okunmamissa
+ * kural calismaz, 'na' + "veri okunamadı" doner (ads-audit.service). Eskiden
+ * okunmayan CAPI / alan adi dogrulamasi "yok" diye fail sayiliyordu.
+ */
+
 export const META_RULES: AuditRule<MetaCategory>[] = [
   // ─── PIXEL / CAPI HEALTH (30%) ─────────────────────────────
   {
     id: 'M01', name: 'Meta Pixel installed', category: 'pixel', severity: 'critical',
+    requires: ['pixel'],
     check: (s) => {
       const p = s.pixel;
       if (!p) return { verdict: 'na' };
@@ -18,6 +25,7 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M02', name: 'Conversions API (CAPI) active', category: 'pixel', severity: 'critical',
+    requires: ['capi'],
     check: (s) => {
       if (s.capi?.active) return { verdict: 'pass', finding: 'CAPI server-side aktif', recommendation: 'iOS 14.5 sonrası %30-40 data kaybını telafi ediyor — koru.' };
       return { verdict: 'fail', finding: 'CAPI yok — iOS 14.5 sonrası %30-40 data kaybı', recommendation: 'CAPI Gateway (en kolay) ya da direct API integration kur. WordPress: PixelYourSite Pro / Stape. Custom: server endpoint + Meta CAPI lib.' };
@@ -25,6 +33,7 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M03', name: 'Event deduplication', category: 'pixel', severity: 'critical',
+    requires: ['capi.deduplicationRate'],
     check: (s) => {
       const dedup = s.capi?.deduplicationRate;
       if (dedup == null) return { verdict: 'na' };
@@ -35,6 +44,7 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M04', name: 'Event Match Quality (EMQ)', category: 'pixel', severity: 'critical',
+    requires: ['emq'],
     check: (s) => {
       const e = s.emq;
       if (!e) return { verdict: 'na' };
@@ -46,6 +56,7 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M05', name: 'Domain verification', category: 'pixel', severity: 'high', fixTimeMinutes: 5,
+    requires: ['domainVerified'],
     check: (s) => {
       if (s.domainVerified === true) return { verdict: 'pass', finding: 'Domain Business Manager\'da verified', recommendation: 'Sürdür — yeni domain eklerken aynı işlem.' };
       return { verdict: 'fail', finding: 'Domain verified değil — AEM event önceliği yapılamıyor', recommendation: 'Business Manager → Brand Safety → Domains → Verify (DNS TXT veya meta-tag, 5 dk).' };
@@ -53,6 +64,7 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M06', name: 'Aggregated Event Measurement (AEM)', category: 'pixel', severity: 'high',
+    requires: ['aem'],
     check: (s) => {
       const a = s.aem;
       if (!a) return { verdict: 'na' };
@@ -63,6 +75,7 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M09', name: 'iOS attribution window', category: 'pixel', severity: 'high', fixTimeMinutes: 2,
+    requires: ['attributionWindow'],
     check: (s) => {
       const w = s.attributionWindow;
       if (!w) return { verdict: 'na' };
@@ -75,8 +88,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   // ─── CREATIVE (30%) ─────────────────────────────────────────
   {
     id: 'M25', name: 'Creative format diversity', category: 'creative', severity: 'critical', fixTimeMinutes: 15,
+    requires: ['metaCampaigns[].adSets[]'],
     check: (s) => {
-      const adSets = s.metaCampaigns?.flatMap(c => c.adSets) ?? [];
+      const adSets = s.metaCampaigns?.flatMap(c => (c.adSets ?? [])) ?? [];
       if (adSets.length === 0) return { verdict: 'na' };
       const formats = new Set(adSets.flatMap(a => a.creatives.map(cr => cr.format)));
       if (formats.size >= 3) return { verdict: 'pass', finding: `${formats.size} format aktif (image+video+carousel)`, recommendation: 'Andromeda\'nın istediği creative diversity sağlanıyor.' };
@@ -86,8 +100,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M26', name: 'Creative volume per ad set', category: 'creative', severity: 'high',
+    requires: ['metaCampaigns[].adSets[]'],
     check: (s) => {
-      const adSets = s.metaCampaigns?.flatMap(c => c.adSets) ?? [];
+      const adSets = s.metaCampaigns?.flatMap(c => (c.adSets ?? [])) ?? [];
       if (adSets.length === 0) return { verdict: 'na' };
       const minCount = Math.min(...adSets.map(a => a.creatives.length));
       if (minCount >= 10) return { verdict: 'pass', finding: `Min ${minCount} creative/ad set`, recommendation: 'Advantage+ için ideal seviye.' };
@@ -97,8 +112,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M28', name: 'Creative fatigue', category: 'creative', severity: 'critical',
+    requires: ['metaCampaigns[].adSets[].creatives[]'],
     check: (s) => {
-      const adSets = s.metaCampaigns?.flatMap(c => c.adSets) ?? [];
+      const adSets = s.metaCampaigns?.flatMap(c => (c.adSets ?? [])) ?? [];
       const creatives = adSets.flatMap(a => a.creatives);
       if (creatives.length === 0) return { verdict: 'na' };
       const stale = creatives.filter(c => c.ageDays > 28).length;
@@ -110,8 +126,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M-CR1', name: 'Creative freshness', category: 'creative', severity: 'high',
+    requires: ['metaCampaigns[].adSets[].creatives[]'],
     check: (s) => {
-      const all = s.metaCampaigns?.flatMap(c => c.adSets.flatMap(a => a.creatives)) ?? [];
+      const all = s.metaCampaigns?.flatMap(c => (c.adSets ?? []).flatMap(a => a.creatives)) ?? [];
       if (all.length === 0) return { verdict: 'na' };
       const newest = Math.min(...all.map(c => c.ageDays));
       if (newest <= 21) return { verdict: 'pass', finding: `Son creative ${newest} gün önce`, recommendation: '14-21g ritmini sürdür.' };
@@ -121,8 +138,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M-CR2', name: 'Frequency: Prospecting', category: 'creative', severity: 'high',
+    requires: ['metaCampaigns[].adSets[].frequency7d'],
     check: (s) => {
-      const adSets = s.metaCampaigns?.flatMap(c => c.adSets) ?? [];
+      const adSets = s.metaCampaigns?.flatMap(c => (c.adSets ?? [])) ?? [];
       const freqs = adSets.map(a => a.frequency7d).filter((f): f is number => f != null);
       if (freqs.length === 0) return { verdict: 'na' };
       const max = Math.max(...freqs);
@@ -133,8 +151,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M-CR4', name: 'CTR benchmark', category: 'creative', severity: 'high',
+    requires: ['metaCampaigns[].adSets[].creatives[].ctr'],
     check: (s) => {
-      const all = s.metaCampaigns?.flatMap(c => c.adSets.flatMap(a => a.creatives)) ?? [];
+      const all = s.metaCampaigns?.flatMap(c => (c.adSets ?? []).flatMap(a => a.creatives)) ?? [];
       const ctrs = all.map(c => c.ctr).filter((c): c is number => c != null);
       if (ctrs.length === 0) return { verdict: 'na' };
       const avg = ctrs.reduce((a, b) => a + b, 0) / ctrs.length;
@@ -145,8 +164,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M31', name: 'UGC / social-native content', category: 'creative', severity: 'high',
+    requires: ['metaCampaigns[].adSets[].creatives[].isUgc'],
     check: (s) => {
-      const all = s.metaCampaigns?.flatMap(c => c.adSets.flatMap(a => a.creatives)) ?? [];
+      const all = s.metaCampaigns?.flatMap(c => (c.adSets ?? []).flatMap(a => a.creatives)) ?? [];
       if (all.length === 0) return { verdict: 'na' };
       const ugcPct = (all.filter(c => c.isUgc).length / all.length) * 100;
       if (ugcPct >= 30) return { verdict: 'pass', finding: `%${ugcPct.toFixed(0)} UGC creative`, recommendation: 'Sağlam mix — koru.' };
@@ -158,6 +178,7 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   // ─── STRUCTURE (20%) ────────────────────────────────────────
   {
     id: 'M11', name: 'Campaign count', category: 'structure', severity: 'high',
+    requires: ['metaCampaigns'],
     check: (s) => {
       const count = s.metaCampaigns?.length ?? 0;
       if (count === 0) return { verdict: 'na' };
@@ -168,8 +189,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M13', name: 'Learning phase status', category: 'structure', severity: 'critical',
+    requires: ['metaCampaigns[].adSets[].learningStatus'],
     check: (s) => {
-      const adSets = s.metaCampaigns?.flatMap(c => c.adSets) ?? [];
+      const adSets = s.metaCampaigns?.flatMap(c => (c.adSets ?? [])) ?? [];
       if (adSets.length === 0) return { verdict: 'na' };
       const learning = adSets.filter(a => a.learningStatus === 'learning_limited').length;
       const pct = (learning / adSets.length) * 100;
@@ -180,8 +202,9 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M16', name: 'Audience overlap', category: 'audience', severity: 'high',
+    requires: ['metaCampaigns[].adSets[].audienceOverlap'],
     check: (s) => {
-      const adSets = s.metaCampaigns?.flatMap(c => c.adSets) ?? [];
+      const adSets = s.metaCampaigns?.flatMap(c => (c.adSets ?? [])) ?? [];
       const overlaps = adSets.map(a => a.audienceOverlap).filter((o): o is number => o != null);
       if (overlaps.length === 0) return { verdict: 'na' };
       const max = Math.max(...overlaps);
@@ -192,14 +215,23 @@ export const META_RULES: AuditRule<MetaCategory>[] = [
   },
   {
     id: 'M23', name: 'Exclusion audiences', category: 'audience', severity: 'high', fixTimeMinutes: 10,
+    // Hariclama kitleleri reklam setinde; reklam setleri okunmadikca 'na' (eskiden
+    // istem modele her durumda "warning" dondurtuyordu — hesaptan okunmamis bulgu)
+    requires: ['metaCampaigns[].adSets[]'],
     check: () => null,
     llm: true,
-    llmPrompt: () => `Meta Ads hesabında prospecting kampanyalarından mevcut müşteriler exclude ediliyor mu? Custom Audience exclusion var mı? (Bu bilgi snapshot'ta yoksa "warning" döndür)
+    llmPrompt: (s) => `Meta Ads hesabında prospecting kampanyalarından mevcut müşteriler exclude ediliyor mu? Custom Audience exclusion var mı?
 
-JSON: {"verdict": "warning", "finding": "Exclusion audience kontrolü API üzerinden doğrulanamadı", "recommendation": "Prospecting kampanyalarına Custom Audience (Purchase last 90d) exclusion ekle."}`,
+Reklam setleri:
+${JSON.stringify((s.metaCampaigns ?? []).flatMap(c => c.adSets ?? []).slice(0, 10))}
+
+Snapshot'ta hariç tutma (exclusion) bilgisi YOKSA "na" döndür; tahmin yürütme.
+
+JSON: {"verdict": "pass|warning|fail|na", "finding": "...", "recommendation": "..."}`,
   },
   {
     id: 'M35', name: 'Attribution post-Jan 2026', category: 'structure', severity: 'high', fixTimeMinutes: 2,
+    requires: ['attributionWindow'],
     check: (s) => {
       const w = s.attributionWindow;
       if (w === '7d_click_1d_view') return { verdict: 'pass', finding: '7d click / 1d view (post-Jan 2026 uyumlu)', recommendation: 'Optimal.' };
