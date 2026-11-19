@@ -16,7 +16,7 @@
  */
 
 /** Kaynagin nasil cekildigi — collector bu alana gore dallanir. */
-export type SourceKind = 'rss' | 'reddit' | 'hn' | 'x' | 'github' | 'x-curation';
+export type SourceKind = 'rss' | 'reddit' | 'hn' | 'x' | 'github' | 'x-curation' | 'r10';
 
 /**
  * Kaynak katmani. Bir bulgunun kanit gucu NIHAI olarak icerikten cikar
@@ -55,7 +55,7 @@ export interface IntelSourceDef {
   key: string;
   name: string;
   kind: SourceKind;
-  /** RSS/Atom feed URL'i, Reddit subreddit adi, HN/X sorgusu */
+  /** RSS/Atom feed URL'i, Reddit subreddit adi, R10 alt forum adresi, HN/X sorgusu */
   target: string;
   tier: SourceTier;
   topics: IntelTopic[];
@@ -875,6 +875,40 @@ const X_CURATION_SOURCES: IntelSourceDef[] = [
   },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════
+//  R10.NET — Turkce topluluk (19.11.2026, sahip karari). Turk KOBI'lerinin
+//  ve SEO/GEO calisanlarinin kendi dilindeki iddialari ve sorulari. Erken
+//  sinyal: agirlik dusuk, tek basina hicbir iddiayi kesinlestirmez.
+//  Satis/hizmet ilani alt forumlari ("SEO Hizmet Paketleri") HIC eklenmez;
+//  soru forumlarindaki ilanlar r10.ts isR10SalesThread ile elenir.
+//  Gunde bir cekim: ilk sayfa ~30-40 konu; en hareketli forumda
+//  (google-optimizasyon) ilk sayfa ~2 gunu kapsiyor (19.11 olcumu).
+// ═══════════════════════════════════════════════════════════════════════
+
+const R10_FORUMS: Array<{ slug: string; name: string; topics: IntelTopic[]; note?: string }> = [
+  { slug: 'geo', name: 'GEO (Generative Engine Optimization)', topics: ['geo'], note: 'Turkce GEO iddialari ve vaka anlatimlari' },
+  { slug: 'google-optimizasyon', name: 'SEO (Organik Trafik Arttirma)', topics: ['seo'], note: 'R10\'un asil SEO tartisma forumu: guncelleme gozlemleri, Google degisiklikleri' },
+  { slug: 'google-haberleri-yenilikleri', name: 'Google Haberleri & Yenilikleri', topics: ['seo', 'platform'] },
+  { slug: 'local-seo', name: 'Local SEO', topics: ['seo'] },
+];
+// BILEREK YOK (19.11.2026 canli olcum): "SEO Danismanligi", "Site Ici SEO
+// (On-Page)" ve "WordPress SEO, Guvenlik & Bakim" birer HIZMET PAZARI —
+// ilk sayfanin ~%85'i sabitlenmis ilan, tartisma konusu 4-5 tane. Sahip
+// "soru forumlari, satis ilanlari haric" dedi; bu forumlar o tanima uymuyor.
+// "SEO Hizmet Paketleri" de ayni sebeple yok.
+
+const R10_SOURCES: IntelSourceDef[] = R10_FORUMS.map((f) => ({
+  key: `r10-${f.slug}`,
+  name: `R10 — ${f.name}`,
+  kind: 'r10',
+  target: f.slug,
+  tier: 'community',
+  topics: f.topics,
+  weight: 20,
+  intervalHours: 24,
+  note: f.note,
+}));
+
 export const INTEL_SOURCES: IntelSourceDef[] = [
   ...OFFICIAL,
   ...PRIMARY_RESEARCH,
@@ -882,6 +916,7 @@ export const INTEL_SOURCES: IntelSourceDef[] = [
   ...NEWS,
   ...ASO_SOURCES,
   ...COMMUNITY,
+  ...R10_SOURCES,
   ...X_QUERIES,
   ...X_CURATION_SOURCES,
 ];

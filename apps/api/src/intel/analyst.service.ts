@@ -6,6 +6,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { ClaimLedgerService, type ExtractedClaim } from './claim-ledger.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
 import { safeFetchText } from '../common/safe-fetch.js';
+import { R10_USER_AGENT, extractR10Thread, isR10Url } from './r10.js';
 import { detectBlock } from '../common/block-detect.js';
 import { GRADE_SCORE, type EvidenceGrade, type EvidenceStance } from './evidence-grade.js';
 import type { IntelTopic } from './source-registry.js';
@@ -247,10 +248,13 @@ export class IntelAnalystService {
    * Adres feed kaydindan gelir → SSRF korumali okuma (common/safe-fetch.ts).
    */
   private async fetchArticleText(url: string): Promise<string | null> {
+    const r10 = isR10Url(url);
     const res = await safeFetchText(url, {
       accept: 'text/html,application/xhtml+xml',
       timeoutMs: FETCH_TIMEOUT_MS,
       maxBytes: MAX_ARTICLE_BYTES,
+      // R10 Cloudflare'i "bot" iceren UA'yi 403'luyor — kimligi acik ayri UA (r10.ts)
+      ...(r10 ? { userAgent: R10_USER_AGENT } : {}),
     });
     // Bot dogrulama ekrani (200 de donebilir) makale degildir; metni modele
     // gitmesin — kayit ozete duser.
@@ -261,6 +265,11 @@ export class IntelAnalystService {
     }
     if (!res.ok) return null;
     if (!res.contentType.includes('html')) return null;
+
+    // Forum konusu: sayfanin ~1 MB'i menu; yalniz ilk mesaj + cevaplar okunur.
+    // Yorumlari (.comments) atan genel yol burada YANLIS olur — forumda dogru
+    // bilgi cogu zaman cevaplardadir.
+    if (r10) return extractR10Thread(res.text);
 
     const $ = load(res.text);
     $('script, style, nav, header, footer, aside, form, noscript, iframe, .comments, #comments').remove();
