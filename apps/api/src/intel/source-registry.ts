@@ -16,7 +16,7 @@
  */
 
 /** Kaynagin nasil cekildigi — collector bu alana gore dallanir. */
-export type SourceKind = 'rss' | 'reddit' | 'hn' | 'x' | 'github' | 'x-curation' | 'r10';
+export type SourceKind = 'rss' | 'reddit' | 'hn' | 'x' | 'github' | 'x-curation' | 'r10' | 'changelog';
 
 /**
  * Kaynak katmani. Bir bulgunun kanit gucu NIHAI olarak icerikten cikar
@@ -99,6 +99,53 @@ const OFFICIAL: IntelSourceDef[] = [
     weight: 100,
     intervalHours: 24,
     note: 'Belge degisiklik gunlugu; ayda ~4-8 kayit, kayit metni feed aciklamasinda',
+  },
+  {
+    // Ayristirma: changelogs.ts (kayit metni feed aciklamasinda)
+    key: 'anthropic-platform-release-notes',
+    name: 'Claude Platform — Surum Notlari',
+    kind: 'rss',
+    target: 'https://platform.claude.com/docs/en/release-notes/feed.xml',
+    tier: 'official',
+    topics: ['platform', 'agents', 'geo'],
+    weight: 100,
+    intervalHours: 24,
+    note: 'Claude API: web arama/getirme araclari, model degisiklikleri — Claude olcumunu dogrudan etkiler',
+  },
+  {
+    // RSS yok; Help Center sayfasi sunucuda islenmis HTML (changelogs.ts)
+    key: 'claude-apps-release-notes',
+    name: 'Claude Uygulamalari — Surum Notlari',
+    kind: 'changelog',
+    target: 'https://support.claude.com/en/articles/12138966-release-notes',
+    tier: 'official',
+    topics: ['platform', 'geo', 'agents'],
+    weight: 100,
+    intervalHours: 24,
+    note: 'claude.ai / Desktop: arama, ajan ve tarayici ozellikleri',
+  },
+  {
+    // RSS yok (developers.openai.com/rss.xml rehber duyurusu, gunluk degil); Astro SSR HTML
+    key: 'openai-api-changelog',
+    name: 'OpenAI API — Degisiklik Gunlugu',
+    kind: 'changelog',
+    target: 'https://developers.openai.com/changelog',
+    tier: 'official',
+    topics: ['platform', 'agents'],
+    weight: 100,
+    intervalHours: 24,
+    note: 'Model ve web arama araci degisiklikleri — ChatGPT olcumunun API tarafi',
+  },
+  {
+    key: 'openai-crawler-updates',
+    name: 'OpenAI — Tarayici Guncellemeleri',
+    kind: 'rss',
+    target: 'https://developers.openai.com/api/docs/bots/rss.xml',
+    tier: 'official',
+    topics: ['ai-crawler', 'platform'],
+    weight: 100,
+    intervalHours: 24,
+    note: 'GPTBot / OAI-SearchBot / ChatGPT-User degisiklikleri. 20.11.2026: feed gecerli ama BOS — "feed bos" uyarisi beklenen durum',
   },
   {
     key: 'google-blog-search',
@@ -944,6 +991,7 @@ export const DISABLED_SOURCES: Array<{ name: string; target: string; reason: str
   { name: 'Medium — generative-engine-optimization / ai-seo etiketleri', target: 'https://medium.com/feed/tag/generative-engine-optimization', reason: 'Etiket feed dondurmuyor (0 kayit); llm-seo etiketi kullanildi' },
   { name: 'Semrush Blog', target: 'https://www.semrush.com/blog/feed/', reason: 'Bot korumasi — baglanti kuruluyor, yanit gelmiyor (curl 000)' },
   { name: 'Perplexity Hub', target: 'https://www.perplexity.ai/hub/blog/rss.xml', reason: 'HTTP 403 — feed korumali' },
+  { name: 'ChatGPT surum notlari (Help Center)', target: 'https://help.openai.com/en/articles/6825453-chatgpt-release-notes', reason: 'HTTP 403 (bot korumasi, 20.11.2026). RSS yok. Kimlik degistirilerek acilmaz; ChatGPT urun degisiklikleri openai-news ve OpenAI API gunlugunden gelir.' },
   { name: 'Sensor Tower Blog', target: 'https://sensortower.com/blog/rss', reason: 'HTTP 404 — feed kaldirilmis' },
   { name: 'Appfigures Blog', target: 'https://www.appfigures.com/resources/feed', reason: 'HTTP 404' },
   { name: 'OpenClaw Blog', target: 'https://openclaw.ai/blog/rss.xml', reason: 'HTTP 404 — feed yok, GitHub releases kullaniliyor' },
