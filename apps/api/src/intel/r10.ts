@@ -140,31 +140,88 @@ export function parseR10ForumList(html: string, forum: string): RawItem[] {
   return out;
 }
 
-/** Konu sayfasindan alinacak azami mesaj (ilk sayfa ~10-20 mesaj) */
-const MAX_POSTS = 20;
-/** Tek mesajin azami uzunlugu — imza/alinti sisirmesin */
-const MAX_POST_CHARS = 3000;
+/** Konudan alinacak azami mesaj (R10 sayfa basi 9 mesaj gosterir → 3 sayfa) */
+export const R10_MAX_POSTS = 20;
+/** Ilk sayfadan sonra en fazla kac sayfa daha acilir */
+export const R10_MAX_EXTRA_PAGES = 2;
+/**
+ * Mesaj basina azami uzunluk. Ilk mesaj cogu zaman rehberin/iddianin
+ * kendisi (20.11.2026: "AI Modu rehberi" 3000'de kesiliyordu); cevaplar
+ * kisa tutulur ki imza/tekrar metni sisirmesin.
+ */
+const MAX_FIRST_POST_CHARS = 12_000;
+const MAX_REPLY_CHARS = 3000;
+
+export interface R10Post {
+  order: number;
+  author: string;
+  date: string;
+  text: string;
+}
 
 /**
- * Konu sayfasi → analiste gidecek temiz metin: ilk mesaj + cevaplar,
- * her biri sira no, yazar ve tarihle. Menu ve kenar cubugu (sayfanin
- * ~1 MB'i) atilir. Mesaj bulunamazsa null (analist ozete duser).
+ * Konu sayfasi → mesajlar (sira no, yazar, tarih, metin).
+ *
+ * ALINTI: R10'da gercek alinti `div.quote` ("X adli uyeden alinti").
+ * `<blockquote>` ALINTI DEGIL — yazarlar kendi metinlerini bicim icin
+ * blockquote'a koyuyor (20.11.2026: "Core Update ... 1 Aylik Tablo"
+ * konusunun tum metni blockquote icindeydi ve okuyucu konuyu bos
+ * sanmisti). O yuzden yalniz `.quote` atilir.
  */
-export function extractR10Thread(html: string): string | null {
+export function extractR10Posts(html: string): R10Post[] {
   const $ = load(html);
-  const parts: string[] = [];
+  const posts: R10Post[] = [];
 
-  $('.postList li.post').slice(0, MAX_POSTS).each((i, el) => {
+  $('.postList li.post').each((i, el) => {
     const $el = $(el);
-    const $body = $el.find('.postContent').first().clone();
-    // Alintilanan onceki mesaj tekrar sayilmasin; imza iddia degil
-    $body.find('blockquote, .quote, .signature, script, style').remove();
-    const text = $body.text().replace(/\s+/g, ' ').trim().slice(0, MAX_POST_CHARS);
+    const order = parseInt($el.attr('data-order') ?? '', 10) || i + 1;
+    // Imza ayri bir .postContent (userSignature); mesaj govdesi ilk olan
+    const $body = $el.find('.postContent').not('.userSignature').first().clone();
+    $body.find('.quote, .signature, script, style').remove();
+    const limit = order === 1 ? MAX_FIRST_POST_CHARS : MAX_REPLY_CHARS;
+    const text = $body.text().replace(/\s+/g, ' ').trim().slice(0, limit);
     if (!text) return;
     const author = $el.find('.postUser .name a').first().text().trim() || 'bilinmiyor';
     const date = $el.find('.head .left').first().text().replace(/\s+/g, ' ').trim();
-    parts.push(`[#${i + 1}${i === 0 ? ' ilk mesaj' : ' cevap'} · ${author} · ${date}]\n${text}`);
+    posts.push({ order, author, date, text });
   });
 
+  return posts;
+}
+
+/**
+ * Konunun sonraki sayfalari (2, 3, ...) — `.pagination a[data-page]`.
+ * Yalniz r10.net adresleri, sira numarasina gore.
+ */
+export function r10ThreadPageUrls(html: string): string[] {
+  const $ = load(html);
+  const pages = new Map<number, string>();
+  $('.pagination a[data-page]').each((_, el) => {
+    const n = parseInt($(el).attr('data-page') ?? '', 10);
+    const href = ($(el).attr('href') ?? '').replace(/#.*$/, '');
+    if (n > 1 && href && isR10Url(href) && !pages.has(n)) pages.set(n, href);
+  });
+  return [...pages.entries()].sort((a, b) => a[0] - b[0]).map(([, u]) => u);
+}
+
+/** Mesajlar → analiste gidecek temiz metin. Tekrar eden sira no elenir. */
+export function formatR10Thread(posts: R10Post[]): string | null {
+  const seen = new Set<number>();
+  const parts: string[] = [];
+  for (const p of posts) {
+    if (seen.has(p.order) || parts.length >= R10_MAX_POSTS) continue;
+    seen.add(p.order);
+    parts.push(`[#${p.order}${p.order === 1 ? ' ilk mesaj' : ' cevap'} · ${p.author} · ${p.date}]\n${p.text}`);
+  }
   return parts.length > 0 ? parts.join('\n\n') : null;
+}
+
+/**
+ * Tek sayfa → analiste gidecek temiz metin: ilk mesaj + cevaplar, her
+ * biri sira no, yazar ve tarihle. Menu ve kenar cubugu (sayfanin ~1 MB'i)
+ * atilir. Mesaj bulunamazsa null (analist ozete duser). Sonraki sayfalari
+ * analist r10ThreadPageUrls ile ayrica acar.
+ */
+export function extractR10Thread(html: string): string | null {
+  return formatR10Thread(extractR10Posts(html));
 }

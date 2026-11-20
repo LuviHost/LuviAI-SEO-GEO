@@ -6,7 +6,9 @@ import { SettingsService } from '../settings/settings.service.js';
 import { ClaimLedgerService, type ExtractedClaim } from './claim-ledger.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
 import { safeFetchText } from '../common/safe-fetch.js';
-import { R10_USER_AGENT, extractR10Thread, isR10Url } from './r10.js';
+import {
+  R10_MAX_EXTRA_PAGES, R10_MAX_POSTS, R10_USER_AGENT, extractR10Posts, formatR10Thread, isR10Url, r10ThreadPageUrls,
+} from './r10.js';
 import { detectBlock } from '../common/block-detect.js';
 import { GRADE_SCORE, type EvidenceGrade, type EvidenceStance } from './evidence-grade.js';
 import type { IntelTopic } from './source-registry.js';
@@ -44,6 +46,8 @@ const FETCH_TIMEOUT_MS = 20_000;
  */
 const MAX_ARTICLE_BYTES = 2 * 1024 * 1024;
 const FALLBACK_MODEL = 'claude-opus-5';
+/** R10 konusunun sonraki sayfasini acmadan once bekleme (toplayicidaki 5 sn ile ayni nezaket) */
+const R10_PAGE_DELAY_MS = 5000;
 
 /** RanksUp'in bulgudan etkilenebilecek yuzeyleri */
 export const PRODUCT_AREAS = [
@@ -269,7 +273,27 @@ export class IntelAnalystService {
     // Forum konusu: sayfanin ~1 MB'i menu; yalniz ilk mesaj + cevaplar okunur.
     // Yorumlari (.comments) atan genel yol burada YANLIS olur — forumda dogru
     // bilgi cogu zaman cevaplardadir.
-    if (r10) return extractR10Thread(res.text);
+    //
+    // R10 sayfa basi 9 mesaj gosterir; 18 cevapli bir konunun tartismasi
+    // 2. ve 3. sayfada surer (20.11.2026: 35 konunun hicbirinde 9'dan fazla
+    // mesaj okunmamisti). Sonraki sayfalar nazikce, beklemeyle acilir.
+    if (r10) {
+      const posts = extractR10Posts(res.text);
+      for (const pageUrl of r10ThreadPageUrls(res.text).slice(0, R10_MAX_EXTRA_PAGES)) {
+        if (posts.length >= R10_MAX_POSTS) break;
+        await new Promise((r) => setTimeout(r, R10_PAGE_DELAY_MS));
+        const next = await safeFetchText(pageUrl, {
+          accept: 'text/html,application/xhtml+xml',
+          timeoutMs: FETCH_TIMEOUT_MS,
+          maxBytes: MAX_ARTICLE_BYTES,
+          userAgent: R10_USER_AGENT,
+        }).catch(() => null);
+        // Sonraki sayfa okunamazsa elde olanla devam — ilk sayfa yine degerli
+        if (!next || !next.ok || detectBlock(next)) break;
+        posts.push(...extractR10Posts(next.text));
+      }
+      return formatR10Thread(posts);
+    }
 
     const $ = load(res.text);
     $('script, style, nav, header, footer, aside, form, noscript, iframe, .comments, #comments').remove();
