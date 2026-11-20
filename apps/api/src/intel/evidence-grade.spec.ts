@@ -186,3 +186,88 @@ describe('tek kaynak kurali — MIN_DISTINCT_SOURCES', () => {
   });
 });
 
+
+describe('kanit bagimsizligi — ayni calismanin aktarimlari tek kanit', () => {
+  const haber = (sourceKey: string, basis: string | null, grade: 'large-n-study' | 'expert-opinion' | 'official-doc' = 'large-n-study') => ({
+    grade, stance: 'supports' as const, sourceWeight: 70, publishedAt: d('2026-08-01'),
+    sampleSize: grade === 'large-n-study' ? 50_000 : null, sourceKey, basis,
+  });
+
+  it('uc haber sitesi ayni calismayi aktariyorsa Dogrulandi olmaz', () => {
+    // 20.11.2026: Pangram LinkedIn bulgusu uc sitede — eskiden CONFIRMED cikiyordu
+    const v = computeVerdict([
+      haber('sel', 'pangram-linkedin-2026'),
+      haber('sej', 'pangram-linkedin-2026'),
+      haber('ppc-land', 'pangram-linkedin-2026'),
+    ], NOW);
+    expect(v.status).toBe('EMERGING');
+    expect(v.independentBases).toBe(1);
+    expect(v.evidenceCount).toBe(3);
+  });
+
+  it('aktarimlar agirlikta da yigilmaz — en guclusu kalir', () => {
+    const tek = computeVerdict([haber('sel', 'x-study')], NOW);
+    const uc = computeVerdict([haber('sel', 'x-study'), haber('sej', 'x-study'), haber('ppc', 'x-study')], NOW);
+    expect(uc.supportWeight).toBe(tek.supportWeight);
+  });
+
+  it('iki BAGIMSIZ calisma esigi acar', () => {
+    const v = computeVerdict([haber('sel', 'pangram-linkedin-2026'), haber('sej', 'originality-linkedin-2026')], NOW);
+    expect(v.status).toBe('CONFIRMED');
+    expect(v.independentBases).toBe(2);
+  });
+
+  it('resmi duyuru + onu aktaran haber Dogrulandi verir (farkli yayinci sarti yine gecerli)', () => {
+    const resmi = { ...haber('google-search-central-updates', 'google-faq-removal-2026', 'official-doc'), sourceWeight: 100 };
+    const v = computeVerdict([resmi, haber('sel', 'google-faq-removal-2026', 'expert-opinion')], NOW);
+    expect(v.status).toBe('CONFIRMED');
+    // ...ama resmi not tek basina yine hukum vermez
+    expect(computeVerdict([resmi], NOW).status).toBe('EMERGING');
+  });
+
+  it('resmi duyuruyu iki farkli yayinci aktardiysa agirlik esigi engel olmaz', () => {
+    // Resmi notun kendisi defterde yok; SEJ (60) ve SEL aktarmis — teke inince 51 kalir
+    const aktarim = (k: string) => ({ ...haber(k, 'google-spam-update-2026', 'official-doc'), sourceWeight: 60 });
+    expect(computeVerdict([aktarim('sej'), aktarim('sel')], NOW).status).toBe('CONFIRMED');
+    // ayni yayincinin iki yazisi yetmez
+    expect(computeVerdict([aktarim('sej'), aktarim('sej')], NOW).status).toBe('EMERGING');
+    // resmi olmayan calismanin aktarimlari icin istisna yok
+    const calisma = (k: string) => ({ ...haber(k, 'vendor-study-2026', 'expert-opinion'), sourceWeight: 60 });
+    expect(computeVerdict([calisma('sej'), calisma('sel')], NOW).status).toBe('EMERGING');
+  });
+
+  it('bayatlik aktarimlar indirilmeden olculur', () => {
+    const eski = { ...haber('a', 'x-study'), publishedAt: d('2025-06-01'), sampleSize: 90_000 };
+    const yeni = { ...haber('b', 'x-study', 'expert-opinion'), publishedAt: d('2026-08-01') };
+    const baska = { ...haber('c', 'y-study'), publishedAt: d('2025-06-01') };
+    expect(computeVerdict([eski, yeni, baska], NOW).status).not.toBe('STALE');
+  });
+
+  it('dayanak yoksa ayni yayincinin iki yazisi bagimsiz sayilmaz, farkli yayincilar sayilir', () => {
+    expect(computeVerdict([haber('a', null), haber('b', null)], NOW).status).toBe('CONFIRMED');
+  });
+
+  it('ayni calismayi biri destek biri curutme diye okuduysa ikisi de tartilir', () => {
+    const karsi = { ...haber('sej', 'x-study'), stance: 'refutes' as const };
+    const v = computeVerdict([haber('sel', 'x-study'), karsi], NOW);
+    expect(v.supportWeight).toBeGreaterThan(0);
+    expect(v.refuteWeight).toBeGreaterThan(0);
+  });
+
+  it('kismen kanit kazanan tarafin ikinci bagimsiz dayanagi sayilmaz', () => {
+    const kismen = { ...haber('b', 'y-study', 'expert-opinion'), stance: 'mixed' as const };
+    const v = computeVerdict([haber('a', 'x-study'), haber('c', 'x-study'), kismen], NOW);
+    expect(v.status).toBe('EMERGING');
+  });
+});
+
+describe('normalizeBasis', () => {
+  it('kebab-case, Turkce harf sadelestirilir, kisa/gecersiz null', async () => {
+    const { normalizeBasis } = await import('./evidence-grade.js');
+    expect(normalizeBasis('Pangram LinkedIn AI Posts 2026')).toBe('pangram-linkedin-ai-posts-2026');
+    expect(normalizeBasis('Işık Üniversitesi çalışması')).toBe('isik-universitesi-calismasi');
+    expect(normalizeBasis('  ')).toBeNull();
+    expect(normalizeBasis(null)).toBeNull();
+    expect(normalizeBasis('x'.repeat(200))?.length).toBe(120);
+  });
+});

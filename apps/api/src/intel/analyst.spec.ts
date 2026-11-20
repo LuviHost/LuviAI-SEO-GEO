@@ -73,3 +73,12 @@ describe('sanitizeClaim — orneklem', () => {
     expect(sanitizeClaim({ ...base, sampleSize: 0 })?.sampleSize).toBeNull();
   });
 });
+
+describe('sanitizeClaim — dayanak', () => {
+  const base = { slug: 'x-y', statement: 'Yeterince uzun bir iddia cumlesi', grade: 'expert-opinion', stance: 'supports', quote: 'birebir alinti metni' };
+  it('basis normalize edilir, yoksa null', async () => {
+    const { sanitizeClaim } = await import('./analyst.service.js');
+    expect(sanitizeClaim({ ...base, basis: 'Pangram LinkedIn 2026' })?.basis).toBe('pangram-linkedin-2026');
+    expect(sanitizeClaim(base)?.basis).toBeNull();
+  });
+});

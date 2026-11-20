@@ -97,6 +97,13 @@ export interface EvidenceInput {
    * bir kaynak sayilir (eski cagiranlar/testler kirilmasin).
    */
   sourceKey?: string;
+  /**
+   * Kanitin DAYANDIGI birincil calisma/duyuru (ornek: "pangram-linkedin-ai-posts-2026").
+   * Uc haber sitesinin ayni calismayi aktarmasi uc bagimsiz kanit degildir;
+   * ayni dayanakli kanitlar tek kanit sayilir (bkz. collapseRelays).
+   * Bos = bu yayin kendisi birincil kaynak.
+   */
+  basis?: string | null;
 }
 
 /**
@@ -146,6 +153,61 @@ export interface ClaimVerdict {
   /** En guclu tek kanitin agirligi — tek resmi dokuman 10 anekdotu yener */
   peakWeight: number;
   evidenceCount: number;
+  /** Birbirinden BAGIMSIZ dayanak sayisi (ayni calismanin aktarimlari tek sayilir) */
+  independentBases: number;
+}
+
+/**
+ * AYNI CALISMANIN AKTARIMLARI TEK KANITTIR.
+ *
+ * NEDEN (20.11.2026): Pangram'in LinkedIn bulgusunu uc haber sitesi
+ * aktarmisti; defter bunu uc farkli kaynak sayip iddiayi Dogrulandi'ya
+ * cikariyordu. Oysa ortada tek bir calisma var — iki-kaynak kurali
+ * "iki yayinci" degil "iki bagimsiz kanit" ister.
+ *
+ * Ayni dayanak + ayni tutumdaki kanitlardan yalniz EN GUCLUSU kalir (birincil
+ * kaynagin kendisi genelde odur). Farkli tutumlar ayri tutulur: ayni
+ * calismayi biri destek, biri kismen diye okuduysa ikisi de bilgi tasir.
+ * Dayanagi bos kanitlar oldugu gibi gecer.
+ */
+export function collapseRelays(evidences: EvidenceInput[], now = new Date()): EvidenceInput[] {
+  const best = new Map<string, { e: EvidenceInput; w: number }>();
+  const out: EvidenceInput[] = [];
+  for (const e of evidences) {
+    const basis = e.basis?.trim();
+    if (!basis) {
+      out.push(e);
+      continue;
+    }
+    const key = `${basis}|${e.stance}`;
+    const w = evidenceWeight(e, now);
+    const cur = best.get(key);
+    if (!cur || w > cur.w) best.set(key, { e, w });
+  }
+  for (const { e } of best.values()) out.push(e);
+  return out;
+}
+
+/** Dayanak anahtari kebab-case, en fazla 120 karakter; bos/gecersiz → null */
+export function normalizeBasis(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const key = raw
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120)
+    .replace(/-+$/g, '');
+  return key.length >= 3 ? key : null;
+}
+
+/** Bagimsiz dayanak kimligi: dayanak > kaynak > (isimsizse) kendisi */
+function independenceKey(e: EvidenceInput, i: number): string {
+  const basis = e.basis?.trim();
+  if (basis) return `basis:${basis}`;
+  return e.sourceKey ? `source:${e.sourceKey}` : `__anon_${i}`;
 }
 
 /**
@@ -154,7 +216,9 @@ export interface ClaimVerdict {
  * MIXED kanit iki kefeye de yarim agirlikla yazilir: "kismen dogru"
  * bilgisini atmak, iddiayi oldugundan kesin gostermek olur.
  */
-export function computeVerdict(evidences: EvidenceInput[], now = new Date()): ClaimVerdict {
+export function computeVerdict(allEvidences: EvidenceInput[], now = new Date()): ClaimVerdict {
+  // Aktarimlar once teke indirilir; agirlik da sayim da bagimsiz kanit uzerinden
+  const evidences = collapseRelays(allEvidences, now);
   let support = 0;
   let refute = 0;
   let supportPeak = 0;
@@ -197,13 +261,14 @@ export function computeVerdict(evidences: EvidenceInput[], now = new Date()): Cl
   const confidence = total > 0 ? (support - refute) / total : 0;
 
   return {
-    status: decideStatus({ total, peak, confidence, evidences, now }),
+    status: decideStatus({ total, peak, confidence, evidences, allEvidences, now }),
     confidence: Math.round(confidence * 100) / 100,
     supportWeight: Math.round(support),
     refuteWeight: Math.round(refute),
     totalWeight: Math.round(total),
     peakWeight: Math.round(peak),
-    evidenceCount: evidences.length,
+    evidenceCount: allEvidences.length,
+    independentBases: new Set(evidences.map(independenceKey)).size,
   };
 }
 
@@ -260,25 +325,38 @@ function decideStatus(ctx: {
   total: number;
   peak: number;
   confidence: number;
+  /** Aktarimlar indirilmis kanitlar */
   evidences: EvidenceInput[];
+  /** Ham liste — farkli YAYINCI sayimi icin */
+  allEvidences: EvidenceInput[];
   now: Date;
 }): ClaimStatus {
-  const { total, peak, confidence, evidences, now } = ctx;
+  const { total, peak, confidence, evidences, allEvidences, now } = ctx;
 
   if (evidences.length === 0) return 'EMERGING';
 
-  // Yeterli agirlik yok VE tek basina belirleyici bir kanit da yok
-  if (total < MIN_TOTAL_FOR_VERDICT && peak < DECISIVE_PEAK) return 'EMERGING';
+  // Yeterli agirlik yok VE tek basina belirleyici bir kanit da yok.
+  // Istisna: resmi bir aciklamayi iki FARKLI yayinci aktarmis. Aktarimlar
+  // teke indirilince agirlik aktaranin kaynak agirligina (ornek SEJ 60)
+  // duser ve esigin altinda kalir; oysa ortada platformun kendi duyurusu
+  // var ve iki ayri yayinci ayni sekilde okumus (Google spam guncellemesi,
+  // 20.11.2026 — resmi notun kendisi defterde yoktu, 5 haber vardi).
+  if (total < MIN_TOTAL_FOR_VERDICT && peak < DECISIVE_PEAK && !officialCorroborated(allEvidences)) {
+    return 'EMERGING';
+  }
 
   // TEK KAYNAKLA KESIN HUKUM YOK (bkz. MIN_DISTINCT_SOURCES notu).
   // sourceKey verilmemis kanit kendi basina bir kaynak sayilir.
   const distinctSources = new Set(
-    evidences.map((e, i) => e.sourceKey ?? `__anon_${i}`),
+    allEvidences.map((e, i) => e.sourceKey ?? `__anon_${i}`),
   ).size;
   if (distinctSources < MIN_DISTINCT_SOURCES) return 'EMERGING';
 
   // Bayatlik hukumden ONCE bakilir: eski bir "CONFIRMED" yanlis guven verir
-  const newest = evidences
+  // Tazelik HAM listeden: ayni duyurunun yeni bir aktarimi bilginin hala
+  // gecerli oldugunu gosterir; aktarimlar teke indirilince en yeni tarih
+  // kaybolup iddia yanlislikla bayat sayiliyordu.
+  const newest = allEvidences
     .map((e) => e.publishedAt?.getTime() ?? 0)
     .reduce((a, b) => Math.max(a, b), 0);
   if (newest > 0) {
@@ -286,9 +364,49 @@ function decideStatus(ctx: {
     if (ageDays > STALE_AFTER_DAYS) return 'STALE';
   }
 
-  if (confidence >= 0.6) return 'CONFIRMED';
-  if (confidence <= -0.6) return 'MYTH';
+  if (confidence >= 0.6) {
+    return hasIndependentBacking(evidences, 'supports') ? 'CONFIRMED' : 'EMERGING';
+  }
+  if (confidence <= -0.6) {
+    return hasIndependentBacking(evidences, 'refutes') ? 'MYTH' : 'EMERGING';
+  }
   return 'CONTESTED';
+}
+
+/**
+ * Bir resmi aciklama (official-doc) en az iki FARKLI yayinci tarafindan
+ * ayni tutumla aktarilmis mi? Ayni dayanak grubundaki tum satirlar sayilir
+ * (resmi notu "uzman gorusu" diye etiketlenmis bir aktarim da okumayi teyit eder).
+ */
+function officialCorroborated(all: EvidenceInput[]): boolean {
+  const groups = new Map<string, { official: boolean; sources: Set<string> }>();
+  all.forEach((e, i) => {
+    if (e.stance === 'mixed') return;
+    const key = `${independenceKey(e, i)}|${e.stance}`;
+    const g = groups.get(key) ?? { official: false, sources: new Set<string>() };
+    if (e.grade === 'official-doc') g.official = true;
+    g.sources.add(e.sourceKey ?? `__anon_${i}`);
+    groups.set(key, g);
+  });
+  return [...groups.values()].some((g) => g.official && g.sources.size >= MIN_DISTINCT_SOURCES);
+}
+
+/**
+ * Kesin hukmun BAGIMSIZLIK sarti: kazanan tarafta ya iki bagimsiz dayanak
+ * ya da platformun kendi resmi dokumani olmali.
+ *
+ * Resmi dokuman istisnasi: "Google FAQ zengin sonucunu kaldirdi" bilgisinin
+ * Google'in kendi notundan daha iyi ikinci bir dayanagi olamaz; onu aktaran
+ * haber bagimsiz kanit degil, ama okumanin dogru oldugunun teyidi. Farkli
+ * yayinci sarti (MIN_DISTINCT_SOURCES) yine gecerli — tek resmi not tek
+ * basina hukum vermez.
+ */
+function hasIndependentBacking(evidences: EvidenceInput[], side: 'supports' | 'refutes'): boolean {
+  // "Kismen" kanit kazanan tarafin bagimsiz dayanagi sayilmaz — iki-kaynak
+  // kurali iki DESTEK ister, bir destek + bir "kosullu" degil.
+  const winning = evidences.filter((e) => e.stance === side);
+  if (winning.some((e) => e.grade === 'official-doc')) return true;
+  return new Set(winning.map(independenceKey)).size >= 2;
 }
 
 /**

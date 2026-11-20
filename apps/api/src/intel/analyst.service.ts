@@ -10,7 +10,7 @@ import {
   R10_MAX_EXTRA_PAGES, R10_MAX_POSTS, R10_USER_AGENT, extractR10Posts, formatR10Thread, isR10Url, r10ThreadPageUrls,
 } from './r10.js';
 import { detectBlock } from '../common/block-detect.js';
-import { GRADE_SCORE, type EvidenceGrade, type EvidenceStance } from './evidence-grade.js';
+import { GRADE_SCORE, normalizeBasis, type EvidenceGrade, type EvidenceStance } from './evidence-grade.js';
 import type { IntelTopic } from './source-registry.js';
 
 /**
@@ -97,9 +97,10 @@ KRITIK KURALLAR:
 4. Mevcut iddialar listesi verildi: yeni yazi bunlardan birini konu ediyorsa AYNI slug'i kullan. Ayni gercek icin yeni slug acma.
 5. Yazida dogrulanabilir iddia yoksa bos dizi dondur.
 6. En fazla 4 iddia cikar — yazinin en onemli olanlarini sec.
+7. basis: yazi baska birinin calismasini/duyurusunu AKTARIYORSA (haber, ozet, forumda paylasim) o birincil kaynagin kisa kebab anahtarini yaz: yayinci-konu-yil, ornek "pangram-linkedin-ai-posts-2026", "google-faq-rich-results-removal-2026". Yazi kendisi birincil kaynaksa (calismayi yapan, duyuruyu yapan platform) yine ayni bicimde kendi anahtarini yaz. Mevcut iddiada listelenen dayanak ayni calismaysa AYNI anahtari kullan. Bilinmiyorsa null.
 
 YALNIZCA JSON dondur:
-{"claims":[{"slug":"kisa-kebab-slug","statement":"tek cumlelik kanonik iddia (Turkce)","topics":["geo"],"stance":"refutes","grade":"large-n-study","sampleSize":137000,"quote":"birebir alinti","productAreas":["agent-readiness"]}]}
+{"claims":[{"slug":"kisa-kebab-slug","statement":"tek cumlelik kanonik iddia (Turkce)","topics":["geo"],"stance":"refutes","grade":"large-n-study","sampleSize":137000,"quote":"birebir alinti","basis":"ahrefs-llms-txt-study-2026","productAreas":["agent-readiness"]}]}
 
 productAreas su listeden secilir: ${PRODUCT_AREAS.join(', ')}
 topics su listeden secilir: geo, seo, aso, ai-crawler, schema, measurement, agents, platform`;
@@ -206,7 +207,9 @@ export class IntelAnalystService {
       `YAYIN TARIHI: ${item.publishedAt?.toISOString().slice(0, 10) ?? 'bilinmiyor'}`,
       '',
       existing.length > 0
-        ? `MEVCUT IDDIALAR (eslesme varsa ayni slug'i kullan):\n${existing.map((c) => `- ${c.slug}: ${c.statement}`).join('\n')}`
+        ? `MEVCUT IDDIALAR (eslesme varsa ayni slug'i kullan; [dayanak: ...] ayni calismaysa ayni basis'i kullan):\n${existing
+            .map((c) => `- ${c.slug}: ${c.statement}${c.bases.length > 0 ? ` [dayanak: ${c.bases.join(', ')}]` : ''}`)
+            .join('\n')}`
         : 'MEVCUT IDDIALAR: (defter bos)',
       '',
       'METIN:',
@@ -349,6 +352,7 @@ export function sanitizeClaim(raw: any): ExtractedClaim | null {
     stance,
     quote: quote.slice(0, 1500),
     sampleSize,
+    basis: normalizeBasis(raw?.basis),
   };
 }
 

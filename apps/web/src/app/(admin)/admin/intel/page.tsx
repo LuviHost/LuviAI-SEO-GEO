@@ -357,6 +357,11 @@ function ClaimsTab({ onChange }: { onChange: () => void }) {
                           <span className="font-medium">{GRADE_LABEL[e.grade] ?? e.grade}</span>
                           {e.sampleSize && <span className="text-muted-foreground">N={e.sampleSize.toLocaleString('tr-TR')}</span>}
                           <span className="text-muted-foreground">ağırlık {e.weight}</span>
+                          {e.basis && (
+                            <span className="text-muted-foreground" title="Aynı dayanağa sahip kanıtlar hükümde tek kanıt sayılır">
+                              · dayanak: {e.basis}
+                            </span>
+                          )}
                           <span className="text-muted-foreground">· {e.item?.source?.name}</span>
                           {e.item?.source?.tier && (
                             <span className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{TIER_LABEL[e.item.source.tier] ?? e.item.source.tier}</span>
