@@ -8,7 +8,7 @@ import { OpenClawService } from './openclaw.service.js';
 import { XCurationService } from './x-curation.service.js';
 import { INTEL_SOURCES, type SourceKind } from './source-registry.js';
 import { R10_USER_AGENT, parseR10ForumList, r10ForumUrl } from './r10.js';
-import { isSearchCentralUpdatesFeed, parseSearchCentralUpdates } from './search-central-updates.js';
+import { changelogParserFor } from './changelogs.js';
 
 /**
  * Toplayici — kaynak katalogundaki akislari ceker, tekillestirir, ham
@@ -54,6 +54,7 @@ const THROTTLE_MS: Partial<Record<SourceKind, number>> = {
   // R10: alt forumlar ard arda cekilir; sitenin uzerine binmemek icin 5 sn
   r10: 5000,
   rss: 1500,
+  changelog: 1500,
   github: 1000,
   hn: 1000,
 };
@@ -242,13 +243,20 @@ export class IntelCollectorService {
 
   private async fetchByKind(kind: SourceKind, target: string): Promise<RawItem[]> {
     switch (kind) {
-      case 'rss':
-        // Belge degisiklik gunlugu: ay capali ortak adres + metin yalniz
-        // aciklamada — genel feed yolu kayitlari birbirine ezer (bkz. modul)
-        if (isSearchCentralUpdatesFeed(target)) {
-          return parseSearchCentralUpdates((await this.httpText(target)).text);
-        }
+      case 'rss': {
+        // Platform degisiklik gunlukleri (Google, Claude Platform, OpenAI
+        // tarayicilari): kayit adresi buyuk sayfanin capasi, metin yalniz
+        // aciklamada — genel feed yolu metni kaybeder (bkz. changelogs.ts)
+        const parser = changelogParserFor(target);
+        if (parser) return parser((await this.httpText(target)).text);
         return this.fetchFeed(target);
+      }
+      case 'changelog': {
+        // RSS'i olmayan, sunucuda islenmis degisiklik gunlugu sayfasi
+        const parser = changelogParserFor(target);
+        if (!parser) throw new Error(`Degisiklik gunlugu icin ayristirici yok: ${target}`);
+        return parser((await this.httpText(target)).text);
+      }
       case 'github':
         return this.fetchFeed(`https://github.com/${target}/releases.atom`);
       case 'reddit':
