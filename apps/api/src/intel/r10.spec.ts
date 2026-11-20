@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  R10_USER_AGENT, extractR10Thread, isR10SalesThread, isR10Url, parseR10Date, parseR10ForumList, r10ForumUrl,
+  R10_MAX_POSTS, R10_USER_AGENT, extractR10Posts, extractR10Thread, formatR10Thread, isR10SalesThread, isR10Url,
+  parseR10Date, parseR10ForumList, r10ForumUrl, r10ThreadPageUrls, type R10Post,
 } from './r10.js';
 import { INTEL_SOURCES } from './source-registry.js';
 
@@ -96,20 +97,32 @@ describe('R10 yardimcilari', () => {
   });
 });
 
-const post = (n: number, author: string, date: string, body: string) => `
+/** R10 konu sayfasindaki mesaj (20.11.2026 canli sayfa yapisi) */
+const post = (n: number, author: string, date: string, body: string, signature = 'Web tasarım ve SEO: Kaynak Ol') => `
 <li class="post" id="edit${n}" data-order="${n}"><div id="post${n}">
   <div class="head"><div class="left">
     ${date}
   </div></div>
   <div class="postUser"><div class="name"><a class="uToggle">${author}</a></div></div>
-  <div class="postContent userMessage">${body}</div>
+  <div class="postContent ${n === 1 ? 'userMessage ' : ''}userMessageSize">${body}</div>
+  <div class="postContent userSignature">${signature}</div>
 </div></li>`;
 
+/** R10'un gercek alinti kalibi */
+const quote = (who: string, msg: string) => `<div class="quote linked">
+  <div class="user">${who} adlı üyeden alıntı: <span class="link"><a href="#post1">mesajı görüntüle</a></span></div>
+  <div class="message"><div class="readMore">${msg}</div></div></div>`;
+
+const pagination = (base: string, pages: number) => `<div class="pagination"><ul>
+  <li class="active"><a href="${base}.html#">1</a></li>
+  ${Array.from({ length: pages - 1 }, (_, i) => `<li><a class="smallfont" href="${base}-${i + 2}.html" data-page="${i + 2}">${i + 2}</a></li>`).join('')}
+  <li class="next"><a class="infiniteNext" href="${base}-2.html"></a></li></ul></div>`;
+
 describe('R10 konu sayfasi → analist metni', () => {
-  it('ilk mesaj ve cevaplar yazar ve tarihle; alinti ve menu atilir', () => {
+  it('ilk mesaj ve cevaplar yazar ve tarihle; alinti, imza ve menu atilir', () => {
     const html = `<html><body><nav>Menü Forumlar Giriş</nav><div class="postList"><ul>
       ${post(1, 'bydarius', '09-11-2026, 11:38:54', 'Google açıkladı: <b>iyi SEO iyi GEO</b> demek.')}
-      ${post(2, 'tabela26', '09-11-2026, 12:00:00', '<blockquote>Google açıkladı: iyi SEO</blockquote>Bunu denedim, AI Modu\'nda tek başına yetmedi.')}
+      ${post(2, 'tabela26', '09-11-2026, 12:00:00', `${quote('bydarius', 'Google açıkladı: iyi SEO')} Bunu denedim, AI Modu'nda tek başına yetmedi.`)}
     </ul></div></body></html>`;
     const text = extractR10Thread(html)!;
     expect(text).toContain('[#1 ilk mesaj · bydarius · 09-11-2026, 11:38:54]');
@@ -117,9 +130,46 @@ describe('R10 konu sayfasi → analist metni', () => {
     expect(text).toContain('[#2 cevap · tabela26');
     expect(text).toContain('Bunu denedim');
     expect(text).not.toContain('Menü');
+    expect(text).not.toContain('Kaynak Ol');
     // alinti ikinci mesajda tekrar sayilmaz
     expect(text.split('Google açıkladı').length - 1).toBe(1);
   });
+
+  it('blockquote ALINTI DEGIL: yazarin kendi metni okunur', () => {
+    // 20.11.2026: "Core Update Devam Ediyor" konusunun tum metni blockquote icindeydi
+    const html = `<div class="postList"><ul>${post(1, 'kaynakol', '18-11-2026, 10:00:00',
+      '<blockquote><font color="#FFFFFF">Yaklaşık 1 aydır site üzerinde çalışıyoruz ve core update ile ciddi bir yükseliş yaşadık.</font></blockquote><img src="x.png">')}</ul></div>`;
+    expect(extractR10Thread(html)).toContain('core update ile ciddi bir yükseliş');
+  });
+
+  it('sira no sayfadaki data-order; ikinci sayfa #11 ile baslar', () => {
+    const p2 = `<div class="postList"><ul>${post(11, 'u11', '18-11-2026', 'İkinci sayfadaki cevap metni.')}</ul></div>`;
+    expect(extractR10Posts(p2)[0]).toMatchObject({ order: 11, author: 'u11' });
+  });
+
+  it('ilk mesaj uzun rehberse 3000 karakterde kesilmez; cevap kesilir', () => {
+    const long = 'a'.repeat(8000);
+    const html = `<div class="postList"><ul>${post(1, 'u', 'd', long)}${post(2, 'v', 'd', long)}</ul></div>`;
+    const [first, reply] = extractR10Posts(html);
+    expect(first.text.length).toBe(8000);
+    expect(reply.text.length).toBe(3000);
+  });
+
+  it('sonraki sayfa adresleri yalniz r10.net, siraya gore, 1. sayfa haric', () => {
+    const base = 'https://www.r10.net/google-optimizasyon/4930946-ilk-2-hafta';
+    const html = `${pagination(base, 3)}<div class="pagination"><a data-page="9" href="https://evil.com/x.html">9</a></div>`;
+    expect(r10ThreadPageUrls(html)).toEqual([`${base}-2.html`, `${base}-3.html`]);
+    expect(r10ThreadPageUrls('<div class="pagination"></div>')).toEqual([]);
+  });
+
+  it('birlestirme: tekrar eden sira no bir kez, en fazla R10_MAX_POSTS mesaj', () => {
+    const p = (order: number): R10Post => ({ order, author: 'a', date: 'd', text: `mesaj ${order}` });
+    const text = formatR10Thread([p(1), p(2), p(2), ...Array.from({ length: 30 }, (_, i) => p(i + 3))])!;
+    expect(text.split('[#2 cevap').length - 1).toBe(1);
+    expect(text.match(/^\[#/gm)).toHaveLength(R10_MAX_POSTS);
+    expect(formatR10Thread([])).toBeNull();
+  });
+
   it('mesaj yoksa null', () => {
     expect(extractR10Thread('<html><body>Attention Required</body></html>')).toBeNull();
   });
