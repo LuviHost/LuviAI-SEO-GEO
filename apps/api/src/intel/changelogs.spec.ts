@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ANTHROPIC_PLATFORM_FEED, CLAUDE_APPS_RELEASE_NOTES, OPENAI_API_CHANGELOG, OPENAI_CRAWLER_FEED,
-  changelogParserFor, htmlToText, parseClaudeAppsReleaseNotes, parseFullTextFeed, parseOpenAiApiChangelog, withEntryDate,
+  ANTHROPIC_PLATFORM_FEED, CHATGPT_RELEASE_NOTES, CLAUDE_APPS_RELEASE_NOTES, GEMINI_APPS_RELEASE_NOTES,
+  GOOGLE_SEARCH_STATUS_INCIDENTS, OPENAI_API_CHANGELOG, OPENAI_CRAWLER_FEED, OPENAI_MODEL_RELEASE_NOTES,
+  PERPLEXITY_CHANGELOG, YAHOO_PRESS_FEED,
+  balancedJson, changelogParserFor, htmlToText, parseClaudeAppsReleaseNotes, parseFullTextFeed, parseGeminiReleaseNotes,
+  parseGoogleSearchStatus, parseOpenAiApiChangelog, parseOpenAiHelpReleaseNotes, parsePerplexityChangelog,
+  parseYahooSearchPress, withEntryDate,
 } from './changelogs.js';
 import { SEARCH_CENTRAL_UPDATES_FEED, parseSearchCentralUpdates } from './search-central-updates.js';
 import { fingerprintOf } from './collector.service.js';
@@ -63,10 +67,12 @@ describe('degisiklik gunlukleri — ortak', () => {
     expect(withEntryDate('https://a.com/p?q=1', '2026-11-17')).toBe('https://a.com/p?q=1&tarih=2026-11-17');
   });
   it('yonlendirici: yalniz bilinen gunlukler ozel ayristiriciya gider', () => {
-    for (const u of [SEARCH_CENTRAL_UPDATES_FEED, ANTHROPIC_PLATFORM_FEED, OPENAI_CRAWLER_FEED, OPENAI_API_CHANGELOG, CLAUDE_APPS_RELEASE_NOTES]) {
+    for (const u of [SEARCH_CENTRAL_UPDATES_FEED, ANTHROPIC_PLATFORM_FEED, OPENAI_CRAWLER_FEED, OPENAI_API_CHANGELOG, CLAUDE_APPS_RELEASE_NOTES,
+      CHATGPT_RELEASE_NOTES, OPENAI_MODEL_RELEASE_NOTES, GOOGLE_SEARCH_STATUS_INCIDENTS, GEMINI_APPS_RELEASE_NOTES, PERPLEXITY_CHANGELOG, YAHOO_PRESS_FEED]) {
       expect(changelogParserFor(u)).toBeTypeOf('function');
     }
     expect(changelogParserFor('https://openai.com/news/rss.xml')).toBeNull();
+    expect(changelogParserFor('https://blogs.bing.com/search/feed')).toBeNull(); // duz RSS yolu
     expect(changelogParserFor(SEARCH_CENTRAL_UPDATES_FEED)).toBe(parseSearchCentralUpdates);
   });
 });
@@ -119,14 +125,145 @@ describe('Claude uygulama surum notlari (Help Center HTML)', () => {
   });
 });
 
+/** help.openai.com surum notlari (Intercom) sadelestirilmis — 21.11.2026 */
+const OAI_HELP_HTML = `<html><body><article><h1>ChatGPT release notes</h1><div class="article-content">
+<div class="intercom-interblocks-callout callout-transparent"><h1>November 20, 2026</h1><h2>ChatGPT Space is rolling out to Plus</h2>
+<p>Starting today, ChatGPT Space is rolling out globally to Plus users.</p><p>See <a href="/en/articles/1-space">Space</a>.</p></div>
+<div class="intercom-interblocks-callout callout-transparent"><h1>November 19, 2026</h1><h2>New mobile experience</h2><p>A new app layout.</p>
+<h2>Health on Android</h2><ul><li>Health is now on Android.</li></ul></div>
+<div class="intercom-interblocks-callout callout-transparent"><h1>November 12, 2026</h1><h2>New mobile experience</h2><p>Now on iPad.</p></div>
+</div></article></body></html>`;
+
+/** status.search.google.com/incidents.json sadelestirilmis */
+const STATUS_JSON = JSON.stringify([
+  { id: 'A', external_desc: 'November 2026 core update', service_name: 'Ranking', uri: 'incidents/A',
+    updates: [{ when: '2026-11-10T18:07:10+00:00', text: 'Released the November 2026 core update <https://developers.google.com/search/docs/appearance/core-updates>, which applies globally. The rollout may take up to 2 weeks to complete.' }] },
+  { id: 'B', external_desc: 'September 2026 spam update', service_name: 'Ranking', uri: 'incidents/B',
+    updates: [
+      { when: '2026-10-08T08:37:09+00:00', text: 'The rollout was complete as of October 8, 2026.' },
+      { when: '2026-09-24T16:15:47+00:00', text: 'Released the September 2026 spam update.' },
+    ] },
+]);
+
+/** gemini.google/us/release-notes sadelestirilmis; sinif adlari hash'li */
+const GEM_HTML = `<html><body>
+<div class="_releaseNoteCard_1le3z_90"><h2 class="_releaseNoteCardTitle_1le3z_104">2026.11.17</h2>
+<div class="_releaseNoteCardBody_1le3z_108"></div><div class="_features_1le3z_174">
+<div><h3 class="_featureTitle_1le3z_180">Tasks in Gemini, now free</h3><ul><li><div><p><b>What:</b> Tasks is rolling out free in the US.</p></div></li><li><div><p><b>Why:</b> To help more people.</p></div></li></ul></div>
+<div><h3 class="_featureTitle_1le3z_180">Checkout with Google Pay in Tasks</h3><ul><li><div><p><b>What:</b> Pay with <a href="https://pay.google.com/">Google Pay</a>.</p></div></li></ul></div>
+</div></div>
+<div class="_releaseNoteCard_1le3z_90"><h2 class="_releaseNoteCardTitle_1le3z_104">2026.10.13</h2>
+<div class="_releaseNoteCardBody_1le3z_108"><p>Gemini 4 Argon is our new frontier model.</p></div><div class="_features_1le3z_174"></div></div>
+</body></html>`;
+
+/** perplexity.ai/changelog: liste gomulu sunucu verisinde, ardindan baska atama */
+const PPLX_HTML = `<html><head><script>window.__PPL_INITIAL_SERVER_ROUTE__={"route":"/changelog"};window.__PPL_INITIAL_SERVER_DATA__={"queries":[{"state":{"data":[
+{"_id":"1","intro":"Hand off ongoing jobs to teammates. Uses \\"quotes\\" and {braces}.","publishedAt":"2026-11-06","slug":"teammates-and-voice","title":"Teammates and Voice mode"},
+{"_id":"2","intro":"Ultrafast models.","publishedAt":"2026-10-19","slug":"ultrafast-models","title":"Ultrafast Computer models"}]}}]};window.__PPL_INITIAL_SESSION__=null;</script></head><body></body></html>`;
+
+/** yahooinc.com/press/rss.xml sadelestirilmis */
+const YAHOO_XML = `<?xml version="1.0"?><rss version="2.0"><channel><title>Yahoo Press</title>
+<item><title>After Delivering More Than 3 Billion Answers, Yahoo Scout Exits Beta to Underpin All of Yahoo Search</title><link>https://www.yahooinc.com/press/scout-exits-beta</link><pubDate>Wed, 18 Nov 2026 14:00:00 GMT</pubDate><description>Yahoo launches Pivot Search.</description></item>
+<item><title>Yahoo Finance Premieres New AI and Technology Show</title><link>https://www.yahooinc.com/press/finance-show</link><pubDate>Wed, 18 Nov 2026 13:00:00 GMT</pubDate><description>A new live daily show.</description></item>
+<item><title>Yahoo Sports and Yahoo Finance Introduce New AI Answer Experiences</title><link>https://www.yahooinc.com/press/sports-answers</link><pubDate>Tue, 10 Nov 2026 13:00:00 GMT</pubDate><description>Powered by Yahoo Scout, the AI answer engine.</description></item>
+</channel></rss>`;
+
+describe('OpenAI Help Center surum notlari (ChatGPT + modeller)', () => {
+  const items = parseOpenAiHelpReleaseNotes(OAI_HELP_HTML, CHATGPT_RELEASE_NOTES, 'ChatGPT surum notlari', 'ChatGPT');
+  it('kutu = tarih; her h2 ayri kayit; govde baglanti adresiyle', () => {
+    expect(items.map((i) => i.title)).toEqual([
+      'ChatGPT — ChatGPT Space is rolling out to Plus', 'ChatGPT — New mobile experience', 'ChatGPT — Health on Android', 'ChatGPT — New mobile experience',
+    ]);
+    expect(items.map((i) => i.publishedAt?.toISOString().slice(0, 10))).toEqual(['2026-11-20', '2026-11-19', '2026-11-19', '2026-11-12']);
+    expect(items[0].fullText).toContain('Space (https://help.openai.com/en/articles/1-space)');
+    expect(items[2].summary).toBe('Health is now on Android.');
+    expect(items[0].url).toBe(`${CHATGPT_RELEASE_NOTES}?tarih=2026-11-20`);
+  });
+  it('ayni baslik farkli tarihte ayri parmak izi', () => {
+    expect(fps(items)).toBe(4);
+  });
+  it('yapi degisirse bos dizi', () => {
+    expect(parseOpenAiHelpReleaseNotes('<article><p>x</p></article>', OPENAI_MODEL_RELEASE_NOTES, 'x', 'y')).toEqual([]);
+  });
+});
+
+describe('Google Search Status Dashboard (incidents.json)', () => {
+  const items = parseGoogleSearchStatus(STATUS_JSON);
+  it('her guncelleme ayri kayit: baslangic da bitis de', () => {
+    expect(items).toHaveLength(3);
+    expect(items[0].title).toBe('Google Search (Ranking) — November 2026 core update: Released the November 2026 core update, which applies globally.');
+    expect(items[0].fullText).toContain('core update (https://developers.google.com/search/docs/appearance/core-updates), which');
+    expect(items[1].title).toContain('The rollout was complete as of October 8, 2026.');
+    expect(items[1].url).toBe('https://status.search.google.com/incidents/B?tarih=2026-10-08');
+    expect(fps(items)).toBe(3);
+  });
+  it('bozuk JSON bos dizi', () => {
+    expect(parseGoogleSearchStatus('<html>')).toEqual([]);
+    expect(parseGoogleSearchStatus('{"a":1}')).toEqual([]);
+  });
+});
+
+describe('Gemini uygulama surum notlari', () => {
+  const items = parseGeminiReleaseNotes(GEM_HTML);
+  it('kart tarihi + her h3 ayri kayit; h3 yoksa kart govdesi', () => {
+    expect(items.map((i) => i.title)).toEqual([
+      'Gemini — Tasks in Gemini, now free', 'Gemini — Checkout with Google Pay in Tasks', 'Gemini — Gemini 4 Argon is our new frontier model.',
+    ]);
+    expect(items[0].publishedAt?.toISOString().slice(0, 10)).toBe('2026-11-17');
+    expect(items[0].fullText).toContain('What: Tasks is rolling out free in the US.\nWhy: To help more people.');
+    expect(items[1].fullText).toContain('Google Pay (https://pay.google.com/)');
+    expect(items[2].publishedAt?.toISOString().slice(0, 10)).toBe('2026-10-13');
+    expect(fps(items)).toBe(3);
+  });
+});
+
+describe('Perplexity degisiklik gunlugu', () => {
+  it('gomulu veriden kayitlar; ardindaki atama JSON u bozmaz', () => {
+    const items = parsePerplexityChangelog(PPLX_HTML);
+    expect(items.map((i) => [i.title, i.url, i.publishedAt?.toISOString().slice(0, 10)])).toEqual([
+      ['Perplexity — Teammates and Voice mode', `${PERPLEXITY_CHANGELOG}/teammates-and-voice`, '2026-11-06'],
+      ['Perplexity — Ultrafast Computer models', `${PERPLEXITY_CHANGELOG}/ultrafast-models`, '2026-10-19'],
+    ]);
+    expect(items[0].summary).toBe('Hand off ongoing jobs to teammates. Uses "quotes" and {braces}.');
+    expect(items[0].fullText).toBeUndefined(); // analist kayit sayfasini okur
+  });
+  it('balancedJson dizgi icindeki parantezi saymaz', () => {
+    const s = 'x={"a":"}{","b":{"c":1}};y=2';
+    expect(balancedJson(s, 2)).toBe('{"a":"}{","b":{"c":1}}');
+    expect(balancedJson(s, 0)).toBeNull();
+  });
+  it('veri yoksa bos dizi', () => {
+    expect(parsePerplexityChangelog('<html></html>')).toEqual([]);
+  });
+});
+
+describe('Yahoo basin bultenleri (yalniz arama)', () => {
+  it('Scout / Search bultenleri gecer, Finance sovu elenir', () => {
+    const items = parseYahooSearchPress(YAHOO_XML);
+    expect(items.map((i) => i.url)).toEqual(['https://www.yahooinc.com/press/scout-exits-beta', 'https://www.yahooinc.com/press/sports-answers']);
+    expect(items[0].author).toBe('Yahoo');
+  });
+});
+
 describe('katalog — platform gunlukleri', () => {
   it.each([
     ['anthropic-platform-release-notes', 'rss', ANTHROPIC_PLATFORM_FEED],
     ['claude-apps-release-notes', 'changelog', CLAUDE_APPS_RELEASE_NOTES],
     ['openai-api-changelog', 'changelog', OPENAI_API_CHANGELOG],
     ['openai-crawler-updates', 'rss', OPENAI_CRAWLER_FEED],
+    ['chatgpt-release-notes', 'changelog', CHATGPT_RELEASE_NOTES],
+    ['openai-model-release-notes', 'changelog', OPENAI_MODEL_RELEASE_NOTES],
+    ['google-search-status', 'changelog', GOOGLE_SEARCH_STATUS_INCIDENTS],
+    ['gemini-apps-release-notes', 'changelog', GEMINI_APPS_RELEASE_NOTES],
+    ['perplexity-changelog', 'changelog', PERPLEXITY_CHANGELOG],
   ])('%s resmi, agirlik 100, gunde bir', (key, kind, target) => {
     expect(INTEL_SOURCES.find((s) => s.key === key)).toMatchObject({ kind, target, tier: 'official', weight: 100, intervalHours: 24 });
+  });
+  it.each([
+    ['bing-search-blog', 'https://blogs.bing.com/search/feed'],
+    ['yahoo-search-press', YAHOO_PRESS_FEED],
+  ])('%s resmi RSS, agirlik 90', (key, target) => {
+    expect(INTEL_SOURCES.find((s) => s.key === key)).toMatchObject({ kind: 'rss', target, tier: 'official', weight: 90 });
   });
   it('changelog tipindeki her kaynagin ayristiricisi var', () => {
     for (const s of INTEL_SOURCES.filter((x) => x.kind === 'changelog')) expect(changelogParserFor(s.target)).not.toBeNull();
