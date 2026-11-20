@@ -8,6 +8,7 @@ import { OpenClawService } from './openclaw.service.js';
 import { XCurationService } from './x-curation.service.js';
 import { INTEL_SOURCES, type SourceKind } from './source-registry.js';
 import { R10_USER_AGENT, parseR10ForumList, r10ForumUrl } from './r10.js';
+import { isSearchCentralUpdatesFeed, parseSearchCentralUpdates } from './search-central-updates.js';
 
 /**
  * Toplayici — kaynak katalogundaki akislari ceker, tekillestirir, ham
@@ -242,6 +243,11 @@ export class IntelCollectorService {
   private async fetchByKind(kind: SourceKind, target: string): Promise<RawItem[]> {
     switch (kind) {
       case 'rss':
+        // Belge degisiklik gunlugu: ay capali ortak adres + metin yalniz
+        // aciklamada — genel feed yolu kayitlari birbirine ezer (bkz. modul)
+        if (isSearchCentralUpdatesFeed(target)) {
+          return parseSearchCentralUpdates((await this.httpText(target)).text);
+        }
         return this.fetchFeed(target);
       case 'github':
         return this.fetchFeed(`https://github.com/${target}/releases.atom`);

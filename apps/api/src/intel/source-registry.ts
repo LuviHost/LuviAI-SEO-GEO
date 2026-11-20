@@ -88,6 +88,19 @@ const OFFICIAL: IntelSourceDef[] = [
     note: 'llms.txt aciklamasi, AI Overviews rehberi, spam politikasi — hepsi buradan cikar',
   },
   {
+    // Blogda gecmeyen belge degisiklikleri (FAQ zengin sonucu kaldirma,
+    // llms.txt aciklamasi) yalniz burada. Ayristirma: search-central-updates.ts
+    key: 'google-search-central-updates',
+    name: 'Google Search Central — Belge Degisiklik Gunlugu',
+    kind: 'rss',
+    target: 'https://developers.google.com/search/updates/search_docs_updates.rss',
+    tier: 'official',
+    topics: ['seo', 'geo', 'ai-crawler', 'schema', 'platform'],
+    weight: 100,
+    intervalHours: 24,
+    note: 'Belge degisiklik gunlugu; ayda ~4-8 kayit, kayit metni feed aciklamasinda',
+  },
+  {
     key: 'google-blog-search',
     name: 'The Keyword — Google Search',
     kind: 'rss',
