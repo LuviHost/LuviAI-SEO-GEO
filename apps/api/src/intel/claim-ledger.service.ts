@@ -113,9 +113,14 @@ export class ClaimLedgerService {
             weight,
           },
         });
-      } catch {
+      } catch (err: any) {
         // (claimId, itemId) unique — ayni yayin ayni iddiaya ikinci kez
         // kanit olamaz. Yeniden analiz durumunda buraya duseriz.
+        // BASKA HATA sessiz gecmesin: Int tasmasi 5 kaniti "tekrar" sanilarak
+        // kaybettirdi (19.11.2026).
+        if (err?.code !== 'P2002') {
+          this.log.warn(`Kanit yazilamadi (${c.slug} ← ${itemId}): ${String(err?.message ?? err).slice(0, 300)}`);
+        }
         continue;
       }
 

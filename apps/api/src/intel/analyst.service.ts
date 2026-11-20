@@ -289,7 +289,10 @@ export class IntelAnalystService {
  * skorlamayi sessizce bozar (bilinmeyen grade puani 0 sayilir ve iddia
  * hep EMERGING kalir), o yuzden burada eleniyor.
  */
-function sanitizeClaim(raw: any): ExtractedClaim | null {
+/** Prisma `Int` sutununun ust siniri */
+export const MAX_SAMPLE_SIZE = 2_147_483_647;
+
+export function sanitizeClaim(raw: any): ExtractedClaim | null {
   const slug = slugify(String(raw?.slug ?? ''));
   const statement = String(raw?.statement ?? '').trim();
   const grade = String(raw?.grade ?? '') as EvidenceGrade;
@@ -306,8 +309,12 @@ function sanitizeClaim(raw: any): ExtractedClaim | null {
   const productAreas = (Array.isArray(raw?.productAreas) ? raw.productAreas : [])
     .filter((a: any) => typeof a === 'string' && VALID_AREAS.has(a));
 
+  // DB sutunu Int (MySQL INT, ust sinir ~2,1 milyar). Profound'un "11,8 milyar
+  // atif" gibi orneklemleri tasiyor, kanit yazimi sessizce dusuyordu
+  // (19.11.2026: 5 kanit kayboldu). Agirlik yalniz N>=1000 esigine baktigi
+  // icin ust sinira kirpmak puani degistirmez.
   const n = Number(raw?.sampleSize);
-  const sampleSize = Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  const sampleSize = Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), MAX_SAMPLE_SIZE) : null;
 
   return {
     slug,
