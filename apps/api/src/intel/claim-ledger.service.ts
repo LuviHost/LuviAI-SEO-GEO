@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import {
   computeVerdict,
   evidenceWeight,
+  normalizeBasis,
   verdictGuidance,
   type ClaimStatus,
   type EvidenceGrade,
@@ -32,6 +33,12 @@ export interface ExtractedClaim {
   stance: EvidenceStance;
   quote: string;
   sampleSize: number | null;
+  /**
+   * Kanitin dayandigi birincil calisma/duyuru anahtari. Ayni anahtarli
+   * kanitlar tek kanit sayilir (evidence-grade.collapseRelays). Bos = yayin
+   * kendisi birincil kaynak.
+   */
+  basis?: string | null;
 }
 
 export interface StatusChange {
@@ -54,27 +61,38 @@ export class ClaimLedgerService {
    * gore filtrelenir ki model 200 iddia arasindan degil, ilgili
    * olanlar arasindan eslestirsin.
    */
-  async claimContext(topics: string[], limit: number): Promise<Array<{ slug: string; statement: string }>> {
+  async claimContext(
+    topics: string[],
+    limit: number,
+  ): Promise<Array<{ slug: string; statement: string; bases: string[] }>> {
     const claims = await this.prisma.intelClaim.findMany({
       orderBy: [{ lastEvidenceAt: 'desc' }],
       take: 200,
-      select: { slug: true, statement: true, topics: true },
+      select: {
+        slug: true, statement: true, topics: true,
+        // Bilinen dayanaklar modele verilir ki ayni calismayi aktaran yeni
+        // yazi AYNI anahtari kullansin (yoksa aktarim bagimsiz kanit sayilir)
+        evidences: { where: { basis: { not: null } }, select: { basis: true }, take: 20 },
+      },
     });
 
+    const bases = (c: (typeof claims)[number]) =>
+      [...new Set(c.evidences.map((e) => e.basis).filter((b): b is string => !!b))].slice(0, 5);
+
     if (topics.length === 0) {
-      return claims.slice(0, limit).map(({ slug, statement }) => ({ slug, statement }));
+      return claims.slice(0, limit).map((c) => ({ slug: c.slug, statement: c.statement, bases: bases(c) }));
     }
 
     const wanted = new Set(topics);
     const scored = claims.map((c) => {
       const ct = Array.isArray(c.topics) ? (c.topics as string[]) : [];
       const overlap = ct.filter((t) => wanted.has(t)).length;
-      return { slug: c.slug, statement: c.statement, overlap };
+      return { slug: c.slug, statement: c.statement, bases: bases(c), overlap };
     });
 
     // Kesisim olanlar once; kalan yer varsa geri kalani tarih sirasiyla
     scored.sort((a, b) => b.overlap - a.overlap);
-    return scored.slice(0, limit).map(({ slug, statement }) => ({ slug, statement }));
+    return scored.slice(0, limit).map(({ slug, statement, bases: b }) => ({ slug, statement, bases: b }));
   }
 
   /**
@@ -110,6 +128,7 @@ export class ClaimLedgerService {
             stance: c.stance,
             quote: c.quote,
             sampleSize: c.sampleSize,
+            basis: normalizeBasis(c.basis),
             weight,
           },
         });
@@ -165,7 +184,7 @@ export class ClaimLedgerService {
       include: {
         evidences: {
           select: {
-            grade: true, stance: true, sampleSize: true,
+            grade: true, stance: true, sampleSize: true, basis: true,
             item: { select: { publishedAt: true, source: { select: { weight: true, key: true } } } },
           },
         },
@@ -180,6 +199,7 @@ export class ClaimLedgerService {
       sourceKey: e.item.source.key,
       publishedAt: e.item.publishedAt,
       sampleSize: e.sampleSize,
+      basis: e.basis,
     }));
 
     const verdict = computeVerdict(inputs);
@@ -281,7 +301,7 @@ export class ClaimLedgerService {
           orderBy: { weight: 'desc' },
           take: 5,
           select: {
-            grade: true, stance: true, quote: true, weight: true, sampleSize: true,
+            grade: true, stance: true, quote: true, weight: true, sampleSize: true, basis: true,
             item: {
               select: {
                 url: true, title: true, publishedAt: true,

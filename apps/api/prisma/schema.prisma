@@ -2942,6 +2942,12 @@ model IntelEvidence {
    */
   sampleSize Int?
   /**
+   * Kanitin DAYANDIGI birincil calisma/duyuru (kebab anahtar). Ayni
+   * calismayi aktaran uc haber uc bagimsiz kanit degildir: ayni dayanakli
+   * kanitlar hukumde tek sayilir. NULL = yayin kendisi birincil kaynak.
+   */
+  basis      String? @db.VarChar(120)
+  /**
    * Hesaplanmis etkili agirlik (grade x kaynak x tazelik)
    */
   weight     Int     @default(0)
