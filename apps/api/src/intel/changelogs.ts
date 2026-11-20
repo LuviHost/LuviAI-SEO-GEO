@@ -16,14 +16,21 @@ import { isSearchCentralUpdatesFeed, parseSearchCentralUpdates } from './search-
  *    gelmesinde cakisir → adrese kaydin tarihi eklenir (?tarih=YYYY-MM-DD).
  *
  * Kaynak ekleme kurali: RSS varsa RSS (kind 'rss'), yoksa sunucuda islenmis
- * HTML (kind 'changelog'). Kapali sayfalar (ChatGPT surum notlari, 403)
- * kimlik degistirilerek ACILMAZ.
+ * HTML (kind 'changelog'). Kapali sayfalar kimlik degistirilerek ACILMAZ
+ * (ChatGPT surum notlari 20.11.2026'da 403 dondu, 21.11.2026'da bot
+ * kimligimizle 200; yeniden kapanirsa failCount kaynagi kendisi durdurur).
  */
 
 export const ANTHROPIC_PLATFORM_FEED = 'https://platform.claude.com/docs/en/release-notes/feed.xml';
 export const OPENAI_CRAWLER_FEED = 'https://developers.openai.com/api/docs/bots/rss.xml';
 export const OPENAI_API_CHANGELOG = 'https://developers.openai.com/changelog';
 export const CLAUDE_APPS_RELEASE_NOTES = 'https://support.claude.com/en/articles/12138966-release-notes';
+export const CHATGPT_RELEASE_NOTES = 'https://help.openai.com/en/articles/6825453-chatgpt-release-notes';
+export const OPENAI_MODEL_RELEASE_NOTES = 'https://help.openai.com/en/articles/9624314-model-release-notes';
+export const GOOGLE_SEARCH_STATUS_INCIDENTS = 'https://status.search.google.com/incidents.json';
+export const GEMINI_APPS_RELEASE_NOTES = 'https://gemini.google/us/release-notes/?hl=en';
+export const PERPLEXITY_CHANGELOG = 'https://www.perplexity.ai/changelog';
+export const YAHOO_PRESS_FEED = 'https://www.yahooinc.com/press/rss.xml';
 
 const MAX_ENTRIES = 60;
 
@@ -190,6 +197,190 @@ export function parseClaudeAppsReleaseNotes(html: string, pageUrl = CLAUDE_APPS_
   return out;
 }
 
+// ── HTML: OpenAI Help Center (ChatGPT + model surum notlari) ──
+
+/**
+ * help.openai.com (Intercom): her tarih bir callout kutusu; icinde h1 tarih
+ * ("November 20, 2026"), her h2 bir kayit basligi, aradaki p/ul govde. Ayni
+ * gunde birden fazla h2 olabilir (canli sayfada 240 kutunun 58'inde).
+ * Capa yok → adrese kaydin tarihi eklenir, baslik parmak izini ayirir.
+ */
+export function parseOpenAiHelpReleaseNotes(html: string, pageUrl: string, label: string, prefix: string): RawItem[] {
+  const $ = load(html);
+  const out: RawItem[] = [];
+  $('article .intercom-interblocks-callout').each((_, box) => {
+    let date: Date | null = null;
+    let cur: { title: string; parts: string[] } | null = null;
+    const flush = () => {
+      if (cur && date && cur.parts.length && out.length < MAX_ENTRIES) {
+        out.push(entry(label, `${prefix} — ${cur.title}`, date, cur.parts.join('\n'), pageUrl, 'OpenAI'));
+      }
+      cur = null;
+    };
+    $(box).children().each((__, el) => {
+      const $el = $(el);
+      if (el.tagName === 'h1') { flush(); date = utcDate($el.text().trim()); return; }
+      if (el.tagName === 'h2') { flush(); cur = { title: $el.text().replace(/\s+/g, ' ').trim(), parts: [] }; return; }
+      if (!date) return;
+      const text = htmlToText($.html($el) ?? '', pageUrl);
+      if (!text) return;
+      if (!cur) cur = { title: firstSentence(text, 100), parts: [] };
+      cur.parts.push(text);
+    });
+    flush();
+  });
+  return out;
+}
+
+// ── JSON: Google Search Status Dashboard ──────────────────────
+
+/**
+ * status.search.google.com/incidents.json — cekirdek / spam guncellemeleri
+ * ve sunum sorunlari. Atom feed'i yalniz son kaydi tutar; JSON tum gecmisi
+ * ve her olayin guncellemelerini ("Released ...", "The rollout was complete
+ * ...") verir. Her guncelleme ayri kayit: yayilimin bitisi de bir olgu.
+ */
+export function parseGoogleSearchStatus(json: string): RawItem[] {
+  let incidents: any[];
+  try { incidents = JSON.parse(json); } catch { return []; }
+  if (!Array.isArray(incidents)) return [];
+  const out: RawItem[] = [];
+  for (const inc of incidents) {
+    const name = String(inc?.external_desc ?? '').trim();
+    const uri = String(inc?.uri ?? '').trim();
+    if (!name || !uri) continue;
+    for (const u of Array.isArray(inc.updates) ? inc.updates : []) {
+      if (out.length >= MAX_ENTRIES) return out;
+      const date = new Date(u?.when ?? u?.created ?? '');
+      // "<https://...>" bicimindeki baglantilar → "(https://...)"
+      const body = String(u?.text ?? '').replace(/\s*<(https?:\/\/[^>\s]+)>/g, ' ($1)').replace(/\s+/g, ' ').trim();
+      if (!body || Number.isNaN(date.getTime())) continue;
+      const service = inc.service_name ? ` (${inc.service_name})` : '';
+      out.push(entry('Google Search Status Dashboard', `Google Search${service} — ${name}: ${firstSentence(body.replace(/\s*\(https?:[^)]*\)/g, ''), 120)}`,
+        date, body, `https://status.search.google.com/${uri}`, 'Google'));
+    }
+  }
+  return out;
+}
+
+// ── HTML: Gemini uygulama surum notlari ───────────────────────
+
+/**
+ * gemini.google/us/release-notes/?hl=en — sunucuda islenmis; her kart bir
+ * tarih (h2 "2026.11.17"), altinda h3 basliklı ozellikler ve What / Why
+ * maddeleri. Turkiye IP'sinden yerel sayfa karisik dilde gelir → /us/ + hl=en.
+ * Sinif adlari hash'li (_releaseNoteCard_1le3z_90) → kismi eslesme;
+ * "releaseNoteCard_" Title/Body siniflarini disarida birakir.
+ */
+export function parseGeminiReleaseNotes(html: string, pageUrl = GEMINI_APPS_RELEASE_NOTES): RawItem[] {
+  const $ = load(html);
+  const out: RawItem[] = [];
+  $('div[class*="releaseNoteCard_"]').each((_, card) => {
+    const $card = $(card);
+    const m = $card.find('h2').first().text().trim().match(/(\d{4})\.(\d{2})\.(\d{2})/);
+    if (!m) return;
+    const date = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`);
+    const feats = $card.find('h3');
+    if (feats.length === 0) {
+      const body = htmlToText($.html($card.find('[class*="releaseNoteCardBody"]').first().contents()) ?? '', pageUrl);
+      if (body && out.length < MAX_ENTRIES) out.push(entry('Gemini uygulama surum notlari', `Gemini — ${firstSentence(body, 100)}`, date, body, pageUrl, 'Google'));
+      return;
+    }
+    feats.each((__, h3) => {
+      if (out.length >= MAX_ENTRIES) return;
+      const title = $(h3).text().replace(/\s+/g, ' ').trim();
+      const body = htmlToText($(h3).nextAll().map((___, s) => $.html(s)).get().join(''), pageUrl);
+      if (title && body) out.push(entry('Gemini uygulama surum notlari', `Gemini — ${title}`, date, body, pageUrl, 'Google'));
+    });
+  });
+  return out;
+}
+
+// ── HTML icindeki JSON: Perplexity degisiklik gunlugu ─────────
+
+/**
+ * perplexity.ai/changelog — kayit listesi sayfaya gomulu sunucu verisinde
+ * (window.__PPL_INITIAL_SERVER_DATA__): baslik, giris paragrafi, tarih, slug.
+ * Her kaydin kendi sayfasi var (sunucuda islenmis) → fullText bos birakilir,
+ * analist kayit sayfasini okur.
+ */
+/** start konumundaki { ... } nesnesini dizgi kacislarini gozeterek dondurur */
+export function balancedJson(text: string, start: number): string | null {
+  if (text[start] !== '{') return null;
+  let depth = 0;
+  let inStr = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (ch === '\\') i++;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
+export function parsePerplexityChangelog(html: string): RawItem[] {
+  const marker = html.indexOf('__PPL_INITIAL_SERVER_DATA__=');
+  if (marker < 0) return [];
+  // Ayni script'te ardindan baska atama gelir (";window.__PPL_INITIAL_SESSION__=null;")
+  // → JSON nesnesini parantez sayarak kes
+  const raw = balancedJson(html, marker + '__PPL_INITIAL_SERVER_DATA__='.length);
+  let data: unknown;
+  try { data = raw ? JSON.parse(raw) : null; } catch { return []; }
+  const found = new Map<string, RawItem>();
+  const walk = (v: unknown) => {
+    if (!v || typeof v !== 'object' || found.size >= MAX_ENTRIES) return;
+    if (Array.isArray(v)) { v.forEach(walk); return; }
+    const o = v as Record<string, unknown>;
+    if (typeof o.slug === 'string' && typeof o.title === 'string' && typeof o.publishedAt === 'string') {
+      const date = new Date(`${o.publishedAt.slice(0, 10)}T00:00:00Z`);
+      if (!Number.isNaN(date.getTime()) && !found.has(o.slug)) {
+        found.set(o.slug, {
+          url: `${PERPLEXITY_CHANGELOG}/${o.slug}`,
+          title: `Perplexity — ${o.title}`.slice(0, 300),
+          author: 'Perplexity',
+          publishedAt: date,
+          summary: typeof o.intro === 'string' ? o.intro : null,
+        });
+      }
+      return;
+    }
+    Object.values(o).forEach(walk);
+  };
+  walk(data);
+  return [...found.values()];
+}
+
+// ── RSS (suzulmus): Yahoo basin odasi ─────────────────────────
+
+/**
+ * yahooinc.com/press/rss.xml — Yahoo'nun webmaster gunlugu yok; arama
+ * degisiklikleri (Yahoo Scout AI cevap motoru, Pivot Search) basin
+ * bulteniyle duyuruluyor. Feed'in cogu Finance / Sports / Mail → yalniz
+ * aramaya dair bultenler gecer (triage butcesi bosa gitmesin).
+ */
+const YAHOO_SEARCH_RE = /\b(search|scout|answer engine)\b/i;
+export function parseYahooSearchPress(xml: string): RawItem[] {
+  const $ = load(xml, { xml: true });
+  const out: RawItem[] = [];
+  $('item').each((_, el) => {
+    if (out.length >= MAX_ENTRIES) return;
+    const $el = $(el);
+    const title = $el.find('title').first().text().replace(/\s+/g, ' ').trim();
+    const link = $el.find('link').first().text().trim();
+    const date = new Date($el.find('pubDate').first().text().trim());
+    const summary = htmlToText($el.find('description').first().text(), link || undefined);
+    if (!title || !link || Number.isNaN(date.getTime())) return;
+    if (!YAHOO_SEARCH_RE.test(title) && !YAHOO_SEARCH_RE.test(summary.slice(0, 400))) return;
+    out.push({ url: link, title, author: 'Yahoo', publishedAt: date, summary: summary || null });
+  });
+  return out;
+}
+
 // ── yonlendirici ──────────────────────────────────────────────
 
 type Parser = (body: string) => RawItem[];
@@ -201,5 +392,11 @@ export function changelogParserFor(url: string): Parser | null {
   if (url === OPENAI_CRAWLER_FEED) return (x) => parseFullTextFeed(x, 'OpenAI tarayici guncellemeleri', 'OpenAI');
   if (url === OPENAI_API_CHANGELOG) return (h) => parseOpenAiApiChangelog(h);
   if (url === CLAUDE_APPS_RELEASE_NOTES) return (h) => parseClaudeAppsReleaseNotes(h);
+  if (url === CHATGPT_RELEASE_NOTES) return (h) => parseOpenAiHelpReleaseNotes(h, url, 'ChatGPT surum notlari', 'ChatGPT');
+  if (url === OPENAI_MODEL_RELEASE_NOTES) return (h) => parseOpenAiHelpReleaseNotes(h, url, 'OpenAI model surum notlari', 'OpenAI modelleri');
+  if (url === GOOGLE_SEARCH_STATUS_INCIDENTS) return parseGoogleSearchStatus;
+  if (url === GEMINI_APPS_RELEASE_NOTES) return (h) => parseGeminiReleaseNotes(h);
+  if (url === PERPLEXITY_CHANGELOG) return parsePerplexityChangelog;
+  if (url === YAHOO_PRESS_FEED) return parseYahooSearchPress;
   return null;
 }
