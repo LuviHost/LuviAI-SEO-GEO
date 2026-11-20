@@ -63,3 +63,13 @@ describe('IntelAnalystService.fetchArticleText', () => {
     expect(sent).not.toContain('Checking your browser');
   });
 });
+
+describe('sanitizeClaim — orneklem', () => {
+  const base = { slug: 'x-y', statement: 'Yeterince uzun bir iddia cumlesi', grade: 'large-n-study', stance: 'supports', quote: 'birebir alinti metni' };
+  it('Int sutununu tasan orneklem ust sinira kirpilir (11,8 milyar atif)', async () => {
+    const { sanitizeClaim, MAX_SAMPLE_SIZE } = await import('./analyst.service.js');
+    expect(sanitizeClaim({ ...base, sampleSize: 11_800_000_000 })?.sampleSize).toBe(MAX_SAMPLE_SIZE);
+    expect(sanitizeClaim({ ...base, sampleSize: 137000 })?.sampleSize).toBe(137000);
+    expect(sanitizeClaim({ ...base, sampleSize: 0 })?.sampleSize).toBeNull();
+  });
+});
