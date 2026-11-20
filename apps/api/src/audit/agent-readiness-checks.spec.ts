@@ -577,3 +577,48 @@ describe('tls-chain — eksik sertifika zinciri bulgusu', () => {
     expect(run(makeCtx({ home: wall() }, { tlsChainIncomplete: true })).check('tls-chain')).toBeUndefined();
   });
 });
+
+describe('microsoft-ai-preferences — Bing / Copilot AI tercihleri (bilgi, puansiz)', () => {
+  // Ornek ana sayfaya yalniz etiket eklenir: baska kontrollerin sonucu degismesin
+  const homeWith = (head: string) => ok(HOME.replace('</head>', `${head}</head>`), 'text/html');
+
+  it('tercih yoksa uyari yok; puana ve "siradaki duzeltme"ye girmez', () => {
+    const base = run(makeCtx());
+    const c = base.check('microsoft-ai-preferences');
+    expect(c).toMatchObject({ impact: 'info', state: 'info', ok: true });
+    expect(c.statusText).toMatch(/Microsoft AI tercihi yok/);
+    expect(c.scoreNote).toMatch(/puana girmez/);
+    expect(base.summary.nextUpToFix.map((n) => n.checkId)).not.toContain('microsoft-ai-preferences');
+  });
+
+  it('eski NoArchive etiketi → uyari, Mart 2027 tarihiyle; skor degismez', () => {
+    const base = run(makeCtx());
+    const flagged = run(makeCtx({ home: homeWith('<meta name="robots" content="noarchive">') }));
+    const c = flagged.check('microsoft-ai-preferences');
+    expect(c.ok).toBe(false);
+    expect(c.state).toBe('info');
+    expect(c.statusText).toMatch(/meta robots: noarchive/);
+    expect(c.statusText).toMatch(/1 Mart 2027/);
+    expect(flagged.levels.map((l) => l.score)).toEqual(base.levels.map((l) => l.score));
+  });
+
+  it('grounding kapali → uyari; X-Robots-Tag basligindan da okunur', () => {
+    const home = { ...ok('<!doctype html><html><head></head><body>x</body></html>', 'text/html'), headers: { 'x-robots-tag': 'Bingbot: ai-grounding:disallow' } };
+    const c = run(makeCtx({ home })).check('microsoft-ai-preferences');
+    expect(c.ok).toBe(false);
+    expect(c.statusText).toMatch(/ai-grounding:disallow/);
+    expect(c.audit.find((s) => s.step === 'PARSE')?.detail).toMatch(/X-Robots-Tag \(bingbot\): ai-grounding:disallow/);
+  });
+
+  it('yalniz egitim yasagi → uyari yok, gorunurlugu etkilemedigi soylenir', () => {
+    const robots = ok('User-agent: *\nAllow: /\n\nUser-Agent: __usage_ai-training\nDisallow: /\n');
+    const c = run(makeCtx({ robots })).check('microsoft-ai-preferences');
+    expect(c.ok).toBe(true);
+    expect(c.statusText).toMatch(/AI eğitimine kapalı, AI cevaplarına açık/);
+  });
+
+  it('ana sayfa engelliyse olculemedi (blocked)', () => {
+    const c = run(makeCtx({ home: wall() })).check('microsoft-ai-preferences');
+    expect(c.state).toBe('blocked');
+  });
+});

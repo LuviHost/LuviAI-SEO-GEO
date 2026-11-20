@@ -13,6 +13,7 @@ import {
 import { collectTypedNodes, findOrganizationNode, normalizeSchemaType, schemaTypesOf } from './schema-org-types.js';
 import { assessOperability } from './operability.js';
 import { authMdTemplate } from './generators.service.js';
+import { assessMicrosoftAiPreferences, hasNewMicrosoftPreference, microsoftPrefsNeedAttention, type MicrosoftAiPreferences } from './microsoft-ai-preferences.js';
 
 /**
  * Agent Readiness (AXO) kontrolleri — SAF (I/O yok). Servis istekleri yapar,
@@ -213,6 +214,74 @@ export function robotsView(ctx: ScanContext): RobotsView {
   return { valid: true, text: r.text, stance: parseRobotsAiStance(r.text, KNOWN_AI_BOTS), invalidText: null };
 }
 
+const MS_PREFS_NOTE = 'Bilgi amaçlı: puana girmez. Yalnız ana sayfa okundu; tercih sayfa sayfa verildiği için diğer sayfalar farklı olabilir.';
+
+function msPrefsStatus(p: MicrosoftAiPreferences): string {
+  const parts: string[] = [];
+  if (p.grounding?.value === 'disallow') {
+    parts.push(`Ana sayfa Copilot ve Bing AI cevaplarında kaynak olarak kullanılmayı reddediyor (${p.grounding.source}: ai-grounding:disallow) — Microsoft'a göre AI cevaplarındaki görünürlük önemli ölçüde azalır; Bing arama sonuçları etkilenmez`);
+  } else if (p.grounding?.value === 'disallowextended') {
+    parts.push(`Ana sayfa AI cevaplarında yalnız Microsoft'un kendi ürünlerinde (Copilot, Bing) kullanılmaya izin veriyor; Microsoft'un başka şirketlere sunduğu grounding hizmetleri hariç (${p.grounding.source}: ai-grounding:disallowextended) — Microsoft'a göre AI görünürlüğü azalır`);
+  }
+  const hasNewPref = hasNewMicrosoftPreference(p);
+  if (p.legacy.length > 0) {
+    parts.push(hasNewPref
+      ? `Eski etiket de var (${p.legacy.join(', ')}); yeni tercih yayında olduğu için Microsoft eskisini yok sayacak`
+      : `Ana sayfada eski etiket var (${p.legacy.join(', ')}) — Microsoft 1 Mart 2027'den sonra bunu AI eğitimi ve AI cevabı tercihi olarak okumayacak; yeni tercih yazılmazsa sayfa AI cevaplarında kullanılmaya açılır`);
+  }
+  if (parts.length > 0) return parts.join('. ');
+  const training = p.robotsTraining === 'site' || p.pageTraining?.value === 'disallow'
+    ? 'AI eğitimine kapalı, AI cevaplarına açık — bu seçim görünürlüğü etkilemez'
+    : p.robotsTraining === 'paths'
+      ? 'Bazı yollar AI eğitimine kapalı, AI cevaplarına açık — bu seçim görünürlüğü etkilemez'
+      : null;
+  return training ?? 'Microsoft AI tercihi yok — varsayılan: içerik Copilot ve Bing AI cevaplarında kullanılabilir; yapılacak bir şey yok';
+}
+
+function microsoftAiPreferencesCheck(ctx: ScanContext, rv: RobotsView): ReadinessCheck {
+  const { home } = ctx.probes;
+  const homeBlocked = blockedOf(home);
+  const base = {
+    id: 'microsoft-ai-preferences',
+    name: 'Microsoft AI tercihleri (Bing / Copilot)',
+    impact: 'info' as const,
+    scoreNote: MS_PREFS_NOTE,
+    howTo: [
+      "Microsoft, Bing ve Copilot için iki ayrı tercih sunuyor; ikisi de varsayılan olarak açık ve Bing arama sonuçlarını etkilemiyor.",
+      "AI eğitimi: robots.txt'te `User-Agent: __usage_ai-training` + `Disallow: /` ya da sayfada `<meta name=\"Bingbot\" content=\"ai-training:disallow\">`. Eğitimi kapatmak AI cevaplarındaki görünürlüğü etkilemez.",
+      "AI cevabı (grounding): yalnız sayfa düzeyinde, `<meta name=\"Bingbot\" content=\"ai-grounding:disallow\">` ya da `X-Robots-Tag: Bingbot: ai-grounding:disallow`. `disallowextended` yalnız Microsoft'un kendi ürünlerine izin verir. Microsoft'a göre ikisi de AI cevaplarındaki görünürlüğü önemli ölçüde azaltır — AI'da görünmek istiyorsan bu etiketleri kullanma.",
+      "Eski NoArchive / NoCache: yeni tercihler 1 Şubat 2027'de devreye giriyor; 1 Mart 2027'den sonra eski etiketler AI tercihi olarak okunmaz. AI'da görünmek istiyorsan eski etiketi kaldırman yeterli. Kısıtlamayı sürdürmek istiyorsan yeni etiketi sayfalara yaz ve 15 Aralık 2026 – 1 Mart 2027 arasında Bing Webmaster Tools'ta geçici grounding tercihini kaydet; kaydetmezsen sayfalar yeniden taranana kadar AI cevaplarına açık sayılır.",
+    ].join(' '),
+  };
+  if (home.state !== 'ok') {
+    return {
+      ...base,
+      ok: true,
+      statusText: homeBlocked ? homeBlocked.reason : `Ana sayfa okunamadı (HTTP ${home.status}) — tercih ölçülemedi`,
+      audit: [fetchStep(ctx.siteUrl, home)],
+      blocked: homeBlocked,
+    };
+  }
+  const prefs = assessMicrosoftAiPreferences({ html: home.text, headers: home.headers, robotsText: rv.valid ? rv.text : null });
+  const attention = microsoftPrefsNeedAttention(prefs);
+  const found = [
+    ...prefs.legacy,
+    ...(prefs.grounding ? [`${prefs.grounding.source}: ai-grounding:${prefs.grounding.value}`] : []),
+    ...(prefs.pageTraining ? [`${prefs.pageTraining.source}: ai-training:${prefs.pageTraining.value}`] : []),
+    ...(prefs.robotsTraining ? [`robots.txt __usage_ai-training: ${prefs.robotsTraining === 'site' ? 'tüm site yasak' : 'bazı yollar yasak'}`] : []),
+  ];
+  return {
+    ...base,
+    ok: !attention,
+    statusText: msPrefsStatus(prefs),
+    audit: [
+      fetchStep(ctx.siteUrl, home),
+      { step: 'PARSE', detail: found.length ? `Bulunan: ${found.join('; ')}` : 'Ana sayfa meta etiketlerinde, X-Robots-Tag başlığında ve robots.txt\'te Microsoft AI tercihi yok', ok: !attention },
+      { step: 'CONCLUDE', detail: attention ? 'Dikkat gerekiyor (puana girmez)' : 'Uyarı yok', ok: !attention },
+    ],
+  };
+}
+
 function levelQuickWins(ctx: ScanContext, rv: RobotsView): ReadinessLevel {
   const { home, robots, llms } = ctx.probes;
   const checks: ReadinessCheck[] = [];
@@ -358,6 +427,12 @@ function levelQuickWins(ctx: ScanContext, rv: RobotsView): ReadinessLevel {
     audit: [{ step: 'PARSE', detail: contentSignals ? 'Content-Signal: satırı bulundu' : 'robots.txt içinde Content-Signal yok', ok: contentSignals }],
     blocked: robotsBlocked,
   });
+
+  // 4b. Microsoft AI tercihleri (Bing / Copilot) — BILGI, puana girmez.
+  // 30.10.2026 duyurusu: NoArchive / NoCache 1 Mart 2027'den sonra egitim /
+  // grounding tercihi olarak okunmaz; grounding'i kapatmak AI gorunurlugunu
+  // dusurur. Ayrintilar ve kaynak: microsoft-ai-preferences.ts.
+  checks.push(microsoftAiPreferencesCheck(ctx, rv));
 
   // 5. llms.txt — BILGI (v4; v2'de dusuk etki): Google Arama yok sayiyor,
   // bagimsiz olcumlerde etkisi yok. Gozlem olarak kalir, puana girmez.
