@@ -976,6 +976,13 @@ export const api = {
   deleteSite: (id: string) =>
     request<{ id: string }>(`/sites/${id}`, { method: 'DELETE' }),
 
+  /** Yalniz yonetici: sitenin arka plan islerini (tarama, olcum, uretim) durdurur — api admin.controller */
+  cancelSiteJobs: (siteId: string) =>
+    request<{ ok: true; canceled: number; running: number; removedFromQueue: number; deletedArticles: number }>(
+      `/admin/sites/${encodeURIComponent(siteId)}/cancel-jobs`,
+      { method: 'POST' },
+    ),
+
   // Audit
   getLatestAudit: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/latest`),

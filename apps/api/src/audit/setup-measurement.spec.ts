@@ -535,15 +535,16 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — kurulumda tek otomat
 
   it('kurulum olcumu api/dist\'teki fonksiyondan gelir; brain bittikten sonra, worker\'in kendi servisleriyle', () => {
     expect(src).toContain("import { runSetupMeasurement } from '../../api/dist/audit/setup-measurement.js';");
+    // Kapanis olcumden once is iptalini denetler (yonetici "Durdur"u, api jobs/site-job-cancel.ts)
     expect(zincir).toMatch(
-      /const kurulumOlcumu = \(\) => brainPromise\.then\(\(\) => runSetupMeasurement\(\s*\{ prisma: services\.prisma, tracker: services\.citationTracker, log \},\s*siteId,\s*\)\);/,
+      /const kurulumOlcumu = \(\) => brainPromise\.then\(async \(\) => \{[\s\S]*?await iptal\('kurulum olcumu oncesi'\);[\s\S]*?return runSetupMeasurement\(\s*\{ prisma: services\.prisma, tracker: services\.citationTracker, log \},\s*siteId,\s*\);\s*\}\);/,
     );
     expect(zincir.indexOf('const brainPromise =')).toBeLessThan(zincir.indexOf('const kurulumOlcumu ='));
   });
 
   it('denetim AI adimini kurulum olcumunden alir (sistem taramasi); TEST modunda eski cagri', () => {
     expect(zincir).toMatch(
-      /const auditPromise = \(aiGlobalOff\s*\? services\.audit\.runAudit\(siteId, \{ trigger: 'system' \}\)\s*: services\.audit\.runAudit\(siteId, \{ trigger: 'system', aiOlcumu: kurulumOlcumu \}\)\s*\)\.catch\(/,
+      /const auditPromise = \(aiGlobalOff\s*\? services\.audit\.runAudit\(siteId, \{ trigger: 'system', iptalKontrol: iptal \}\)\s*: services\.audit\.runAudit\(siteId, \{ trigger: 'system', aiOlcumu: kurulumOlcumu, iptalKontrol: iptal \}\)\s*\)\.catch\(/,
     );
     // Kurulumda kullanici tetikli (haftalik hakki yiyen) tarama yok
     expect(zincir).not.toMatch(/runAudit\(siteId\)/);

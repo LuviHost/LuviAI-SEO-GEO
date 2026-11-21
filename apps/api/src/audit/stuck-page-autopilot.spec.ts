@@ -823,7 +823,7 @@ describe('worker kablolamasi (apps/worker/src/index.ts)', () => {
 
   it('ONBOARDING_CHAIN denetimi sistem taramasi (haftalik olcum hakki dusmez)', () => {
     const h = between('ONBOARDING_CHAIN: async', 'PROCESS_SCHEDULED: async');
-    expect(h).toContain("services.audit.runAudit(siteId, { trigger: 'system' })");
+    expect(h).toContain("services.audit.runAudit(siteId, { trigger: 'system', iptalKontrol: iptal })");
     expect(h).not.toMatch(/runAudit\(siteId\)/);
   });
 });

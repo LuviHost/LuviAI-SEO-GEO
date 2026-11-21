@@ -22,6 +22,7 @@ import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.
 import { LlmsFullBuilderService } from '../../api/dist/audit/llms-full-builder.service.js';
 import { AiCitationTrackerService } from '../../api/dist/audit/ai-citation-tracker.service.js';
 import { runSetupMeasurement } from '../../api/dist/audit/setup-measurement.js';
+import { isJobCanceledError, jobCancelCheck, removeCanceledOnboardingArticles } from '../../api/dist/jobs/site-job-cancel.js';
 import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger.service.js';
 import { ContentPivotService, rewriteLeftNoNewVersion } from '../../api/dist/articles/content-pivot.service.js';
 import { AiMentionAlarmService } from '../../api/dist/audit/ai-mention-alarm.service.js';
@@ -284,6 +285,11 @@ async function bootstrap() {
       // boylece musterinin GUNCEL secimine uyar.
       const jobPublish = { siteId, autoPublish, publishApproved, targetIds };
       const plan = await decideGeneratedArticlePublish(services.prisma, jobPublish);
+      // Yonetici "Durdur" dediyse 5 ajanli hat (LLM butcesi) hic baslamaz. Sahiplenilen
+      // yazi GENERATING kalir; takili uretim supurucusu onu bilinen kuralla takvime geri
+      // koyar ya da FAILED yapip hakki iade eder (api articles/allowance-refund.ts).
+      // Hat basladiktan sonra kesilemez: o an suren uretim sonuna kadar kosar.
+      await jobCancelCheck(services.prisma, job?.id)('makale hatti oncesi');
       try {
         const result = await services.pipeline.runPipeline({
           siteId,
@@ -442,8 +448,13 @@ async function bootstrap() {
      * Hesap basina 30 gunde planin site siniri kadar, ayni alan adi icin 1 kez
      * (api audit/setup-measurement.ts); sinir dolduysa kurulum olcumsuz surer.
      */
-    ONBOARDING_CHAIN: async ({ siteId }) => {
+    ONBOARDING_CHAIN: async ({ siteId }, job) => {
       log.log(`[${siteId}] Onboarding chain başlıyor`);
+      // Yonetici "Durdur"u (api jobs/site-job-cancel.ts): adim sinirlarinda is satirina
+      // bakilir; CANCELED ise JobCanceledError firlar, zincir temiz durur ve worker
+      // sarmalayicisi isi CANCELED birakir. O an suren tek bir uzun cagri (beyin, olcum
+      // turu, konu motoru) kesilmez; sonraki adim hic baslamaz.
+      const iptal = jobCancelCheck(services.prisma, job?.id);
 
       const site = await services.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
       const autopilot = (site as any).autopilot !== false;
@@ -496,10 +507,22 @@ async function bootstrap() {
       // (snapshot + kosum) yazilir ve ayni sonuc denetimin AI bolumune verilir. Hesap basina
       // 30 gunde planin site siniri kadar, ayni alan adi icin 1: sinir dolduysa kurulum
       // olcumsuz surer, denetim nedenini tasir.
-      const kurulumOlcumu = () => brainPromise.then(() => runSetupMeasurement(
-        { prisma: services.prisma, tracker: services.citationTracker, log },
-        siteId,
-      ));
+      // Olcum kurulumun en pahali adimi: baslamadan once is iptal edildiyse asistanlara
+      // HIC sorulmaz; denetimin AI bolumu nedeni tasir (denetimin kendisi de taramadan
+      // sonra iptali gorup durur — audit.service iptalKontrol).
+      const kurulumOlcumu = () => brainPromise.then(async () => {
+        try {
+          await iptal('kurulum olcumu oncesi');
+        } catch (err) {
+          if (!isJobCanceledError(err)) throw err;
+          log.warn(`[${siteId}] Kurulum olcumu yapilmadi: is iptal edildi, durduruldu`);
+          return { skipped: { code: 'JOB_CANCELED', message: 'Tarama durduruldu; AI ölçümü yapılmadı.', nextAvailableAt: null } };
+        }
+        return runSetupMeasurement(
+          { prisma: services.prisma, tracker: services.citationTracker, log },
+          siteId,
+        );
+      });
 
       // SISTEM taramasi (kurulum olcumu gibi): kullanici tetiklemedi. 'user'
       // olsaydi denetimin AI adimi yeni kullanicinin haftalik olcum hakkini ilk
@@ -509,10 +532,12 @@ async function bootstrap() {
       // kurulum olcumu yoktur: denetim eskisi gibi kendi AI adimini cagirir, olcum
       // motoru bayragi gorup asistanlara sormadan doner (olcum de sinir kaydi da yok).
       const auditPromise = (aiGlobalOff
-        ? services.audit.runAudit(siteId, { trigger: 'system' })
-        : services.audit.runAudit(siteId, { trigger: 'system', aiOlcumu: kurulumOlcumu })
+        ? services.audit.runAudit(siteId, { trigger: 'system', iptalKontrol: iptal })
+        : services.audit.runAudit(siteId, { trigger: 'system', aiOlcumu: kurulumOlcumu, iptalKontrol: iptal })
       ).catch((err) => {
-        log.error(`[${siteId}] audit hata: ${err.message}`);
+        // Iptal: zincir asagidaki adim sinirinda durur (hata degil)
+        if (isJobCanceledError(err)) log.warn(`[${siteId}] Denetim iptal edildi, durduruldu (${err.step})`);
+        else log.error(`[${siteId}] audit hata: ${err.message}`);
         return null; // audit fail olsa bile zincir devam etsin
       });
 
@@ -543,6 +568,7 @@ async function bootstrap() {
       // Brain mutlaka bitsin (topics buna bağımlı). Audit + platform fire-and-collect.
       await brainPromise;
       const [audit] = await Promise.all([auditPromise, platformPromise]);
+      await iptal('beyin ve denetim sonrasi');
 
       // Denetim dustuyse (gecici tarama hatasi) AI adimi hic kosmamis olabilir: kurulum
       // olcumu yine de alinip olcum gecmisine yazilir (eskiden baslangic olcumu denetimden
@@ -552,6 +578,7 @@ async function bootstrap() {
         await kurulumOlcumu().catch((err: any) => log.warn(`[${siteId}] Kurulum olcumu alinamadi: ${err.message}`));
       }
 
+      await iptal('konu motoru oncesi');
       let queue: any = { id: null, tier1Topics: [] };
       if (aiGlobalOff) {
         log.warn(`[${siteId}] [3/5] Topic engine MOCK (sahne icin 30sn bekleniyor — AI_GLOBAL_DISABLED=1)`);
@@ -586,6 +613,7 @@ async function bootstrap() {
       const tier1Count = ((queue?.tier1Topics as any[]) ?? []).length;
       // Platform tespiti yukarıda paralel başlatıldı, burada tekrar yapılmıyor.
 
+      await iptal('takvim yerlesimi oncesi');
       const articleGenDisabled = aiGlobalOff || await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
       let scheduleResult: any;
       if (articleGenDisabled) {
@@ -605,6 +633,9 @@ async function bootstrap() {
       // llms.txt BILEREK yok (08.11.2026 kanit denetimi): Google yok sayiyor, Sistrix ve SE Ranking
       // etkisini olcemedi; musterinin sunucusuna onizlemesiz dosya yazmanin karsiligi yok. Isteyen
       // panelden elle olusturur.
+      // Takvim yazilirken iptal edildiyse yazdigi uretilmemis yazilar worker
+      // sarmalayicisinda silinir (afterInFlightCancel)
+      await iptal('auto-fix oncesi');
       if (autopilot) {
         try {
           await services.autoFix.runAutoFix(siteId, ['sitemap']);
@@ -617,6 +648,8 @@ async function bootstrap() {
         // kez olcmek ayni sorulari asistanlara bir daha sormakti.
       }
 
+      // Iptal edilen kurulum siteyi ACTIVE yapmaz (listede "Vazgecildi" kalir)
+      await iptal('kurulum sonu');
       await services.prisma.site.update({
         where: { id: siteId },
         data: { status: 'ACTIVE' },
@@ -912,6 +945,27 @@ async function bootstrap() {
     return result;
   };
 
+  /**
+   * Calisirken iptal edilen isin artiklari. Kurulum zinciri takvim yazimi sirasinda
+   * durdurulduysa API'nin silme anindan SONRA acilan uretilmemis yazilar burada silinir
+   * (ayni kural: api jobs/site-job-cancel.ts removeCanceledOnboardingArticles; zincirin
+   * yazilari is kuyruga girdikten sonra acilir). Otomatik yeniden yazimin dusulen hakki
+   * atlama yolundaki gibi geri verilir (is yeni surum cikarmadi). En iyi caba.
+   */
+  const afterInFlightCancel = async (job: Job, canceled: AccountSkip) => {
+    const siteId = (job.data as { siteId?: unknown } | undefined)?.siteId;
+    if (job.name === 'ONBOARDING_CHAIN' && typeof siteId === 'string' && siteId) {
+      const n = await removeCanceledOnboardingArticles(services.prisma, siteId, new Date(job.timestamp)).catch((err: any) => {
+        log.warn(`[${siteId}] Iptal edilen kurulumun yazilari silinemedi: ${err?.message ?? err}`);
+        return 0;
+      });
+      if (n > 0) log.log(`[${siteId}] Iptal edilen kurulumun ${n} uretilmemis yazisi silindi`);
+    }
+    if (job.name === 'GENERATE_ARTICLE' && job.id && rewriteLeftNoNewVersion(job.data, canceled)) {
+      await refundJobAllowanceCharge(services.prisma, { bullJobId: String(job.id) }).catch(() => null);
+    }
+  };
+
   const worker = new Worker(
     'luviai-jobs',
     async (job) => {
@@ -938,6 +992,15 @@ async function bootstrap() {
         log.log(`✅ ${job.name} (${job.id}) — ${((Date.now() - t0) / 1000).toFixed(1)}s`);
         return result;
       } catch (err: any) {
+        // Calisirken iptal edildi (yonetici "Durdur"u; api jobs/site-job-cancel.ts): hata
+        // degil. Is { skipped, reason: 'job_canceled' } ile biter, 'completed' olayi satiri
+        // CANCELED birakir; yeniden denenmez, diger isler (baska sitelerin zinciri) etkilenmez.
+        if (isJobCanceledError(err)) {
+          log.warn(`${job.name} (${job.id}) iptal edildi, durduruldu (${err.step}) — ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+          const canceled: AccountSkip = { skipped: true, reason: 'job_canceled' };
+          await afterInFlightCancel(job, canceled);
+          return { ...canceled, step: err.step };
+        }
         log.error(`❌ ${job.name} (${job.id}): ${err.message}`);
         // WAF / bot dogrulamasi / giris / 403 / robots engeli: 3 deneme ayni engele
         // carpar, site sahibi izin verene kadar sonuc degismez — tek seferde FAILED
@@ -971,8 +1034,10 @@ async function bootstrap() {
     if (job.id) {
       // Silme talebi / iptal yuzunden atlanan is COMPLETED gorunmez: CANCELED kalir
       const status = isAccountSkip(job.returnvalue) ? 'CANCELED' : 'COMPLETED';
+      // Calisirken iptal edilen (satiri CANCELED) ama son adim sinirindan sonra biten
+      // is de COMPLETED'a cekilmez: yonetici durdurdu, liste "Vazgecildi" gostermeli
       await services.prisma.job.updateMany({
-        where: { bullJobId: String(job.id) },
+        where: { bullJobId: String(job.id), ...(status === 'COMPLETED' ? { status: { not: 'CANCELED' as const } } : {}) },
         data: { status, finishedAt: new Date(), result: job.returnvalue ?? {} },
       });
     }
@@ -980,8 +1045,11 @@ async function bootstrap() {
 
   worker.on('failed', async (job, err) => {
     if (job?.id) {
+      // Iptal edilmis isin hatasi (ornek: silinen kurulum yazisina yazamayan hat)
+      // satiri FAILED yapmaz: yeniden deneme 'active'te PROCESSING'e donup iptali
+      // kaybederdi (accountSkip yalniz CANCELED'i atlar)
       await services.prisma.job.updateMany({
-        where: { bullJobId: String(job.id) },
+        where: { bullJobId: String(job.id), status: { not: 'CANCELED' } },
         data: {
           status: 'FAILED',
           finishedAt: new Date(),

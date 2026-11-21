@@ -1955,7 +1955,7 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
   // dusmez): denetim AI adimini kurulum olcumunden alir, olcumu setup-measurement.ts yapar.
   it('kurulumun otomatik ölçümü haftalık haktan düşmez (sistem tetikli, tek ölçüm); metin bunu söylüyor', () => {
     const zincir = worker.slice(worker.indexOf('ONBOARDING_CHAIN: async'), worker.indexOf('PROCESS_SCHEDULED: async'));
-    expect(zincir, 'kurulum taramasi kullanici tetikli oldu: getting-started ve SSS metnini guncelle').toMatch(/services\.audit\.runAudit\(siteId, \{ trigger: 'system', aiOlcumu: kurulumOlcumu \}\)/);
+    expect(zincir, 'kurulum taramasi kullanici tetikli oldu: getting-started ve SSS metnini guncelle').toMatch(/services\.audit\.runAudit\(siteId, \{ trigger: 'system', aiOlcumu: kurulumOlcumu, iptalKontrol: iptal \}\)/);
     expect(zincir, 'kurulumda kullanici tetikli tarama: metni guncelle').not.toMatch(/runAudit\(siteId\)|trigger: 'user'/);
     const kurulum = read(path.resolve(HERE, '../audit/setup-measurement.ts'));
     expect(kurulum, 'kurulum olcumu kullanici tetikli oldu: metni guncelle').toMatch(/deps\.tracker\.snapshotSite\(siteId, \{ trigger: 'system' \}\)/);
