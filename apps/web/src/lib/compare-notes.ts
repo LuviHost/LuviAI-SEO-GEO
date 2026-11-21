@@ -23,6 +23,7 @@
 export const GENEL_SKOR_KONTROLLERI: ReadonlySet<string> = new Set([
   'sitemap_xml', 'robots_txt', 'schema_markup', 'meta_title', 'meta_description', 'open_graph',
   'twitter_card', 'canonical', 'https', 'h1_uniqueness', 'image_alt', 'internal_linking', 'hreflang',
+  'google_ai_eligibility',
 ]);
 
 /** Kontrol genel skora giriyor mu (OVERALL_SCORE_WEIGHTS) */

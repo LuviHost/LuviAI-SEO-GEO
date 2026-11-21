@@ -31,7 +31,9 @@ const sayfa = (url: string, over: Record<string, unknown> = {}) => ({
   url, title: 'Yeterince uzun bir sayfa basligi burada', metaDescription: 'x'.repeat(120), h1: `H1 ${url}`, h2s: [], textSample: '',
   ogTags: {}, twitterTags: {}, canonical: null, hreflangs: [], jsonLdBlocks: [], schemaTypes: [],
   lang: null, imageAltStats: { total: 0, withAlt: 0, emptyAlt: 0, absent: 0, ariaDecorative: 0, suspicious: 0, excluded: 0 },
-  images: [], imagesCapped: false, outboundLinks: [], ...over,
+  images: [], imagesCapped: false, outboundLinks: [],
+  // Bugunku tarayici her sayfada yazar (google_ai_eligibility); yonerge yok
+  robotsSignals: { metas: [], header: null }, ...over,
 }) as any;
 
 /** Taramanin uretebildigi sorunlarin cogunu birden tasiyan site */
@@ -394,8 +396,9 @@ describe('yanlis "gecti" yok: hreflang, HTTPS, llms.txt', () => {
     expect(seo.bilgiKontrolleri).toContainEqual({ id: 'hreflang', ad: 'Hreflang', not: BILGI_NOTLARI.hreflangTekDil });
     // llms.txt (v3, skora girmez) de bilgi kontrolu: var
     expect(seo.bilgiKontrolleri).toContainEqual({ id: 'llms_txt', ad: 'llms.txt', not: BILGI_NOTLARI.llmsVar });
-    expect(seo.sayac.toplam).toBe(12);
-    expect(seo.sayac.gecti + seo.sayac.kritik + seo.sayac.uyari + seo.sayac.dogrulanamadi).toBe(12);
+    // 21.11.2026: Google AI cevaplarina uygunluk (google_ai_eligibility) eklendi
+    expect(seo.sayac.toplam).toBe(13);
+    expect(seo.sayac.gecti + seo.sayac.kritik + seo.sayac.uyari + seo.sayac.dogrulanamadi).toBe(13);
   });
 
   it('eski tarama (dil surumu hic aranmadi): "gecti" de "gerekmez" de denmez', () => {

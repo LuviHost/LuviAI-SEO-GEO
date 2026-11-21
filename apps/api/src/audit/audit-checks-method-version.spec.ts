@@ -18,6 +18,8 @@ const sayfa = (url: string, links: string[] = []) => ({
   ogTags: {}, twitterTags: {}, canonical: url, hreflangs: [], jsonLdBlocks: [], schemaTypes: [],
   lang: 'tr', imageAltStats: { total: 0, withAlt: 0, emptyAlt: 0, absent: 0, ariaDecorative: 0, suspicious: 0, excluded: 0 },
   images: [], imagesCapped: false, outboundLinks: links,
+  // Bugunku tarayici her sayfada yazar (google_ai_eligibility); yonerge yok
+  robotsSignals: { metas: [], header: null },
 }) as any;
 
 const tarama = (over: Record<string, unknown> = {}) => ({
@@ -72,8 +74,8 @@ describe('kontrol yontem surumleri', () => {
       agirlik += w;
     }
     expect(svc.computeOverallScore(sonuc)).toBe(Math.round(toplam / agirlik));
-    // 14 kontrol listelenir, 13'u genel skora girer
-    expect(sonuc).toHaveLength(14);
-    expect(Object.keys(OVERALL_SCORE_WEIGHTS)).toHaveLength(13);
+    // 15 kontrol listelenir, 14'u genel skora girer (21.11.2026: google_ai_eligibility)
+    expect(sonuc).toHaveLength(15);
+    expect(Object.keys(OVERALL_SCORE_WEIGHTS)).toHaveLength(14);
   });
 });

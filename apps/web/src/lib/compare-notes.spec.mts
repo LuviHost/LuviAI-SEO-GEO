@@ -56,7 +56,8 @@ describe('methodChangeNote', () => {
 describe('genel skora giren kontroller = API OVERALL_SCORE_WEIGHTS', () => {
   it('panel listesi API tablosuyla ayni (CSV olcumYontemiNotu ayni tabloyu kullanir)', () => {
     const keys = apiOverallScoreKeys();
-    expect(keys.length).toBe(13);
+    // 21.11.2026: google_ai_eligibility (noindex / nosnippet) eklendi
+    expect(keys.length).toBe(14);
     // llms_txt bilgi kontrolu (08.11.2026): genel skora girmez
     expect(feedsOverallScore('llms_txt')).toBe(false);
     expect([...GENEL_SKOR_KONTROLLERI].sort()).toEqual([...keys].sort());
