@@ -5,6 +5,7 @@ import { tlsChainCompletedFor } from '../common/tls-chain.js';
 import { detectBlock } from '../common/block-detect.js';
 import { extractImages, type ExtractedImage, type ImageAltStats } from './image-extract.js';
 import { isJsShell } from './js-shell.js';
+import { GOOGLE_META_NAMES, type PageRobotsSignals } from '../audit/google-ai-eligibility.js';
 import { isAllowedForRanksUpBot, parseRanksUpBotGroup, ROBOTS_PARSE_LIMIT, type RanksUpRobotsPolicy } from './ranksup-robots.js';
 import {
   accessFromBlock, accessFromFetchError, accessFromHttpStatus, accessFromRobots, type CrawlAccessIssue,
@@ -51,6 +52,12 @@ export interface CrawledPage {
    * sayfa tarandi demektir (bos = tel: baglantisi yok).
    */
   telLinks?: string[];
+  /**
+   * Google'in okudugu dizin / snippet yonergeleri: <meta name="robots|googlebot">
+   * ve X-Robots-Tag basligi (audit/google-ai-eligibility.ts degerlendirir).
+   * Alan VARSA sayfa bu yontemle tarandi demektir; eski taramalarda yok.
+   */
+  robotsSignals?: PageRobotsSignals;
 }
 
 /**
@@ -102,7 +109,7 @@ export type TextFetcher = (url: string, opts?: SafeTextOptions) => Promise<SafeT
 export const CRAWLER_TEXT_FETCHER = Symbol('CRAWLER_TEXT_FETCHER');
 
 type Fetched =
-  | { kind: 'ok'; url: string; finalUrl: string; status: number; text: string; contentType: string }
+  | { kind: 'ok'; url: string; finalUrl: string; status: number; text: string; contentType: string; xRobotsTag: string | null }
   | { kind: 'blocked'; url: string; status: number; access: CrawlAccessIssue }
   | { kind: 'http'; url: string; status: number }
   | { kind: 'binary'; url: string; status: number; contentType: string }
@@ -216,6 +223,7 @@ export class SiteCrawlerService {
     const startHome = `${startOrigin}/`;
     let homeAccess: CrawlAccessIssue | null = null;
     let homeHtml: string | null = null;
+    let homeXRobotsTag: string | null = null;
     let homeFinal = startHome;
     if (!allowed(startHome)) {
       homeAccess = accessFromRobots(startHome);
@@ -229,7 +237,10 @@ export class SiteCrawlerService {
         // www'li ic linkler "dis link" sayilip her sayfa orphan gorunuyordu.
         if (isSameSite(final, siteOrigin)) siteOrigin = new URL(final.origin);
         if (isSameSite(final, siteOrigin) && !allowed(homeFinal)) homeAccess = accessFromRobots(homeFinal);
-        else homeHtml = home.text;
+        else {
+          homeHtml = home.text;
+          homeXRobotsTag = home.xRobotsTag;
+        }
       } else {
         homeAccess = this.homeAccessFrom(home);
       }
@@ -305,7 +316,7 @@ export class SiteCrawlerService {
         try {
           if (pageUrl === homeUrl) {
             // Anasayfa ikinci kez cekilmez — 1. adimda okundu (ya da HTTP hatasi verdi)
-            return homeHtml !== null ? { page: this.extractPageData(homeUrl, homeHtml, homeFinal, siteOrigin) } : {};
+            return homeHtml !== null ? { page: this.extractPageData(homeUrl, homeHtml, homeFinal, siteOrigin, homeXRobotsTag) } : {};
           }
           if (!allowed(pageUrl)) {
             robotsDisallowed.push(pageUrl);
@@ -321,7 +332,7 @@ export class SiteCrawlerService {
             robotsDisallowed.push(pageUrl);
             return {};
           }
-          return { page: this.extractPageData(pageUrl, r.text, finalUrl, siteOrigin) };
+          return { page: this.extractPageData(pageUrl, r.text, finalUrl, siteOrigin, r.xRobotsTag) };
         } catch {
           return {};
         }
@@ -456,7 +467,8 @@ export class SiteCrawlerService {
         `${url} ${(maxBytes / 1048576).toFixed(1)}MB tavanda kirpildi — head sinyalleri okundu, sayfa sonundaki linkler eksik olabilir`,
       );
     }
-    return { kind: 'ok', url, finalUrl: res.url, status: res.status, text: res.text, contentType: res.contentType };
+    const xRobotsTag = res.headers?.['x-robots-tag']?.trim() || null;
+    return { kind: 'ok', url, finalUrl: res.url, status: res.status, text: res.text, contentType: res.contentType, xRobotsTag };
   }
 
   /** Anasayfa okunamadi → kullaniciya gosterilecek neden */
@@ -585,8 +597,16 @@ export class SiteCrawlerService {
    * @param baseHref sayfanin yonlendirmeler sonrasi GERCEK adresi — goreli
    *   linkler ve gorseller buna gore cozulur.
    */
-  private extractPageData(url: string, html: string, baseHref: string, site: URL): CrawledPage {
+  private extractPageData(url: string, html: string, baseHref: string, site: URL, xRobotsTag: string | null = null): CrawledPage {
     const $ = cheerio.load(html);
+
+    // ── Head: Google'in okudugu dizin / snippet yonergeleri ─
+    const robotsMetas: PageRobotsSignals['metas'] = [];
+    $('meta[name][content]').each((_, el) => {
+      const name = String($(el).attr('name') ?? '').trim().toLowerCase();
+      if (!GOOGLE_META_NAMES.has(name)) return;
+      if (robotsMetas.length < 10) robotsMetas.push({ name, content: String($(el).attr('content') ?? '').slice(0, 300) });
+    });
 
     // ── Head: OG meta tags ─────────────────────────────────
     const ogTags: Record<string, string> = {};
@@ -703,6 +723,7 @@ export class SiteCrawlerService {
       imagesCapped,
       outboundLinks: outboundLinks.slice(0, 30),
       telLinks,
+      robotsSignals: { metas: robotsMetas, header: xRobotsTag ? xRobotsTag.slice(0, 500) : null },
     };
   }
 }

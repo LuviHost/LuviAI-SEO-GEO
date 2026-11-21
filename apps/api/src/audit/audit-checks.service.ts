@@ -3,6 +3,7 @@ import type { CrawlResourceStatus, CrawlResult } from '../sites/site-crawler.ser
 import { computeImageAltCheck } from './image-alt-check.js';
 import { computeRobotsCheck, ROBOTS_METHOD_VERSION } from './robots-check.js';
 import { detectLanguageVersions } from './language-versions.js';
+import { excludedFromGoogleAi, googleDirectives } from './google-ai-eligibility.js';
 
 export type Severity = 'critical' | 'warning' | 'info';
 
@@ -71,6 +72,23 @@ export const HTTPS_METHOD_VERSION = 2;
 export const HTTPS_CHAIN_INCOMPLETE_SCORE = 70;
 
 /**
+ * Google AI cevaplarina uygunluk kontrolunun olcum yontemi (details.methodVersion).
+ * v1 (21.11.2026): taranan sayfalarin <meta name="robots|googlebot"> ve
+ * X-Robots-Tag yonergeleri (google-ai-eligibility.ts). noindex ya da
+ * nosnippet / max-snippet:0 sayfayi AI Bakisi ve AI Modu'nda kaynak olmaktan
+ * cikarir. Eski taramalarda kontrol yok: karsilastirma "yalniz bir taramada
+ * olculdu" der.
+ */
+export const GOOGLE_AI_ELIGIBILITY_METHOD_VERSION = 1;
+
+/**
+ * Anasayfa disindaki sayfalarda snippet yasagi: en dusuk puan. Anasayfa
+ * dizin disi ya da snippet yasakliysa puan 0 — site Google'in AI
+ * cevaplarinda anasayfasiyla hic kaynak olamaz.
+ */
+export const GOOGLE_AI_PAGE_BLOCK_FLOOR = 40;
+
+/**
  * Yontem surumu farkli iki olcum yine de AYNI HUKMU mu veriyor?
  *
  * hreflang ve HTTPS v2, v1'in hic bakmadigi TEK bir durumu olcer (dil surumu
@@ -112,6 +130,7 @@ export const OVERALL_SCORE_WEIGHTS: Readonly<Record<string, number>> = {
   image_alt: 0.5,
   internal_linking: 1.0,
   hreflang: 0.5,
+  google_ai_eligibility: 1.5,
 };
 
 /**
@@ -183,13 +202,13 @@ function isUnreadable(res: CrawlResourceStatus | undefined): res is CrawlResourc
 }
 
 /**
- * 14 kontrol noktası — her biri ayrı method.
- * Sonuçlar audit.checks JSON alanına yazılır. Genel skora 13'ü girer
+ * 15 kontrol noktası — her biri ayrı method.
+ * Sonuçlar audit.checks JSON alanına yazılır. Genel skora 14'ü girer
  * (OVERALL_SCORE_WEIGHTS); llms_txt yalnız bilgi.
  */
 @Injectable()
 export class AuditChecksService {
-  /** Tüm 14 kontrolü sırayla çalıştırır */
+  /** Tüm 15 kontrolü sırayla çalıştırır */
   async runAllChecks(crawl: CrawlResult): Promise<CheckResult[]> {
     return [
       this.checkSitemap(crawl),
@@ -206,6 +225,7 @@ export class AuditChecksService {
       this.checkImageAltText(crawl),
       this.checkInternalLinking(crawl),
       this.checkHreflang(crawl),
+      this.checkGoogleAiEligibility(crawl),
     ];
   }
 
@@ -706,6 +726,101 @@ export class AuditChecksService {
         note: count > 0
           ? `${count} sayfada hreflang tag bulundu`
           : 'Tek dilli site — hreflang gerekmiyor',
+      },
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────
+  //  15. Google AI cevaplarına uygunluk (noindex / nosnippet)
+  // ───────────────────────────────────────────────────────────
+  // Google: AI Bakisi / AI Modu'nda kaynak olmanin tek teknik sarti sayfanin
+  // dizinde ve snippet ile gosterilebilir olmasi. nosnippet ve max-snippet:0
+  // icerigi bu iki yuzeye girdi olmaktan da cikarir (google-ai-eligibility.ts).
+  private checkGoogleAiEligibility(c: CrawlResult): CheckResult {
+    const id = 'google_ai_eligibility';
+    const name = 'Google AI cevaplarına uygunluk';
+    const measured = c.pages.filter((p) => !!p.robotsSignals);
+    const norm = (u: string) => u.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase();
+    const base = norm(c.baseUrl);
+    const home = measured.find((p) => norm(p.url) === base) ?? null;
+    if (measured.length === 0) {
+      // Sayfa okunamadi (ya da eski tarayici): hukum yok, genel skora girmez
+      return {
+        id, name, found: false, valid: false, score: 0, issues: [],
+        details: {
+          methodVersion: GOOGLE_AI_ELIGIBILITY_METHOD_VERSION,
+          unverified: true,
+          unverifiedReason: 'Sayfa yönergeleri okunamadı: taranabilen sayfa yok.',
+          unverifiedHint: null,
+        },
+      };
+    }
+
+    const issues: AuditIssue[] = [];
+    const homeD = home ? googleDirectives(home.robotsSignals!) : null;
+    const others = measured.filter((p) => p !== home).map((p) => ({ url: p.url, d: googleDirectives(p.robotsSignals!) }));
+    const noindexPages = others.filter((x) => x.d.noindex).map((x) => x.url);
+    const nosnippetPages = others.filter((x) => !x.d.noindex && x.d.nosnippet).map((x) => x.url);
+
+    if (homeD?.noindex) {
+      issues.push({
+        severity: 'critical', type: 'google_home_noindex', page: home!.url,
+        description: `Anasayfa arama dizinine kapalı (${homeD.sources.filter((s) => /noindex|none/.test(s)).join(', ')}). Google anasayfayı arama sonuçlarında göstermez; AI Bakışı ve AI Modu'nda da kaynak gösteremez.`,
+        fixable: false,
+      });
+    } else if (homeD?.nosnippet) {
+      issues.push({
+        severity: 'critical', type: 'google_home_nosnippet', page: home!.url,
+        description: `Anasayfa snippet gösterimini yasaklıyor (${homeD.sources.filter((s) => /nosnippet|max-snippet:0/.test(s)).join(', ')}). Google bu sayfanın içeriğini AI Bakışı ve AI Modu'nda kullanmaz ve kaynak gösteremez; arama sonucunda da açıklama metni çıkmaz.`,
+        fixable: false,
+      });
+    } else if (homeD?.maxSnippet !== null && homeD?.maxSnippet !== undefined) {
+      issues.push({
+        severity: 'info', type: 'google_home_max_snippet', page: home!.url,
+        description: `Anasayfa snippet uzunluğunu ${homeD.maxSnippet} karakterle sınırlıyor (max-snippet:${homeD.maxSnippet}). Google bu sınırı AI Bakışı ve AI Modu'na girdi olarak kullanılan metne de uygular; sınır bilinçli değilse kaldırılabilir.`,
+        fixable: false,
+      });
+    }
+    if (nosnippetPages.length > 0) {
+      issues.push({
+        severity: 'warning', type: 'google_pages_nosnippet',
+        description: `${nosnippetPages.length} sayfa snippet gösterimini yasaklıyor (nosnippet ya da max-snippet:0). Google bu sayfaların içeriğini AI Bakışı ve AI Modu'nda kullanmaz.`,
+        fixable: false,
+      });
+    }
+    if (noindexPages.length > 0) {
+      issues.push({
+        severity: 'info', type: 'google_pages_noindex',
+        description: `${noindexPages.length} sayfa arama dizinine kapalı (noindex). Giriş, sepet ya da teşekkür sayfası gibi bilinçli tercihlerde sorun yoktur; içerik sayfasıysa Google ve AI cevaplarında görünmez.`,
+        fixable: false,
+      });
+    }
+
+    const homeBlocked = !!homeD && excludedFromGoogleAi(homeD);
+    const share = others.length > 0 ? nosnippetPages.length / others.length : 0;
+    const score = homeBlocked
+      ? 0
+      : nosnippetPages.length > 0
+        ? Math.max(GOOGLE_AI_PAGE_BLOCK_FLOOR, Math.round(100 - 60 * share))
+        : 100;
+    return {
+      id, name,
+      found: true,
+      valid: !homeBlocked && nosnippetPages.length === 0,
+      score,
+      issues,
+      details: {
+        methodVersion: GOOGLE_AI_ELIGIBILITY_METHOD_VERSION,
+        checkedPages: measured.length,
+        homeChecked: !!home,
+        homeNoindex: !!homeD?.noindex,
+        homeNosnippet: !!homeD?.nosnippet,
+        homeMaxSnippet: homeD?.maxSnippet ?? null,
+        homeSources: homeD?.sources ?? [],
+        noindexCount: noindexPages.length,
+        nosnippetCount: nosnippetPages.length,
+        noindexPages: noindexPages.slice(0, 50),
+        nosnippetPages: nosnippetPages.slice(0, 50),
       },
     };
   }

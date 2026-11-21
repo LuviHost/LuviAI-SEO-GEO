@@ -426,6 +426,7 @@ const KONTROL_ADI: Record<string, string> = {
   image_alt: 'Görsel alt metni',
   internal_linking: 'İç linkleme',
   hreflang: 'Hreflang',
+  google_ai_eligibility: 'Google AI uygunluğu',
   pagespeed: 'PageSpeed',
   geo: 'AI arama (GEO)',
   aiCitations: 'AI görünürlük ölçümü',

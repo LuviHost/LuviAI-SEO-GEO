@@ -347,6 +347,8 @@ const SAYFA_KONTROLLERI = new Set([
   // Yontem v2: dil surumu taranan sayfalardan tespit edilir (language-versions.ts).
   // "/EN" sayfasi bu kez taranamadiysa site tek dilli gorunur; hreflang sorunu "cozuldu" sayilmaz.
   'hreflang',
+  // Sayfa yonergeleri taranan sayfalardan okunur; noindex sayfa bu kez taranmadiysa "cozuldu" sayilmaz
+  'google_ai_eligibility',
 ]);
 
 /** Kontrol bu taramada olculmedi mi? (sorunun yoklugu hukum degildir) */
@@ -438,6 +440,7 @@ export const GENEL_SKOR_KONTROL_ADI: Readonly<Record<string, string>> = {
   image_alt: 'Görsel alt metni',
   internal_linking: 'İç linkleme',
   hreflang: 'Hreflang',
+  google_ai_eligibility: 'Google AI uygunluğu',
 };
 
 /**

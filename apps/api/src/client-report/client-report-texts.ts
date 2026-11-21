@@ -108,6 +108,11 @@ export const KONTROL_METINLERI: Readonly<Record<string, KontrolMetni>> = {
     neden: 'Çok dilli sitelerde arama motorunun her ziyaretçiye doğru dil sürümünü göstermesine yardım eder; tek dilli sitelerde gerekmez.',
     oneri: 'Her dil sürümünün sayfalarına, diğer dil sürümlerini gösteren hreflang etiketlerini ekleyin.',
   },
+  google_ai_eligibility: {
+    ad: 'Google AI cevaplarına uygunluk',
+    neden: 'Google bir sayfayı AI Bakışı ve AI Modu cevaplarında ancak sayfa arama dizinindeyse ve arama sonucunda önizleme metniyle gösterilebiliyorsa kaynak gösterebilir. Sayfanın robots yönergeleri bunu kapatabilir.',
+    oneri: 'Görünmesini istediğiniz sayfaları arama dizinine ya da önizleme metnine kapatan robots yönergelerini kaldırın.',
+  },
 };
 
 /** Bilinmeyen kontrol: taramanin kendi adi, genel metin — bos kalmaz */
@@ -224,6 +229,25 @@ export function kapsamCumlesi(ne: string, bulunan: number, toplam: number): stri
  * alanindadir. Sayi okunamazsa cumle sayisiz kurulur — uydurulmaz.
  */
 export const BULGU_METINLERI: Readonly<Record<string, (b: BulguBaglami) => string>> = {
+  // Google: nosnippet / max-snippet:0 icerigi AI Bakisi ve AI Modu'na girdi olmaktan cikarir;
+  // AI ozelliklerinde kaynak olmanin sarti dizinde ve snippet'e uygun olmak
+  // (developers.google.com/search/docs/crawling-indexing/robots-meta-tag, .../appearance/ai-features)
+  google_home_noindex: () => 'Anasayfa arama dizinine kapalı (noindex). Google anasayfayı arama sonuçlarında göstermez; AI Bakışı ve AI Modu cevaplarında da kaynak gösteremez.',
+  google_home_nosnippet: () => 'Anasayfa arama sonucunda önizleme metni gösterilmesini yasaklıyor (nosnippet ya da max-snippet:0). Google bu sayfanın içeriğini AI Bakışı ve AI Modu cevaplarında kullanmaz.',
+  google_home_max_snippet: (b) => {
+    const n = sayiOf(b.details.homeMaxSnippet);
+    return n !== null
+      ? `Anasayfa önizleme metnini ${n} karakterle sınırlıyor (max-snippet:${n}). Google bu sınırı AI Bakışı ve AI Modu'nda kullanılan metne de uygular.`
+      : 'Anasayfa önizleme metninin uzunluğunu sınırlıyor (max-snippet). Google bu sınırı AI Bakışı ve AI Modu\'nda kullanılan metne de uygular.';
+  },
+  google_pages_nosnippet: (b) => {
+    const n = sayiOf(b.details.nosnippetCount);
+    return `${n !== null ? `${n} sayfa` : 'Bazı sayfalar'} arama sonucunda önizleme metni gösterilmesini yasaklıyor (nosnippet ya da max-snippet:0). Google bu sayfaların içeriğini AI Bakışı ve AI Modu cevaplarında kullanmaz.`;
+  },
+  google_pages_noindex: (b) => {
+    const n = sayiOf(b.details.noindexCount);
+    return `${n !== null ? `${n} sayfa` : 'Bazı sayfalar'} arama dizinine kapalı (noindex). Giriş, sepet ya da teşekkür sayfası gibi bilinçli tercihlerde sorun yoktur.`;
+  },
   sitemap_missing: () => 'Site haritası (sitemap.xml) bulunamadı.',
   // Iki kaynak: Google 4xx donen robots.txt'i "tarama kisiti yok" sayar; RFC 9309 2.3.1.3 ayni
   robots_missing: () => 'robots.txt dosyası yok. Dosya olmadığında arama motorları ve AI botları siteyi kısıtlama olmadan tarar; eksik kalan, site haritasının adresini botlara bildiren satırdır.',
@@ -364,6 +388,11 @@ export const TIP_ONCELIGI: Readonly<Record<string, number>> = {
   robots_missing: 2,
   robots_no_sitemap: 3,
   js_shell_pages: 0,
+  google_home_noindex: 0,
+  google_home_nosnippet: 1,
+  google_pages_nosnippet: 2,
+  google_home_max_snippet: 3,
+  google_pages_noindex: 4,
   h1_missing: 1,
   h1_duplicate: 2,
 };
@@ -396,6 +425,11 @@ export const TIP_ONERISI: Readonly<Record<string, (b: BulguBaglami) => string>> 
   hreflang_missing: () => 'Her dil sürümünün sayfalarına, diğer dil sürümlerini gösteren hreflang etiketlerini ekleyin.',
   tls_chain_incomplete: () => 'Sunucuyu tam sertifika zincirini gönderecek şekilde ayarlayın (Let’s Encrypt kullanılıyorsa cert.pem yerine fullchain.pem).',
   js_shell_pages: () => 'Bu sayfaların içeriğini sunucu tarafında oluşturun (sunucu tarafı render ya da statik üretim).',
+  google_home_noindex: () => 'Anasayfadaki noindex yönergesini kaldırın: robots meta etiketi (<meta name="robots">) ya da sunucunun X-Robots-Tag başlığı. Hazır site altyapılarında bu çoğu zaman "arama motorlarından gizle" ayarıdır.',
+  google_home_nosnippet: () => 'Anasayfadaki nosnippet ya da max-snippet:0 yönergesini kaldırın: robots meta etiketi ya da sunucunun X-Robots-Tag başlığı.',
+  google_home_max_snippet: () => 'Sınır bilinçli bir tercih değilse max-snippet yönergesini kaldırın ya da değerini -1 yapın.',
+  google_pages_nosnippet: () => 'Görünmesini istediğiniz sayfalardan nosnippet ve max-snippet:0 yönergelerini kaldırın. Yalnız belirli bir bölümü gizlemek istiyorsanız tüm sayfa yerine o bölüme data-nosnippet özniteliği ekleyin.',
+  google_pages_noindex: () => 'Listede içerik sayfası varsa noindex yönergesini kaldırın; giriş, sepet ya da teşekkür sayfalarında değişiklik gerekmez.',
 };
 
 /** Bilgi amacli kontrollerin (skor/sayac disi) rapordaki notu */
@@ -477,6 +511,7 @@ export const AKSIYON_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
   image_alt: { baslik: 'Görsellere alt metin yazın', efor: 'orta' },
   internal_linking: { baslik: 'Yetim sayfalara iç bağlantı verin', efor: 'orta' },
   hreflang: { baslik: 'Dil sürümlerine hreflang ekleyin', efor: 'orta' },
+  google_ai_eligibility: { baslik: 'Sayfaların Google AI cevaplarına kapanmasını önleyin', efor: 'kolay' },
   // FAQ zengin sonucu 7 Mayis 2026'dan beri gosterilmiyor: oneri sema degil, gorunur SSS icerigi
   geo_faq: { baslik: 'Okurların sorduğu soruları sayfada görünür soru-cevap olarak yanıtlayın', efor: 'orta' },
   geo_definition: { baslik: '"X nedir?" biçiminde tanım içerikleri ekleyin', efor: 'orta' },
@@ -507,6 +542,11 @@ export const AKSIYON_TIP_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
   tls_chain_incomplete: { baslik: 'Sunucuyu tam sertifika zincirini gönderecek şekilde ayarlayın', efor: 'kolay' },
   hreflang_missing: { baslik: 'Dil sürümlerine hreflang etiketleri ekleyin', efor: 'orta' },
   js_shell_pages: { baslik: 'Sayfa içeriğini sunucu tarafında oluşturun', efor: 'zor', ayri: true },
+  google_home_noindex: { baslik: 'Anasayfadaki noindex yönergesini kaldırın', efor: 'kolay', ayri: true },
+  google_home_nosnippet: { baslik: 'Anasayfadaki önizleme yasağını kaldırın', efor: 'kolay', ayri: true },
+  google_pages_nosnippet: { baslik: 'Sayfalardaki önizleme yasağını kaldırın', efor: 'kolay', ayri: true },
+  google_home_max_snippet: { baslik: 'Anasayfadaki önizleme sınırını gözden geçirin', efor: 'kolay', etki: 'dusuk', ayri: true },
+  google_pages_noindex: { baslik: 'Dizine kapalı sayfaları gözden geçirin', efor: 'kolay', etki: 'dusuk', ayri: true },
   h1_duplicate: { baslik: 'Tekrarlanan H1 başlıklarını sayfaya özgü yapın', efor: 'orta' },
   meta_desc_short: { baslik: 'Kısa meta açıklamaları genişletin', efor: 'orta' },
   meta_title_short: { baslik: 'Kısa sayfa başlıklarını genişletin', efor: 'orta' },
