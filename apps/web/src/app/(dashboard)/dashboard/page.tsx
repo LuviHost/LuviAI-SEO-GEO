@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
-import { ChevronRight, Crown, ExternalLink, FileText, Globe2, Plus, Trash2, Zap } from 'lucide-react';
+import { ChevronRight, CircleStop, Crown, ExternalLink, FileText, Globe2, Plus, Trash2, Zap } from 'lucide-react';
 import { api, type MyDashboard } from '@/lib/api';
 import { dashboardQuotaCards } from '@/lib/article-quota';
 import { oauthCallbackErrorText } from '@/lib/oauth-connect';
@@ -14,8 +14,9 @@ import { useT } from '@/lib/i18n';
 import { fadeUp, staggerContainer } from '@/lib/motion-presets';
 import { cn } from '@/lib/utils';
 import { siteHref } from '@/lib/site-routes';
+import { canStopSiteJobs, siteListBadge } from '@/lib/site-list-status';
 import { Button } from '@/components/ui/button';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,15 +29,6 @@ import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 
-const STATUS_TONE: Record<string, BadgeProps['variant']> = {
-  ONBOARDING: 'warning',
-  AUDIT_PENDING: 'info',
-  AUDIT_COMPLETE: 'info',
-  ACTIVE: 'success',
-  PAUSED: 'secondary',
-  ERROR: 'danger',
-};
-
 export default function DashboardPage() {
   const { t } = useT();
   const { data: session, status } = useSession();
@@ -45,6 +37,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Yalniz yonetici: arka plan islerini durdurma (api admin.controller cancel-jobs)
+  const isAdmin = session?.user?.role === 'ADMIN';
+  const [stopTarget, setStopTarget] = useState<any | null>(null);
+  const [stopping, setStopping] = useState(false);
 
   const reload = () => {
     return Promise.all([
@@ -92,6 +88,25 @@ export default function DashboardPage() {
       toast.error(err.message ?? 'Silme başarısız');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const confirmStop = async () => {
+    if (!stopTarget) return;
+    setStopping(true);
+    try {
+      const r = await api.cancelSiteJobs(stopTarget.id);
+      toast.success(
+        r.canceled > 0
+          ? `"${stopTarget.name}" için arka plandaki ${r.canceled} iş durduruldu`
+          : `"${stopTarget.name}" için bekleyen iş kalmamış`,
+      );
+      setStopTarget(null);
+      await reload();
+    } catch (err: any) {
+      toast.error(err.message ?? 'Durdurma başarısız');
+    } finally {
+      setStopping(false);
     }
   };
 
@@ -170,7 +185,11 @@ export default function DashboardPage() {
           <motion.ul variants={staggerContainer} initial="hidden" animate="show" className="space-y-2">
             {sites.map((s) => (
               <motion.li key={s.id} variants={fadeUp}>
-                <SiteCard site={s} onDelete={() => setDeleteTarget(s)} />
+                <SiteCard
+                  site={s}
+                  onDelete={() => setDeleteTarget(s)}
+                  onStop={canStopSiteJobs(s, isAdmin) ? () => setStopTarget(s) : undefined}
+                />
               </motion.li>
             ))}
           </motion.ul>
@@ -183,6 +202,13 @@ export default function DashboardPage() {
         onCancel={() => { if (!deleting) setDeleteTarget(null); }}
         onConfirm={confirmDelete}
       />
+
+      <StopJobsDialog
+        site={stopTarget}
+        stopping={stopping}
+        onCancel={() => { if (!stopping) setStopTarget(null); }}
+        onConfirm={confirmStop}
+      />
     </div>
   );
 }
@@ -192,8 +218,9 @@ export default function DashboardPage() {
  * ve silme dugmesi ustte (z-10) kendi eylemleriyle. Eskiden role="button" div
  * icinde baglanti + dugme vardi (ic ice etkilesimli oge).
  */
-function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
+function SiteCard({ site, onDelete, onStop }: { site: any; onDelete: () => void; onStop?: () => void }) {
   const host = String(site.url ?? '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const badge = siteListBadge(site, (st) => label(SITE_STATUS_LABEL, st));
   return (
     <Card className="group relative flex flex-wrap items-center gap-4 p-4 transition-colors duration-200 hover:border-foreground/30 focus-within:ring-2 focus-within:ring-ring">
       <SiteFavicon url={site.url} name={site.name} />
@@ -208,7 +235,7 @@ function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
               {site.name}
             </Link>
           </h3>
-          <Badge variant={STATUS_TONE[site.status] ?? 'secondary'}>{label(SITE_STATUS_LABEL, site.status)}</Badge>
+          <Badge variant={badge.tone}>{badge.label}</Badge>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-label text-muted-foreground">
           <a
@@ -229,6 +256,19 @@ function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
         <span className="hidden items-center gap-1 text-label text-muted-foreground transition-colors group-hover:text-foreground sm:inline-flex" aria-hidden>
           Aç <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>
+        {onStop && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onStop}
+            className="relative z-10"
+            aria-label={`${site.name} için arka plandaki işleri durdur`}
+          >
+            <CircleStop className="h-4 w-4" aria-hidden />
+            Durdur
+          </Button>
+        )}
         <button
           type="button"
           onClick={onDelete}
@@ -297,6 +337,46 @@ function DeleteSiteDialog({
           </Button>
           <Button variant="destructive" size="sm" onClick={onConfirm} disabled={!canDelete}>
             {deleting ? 'Siliniyor…' : 'Kalıcı olarak sil'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Yonetici "Durdur" onayi — harcanan kisim geri gelmez (api jobs/site-job-cancel.ts) */
+function StopJobsDialog({
+  site, stopping, onCancel, onConfirm,
+}: {
+  site: any | null;
+  stopping: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={!!site} onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>Arka plandaki işleri durdur</DialogTitle>
+          <DialogDescription>
+            Arka plandaki tarama ve ölçüm durdurulsun mu? Harcanan kısım geri gelmez.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+            <li>
+              <strong className="font-medium text-foreground">{site?.name}</strong> için kuyrukta bekleyen işler silinir.
+            </li>
+            <li>Çalışan kurulum bir sonraki adımda durur; o an süren tek bir istek sonuna kadar biter.</li>
+            <li>Kurulumun takvime yazdığı, henüz üretilmemiş yazılar silinir.</li>
+          </ul>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onCancel} disabled={stopping}>
+            Vazgeç
+          </Button>
+          <Button variant="destructive" size="sm" onClick={onConfirm} disabled={stopping}>
+            {stopping ? 'Durduruluyor…' : 'Durdur'}
           </Button>
         </DialogFooter>
       </DialogContent>

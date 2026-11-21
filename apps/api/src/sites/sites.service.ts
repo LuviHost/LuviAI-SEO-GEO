@@ -11,6 +11,7 @@ import { removeSiteVideoFiles } from '../videos/article-video.config.js';
 import { DEFAULT_PUBLISH_APPROVAL_MODE } from '../articles/publish-approval.js';
 import { ownerEngines } from '../billing/plan-engines.js';
 import { measuredEngines } from '../billing/measured-engines.js';
+import { SCAN_JOB_TYPES, siteJobStates, type SiteJobState } from '../jobs/site-job-cancel.js';
 
 /** Kurulumu SURMEKTE olan durumlar — zincir yalniz bunlardan yeniden baslatilir */
 const ONBOARDING_RETRY_FROM = new Set(['ONBOARDING', 'AUDIT_PENDING', 'AUDIT_COMPLETE']);
@@ -136,7 +137,7 @@ export class SitesService {
     return site;
   }
 
-  list(user: RequestingUser) {
+  async list(user: RequestingUser) {
     const where = user.role === 'ADMIN' ? {} : { userId: user.id };
     // SIRLAR CEVABA SIZMASIN.
     // Site satiri ingestSecret (canli crawler HMAC siri) ve saglayici
@@ -144,11 +145,47 @@ export class SitesService {
     // cevabinda donuyordu; salt-okunur bir API anahtari (sites:read) sirri
     // okuyup sahte ingest imzalayabilirdi — yani okuma yetkisi sessizce
     // yazma kabiliyetine donusuyordu.
-    return this.prisma.site.findMany({
+    const sites = await this.prisma.site.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       omit: SITE_SECRET_FIELDS,
     });
+    // Yalniz yonetici: "Durdur" dugmesi ve "Vazgecildi" rozeti icin is durumu
+    // (site-job-cancel.ts). Musterinin listesi ve sorgulari degismez.
+    if (user.role !== 'ADMIN' || sites.length === 0) return sites;
+    const states = await this.adminJobStates(sites.map((s) => s.id)).catch((err: any) => {
+      this.log.warn(`Site listesi is durumu okunamadi: ${err?.message ?? err}`);
+      return null;
+    });
+    if (!states) return sites;
+    return sites.map((s) => ({ ...s, jobState: states.get(s.id) ?? { running: false, canceled: false } }));
+  }
+
+  /** Site basina canli is + en son tarama isinin iptal durumu (uc sorgu, siteler toplu) */
+  private async adminJobStates(siteIds: string[]): Promise<Map<string, SiteJobState>> {
+    const scanTypes = [...SCAN_JOB_TYPES] as any[];
+    const [live, lastScan, lastCanceled] = await Promise.all([
+      this.prisma.job.findMany({
+        where: { siteId: { in: siteIds }, status: { in: ['QUEUED', 'PROCESSING'] as any } },
+        select: { siteId: true, bullJobId: true },
+      }),
+      this.prisma.job.groupBy({
+        by: ['siteId'],
+        where: { siteId: { in: siteIds }, type: { in: scanTypes } },
+        _max: { queuedAt: true },
+      }),
+      this.prisma.job.groupBy({
+        by: ['siteId'],
+        where: { siteId: { in: siteIds }, type: { in: scanTypes }, status: 'CANCELED' as any },
+        _max: { queuedAt: true },
+      }),
+    ]);
+    const toMap = (rows: Array<{ siteId: string | null; _max: { queuedAt: Date | null } }>) => {
+      const m = new Map<string, Date>();
+      for (const r of rows) if (r.siteId && r._max.queuedAt) m.set(r.siteId, r._max.queuedAt);
+      return m;
+    };
+    return siteJobStates(siteIds, live, toMap(lastScan as any), toMap(lastCanceled as any));
   }
 
   async findOne(id: string, user: RequestingUser) {

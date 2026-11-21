@@ -164,6 +164,12 @@ export interface AuditAiSecenegi {
    * firlatirsa adim eskisi gibi atlanir (denetim dusmez).
    */
   aiOlcumu?: () => Promise<AuditAiOlcumu>;
+  /**
+   * Calisan isin iptal denetimi (worker ONBOARDING_CHAIN, jobs/site-job-cancel.ts
+   * jobCancelCheck): tarama bitince, ucretli adimlardan (PageSpeed, GEO, AI) ONCE
+   * cagrilir. Is iptal edildiyse firlatir ve denetim satir yazmadan durur.
+   */
+  iptalKontrol?: (adim: string) => Promise<void>;
 }
 
 /** runForSite hatasindan atlama nedeni — HttpException govdesi (code, nextAvailableAt) okunur */
@@ -933,6 +939,8 @@ export class AuditService {
     // 1) Site crawl — orphan/internal-linking analizinin doğru olması için tüm
     // siteyi tara (30 ile yarım kalıyordu → link grafiği eksik → yanlış orphan).
     const crawl = await this.crawler.crawl(site.url, 100, { stopIfHomeUnreadable: true });
+    // Tarama uzun surer: bu arada yonetici durdurduysa sonraki adimlar kosmaz
+    if (opts.iptalKontrol) await opts.iptalKontrol('denetim taramasi sonrasi');
 
     // 1b) Anasayfa okunamadi → PUAN YOK, Audit satiri YOK.
     // ofsayt.com: Cloudflare 403 "Sorry, you have been blocked" sayfasi site

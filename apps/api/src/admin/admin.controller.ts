@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Logger, NotFoundException, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AdminService } from './admin.service.js';
 import { EmailService, type EmailTemplate } from '../email/email.service.js';
@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { SessionOnly } from '../auth/session-only.decorator.js';
 import { EmailTestDto, SetUserLimitsDto, SetUserPlanDto } from './admin.dto.js';
+import { cancelSiteJobs } from '../jobs/site-job-cancel.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -15,6 +16,8 @@ function assertAdmin(req: Request) {
   if (user.role !== 'ADMIN') throw new ForbiddenException('Admin only');
   return user;
 }
+
+const cancelLog = new Logger('SiteJobCancel');
 
 /**
  * MUTASYONLAR YALNIZ PANEL OTURUMUYLA: kuyruk islemleri (yeniden dene, one al,
@@ -140,6 +143,27 @@ export class AdminController {
   sites(@Req() req: Request) {
     assertAdmin(req);
     return this.admin.listSites();
+  }
+
+  /**
+   * POST /admin/sites/:siteId/cancel-jobs — sitenin arka plan islerini durdurur
+   * (yanlislikla baslatilan tarama / olcum). Kuyruktaki isler silinir, calisan
+   * kurulum zinciri bir sonraki adim sinirinda durur; kurulumun takvime yazdigi
+   * uretilmemis yazilar silinir. Harcanan kisim geri gelmez. Kural ve sinirlar:
+   * jobs/site-job-cancel.ts. Panel listesi sonra "Vazgecildi" gosterir.
+   */
+  @SessionOnly()
+  @Post('sites/:siteId/cancel-jobs')
+  async cancelJobs(@Req() req: Request, @Param('siteId') siteId: string) {
+    const admin = assertAdmin(req);
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true } });
+    if (!site) throw new NotFoundException('Site bulunamadi');
+    const result = await cancelSiteJobs(
+      { prisma: this.prisma as any, removeJob: (id) => this.jobQueue.removeJob(id), log: cancelLog },
+      siteId,
+    );
+    cancelLog.log(`[${siteId}] Durdur: yonetici ${admin.id}`);
+    return { ok: true, ...result };
   }
 
   @Get('jobs/failed')
