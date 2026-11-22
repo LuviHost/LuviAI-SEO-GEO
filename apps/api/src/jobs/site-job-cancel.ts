@@ -201,12 +201,18 @@ export interface SiteJobState {
  *  - lastCanceledScanAt: site basina en son IPTAL EDILEN tarama isinin ani
  * En son tarama isi iptal edildiyse (iki an esit) canceled; sonradan yeni tarama
  * baslatildiysa (daha yeni an) artik degil.
+ *  - olcum (istege bagli): canceledAt = en son iptal edilen tarama isinin iptal ani
+ *    (finishedAt), lastMeasuredAt = sitenin en son AI olcumu (AiCitationRun.runAt).
+ *    Iptalden SONRA olcum yapildiysa site birakilmamistir (yonetici kurulumu makale
+ *    uretmesin diye durdurup olcumu elle yapti): "Vazgecildi" yazilmaz, rozet site
+ *    durumunu gosterir. Kurulumun kendi olcumu iptalden once oldugu icin sayilmaz.
  */
 export function siteJobStates(
   siteIds: string[],
   liveJobs: Array<{ siteId: string | null; bullJobId: string | null }>,
   lastScanAt: Map<string, Date>,
   lastCanceledScanAt: Map<string, Date>,
+  olcum?: { canceledAt: Map<string, Date>; lastMeasuredAt: Map<string, Date> },
 ): Map<string, SiteJobState> {
   const runningSites = new Set(
     liveJobs.filter((j) => j.siteId && !isScheduledGenerationJobId(j.bullJobId)).map((j) => j.siteId as string),
@@ -215,7 +221,10 @@ export function siteJobStates(
   for (const id of siteIds) {
     const last = lastScanAt.get(id);
     const lastCanceled = lastCanceledScanAt.get(id);
-    const canceled = !!last && !!lastCanceled && lastCanceled.getTime() >= last.getTime();
+    const canceledAt = olcum?.canceledAt.get(id);
+    const measuredAt = olcum?.lastMeasuredAt.get(id);
+    const measuredAfterCancel = !!canceledAt && !!measuredAt && measuredAt.getTime() > canceledAt.getTime();
+    const canceled = !!last && !!lastCanceled && lastCanceled.getTime() >= last.getTime() && !measuredAfterCancel;
     out.set(id, { running: runningSites.has(id), canceled });
   }
   return out;

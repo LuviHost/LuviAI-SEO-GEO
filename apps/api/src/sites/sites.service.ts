@@ -165,7 +165,7 @@ export class SitesService {
   /** Site basina canli is + en son tarama isinin iptal durumu (uc sorgu, siteler toplu) */
   private async adminJobStates(siteIds: string[]): Promise<Map<string, SiteJobState>> {
     const scanTypes = [...SCAN_JOB_TYPES] as any[];
-    const [live, lastScan, lastCanceled] = await Promise.all([
+    const [live, lastScan, lastCanceled, lastMeasured] = await Promise.all([
       this.prisma.job.findMany({
         where: { siteId: { in: siteIds }, status: { in: ['QUEUED', 'PROCESSING'] as any } },
         select: { siteId: true, bullJobId: true },
@@ -178,15 +178,27 @@ export class SitesService {
       this.prisma.job.groupBy({
         by: ['siteId'],
         where: { siteId: { in: siteIds }, type: { in: scanTypes }, status: 'CANCELED' as any },
-        _max: { queuedAt: true },
+        _max: { queuedAt: true, finishedAt: true },
+      }),
+      // Iptalden sonra elle yapilan olcum: site birakilmadi (site-job-cancel.ts siteJobStates)
+      this.prisma.aiCitationRun.groupBy({
+        by: ['siteId'],
+        where: { siteId: { in: siteIds } },
+        _max: { runAt: true },
       }),
     ]);
-    const toMap = (rows: Array<{ siteId: string | null; _max: { queuedAt: Date | null } }>) => {
+    const toMap = (rows: Array<{ siteId: string | null; _max: Record<string, Date | null | undefined> }>, field = 'queuedAt') => {
       const m = new Map<string, Date>();
-      for (const r of rows) if (r.siteId && r._max.queuedAt) m.set(r.siteId, r._max.queuedAt);
+      for (const r of rows) {
+        const v = r._max[field];
+        if (r.siteId && v) m.set(r.siteId, v);
+      }
       return m;
     };
-    return siteJobStates(siteIds, live, toMap(lastScan as any), toMap(lastCanceled as any));
+    return siteJobStates(siteIds, live, toMap(lastScan as any), toMap(lastCanceled as any), {
+      canceledAt: toMap(lastCanceled as any, 'finishedAt'),
+      lastMeasuredAt: toMap(lastMeasured as any, 'runAt'),
+    });
   }
 
   async findOne(id: string, user: RequestingUser) {
