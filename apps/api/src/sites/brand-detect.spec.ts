@@ -56,6 +56,21 @@ describe('marka adi tespiti — ana sayfadan', () => {
   });
 });
 
+describe('marka adi tespiti — kenar durumlar', () => {
+  it('alt alan adindaki site ana sirketin adini almaz; alt alan adiyla ortusen ad alinir', () => {
+    const meta = { title: 'Ana Sirket | Egitim', ogTags: { 'og:site_name': 'Ana Sirket' }, jsonLdBlocks: [org('Ana Sirket')] };
+    expect(detectBrandName(meta, 'https://urun.anasirket.com')).toBeNull();
+    expect(detectBrandName({ ...meta, title: 'Zentra | Ana Sirket' }, 'https://zentra.anasirket.com'))
+      .toEqual({ display: 'Zentra', aliases: ['Zentra'] });
+    // www alt alan sayilmaz
+    expect(detectBrandName(meta, 'https://www.anasirket.com')?.display).toBe('Ana Sirket');
+  });
+  it('adin sonundaki alan adi uzantisi atilir', () => {
+    expect(detectBrandName({ title: 'Zirve Etkinlikleri.com', ogTags: { 'og:site_name': 'Zirve Etkinlikleri.com' } }, 'https://zirveetkinlikleri.com'))
+      .toEqual({ display: 'Zirve Etkinlikleri', aliases: ['Zirve Etkinlikleri'] });
+  });
+});
+
 describe('kisa ad kurali', () => {
   it('kok ilk kelimeyle baslayip baska kelimeyle devam ediyorsa kisa ad', () => {
     expect(kisaAd('Kalem Finansal Teknolojiler', 'kaleminc')).toBe('Kalem');
