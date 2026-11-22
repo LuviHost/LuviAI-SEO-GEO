@@ -135,7 +135,7 @@ const GENERIC_BRAND_WORDS = new Set<string>([
 const GENERIC_SUFFIXES = ['lari', 'leri', 'lar', 'ler', 'cilar', 'ciler', 'ci', 'cu', 'si', 'su', 'i', 'u', 'es', 's'];
 
 /** Alan adlari ASCII oldugu icin karsilastirma Turkce harfleri Latin esine indirerek yapilir. */
-function asciiFold(s: string): string {
+export function asciiFold(s: string): string {
   return foldForMatch(s)
     .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ş/g, 's')
     .replace(/ö/g, 'o').replace(/ü/g, 'u')

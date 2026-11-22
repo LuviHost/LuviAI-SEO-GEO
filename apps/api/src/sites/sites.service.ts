@@ -248,9 +248,19 @@ export class SitesService {
       const checked = await assertSiteUrlAllowed(rawUrl, this.urlResolver);
       data.url = normalizeSiteUrl(checked.toString());
     }
+    // Diger adlar ve gorunen ad YALNIZ YONETICIDE (22.11.2026): olcumun neyi markanin anilmasi
+    // sayacagini belirler. Musteri buraya buyuk bir marka yazarsa (bayi sitesine uretici adi)
+    // skoru sisirir. Musterinin istegindeki bu alanlar sessizce yok sayilir (ayarlar formu
+    // her kayitta gonderiyor; 403 formu bozardi).
+    if (user.role !== 'ADMIN') {
+      delete data.brandAliases;
+      delete data.brandDisplay;
+    } else if (dto.brandDisplay !== undefined) {
+      data.brandDisplay = dto.brandDisplay.replace(/\s+/g, ' ').trim() || null;
+    }
     // Marka ailesi: diger adlar temizlenip yazilir (ana adla ayni, tekrar, cok kisa olan atilir).
     // Ana ad ayni istekte degisiyorsa yenisine gore temizlenir.
-    if (dto.brandAliases !== undefined) {
+    if (dto.brandAliases !== undefined && user.role === 'ADMIN') {
       const ana = resolveSiteBrand(dto.name ?? (current as { name?: string | null }).name ?? null, String((data.url as string | undefined) ?? (current as { url: string }).url));
       data.brandAliases = cleanBrandAliases(dto.brandAliases, ana);
     }

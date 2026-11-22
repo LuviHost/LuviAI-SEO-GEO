@@ -35,6 +35,7 @@ import { TestimonialWidget } from '@/components/testimonial-widget';
 import { QuotaMonitor } from '@/components/quota-monitor';
 import { AiCostStrip } from '@/components/ai-cost-strip';
 import { RecentActivity } from '@/components/recent-activity';
+import { siteDisplayName } from '@/lib/site-display';
 
 /**
  * Site Genel Bakis — UC BOLGE:
@@ -807,7 +808,7 @@ function OverviewTabs({ site, audit, articles }: { site: any; audit: any; articl
 
       <TabsContent value="trends" className="mt-4 space-y-4">
         <RanksUpImpactCard siteId={site.id} days={90} />
-        <CitationHistoryChart siteId={site.id} siteName={site.name} siteUrl={site.url} />
+        <CitationHistoryChart siteId={site.id} siteName={siteDisplayName(site)} siteUrl={site.url} />
       </TabsContent>
 
       <TabsContent value="issues" className="mt-4">

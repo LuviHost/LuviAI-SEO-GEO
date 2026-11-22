@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { siteDisplayName } from '@/lib/site-display';
 
 /**
  * SiteSidebar — baglama duyarli navigasyon.
@@ -32,7 +33,7 @@ import { cn } from '@/lib/utils';
  * link acik kalir, sayfa kendi icinde PlanLockedCard basar.
  */
 
-type SiteOption = { id: string; name: string; url: string };
+type SiteOption = { id: string; name: string; brandDisplay?: string | null; url: string };
 
 const COLLAPSE_KEY = 'luviai_sidebar_collapsed';
 
@@ -202,7 +203,7 @@ function SiteSwitcher({ siteId, path, onClose }: { siteId: string; path: string;
   useEffect(() => {
     let cancelled = false;
     api.listSites()
-      .then((rows) => { if (!cancelled) setSites(rows.map((s: any) => ({ id: s.id, name: s.name, url: s.url }))); })
+      .then((rows) => { if (!cancelled) setSites(rows.map((s: any) => ({ id: s.id, name: s.name, brandDisplay: s.brandDisplay ?? null, url: s.url }))); })
       .catch(() => { if (!cancelled) setSites([]); });
     return () => { cancelled = true; };
   }, []);
@@ -214,12 +215,12 @@ function SiteSwitcher({ siteId, path, onClose }: { siteId: string; path: string;
     <DropdownMenu>
       <DropdownMenuTrigger
         className="flex w-full items-center gap-2 rounded-md border border-sidebar-border px-3 py-2.5 text-left transition-colors duration-200 hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:border-foreground/50"
-        aria-label={currentSite ? `Site değiştir — şu an ${currentSite.name}` : 'Site değiştir'}
+        aria-label={currentSite ? `Site değiştir — şu an ${siteDisplayName(currentSite)}` : 'Site değiştir'}
       >
-        <SiteFavicon url={currentSite?.url} name={currentSite?.name} size="sm" />
+        <SiteFavicon url={currentSite?.url} name={currentSite ? siteDisplayName(currentSite) : undefined} size="sm" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-sidebar-foreground">
-            {currentSite?.name ?? 'Yükleniyor…'}
+            {currentSite ? siteDisplayName(currentSite) : 'Yükleniyor…'}
           </span>
           {currentSite?.url && (
             <span className="block truncate font-mono text-vitrin-rail text-sidebar-muted">{host(currentSite.url)}</span>
@@ -241,9 +242,9 @@ function SiteSwitcher({ siteId, path, onClose }: { siteId: string; path: string;
                 router.push(`/sites/${s.id}${subpath}` as any);
               }}
             >
-              <SiteFavicon url={s.url} name={s.name} size="sm" className="h-6 w-6 rounded" />
+              <SiteFavicon url={s.url} name={siteDisplayName(s)} size="sm" className="h-6 w-6 rounded" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{s.name}</span>
+                <span className="block truncate font-medium">{siteDisplayName(s)}</span>
                 <span className="block truncate text-label text-muted-foreground">{host(s.url)}</span>
               </span>
               {s.id === siteId && <Check className="shrink-0 text-brand" aria-label="Seçili" />}

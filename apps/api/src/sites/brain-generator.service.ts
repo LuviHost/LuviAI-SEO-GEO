@@ -3,7 +3,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SiteCrawlerService } from './site-crawler.service.js';
 import { BRAIN_ADVANCES_FROM } from './site-status.js';
-import type { CrawlResult } from './site-crawler.service.js';
+import type { CrawlResult, CrawledPage } from './site-crawler.service.js';
+import { detectBrandName, pickHomePage } from './brand-detect.js';
+import { cleanBrandAliases, resolveSiteBrand } from '../audit/brand-in-query.js';
 import { clearCrawlAccess, CrawlAccessError, recordCrawlAccess } from './crawl-access.js';
 
 /**
@@ -36,6 +38,24 @@ export class BrainGeneratorService {
         payload: { forceRegenerate: opts.forceRegenerate ?? false },
       },
     });
+  }
+
+  /** Ana sayfadan marka adini bulup gorunen ada ve diger adlara yazar (sites/brand-detect.ts) */
+  private async applyDetectedBrand(
+    site: { id: string; name: string; url: string; brandAliases: unknown },
+    pages: CrawledPage[],
+  ): Promise<void> {
+    const home = pickHomePage(pages, site.url);
+    const found = detectBrandName(home, site.url);
+    if (!found) return;
+    const ana = resolveSiteBrand(site.name, site.url);
+    const mevcut = cleanBrandAliases(site.brandAliases, ana);
+    const aliases = cleanBrandAliases([...mevcut, ...found.aliases], ana);
+    await this.prisma.site.update({
+      where: { id: site.id },
+      data: { brandDisplay: found.display.slice(0, 80), brandAliases: aliases },
+    });
+    this.log.log(`${site.id}: marka adi tespit edildi → "${found.display}" (diger adlar: ${aliases.join(', ') || '—'})`);
   }
 
   /** Worker'dan çağrılan asıl iş */
@@ -105,6 +125,16 @@ export class BrainGeneratorService {
         version: { increment: 1 },
       } as any,
     });
+
+    // ── Marka adi (gorunen ad + diger adlar) ──────────────────
+    // Ad alan adindan tahmin ediliyor ("kaleminc"); sitenin kendi yazdigi ad ("Kalem") ana
+    // sayfada. Yalniz HIC tespit yapilmamissa (brandDisplay bos) yazilir: yoneticinin sonradan
+    // sildigi ad beyin yenilenince geri gelmez. Hata kurulumu durdurmaz.
+    if (!site.brandDisplay) {
+      await this.applyDetectedBrand(site, crawlResult.pages).catch((err) =>
+        this.log.warn(`${siteId}: Marka adi tespiti yazilamadi: ${err.message}`),
+      );
+    }
 
     // ── Spesifik kategori etiketi (customNiche) ───────────────
     // `niche` 20 secenekli kaba liste; cogu siteyi yanlis kovaya koyuyor

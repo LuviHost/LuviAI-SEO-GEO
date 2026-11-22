@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { MeasurementWaitLabel } from '@/components/upgrade-gate';
 import { LIMIT_COPY } from '@/lib/plan-limit';
+import { siteDisplayName } from '@/lib/site-display';
 
 export default function VisibilityPage() {
   const { site } = useSiteContext();
@@ -114,7 +115,7 @@ export default function VisibilityPage() {
         }
       />
 
-      <CitationHistoryChart siteId={site.id} siteName={site.name} siteUrl={site.url} />
+      <CitationHistoryChart siteId={site.id} siteName={siteDisplayName(site)} siteUrl={site.url} />
 
       {/* AI cevaplarinin kaynak gosterdigi siteler + "nerede yer almalisin" */}
       <CitedSourcesCard siteId={site.id} />

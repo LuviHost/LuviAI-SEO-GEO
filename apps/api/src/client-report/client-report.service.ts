@@ -61,7 +61,7 @@ export class ClientReportService {
   async girdi(siteId: string, now: Date): Promise<RaporGirdisi> {
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      select: { name: true, url: true, userId: true, ingestSecret: true, brandAliases: true, brain: { select: { competitors: true } } },
+      select: { name: true, url: true, userId: true, ingestSecret: true, brandAliases: true, brandDisplay: true, brain: { select: { competitors: true } } },
     });
     if (!site) throw new NotFoundException('Site bulunamadı');
 
@@ -109,12 +109,14 @@ export class ClientReportService {
       if (dogrulanmis(r) > 0) botToplam.set(r.bot, (botToplam.get(r.bot) ?? 0) + dogrulanmis(r));
     }
 
+    // Kapak ve ses payi satiri sitenin gorunen adiyla (yalniz gosterim; eslesme ana adla)
+    const gorunenAd = site.brandDisplay?.trim() || site.name;
     const sov = shareOfVoiceList(
       unbrandedOnly(sovSatirlari as Array<{ brandMentioned: boolean; brandInQuery: boolean; competitors: unknown }>).map((r) => ({
         brandPresent: r.brandMentioned,
         rivals: rivalsFromCompetitors(r.competitors as any[]),
       })),
-      site.name,
+      gorunenAd,
     );
 
     // Marka ailesi (22.11.2026): diger adlar tanimliysa cevaplarda hangi adin gectigi sayilir
@@ -124,7 +126,7 @@ export class ClientReportService {
 
     const headline = manset?.headline;
     return {
-      site: { name: site.name, url: site.url },
+      site: { name: gorunenAd, url: site.url },
       audit: audit
         ? {
           ranAt: audit.ranAt,

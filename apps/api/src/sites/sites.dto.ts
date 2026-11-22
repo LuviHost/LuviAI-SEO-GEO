@@ -69,6 +69,10 @@ export class UpdateSiteDto {
   @IsOptional() @IsArray() @ArrayMaxSize(MAX_BRAND_ALIASES)
   @IsString({ each: true }) @MaxLength(MAX_BRAND_ALIAS_LEN, { each: true })
   brandAliases?: string[];
+
+  /** Panel ve raporda gosterilen ad (yalniz gosterim). Bos dize = kaldir. Yalniz yonetici yazar. */
+  @IsOptional() @IsString() @MaxLength(80)
+  brandDisplay?: string;
 }
 
 /** POST /sites/detect-niche { url } — adres denetimi assertSiteUrlAllowed'da */
