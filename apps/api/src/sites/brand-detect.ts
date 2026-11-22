@@ -51,6 +51,8 @@ const compact = (s: string) => asciiFold(s).replace(/[^a-z0-9]/g, '');
 function temizle(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   let s = raw.replace(/\s+/g, ' ').trim();
+  // "Ornek Etkinlikleri.com" → "Ornek Etkinlikleri": bitisik alan adi uzantisi ad degildir
+  s = s.replace(/\.(?:com|net|org|co|io|ai|app|com\.tr|net\.tr|org\.tr|tr)$/i, '').trim();
   for (let i = 0; i < 3 && LEGAL_SUFFIX.test(s); i++) s = s.replace(LEGAL_SUFFIX, '').trim();
   if (s.length < 2 || s.length > MAX_BRAND_ALIAS_LEN) return null;
   if (!/[a-zA-ZçğıöşüÇĞİÖŞÜ]/.test(s)) return null;
@@ -100,8 +102,14 @@ export function kisaAd(tamAd: string, kok: string): string | null {
 export function detectBrandName(page: BrandDetectInput | null | undefined, siteUrl: string): DetectedBrand | null {
   if (!page) return null;
   let kok = '';
+  // Alt alan adinda calisan site (urun.anasirket.com): ana sayfa meta'si cogu zaman ana
+  // sirketin adini tasir. Kok alt alan adidir ve yalniz onunla ortusen ad kabul edilir.
+  let altAlan = false;
   try {
-    kok = compact(registrableDomain(new URL(siteUrl).hostname).split('.')[0] ?? '');
+    const host = new URL(siteUrl).hostname.toLowerCase().replace(/^www\./, '');
+    const reg = registrableDomain(host);
+    altAlan = host !== reg && host.endsWith(`.${reg}`);
+    kok = compact((altAlan ? host.slice(0, -reg.length - 1).split('.').pop() : reg.split('.')[0]) ?? '');
   } catch { /* adres bozuksa kok yok */ }
 
   const adaylar: Array<{ ad: string; kaynak: Kaynak }> = [];
@@ -127,7 +135,7 @@ export function detectBrandName(page: BrandDetectInput | null | undefined, siteU
 
   const kokOrtusur = (k: string) => !!kok && (k === kok || (kok.length >= 4 && k.startsWith(kok)) || (k.length >= 4 && kok.startsWith(k)));
   const kabul = [...gruplar.entries()]
-    .filter(([k, g]) => g.kaynaklar.size >= 2 || kokOrtusur(k))
+    .filter(([k, g]) => (altAlan ? false : g.kaynaklar.size >= 2) || kokOrtusur(k))
     .sort((a, b) => b[1].kaynaklar.size - a[1].kaynaklar.size || a[1].sira - b[1].sira);
   if (kabul.length === 0) return null;
 
