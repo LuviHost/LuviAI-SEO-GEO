@@ -232,6 +232,14 @@ model Site {
    * da doldurulur. Rakip/sorgu ureten tum servisler ONCE bunu kullanir.
    */
   customNiche String?
+  /**
+   * Markanin DIGER adlari (22.11.2026, "marka ailesi"): urun markalari, alt markalar, sirket
+   * unvani. Ornek tokeninc.com: ["Token", "Beko", "Token Sign", "TokenFlex"] — cihazlar Beko
+   * adiyla satiliyor, cevapta "Beko X30 TR" gecmesi Token'in anilmasidir. Olcum cevapta ana ad
+   * (name) YA DA bunlardan birini arar (audit/brand-in-query.ts brandMatcher). Dize dizisi;
+   * temizleme ve sinirlar cleanBrandAliases'ta. null/bos = yalniz ana ad (eski davranis).
+   */
+  brandAliases Json?
   language    String     @default("tr") // tr | en | both
   status      SiteStatus @default(ONBOARDING)
 
@@ -2382,6 +2390,9 @@ model GeoPromptRun {
    * "taninirlik" olarak raporlanir. bkz. audit/brand-in-query.ts
    */
   brandInQuery   Boolean @default(false)
+  /// Cevapta markanin HANGI adla gectigi (ana ad ya da Site.brandAliases'tan biri); anilmadiysa null.
+  /// Musteri raporu "hangi adla anildi" kirilimini buradan sayar (22.11.2026).
+  brandMatch     String? @db.VarChar(80)
   /**
    * Marka cevapta kacinci paragrafta gecti (1 = en ust)
    */

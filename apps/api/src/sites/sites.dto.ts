@@ -2,6 +2,7 @@ import {
   ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, IsUrl, Matches, Max, MaxLength, Min,
 } from 'class-validator';
 import { SITE_URL_MESSAGES } from './site-url-policy.js';
+import { MAX_BRAND_ALIASES, MAX_BRAND_ALIAS_LEN } from '../audit/brand-in-query.js';
 
 /*
  * TIP DOGRULAMASI NEDEN: yalniz @IsOptional() tasiyan alan whitelist'ten
@@ -60,6 +61,14 @@ export class UpdateSiteDto {
   // completeOnboarding 7 yazar
   @IsOptional() @IsInt() @Min(0) @Max(7) onboardingStep?: number;
   @IsOptional() @IsBoolean() autopilot?: boolean;
+  /**
+   * Marka ailesi (22.11.2026): ana addan baska adlar — urun markalari, alt markalar, unvan.
+   * Olcum cevapta bunlardan birini gorurse markayi anilmis sayar (audit/brand-in-query.ts).
+   * Servis ayrica temizler (cleanBrandAliases): tekrar, cok kisa ve ana adla ayni olan atilir.
+   */
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_BRAND_ALIASES)
+  @IsString({ each: true }) @MaxLength(MAX_BRAND_ALIAS_LEN, { each: true })
+  brandAliases?: string[];
 }
 
 /** POST /sites/detect-niche { url } — adres denetimi assertSiteUrlAllowed'da */

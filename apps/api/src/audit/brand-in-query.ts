@@ -196,6 +196,104 @@ function derivedStems(brand: string, host: string | null | undefined): string[] 
   return compactStems.filter((s) => s === b || tokens.includes(s));
 }
 
+// ────────────────────────────────────────────────────────────
+//  MARKA AILESI (22.11.2026)
+// ────────────────────────────────────────────────────────────
+//
+// NEDEN: tek ad tutuluyordu. tokeninc.com olcumunde ad "tokeninc" idi; cevaplar
+// sirketi "Token", cihazlarini "Beko X30 TR" diye aniyordu — ikisi de "anilmadi"
+// sayildi (sahip: "marka adi tokeninc, urunleri Beko"). Marka ailesi: ana ad
+// (Site.name, eski kurallarla) + diger adlar (Site.brandAliases). Cevapta herhangi
+// biri gecerse marka anilmis sayilir ve HANGI adin gectigi probe'a yazilir.
+//
+// DIGER ADLARIN KURALI (ana addan farkli, bilerek):
+//  - Kelime sinirli eslesme (ana adla ayni), jenerik koruma yok: adi kullanici
+//    elle yazdi, alan adindan tahmin edilmedi.
+//  - BUYUK HARF KURALI: ad buyuk harfle yazildiysa CEVAPTA da buyuk harfle
+//    baslamali. "Token" ozel adi ile odeme metnindeki "kart bilgisi token'a
+//    donusturulur" ayrilsin diye. Ana ada uygulanmaz (eski olcumler degismesin).
+//  - SORUDA (brandInQuery) buyuk harf aranmaz: soruda "beko" gecmesi de soruyu
+//    markali yapar. Bu tutucu yondur — supheli soru markasiz havuzdan cikar, skor
+//    sismez.
+//
+// SURUM: CITATION_MATCH_VERSION artirilmadi. Kural yalniz diger adi girilmis
+// sitelerde degisir; genel surum artsaydi tum musterilerin haftalik kiyasi sahte
+// "yontem degisti" gosterirdi. Ad ekleyen sitenin onceki olcumleri dar kuralla
+// yapilmistir — rapor/kiyas metni bunu soyler.
+
+/** Diger ad sayisi ve uzunluk siniri — panel ve API ayni kurali kullanir */
+export const MAX_BRAND_ALIASES = 15;
+export const MAX_BRAND_ALIAS_LEN = 60;
+
+export interface BrandFamily {
+  /** Ana ad (resolveSiteBrand sonucu) */
+  readonly name: string;
+  /** Diger adlar (cleanBrandAliases'tan gecmis) */
+  readonly aliases: readonly string[];
+}
+
+/** Eski cagiranlar yalin ad gecer; marka ailesini bilenler BrandFamily */
+export type BrandRef = string | BrandFamily;
+
+export function brandNameOf(ref: BrandRef | null | undefined): string {
+  if (!ref) return '';
+  return typeof ref === 'string' ? ref : ref.name;
+}
+
+export function brandAliasesOf(ref: BrandRef | null | undefined): readonly string[] {
+  return ref && typeof ref !== 'string' ? ref.aliases : [];
+}
+
+/**
+ * Diger adlar listesini temizler: dize olmayan, cok kisa (MIN_BRAND_LEN, katlanmis),
+ * cok uzun, ana adla ya da birbiriyle (katlanmis) ayni olanlar atilir; en fazla
+ * MAX_BRAND_ALIASES. Girdi DB'deki JSON ya da panelden gelen dizi olabilir.
+ */
+export function cleanBrandAliases(raw: unknown, primary?: string | null): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const primaryFolded = foldForMatch(primary || '').trim();
+  if (primaryFolded) seen.add(primaryFolded);
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const ad = v.replace(/\s+/g, ' ').trim();
+    if (!ad || ad.length > MAX_BRAND_ALIAS_LEN) continue;
+    const folded = foldForMatch(ad).trim();
+    if (folded.length < MIN_BRAND_LEN || seen.has(folded)) continue;
+    seen.add(folded);
+    out.push(ad);
+    if (out.length >= MAX_BRAND_ALIASES) break;
+  }
+  return out;
+}
+
+/** Sitenin marka ailesi — olcum ve rapor ayni yoldan okur */
+export function resolveSiteBrandFamily(site: { name: string | null; url: string; brandAliases?: unknown }): BrandFamily {
+  const name = resolveSiteBrand(site.name, site.url);
+  return { name, aliases: cleanBrandAliases(site.brandAliases, name) };
+}
+
+/** Ad buyuk harfle mi yaziliyor (ilk harf) — buyuk harf kuralinin tetigi */
+function startsUpper(s: string): boolean {
+  const c = s.trim().charAt(0);
+  return !!c && c !== c.toLocaleLowerCase('tr') && c === c.toLocaleUpperCase('tr');
+}
+
+/**
+ * Katlanmis metinde `foldedName` in kelime sinirli TUM eslesmeleri; `accept(start)` false
+ * donen eslesme atlanir. Doner: adin GERCEK baslangic indeksi (sol sinir karakteri haric).
+ */
+function firstWordMatch(folded: string, foldedName: string, accept?: (start: number) => boolean): number | null {
+  if (foldedName.length < MIN_BRAND_LEN) return null;
+  const re = new RegExp(`(?:^|[^${WORD_CHARS}])(${escapeRegex(foldedName)})(?=$|[^${WORD_CHARS}])`, 'g');
+  for (const m of (folded || '').matchAll(re)) {
+    const start = (m.index ?? 0) + m[0].length - m[1].length;
+    if (!accept || accept(start)) return start;
+  }
+  return null;
+}
+
 export type BrandMatchMode = 'word' | 'domain';
 
 /**
@@ -208,36 +306,91 @@ export function brandMatchMode(brand: string, host?: string | null): BrandMatchM
   return derivedStems(brand, host).some((s) => isGenericToken(s)) ? 'domain' : 'word';
 }
 
+/** Cevaptaki ilk marka eslesmesi (ana ad ya da diger ad) */
+export interface BrandHit {
+  /** indexInFolded ile ayni anlam: ana adda sol sinir karakteri dahil, diger adda adin basi */
+  readonly index: number;
+  /** Adin metindeki gercek baslangici */
+  readonly start: number;
+  /** Eslesen ad, kullanicinin yazdigi bicimde (alan adi modunda host) */
+  readonly name: string;
+  /** Eslesmenin uzunlugu — ton penceresi icin */
+  readonly length: number;
+}
+
 export interface BrandMatcher {
+  /** Ana ad */
   readonly brand: string;
+  /** Diger adlar (marka ailesi) */
+  readonly aliases: readonly string[];
   /** www'suz, kucuk harf; bilinmiyorsa bos */
   readonly host: string;
+  /** Ana adin esleme modu (diger adlar her zaman kelime modunda) */
   readonly mode: BrandMatchMode;
-  /** ONCEDEN KATLANMIS metinde ilk eslesme indeksi (word modunda brandMatchIndexFolded ile ayni anlam) */
+  /**
+   * ONCEDEN KATLANMIS metinde ilk eslesme indeksi (word modunda brandMatchIndexFolded ile ayni
+   * anlam). Diger adlar buyuk harf kuralSIZ aranir — soru tarafinin (brandInQuery) davranisi.
+   */
   indexInFolded(foldedText: string): number | null;
-  /** Eslesmenin uzunlugu — ton penceresi icin */
+  /**
+   * Cevap tarafi: ilk eslesme ve HANGI adin gectigi. `original` katlanmis metinle ayni
+   * uzunlukta katlanmamis metinse buyuk harf kurali uygulanir; verilmezse uygulanmaz.
+   */
+  matchInFolded(foldedText: string, original?: string | null): BrandHit | null;
+  /** Ana adin eslesme uzunlugu — ton penceresi icin (diger ad eslesmesinde BrandHit.length) */
   readonly matchLength: number;
-  /** Ham metinde marka geciyor mu */
+  /** Ham metinde marka (ailesinden bir ad) geciyor mu — buyuk harf kuralsiz */
   inText(text: string): boolean;
 }
 
 /**
  * Cevapta anilma ve soruda marka — IKISI de bu nesneden gecmeli; yoksa
  * markasiz havuz kendi icinde tutarsiz olur (dosya basindaki not).
+ * `brand` yalin ad ya da marka ailesi (BrandFamily) olabilir.
  */
-export function brandMatcher(brand: string, host?: string | null): BrandMatcher {
+export function brandMatcher(brandRef: BrandRef, host?: string | null): BrandMatcher {
+  const brand = brandNameOf(brandRef);
+  const aliases = brandAliasesOf(brandRef);
   const h = (host || '').toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
   const mode = brandMatchMode(brand, h);
   const brandFolded = foldForMatch(brand || '').trim();
-  const indexInFolded = mode === 'domain'
+  const primaryIndex = mode === 'domain'
     ? (folded: string) => hostMentionIndex(folded || '', h)
     : (folded: string) => brandMatchIndexFolded(folded, brandFolded);
+  const primaryLength = mode === 'domain' ? h.length : brandFolded.length;
+  const aliasRules = aliases.map((ad) => ({ ad, folded: foldForMatch(ad).trim(), upper: startsUpper(ad) }));
+
+  const matchInFolded = (folded: string, original?: string | null): BrandHit | null => {
+    let best: BrandHit | null = null;
+    const pIdx = primaryIndex(folded);
+    if (pIdx !== null) {
+      const needle = mode === 'domain' ? h : brandFolded;
+      const s = (folded || '').indexOf(needle, pIdx);
+      best = { index: pIdx, start: s === -1 ? pIdx : s, name: mode === 'domain' ? h : brand, length: primaryLength };
+    }
+    const caseOk = !!original && original.length === (folded || '').length;
+    for (const r of aliasRules) {
+      const start = firstWordMatch(folded, r.folded, r.upper && caseOk
+        ? (st) => { const c = original!.charAt(st); return c !== c.toLocaleLowerCase('tr'); }
+        : undefined);
+      if (start === null) continue;
+      if (!best || start < best.start) best = { index: start, start, name: r.ad, length: r.folded.length };
+    }
+    return best;
+  };
+
+  const indexInFolded = aliasRules.length === 0
+    ? primaryIndex
+    : (folded: string) => matchInFolded(folded)?.index ?? null;
+
   return {
     brand,
+    aliases,
     host: h,
     mode,
     indexInFolded,
-    matchLength: mode === 'domain' ? h.length : brandFolded.length,
+    matchInFolded,
+    matchLength: primaryLength,
     inText: (text: string) => indexInFolded(foldForMatch(text || '')) !== null,
   };
 }
@@ -292,9 +445,9 @@ export function brandMatchIndexFolded(foldedText: string, foldedBrand: string): 
  * AYNI karari vermesi icin alan adi bilinen her yerde verilmeli. Verilmezse
  * eski davranis: yalin, kelime sinirli eslesme.
  */
-export function containsBrand(text: string, brand: string, host?: string | null): boolean {
-  if (host) return brandMatcher(brand, host).inText(text);
-  return brandMatchIndex(text, brand) !== null;
+export function containsBrand(text: string, brand: BrandRef, host?: string | null): boolean {
+  if (host || brandAliasesOf(brand).length > 0) return brandMatcher(brand, host).inText(text);
+  return brandMatchIndex(text, brandNameOf(brand)) !== null;
 }
 
 /**

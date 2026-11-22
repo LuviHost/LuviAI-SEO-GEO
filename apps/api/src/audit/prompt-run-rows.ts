@@ -27,6 +27,8 @@ export function promptRunRows(
       date,
       cited: !!probe.cited,
       brandMentioned: !!probe.brandMentioned,
+      // Hangi adla anildi (marka ailesi) — musteri raporunun ad kirilimi buradan sayar
+      brandMatch: probe.brandMentioned && probe.brandMatch ? probe.brandMatch.slice(0, 80) : null,
       // Sorunun KENDISINDE marka geciyorsa bu satir manset gorunurluk metriklerine girmez.
       // Deger buildProbe'un damgasindan gelir — kural tek kod yolunda yasar.
       brandInQuery: probe.brandInQuery ?? false,

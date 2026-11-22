@@ -16,7 +16,7 @@ const TAKIP_SORU_UST_SINIR = 50;
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
 import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
-import { brandMatcher, resolveSiteBrand, unbrandedOnly } from './brand-in-query.js';
+import { brandAliasesOf, brandMatcher, brandNameOf, resolveSiteBrand, resolveSiteBrandFamily, unbrandedOnly, type BrandFamily, type BrandRef } from './brand-in-query.js';
 import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
 import { citationScore, isErrorProbe, measuredOnly, providerOutcome } from './citation-score.js';
@@ -58,6 +58,11 @@ export interface CitationProbe {
    * eski karisik yontemden kalmadir).
    */
   brandInQuery?: boolean;
+  /**
+   * Cevapta markanin HANGI adla gectigi: ana ad ya da Site.brandAliases'tan biri (marka
+   * ailesi, 22.11.2026; brand-in-query.ts). Anilmadiysa yok. Eski kayitlarda yok.
+   */
+  brandMatch?: string;
   excerpt?: string;
   /** Marka response'ta hangi paragraf sırasında ilk geçti. 1 = en üstte, daha yüksek = aşağıda, null = hiç geçmedi */
   position?: number | null;
@@ -607,6 +612,14 @@ export class AiCitationService {
   }
 
   /**
+   * Olcumde aranan marka ailesi: ana ad (resolveBrand ile ayni kural) + Site.brandAliases.
+   * Diger ad yoksa sonuc eski tek adli olcumle birebir ayni (brand-in-query.ts MARKA AILESI).
+   */
+  private resolveBrandFamily(site: { name: string | null; url: string; brandAliases?: unknown }): BrandFamily {
+    return resolveSiteBrandFamily(site);
+  }
+
+  /**
    * Sitenin marka adi — olcumde kullanilanin AYNISI.
    *
    * PromptLabService satir yazarken "soruda marka gecti mi" sorusunu
@@ -624,7 +637,7 @@ export class AiCitationService {
   }
 
   /** Rakip listesi — brain'den + ASO modulunden (aso_competitors tablosu varsa) */
-  private async resolveCompetitors(siteId: string, brain: any, brand: string): Promise<string[]> {
+  private async resolveCompetitors(siteId: string, brain: any, brand: BrandRef): Promise<string[]> {
     const competitors: string[] = [];
     const brainComps: any = brain?.competitors;
     if (Array.isArray(brainComps)) {
@@ -640,8 +653,12 @@ export class AiCitationService {
       ).catch(() => []);
       for (const c of asoComps ?? []) if (c.name) competitors.push(c.name);
     } catch { /* table yoksa sessiz geç */ }
+    // Marka ailesinden bir adi tasiyan "rakip" (Token icin "Beko (Arcelik)") rakip degildir:
+    // hem ses payinda markaya karsi sayilir hem cevapta markanin kendisi rakip diye isaretlenirdi.
+    const aile = brandAliasesOf(brand).length > 0 ? brandMatcher({ name: brandNameOf(brand), aliases: brandAliasesOf(brand) }) : null;
+    const ad = brandNameOf(brand).toLowerCase();
     return Array.from(new Set(
-      competitors.map((c) => c.trim()).filter((c) => c.length >= 3 && c.toLowerCase() !== brand.toLowerCase()),
+      competitors.map((c) => c.trim()).filter((c) => c.length >= 3 && c.toLowerCase() !== ad && !(aile && aile.inText(c))),
     ));
   }
 
@@ -681,7 +698,7 @@ export class AiCitationService {
     if (!site) return [];
 
     const plan = site.user.plan;
-    const brand = this.resolveBrand(site.name, site.url);
+    const brand = this.resolveBrandFamily(site);
     const competitors = await this.resolveCompetitors(siteId, site.brain, brand);
 
     // Plan kapsami (11.11.2026): Baslangic ve deneme dort asistanla olculur; cagiranin
@@ -860,7 +877,7 @@ export class AiCitationService {
       }
     }
 
-    const brand = this.resolveBrand(site.name, site.url);
+    const brand = this.resolveBrandFamily(site);
     const url = site.url;
     const seo: any = site.brain?.seoStrategy ?? {};
     const queries: string[] = [];
@@ -1041,7 +1058,7 @@ export class AiCitationService {
   }
 
   /** Public aggregate — PublicCitationService bunu cagirir, kendi shareOfVoice'unu hesaplar. */
-  publicAggregate(probes: CitationProbe[], brand: string) {
+  publicAggregate(probes: CitationProbe[], brand: BrandRef) {
     return this.aggregateProbes(probes, brand);
   }
 
@@ -1164,7 +1181,7 @@ export class AiCitationService {
     provider: Provider,
     siteId: string,
     plan: string,
-    brand: string,
+    brand: BrandRef,
     url: string,
     queries: string[],
     competitors: string[] = [],
@@ -1302,7 +1319,7 @@ export class AiCitationService {
 
   /** Bir saglayiciya tum sorulari BIR KEZ sorar (tek tur) — runProvider her tekrar icin ayri cagirir */
   private async probeTur(
-    provider: Provider, key: string, host: string, brand: string,
+    provider: Provider, key: string, host: string, brand: BrandRef,
     queries: string[], systemPrompt: string, competitors: string[],
     /** Model kademesi — verilmezse gelismis (anonim test, karne, App Prompt Lab eski davranisi) */
     tier: ModelTier = 'premium',
@@ -1350,7 +1367,7 @@ export class AiCitationService {
    * Sunucu tarafi refusal fallback'i bilerek KULLANILMIYOR: baska modelin
    * cevabi "Claude ne diyor" olcumunu bozar; refusal HATA satiri olur.
    */
-  private async probeAnthropic(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = [], tier: ModelTier = 'premium'): Promise<CitationProbe[]> {
+  private async probeAnthropic(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = [], tier: ModelTier = 'premium'): Promise<CitationProbe[]> {
     const client = new Anthropic({ apiKey: key, maxRetries: 3, timeout: 120_000 });
     const model = this.modelFor('anthropic', tier);
     // Arama araci surumu modele gore: dinamik filtreli 20260209 Opus/Sonnet 4.6+ icin;
@@ -1423,7 +1440,7 @@ export class AiCitationService {
    * gorunmuyordu. Kaynaklar groundingChunks'ta: uri bir yonlendirme adresi,
    * title ise kaynagin alan adi ("bankateklifi.com").
    */
-  private async probeGemini(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+  private async probeGemini(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
     const client = new GoogleGenAI({ apiKey: key });
     const probes: CitationProbe[] = [];
     for (const q of queries) {
@@ -1458,7 +1475,7 @@ export class AiCitationService {
    * icin olcum her seferinde aramali yapilir (tutarli kiyas). Kaynaklar
    * output_text.annotations icinde url_citation olarak gelir.
    */
-  private async probeOpenAI(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = [], tier: ModelTier = 'premium'): Promise<CitationProbe[]> {
+  private async probeOpenAI(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = [], tier: ModelTier = 'premium'): Promise<CitationProbe[]> {
     const model = this.modelFor('openai', tier);
     const probes: CitationProbe[] = [];
     for (const q of queries) {
@@ -1492,7 +1509,7 @@ export class AiCitationService {
     return probes;
   }
 
-  private async probePerplexity(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+  private async probePerplexity(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
@@ -1540,7 +1557,7 @@ export class AiCitationService {
    * Claude'daki kural: yalniz arama sonuclarinda gorunmek, model okudu ama
    * onermedi demektir. tool_choice zorlanmaz (dokumanda yok); arama talimatla istenir.
    */
-  private async probeXai(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+  private async probeXai(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
     return this.probeResponsesWebSearch('Grok', 'https://api.x.ai/v1/responses', this.MODELS.xai, 1500, key, host, brand, queries, systemPrompt, competitors);
   }
 
@@ -1552,7 +1569,7 @@ export class AiCitationService {
    */
   private async probeResponsesWebSearch(
     label: string, url: string, model: string, maxOutputTokens: number,
-    key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[],
+    key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[],
   ): Promise<CitationProbe[]> {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
@@ -1597,7 +1614,7 @@ export class AiCitationService {
    * sonuclarinda gorunmek alinti sayilmaz; Claude ile ayni kural).
    * Arama hatasi Claude'daki gibi yeniden denenir, olmazsa HATA satiri.
    */
-  private async probeDeepseek(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+  private async probeDeepseek(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
     const client = new Anthropic({ apiKey: key, baseURL: 'https://api.deepseek.com/anthropic', maxRetries: 3, timeout: 120_000 });
     const probes: CitationProbe[] = [];
     for (const q of queries) {
@@ -1657,7 +1674,7 @@ export class AiCitationService {
    * Model aramaya kendi karar verir (dokuman: "arama garantisi yok"); arama
    * talimatla istenir, tool_choice zorlanmaz.
    */
-  private async probeMeta(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+  private async probeMeta(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
     return this.probeResponsesWebSearch('Meta Muse', 'https://api.meta.ai/v1/responses', this.MODELS.meta, 3000, key, host, brand, queries, systemPrompt, competitors);
   }
 
@@ -1676,7 +1693,7 @@ export class AiCitationService {
    * Anahtar Basic kimliktir ("login:parola"nin base64'u), Bearer degil.
    */
   private async probeGoogleSurface(
-    surface: GoogleSurface, key: string, host: string, brand: string, queries: string[], competitors: string[] = [],
+    surface: GoogleSurface, key: string, host: string, brand: BrandRef, queries: string[], competitors: string[] = [],
   ): Promise<CitationProbe[]> {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
@@ -1809,7 +1826,7 @@ export class AiCitationService {
     return citationScore(probes);
   }
 
-  private buildProbe(query: string, text: string, host: string, brand: string, competitors: string[] = []): CitationProbe {
+  private buildProbe(query: string, text: string, host: string, brand: BrandRef, competitors: string[] = []): CitationProbe {
     // Eslesmeler HAM metin uzerinde degil normalize edilmis metin uzerinde
     // yapilir. Ham metinde `"İddaa".toLowerCase()` = `i` + U+0307 ureterek
     // regex'i sessizce kirmisti: İ ile baslayan her Turkce marka, cevapta
@@ -1819,7 +1836,7 @@ export class AiCitationService {
     // Indeks tabanli slice yalnizca uzunluklar esitken guvenli.
     const ctxSource = sameLength(baseText, folded) ? baseText : folded;
 
-    const brandFolded = foldForMatch(brand || '').trim();
+    const brandFolded = foldForMatch(brandNameOf(brand)).trim();
     // Marka mention'a sahte match yok — word boundary + minimum 4 karakter zorunlu.
     //
     // Kural artik brand-in-query.ts'te TEK yerde duruyor. Sebebi: ayni olcut
@@ -1834,8 +1851,13 @@ export class AiCitationService {
     // Jenerik marka korumasi (CITATION_MATCH_VERSION 4): alan adindan
     // turetilmis "emlak"/"sigorta" gibi bir markada yalin kelime sayilmaz,
     // yalniz alan adi gecisi sayilir — cevap ve soru AYNI matcher'dan gecer.
+    //
+    // Marka ailesi (22.11.2026): ana ad ya da Site.brandAliases'tan biri; hangi adin
+    // gectigi brandMatch'e yazilir. Buyuk harf kurali icin katlanmamis metin, ayni
+    // uzunluktaysa verilir (brand-in-query.ts MARKA AILESI).
     const matcher = brandMatcher(brand, host);
-    const brandFirstIdx = matcher.indexInFolded(folded);
+    const hit = matcher.matchInFolded(folded, sameLength(baseText, folded) ? baseText : null);
+    const brandFirstIdx = hit ? hit.index : null;
     const brandMentioned = brandFirstIdx !== null;
     // Sorgu kimligi — tum saglayicilar buradan gectigi icin tek damga noktasi.
     const brandInQuery = matcher.inText(query);
@@ -1857,7 +1879,7 @@ export class AiCitationService {
     let sentiment: 'positive' | 'neutral' | 'negative' | null = null;
     if (brandMentioned && brandFirstIdx !== null) {
       const ctxStart = Math.max(0, brandFirstIdx - 80);
-      const ctxEnd = Math.min(ctxSource.length, brandFirstIdx + matcher.matchLength + 80);
+      const ctxEnd = Math.min(ctxSource.length, brandFirstIdx + (hit?.length ?? matcher.matchLength) + 80);
       // Sentiment kaliplari Turkce harf iceriyor ('sıkıntı', 'kullanışlı') —
       // bu yuzden I-katlamasi YAPILMAMIS metin uzerinde arama yapilir.
       const ctx = ctxSource.slice(ctxStart, ctxEnd).toLowerCase();
@@ -1885,8 +1907,7 @@ export class AiCitationService {
       const s = folded.indexOf(needle, idx);
       return s === -1 ? idx : s;
     };
-    const brandNeedle = matcher.mode === 'domain' ? matcher.host : brandFolded;
-    const brandStart = brandFirstIdx === null ? null : startOf(brandNeedle, brandFirstIdx);
+    const brandStart = hit ? hit.start : null;
     for (const compRaw of competitors) {
       // Rakip adlarinda da ayni İ hatasi vardi — orn. "İddaa.com" hicbir zaman
       // sayilmiyordu (ofsayt.com rakip listesinde gercek ornek).
@@ -1908,7 +1929,7 @@ export class AiCitationService {
           mentions: matches.length,
           positionFirst: ilk,
           ...(brandStart !== null && compStart !== null
-            ? { beforeBrand: compStart < brandStart || (compStart === brandStart && comp.length > brandNeedle.length) }
+            ? { beforeBrand: compStart < brandStart || (compStart === brandStart && comp.length > (hit?.length ?? 0)) }
             : {}),
         });
       }
@@ -1926,6 +1947,7 @@ export class AiCitationService {
       // adlarini da 'alintilandi' sayiyordu. Olcum surumu: CITATION_MATCH_VERSION.
       cited: hostMentioned(folded, host),
       brandMentioned,
+      ...(hit ? { brandMatch: hit.name } : {}),
       brandInQuery,
       excerpt: baseText.slice(0, 220),
       position,
@@ -2033,7 +2055,7 @@ export class AiCitationService {
    *                   "kac cevapta gecti" demektir (probe basina en fazla 1),
    *                   ham anilma adedi degil — bkz. hesap yerindeki not.
    */
-  private aggregateProbes(probes: CitationProbe[], brand: string): {
+  private aggregateProbes(probes: CitationProbe[], brand: BrandRef): {
     avgPosition: number | null;
     sentimentMix: { positive: number; neutral: number; negative: number; absent: number };
     shareOfVoice: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>;
@@ -2082,7 +2104,7 @@ export class AiCitationService {
         ...(p.mentionedDomains ?? []),
       ],
     }));
-    const shareOfVoice = shareOfVoiceList(observations, brand);
+    const shareOfVoice = shareOfVoiceList(observations, brandNameOf(brand));
 
     return { avgPosition, sentimentMix: mix, shareOfVoice };
   }

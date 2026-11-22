@@ -177,6 +177,11 @@ export interface RaporAi {
     sesPayiListesi: Olculebilir<{ liste: Array<{ ad: string; anilma: number; yuzde: number; marka: boolean }> }>;
   };
   yontemNotu: string;
+  /**
+   * Marka ailesi (22.11.2026): markanin cevaplarda HANGI adla gectigi — yalniz sitede diger adlar
+   * (Site.brandAliases) tanimliyken. Sayi: o adla anilan markasiz cevap. Yoksa alan yok.
+   */
+  markaAdlari?: Array<{ ad: string; cevap: number }>;
 }
 
 export interface RaporAksiyon {

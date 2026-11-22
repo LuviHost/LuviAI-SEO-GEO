@@ -22,6 +22,9 @@ export default function SettingsPage() {
   // farkli: o, niche kolonuna yaziliyor; bu, spesifik kategori olarak saklaniyor.
   const [specificCategory, setSpecificCategory] = useState<string>(site.customNiche ?? '');
   const [language, setLanguage] = useState(site.language ?? 'tr');
+  // Marka ailesi (22.11.2026): ana addan baska adlar — virgulle ayrilmis tek alan
+  const kayitliAdlar = aliasText(site.brandAliases);
+  const [aliases, setAliases] = useState<string>(kayitliAdlar);
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [brainJustReady, setBrainJustReady] = useState(false);
@@ -34,12 +37,14 @@ export default function SettingsPage() {
     setCustomNiche(site.niche && !NICHES.includes(site.niche as any) ? site.niche : '');
     setSpecificCategory(site.customNiche ?? '');
     setLanguage(site.language ?? 'tr');
-  }, [site.id, site.name, site.niche, site.customNiche, site.language]);
+    setAliases(aliasText(site.brandAliases));
+  }, [site.id, site.name, site.niche, site.customNiche, site.language, site.brandAliases]);
 
   const useCustomNiche = niche === 'diğer' || niche === 'custom';
   const isDirty =
     name.trim() !== site.name ||
     language !== (site.language ?? 'tr') ||
+    aliasList(aliases).join('|') !== aliasList(kayitliAdlar).join('|') ||
     specificCategory.trim() !== (site.customNiche ?? '') ||
     (useCustomNiche
       ? customNiche.trim() !== (site.niche ?? '')
@@ -55,6 +60,7 @@ export default function SettingsPage() {
         niche: finalNiche,
         customNiche: specificCategory.trim() || null,
         language,
+        brandAliases: aliasList(aliases),
       });
       toast.success('Ayarlar kaydedildi');
       await refresh?.();
@@ -145,6 +151,21 @@ export default function SettingsPage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Örn: RanksUp"
           />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-label text-muted-foreground">
+            Diğer marka adları <span className="font-normal">(isteğe bağlı)</span>
+          </label>
+          <Input
+            value={aliases}
+            onChange={(e) => setAliases(e.target.value)}
+            placeholder="Örn: ürün markası, alt marka, şirket unvanı"
+          />
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Ürün ya da alt marka adlarını virgülle ayırarak yaz. AI cevabında bunlardan biri geçerse markan anılmış sayılır ve raporda hangi adla anıldığın görünür.
+            Büyük harfle yazdığın ad cevapta da büyük harfle geçmeli; böylece aynı yazılan sıradan bir kelime marka sayılmaz. En fazla {MAX_ALIASES} ad.
+          </p>
         </div>
 
         <div>
@@ -276,4 +297,25 @@ export default function SettingsPage() {
       </div>
     </div>
   );
+}
+
+/** Panel kurali API ile ayni (audit/brand-in-query.ts MAX_BRAND_ALIASES); API ayrica temizler */
+const MAX_ALIASES = 15;
+
+function aliasText(v: unknown): string {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').join(', ') : '';
+}
+
+function aliasList(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of text.split(',')) {
+    const ad = raw.replace(/\s+/g, ' ').trim();
+    const key = ad.toLocaleLowerCase('tr');
+    if (!ad || seen.has(key)) continue;
+    seen.add(key);
+    out.push(ad);
+    if (out.length >= MAX_ALIASES) break;
+  }
+  return out;
 }
