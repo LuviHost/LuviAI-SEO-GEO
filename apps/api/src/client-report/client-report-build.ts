@@ -82,6 +82,8 @@ export interface RaporGirdisi {
   ajanHazirligi: { score: number | null; measured: boolean; reason: string | null; ranAt: string | null } | null;
   /** Prompt Lab'de takip edilen sorularin son olcum gunu (soru x asistan satirlari); eski cagiranlarda yok */
   takipSorulari?: TakipSorusuSatiri[];
+  /** Marka ailesi ad kirilimi (servis sayar); sitede diger ad yoksa yok */
+  markaAdlari?: Array<{ ad: string; cevap: number }>;
 }
 
 export interface TakipSorusuSatiri {
@@ -93,6 +95,8 @@ export interface TakipSorusuSatiri {
   cited: boolean;
   brandMentioned: boolean;
   brandInQuery: boolean;
+  /** GeoPromptRun.brandMatch — hangi adla anildi (marka ailesi); eski satirlarda yok */
+  brandMatch?: string | null;
   /** GeoPromptRun.sources (CitationSource[]: { url, host, ... }) */
   sources: unknown;
 }
@@ -768,6 +772,7 @@ function aiDerle(g: RaporGirdisi): RaporAi {
         : olculemedi(OLCULMEDI),
     },
     yontemNotu: AI_SKOR_YONTEMI,
+    ...(g.markaAdlari?.length ? { markaAdlari: g.markaAdlari } : {}),
   };
 }
 
@@ -990,8 +995,21 @@ export function ozetMetni(r: Omit<MusteriRaporu, 'ozet'>): string[] {
   // Soru bazinda bulgular yalniz takip (Prompt Lab) sorulari varken: o zaman sorular
   // musterinin kendi sorulari ve "nerede gucluyuz / nerede yokuz" soylenebilir
   if (!ai.olcum.olculemedi && (ai.olcum.takipSoru ?? 0) > 0) cekirdek.push(...soruBulgulari(ai.olcum.sorgular));
+  // Marka ailesi: hangi adla anildi (diger adlar tanimliyken; ust sinir bu cumle icin bir artar)
+  const adCumlesi = !ai.olcum.olculemedi ? markaAdlariCumlesi(ai.markaAdlari) : null;
+  if (adCumlesi) cekirdek.push(adCumlesi);
   if (r.aksiyonlar.length > 0) cekirdek.push(`Öncelikli ilk adım: ${noktasiz(r.aksiyonlar[0].baslik)}.`);
-  return cekirdek.slice(0, 7);
+  return cekirdek.slice(0, adCumlesi ? 8 : 7);
+}
+
+/**
+ * "Markanız ... şu adlarla anıldı: Beko (9 cevap) ve Token (4 cevap)." — yalniz marka ailesi
+ * tanimli sitede ve en az bir adla anilma varken; en fazla 5 ad, cok gecenden aza.
+ */
+export function markaAdlariCumlesi(adlar: Array<{ ad: string; cevap: number }> | undefined): string | null {
+  const dolu = (adlar ?? []).filter((x) => x.cevap > 0).slice(0, 5);
+  if (dolu.length === 0) return null;
+  return `Marka adı geçmeyen sorulara verilen cevaplarda markanız şu adlarla anıldı: ${veListesi(dolu.map((x) => `${x.ad} (${x.cevap} cevap)`))}.`;
 }
 
 /** "A", "B" ve "C" */

@@ -1,3 +1,4 @@
+import { cleanBrandAliases, resolveSiteBrand } from '../audit/brand-in-query.js';
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -225,7 +226,7 @@ export class SitesService {
   }
 
   async update(id: string, dto: UpdateSiteDto, user: RequestingUser) {
-    await this.assertOwnership(id, user);
+    const current = await this.assertOwnership(id, user);
     // UpdateSiteDto bugun url tasimiyor (ValidationPipe forbidNonWhitelisted
     // fazlasini reddeder). Ileride eklenirse ya da bir ic cagri url gecirirse
     // kayit anindaki ayni denetimden gecmeden yazilmasin.
@@ -234,6 +235,12 @@ export class SitesService {
     if (rawUrl !== undefined) {
       const checked = await assertSiteUrlAllowed(rawUrl, this.urlResolver);
       data.url = normalizeSiteUrl(checked.toString());
+    }
+    // Marka ailesi: diger adlar temizlenip yazilir (ana adla ayni, tekrar, cok kisa olan atilir).
+    // Ana ad ayni istekte degisiyorsa yenisine gore temizlenir.
+    if (dto.brandAliases !== undefined) {
+      const ana = resolveSiteBrand(dto.name ?? (current as { name?: string | null }).name ?? null, String((data.url as string | undefined) ?? (current as { url: string }).url));
+      data.brandAliases = cleanBrandAliases(dto.brandAliases, ana);
     }
     // Sirlar (ingestSecret, saglayici token'lari) guncelleme cevabinda donmez —
     // eskiden PATCH /sites/:id tam satiri donuyordu

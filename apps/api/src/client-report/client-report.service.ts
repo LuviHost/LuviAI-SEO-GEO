@@ -7,7 +7,7 @@ import { ActionPlansService } from '../action-plans/action-plans.service.js';
 import { readCrawlAccess } from '../sites/crawl-access.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { loadPlanLockedIds } from '../articles/plan-lock.js';
-import { unbrandedOnly } from '../audit/brand-in-query.js';
+import { brandMatcher, resolveSiteBrandFamily, unbrandedOnly } from '../audit/brand-in-query.js';
 import { rivalsFromCompetitors, shareOfVoiceList } from '../audit/share-of-voice.js';
 import { buildClientReport, type RaporGirdisi, type TakipSorusuSatiri } from './client-report-build.js';
 import {
@@ -61,7 +61,7 @@ export class ClientReportService {
   async girdi(siteId: string, now: Date): Promise<RaporGirdisi> {
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      select: { name: true, url: true, userId: true, ingestSecret: true, brain: { select: { competitors: true } } },
+      select: { name: true, url: true, userId: true, ingestSecret: true, brandAliases: true, brain: { select: { competitors: true } } },
     });
     if (!site) throw new NotFoundException('Site bulunamadı');
 
@@ -117,6 +117,11 @@ export class ClientReportService {
       site.name,
     );
 
+    // Marka ailesi (22.11.2026): diger adlar tanimliysa cevaplarda hangi adin gectigi sayilir
+    const family = resolveSiteBrandFamily(site);
+    const aile = family.aliases.length > 0 ? brandMatcher(family) : null;
+    const markaAdlari = aile ? markaAdiKirilimi(takip, kosum?.providers) : undefined;
+
     const headline = manset?.headline;
     return {
       site: { name: site.name, url: site.url },
@@ -148,10 +153,12 @@ export class ClientReportService {
       aksiyonPlani: plan.map((i) => ({
         title: i.title, description: i.description, impact: i.impact, effort: i.effort, status: i.status, source: i.source, sourceRef: i.sourceRef,
       })),
-      rakipler: { tanimli: tanimliRakipler(site.brain?.competitors, site.name), sesPayi: sov },
+      // Marka ailesinden bir adi tasiyan tanimli "rakip" (Token icin "Beko") rapora rakip diye girmez
+      rakipler: { tanimli: tanimliRakipler(site.brain?.competitors, site.name).filter((ad) => !(aile && aile.inText(ad))), sesPayi: sov },
       gorselDuzeltilen: envanterVar ? duzeltilen : null,
       ajanHazirligi: hazirlik,
       takipSorulari: takip,
+      ...(markaAdlari ? { markaAdlari } : {}),
     };
   }
 
@@ -170,7 +177,7 @@ export class ClientReportService {
     if (prompts.length === 0) return [];
     const runs = await this.prisma.geoPromptRun.findMany({
       where: { siteId, fanoutId: null, date: { gte: since }, promptId: { in: prompts.map((x) => x.id) } },
-      select: { promptId: true, provider: true, date: true, cited: true, brandMentioned: true, brandInQuery: true, sources: true },
+      select: { promptId: true, provider: true, date: true, cited: true, brandMentioned: true, brandInQuery: true, brandMatch: true, sources: true },
     });
     const sonGun = new Map<string, number>();
     for (const r of runs) {
@@ -188,6 +195,7 @@ export class ClientReportService {
         cited: r.cited,
         brandMentioned: r.brandMentioned,
         brandInQuery: r.brandInQuery,
+        brandMatch: r.brandMatch,
         sources: r.sources,
       }));
   }
@@ -308,4 +316,32 @@ export function tanimliRakipler(v: unknown, marka: string): string[] {
     if (typeof ad === 'string' && ad.trim().length >= 3 && ad.trim().toLowerCase() !== marka.toLowerCase()) out.push(ad.trim());
   }
   return [...new Set(out)].slice(0, 10);
+}
+
+/**
+ * Marka ailesi ad kirilimi: markasiz cevaplarda markanin HANGI adla gectigi. Kaynaklar raporun
+ * kendi tablosuyla ayni — takip sorularinin son olcum gunu ve son site olcumu kosumu. Adi
+ * bilinmeyen (eski kayit) anilma sayilmaz; cok gecenden aza, esitlikte ada gore.
+ */
+export function markaAdiKirilimi(
+  takip: Array<{ brandMentioned: boolean; brandInQuery: boolean; brandMatch?: string | null }>,
+  kosumProviders: unknown,
+): Array<{ ad: string; cevap: number }> {
+  const sayac = new Map<string, number>();
+  const say = (ad: unknown) => {
+    if (typeof ad !== 'string' || !ad.trim()) return;
+    sayac.set(ad, (sayac.get(ad) ?? 0) + 1);
+  };
+  for (const r of takip) if (r.brandMentioned && !r.brandInQuery) say(r.brandMatch);
+  if (Array.isArray(kosumProviders)) {
+    for (const p of kosumProviders as Array<{ probes?: unknown }>) {
+      if (!Array.isArray(p?.probes)) continue;
+      for (const pr of p.probes as Array<{ brandMentioned?: boolean; brandInQuery?: boolean; brandMatch?: string }>) {
+        if (pr?.brandMentioned && !pr.brandInQuery) say(pr.brandMatch);
+      }
+    }
+  }
+  return [...sayac.entries()]
+    .map(([ad, cevap]) => ({ ad, cevap }))
+    .sort((a, b) => b.cevap - a.cevap || a.ad.localeCompare(b.ad, 'tr'));
 }
