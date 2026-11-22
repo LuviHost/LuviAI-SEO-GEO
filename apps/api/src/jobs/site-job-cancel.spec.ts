@@ -183,6 +183,18 @@ describe('siteJobStates — liste rozeti ve Durdur dugmesinin girdisi', () => {
     // Takvim tetigi "calisan tarama" sayilmaz
     expect(states.get('d')).toEqual({ running: false, canceled: false });
   });
+
+  it('iptalden SONRA olcum yapildiysa "Vazgecildi" degil; kurulumun iptal oncesi olcumu sayilmaz', () => {
+    const scan = new Map([['e', at(0)], ['f', at(0)], ['g', at(0)]]);
+    const states = siteJobStates(['e', 'f', 'g'], [], scan, scan, {
+      canceledAt: new Map([['e', at(10)], ['f', at(10)], ['g', at(10)]]),
+      // e: iptalden sonra elle olculdu; f: yalniz kurulumun kendi olcumu (iptalden once); g: olcum yok
+      lastMeasuredAt: new Map([['e', at(60)], ['f', at(8)]]),
+    });
+    expect(states.get('e')).toEqual({ running: false, canceled: false });
+    expect(states.get('f')).toEqual({ running: false, canceled: true });
+    expect(states.get('g')).toEqual({ running: false, canceled: true });
+  });
 });
 
 describe('SitesService.list — is durumu yalniz yoneticiye', () => {
@@ -192,9 +204,10 @@ describe('SitesService.list — is durumu yalniz yoneticiye', () => {
       job: {
         findMany: vi.fn(async () => [{ siteId: 's2', bullJobId: '5' }]),
         groupBy: vi.fn(async (args: any) => (args.where.status === 'CANCELED'
-          ? [{ siteId: 's1', _max: { queuedAt: T0 } }]
+          ? [{ siteId: 's1', _max: { queuedAt: T0, finishedAt: T0 } }]
           : [{ siteId: 's1', _max: { queuedAt: T0 } }, { siteId: 's2', _max: { queuedAt: T0 } }])),
       },
+      aiCitationRun: { groupBy: vi.fn(async () => [] as any[]) },
     };
     return { s: new SitesService(prisma as any, {} as any, {} as any), prisma };
   }
@@ -208,6 +221,13 @@ describe('SitesService.list — is durumu yalniz yoneticiye', () => {
     ]);
     const groupWhere = (prisma.job.groupBy.mock.calls[0] as any[])[0].where;
     expect(groupWhere.type).toEqual({ in: ['ONBOARDING_CHAIN', 'SITE_AUDIT'] });
+  });
+
+  it('yonetici: iptalden sonra olculen site "Vazgecildi" sayilmaz', async () => {
+    const { s, prisma } = svc();
+    prisma.aiCitationRun.groupBy.mockResolvedValueOnce([{ siteId: 's1', _max: { runAt: new Date(T0.getTime() + 3_600_000) } }]);
+    const rows: any[] = await s.list({ id: 'admin', role: 'ADMIN' });
+    expect(rows.find((r) => r.id === 's1').jobState).toEqual({ running: false, canceled: false });
   });
 
   it('musteri: liste eskisi gibi — ek sorgu ve alan yok', async () => {
