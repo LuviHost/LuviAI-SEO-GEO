@@ -12,6 +12,7 @@ import { SiteFavicon } from '@/components/site-favicon';
 import { Button } from '@/components/ui/button';
 import { SiteSubnav } from '@/components/site-subnav';
 import { siteHref } from '@/lib/site-routes';
+import { siteDisplayName } from '@/lib/site-display';
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
@@ -104,7 +105,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         <PageHeader
           backHref="/dashboard"
           backLabel="Dashboard"
-          title={site.name}
+          title={siteDisplayName(site)}
           actions={
             // Yalniz Genel Bakis'ta: musteriye verilecek rapora tek tikla gecis
             pathname === siteHref(site.id, 'overview') ? (
@@ -115,7 +116,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               </Button>
             ) : undefined
           }
-          leading={<SiteFavicon url={site.url} name={site.name} size="lg" />}
+          leading={<SiteFavicon url={site.url} name={siteDisplayName(site)} size="lg" />}
           meta={
             <a
               href={site.url}

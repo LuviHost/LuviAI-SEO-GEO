@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Settings as SettingsIcon, RefreshCw, Save, Brain, CheckCircle2 } from 'lucide-react';
@@ -12,6 +13,10 @@ import { SectionHeader } from '@/components/ui/section-header';
 
 export default function SettingsPage() {
   const { site, refresh } = useSiteContext();
+  const { data: session } = useSession();
+  // Diger adlar ve gorunen ad yalniz yoneticide (API de musterinin yazdigini yok sayar):
+  // olcumun neyi markanin anilmasi sayacagini belirler
+  const yonetici = session?.user?.role === 'ADMIN';
 
   const [name, setName] = useState(site.name);
   const [niche, setNiche] = useState<string>(site.niche ?? 'diğer');
@@ -25,6 +30,7 @@ export default function SettingsPage() {
   // Marka ailesi (22.11.2026): ana addan baska adlar — virgulle ayrilmis tek alan
   const kayitliAdlar = aliasText(site.brandAliases);
   const [aliases, setAliases] = useState<string>(kayitliAdlar);
+  const [display, setDisplay] = useState<string>(site.brandDisplay ?? '');
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [brainJustReady, setBrainJustReady] = useState(false);
@@ -38,13 +44,15 @@ export default function SettingsPage() {
     setSpecificCategory(site.customNiche ?? '');
     setLanguage(site.language ?? 'tr');
     setAliases(aliasText(site.brandAliases));
-  }, [site.id, site.name, site.niche, site.customNiche, site.language, site.brandAliases]);
+    setDisplay(site.brandDisplay ?? '');
+  }, [site.id, site.name, site.niche, site.customNiche, site.language, site.brandAliases, site.brandDisplay]);
 
   const useCustomNiche = niche === 'diğer' || niche === 'custom';
   const isDirty =
     name.trim() !== site.name ||
     language !== (site.language ?? 'tr') ||
-    aliasList(aliases).join('|') !== aliasList(kayitliAdlar).join('|') ||
+    (yonetici && aliasList(aliases).join('|') !== aliasList(kayitliAdlar).join('|')) ||
+    (yonetici && display.trim() !== (site.brandDisplay ?? '')) ||
     specificCategory.trim() !== (site.customNiche ?? '') ||
     (useCustomNiche
       ? customNiche.trim() !== (site.niche ?? '')
@@ -60,7 +68,7 @@ export default function SettingsPage() {
         niche: finalNiche,
         customNiche: specificCategory.trim() || null,
         language,
-        brandAliases: aliasList(aliases),
+        ...(yonetici ? { brandAliases: aliasList(aliases), brandDisplay: display.trim() } : {}),
       });
       toast.success('Ayarlar kaydedildi');
       await refresh?.();
@@ -153,20 +161,46 @@ export default function SettingsPage() {
           />
         </div>
 
-        <div>
-          <label className="mb-1.5 block text-label text-muted-foreground">
-            Diğer marka adları <span className="font-normal">(isteğe bağlı)</span>
-          </label>
-          <Input
-            value={aliases}
-            onChange={(e) => setAliases(e.target.value)}
-            placeholder="Örn: ürün markası, alt marka, şirket unvanı"
-          />
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            Ürün ya da alt marka adlarını virgülle ayırarak yaz. AI cevabında bunlardan biri geçerse markan anılmış sayılır ve raporda hangi adla anıldığın görünür.
-            Büyük harfle yazdığın ad cevapta da büyük harfle geçmeli; böylece aynı yazılan sıradan bir kelime marka sayılmaz. En fazla {MAX_ALIASES} ad.
-          </p>
-        </div>
+        {yonetici ? (
+          <>
+            <div>
+              <label className="mb-1.5 block text-label text-muted-foreground">
+                Görünen marka adı <span className="font-normal">(yönetici)</span>
+              </label>
+              <Input
+                value={display}
+                onChange={(e) => setDisplay(e.target.value)}
+                placeholder={site.name}
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Panelde ve raporda bu ad görünür; ölçüm eşleşmesini değiştirmez. Kurulumda sitenin ana sayfasından bulunur; boş bırakılırsa site adı görünür.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-label text-muted-foreground">
+                Diğer marka adları <span className="font-normal">(yönetici)</span>
+              </label>
+              <Input
+                value={aliases}
+                onChange={(e) => setAliases(e.target.value)}
+                placeholder="Örn: ürün markası, alt marka, şirket unvanı"
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Ürün ya da alt marka adlarını virgülle ayırarak yaz. AI cevabında bunlardan biri geçerse marka anılmış sayılır ve raporda hangi adla anıldığı görünür.
+                Büyük harfle yazılan ad cevapta da büyük harfle geçmeli; böylece aynı yazılan sıradan bir kelime marka sayılmaz. Bayi sitesine sattığı ürünün markasını yazma: o markanın görünürlüğü sitenin görünürlüğü değildir. En fazla {MAX_ALIASES} ad.
+              </p>
+            </div>
+          </>
+        ) : kayitliAdlar ? (
+          <div>
+            <label className="mb-1.5 block text-label text-muted-foreground">Ölçümde aranan diğer marka adları</label>
+            <p className="text-sm text-foreground">{kayitliAdlar}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              AI cevabında bu adlardan biri geçerse markan anılmış sayılır. Değişiklik için destek ekibine yaz.
+            </p>
+          </div>
+        ) : null}
 
         <div>
           <label className="mb-1.5 block text-label text-muted-foreground">

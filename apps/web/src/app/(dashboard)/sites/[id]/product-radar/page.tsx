@@ -16,6 +16,7 @@ import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
 import { Radar, RefreshCw, Loader2, Trophy, AlertTriangle } from 'lucide-react';
 import { SectionHeader } from '@/components/ui/section-header';
+import { siteDisplayName } from '@/lib/site-display';
 
 /**
  * Product Radar — AI asistanlar kategorinde HANGİ ürünleri öneriyor?
@@ -124,7 +125,7 @@ export default function ProductRadarPage() {
                   <Trophy className="h-5 w-5 text-success shrink-0" />
                   <div>
                     <div className="text-sm font-medium">
-                      {site.name} öneri listelerinde — {brand.appearances} kez, ort. sıra {brand.avgRank ?? '—'}
+                      {siteDisplayName(site)} öneri listelerinde — {brand.appearances} kez, ort. sıra {brand.avgRank ?? '—'}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Sağlayıcılar: {brand.providers.map((p: string) => PROVIDER_LABEL[p] ?? p).join(', ')} · Son tarama: {data.date}
@@ -135,7 +136,7 @@ export default function ProductRadarPage() {
                 <>
                   <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
                   <div>
-                    <div className="text-sm font-medium">{site.name} öneri listelerinde YOK</div>
+                    <div className="text-sm font-medium">{siteDisplayName(site)} öneri listelerinde YOK</div>
                     <div className="text-xs text-muted-foreground">
                       AI asistanlar kategorinde aşağıdaki ürünleri öneriyor — İçerik Fırsatları ve GEO Lab ile kapatılacak açık bu. Son tarama: {data.date}
                     </div>

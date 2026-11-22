@@ -240,6 +240,10 @@ model Site {
    * temizleme ve sinirlar cleanBrandAliases'ta. null/bos = yalniz ana ad (eski davranis).
    */
   brandAliases Json?
+  /// Panel ve raporda gosterilen marka adi (22.11.2026). Ana sayfadan tespit edilir
+  /// (sites/brand-detect.ts) ya da yonetici yazar. YALNIZ GOSTERIM: eslesme `name` ve
+  /// brandAliases ile yapilir — gundelik bir kelime ana ad olsaydi buyuk/kucuk harfe bakilmadan sayilirdi.
+  brandDisplay String? @db.VarChar(80)
   language    String     @default("tr") // tr | en | both
   status      SiteStatus @default(ONBOARDING)
 

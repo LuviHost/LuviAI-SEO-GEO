@@ -19,6 +19,7 @@ import { formatNum, formatPct, formatPos } from '@/lib/format';
 import { formatGscRange } from '@/lib/gsc-coverage';
 import { previousPeriodNote } from '@/lib/report-link';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
+import { siteDisplayName } from '@/lib/site-display';
 
 type Range = 'week' | 'month' | 'year';
 
@@ -93,7 +94,7 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
         <div>
           <h3 className="text-panel-3">Performans raporu</h3>
           <p className="v-rail mt-0.5">
-            {site?.name} · son {rangeLabel} · {new Date(data.rangeStart).toLocaleDateString('tr-TR')} — {new Date(data.rangeEnd).toLocaleDateString('tr-TR')}
+            {siteDisplayName(site)} · son {rangeLabel} · {new Date(data.rangeStart).toLocaleDateString('tr-TR')} — {new Date(data.rangeEnd).toLocaleDateString('tr-TR')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

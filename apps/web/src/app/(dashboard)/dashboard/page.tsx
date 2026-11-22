@@ -28,6 +28,7 @@ import { EmptyState } from '@/components/empty-state';
 import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { siteDisplayName } from '@/lib/site-display';
 
 export default function DashboardPage() {
   const { t } = useT();
@@ -223,7 +224,7 @@ function SiteCard({ site, onDelete, onStop }: { site: any; onDelete: () => void;
   const badge = siteListBadge(site, (st) => label(SITE_STATUS_LABEL, st));
   return (
     <Card className="group relative flex flex-wrap items-center gap-4 p-4 transition-colors duration-200 hover:border-foreground/30 focus-within:ring-2 focus-within:ring-ring">
-      <SiteFavicon url={site.url} name={site.name} />
+      <SiteFavicon url={site.url} name={siteDisplayName(site)} />
 
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex flex-wrap items-center gap-2">
@@ -232,7 +233,7 @@ function SiteCard({ site, onDelete, onStop }: { site: any; onDelete: () => void;
               href={siteHref(site.id, 'overview')}
               className="after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none"
             >
-              {site.name}
+              {siteDisplayName(site)}
             </Link>
           </h3>
           <Badge variant={badge.tone}>{badge.label}</Badge>
@@ -263,7 +264,7 @@ function SiteCard({ site, onDelete, onStop }: { site: any; onDelete: () => void;
             size="sm"
             onClick={onStop}
             className="relative z-10"
-            aria-label={`${site.name} için arka plandaki işleri durdur`}
+            aria-label={`${siteDisplayName(site)} için arka plandaki işleri durdur`}
           >
             <CircleStop className="h-4 w-4" aria-hidden />
             Durdur
@@ -273,7 +274,7 @@ function SiteCard({ site, onDelete, onStop }: { site: any; onDelete: () => void;
           type="button"
           onClick={onDelete}
           className="relative z-10 grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/50"
-          aria-label={`${site.name} sitesini sil`}
+          aria-label={`${siteDisplayName(site)} sitesini sil`}
         >
           <Trash2 className="h-4 w-4" aria-hidden />
         </button>
