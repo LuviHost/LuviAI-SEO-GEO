@@ -15,7 +15,8 @@ import { promptRunRows, promptRunSummary } from './prompt-run-rows.js';
 const TAKIP_SORU_UST_SINIR = 50;
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
-import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
+import { normalizeText, foldForMatch, sameLength } from '../common/text-normalize.js';
+import { competitorTerms, competitorHitInFolded } from './competitor-match.js';
 import { brandAliasesOf, brandMatcher, brandNameOf, resolveSiteBrand, resolveSiteBrandFamily, unbrandedOnly, type BrandFamily, type BrandRef } from './brand-in-query.js';
 import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
@@ -1900,36 +1901,30 @@ export class AiCitationService {
 
     // ── Competitor mentions: ASO modülünden gelen rakip listesini text'te ara
     const competitorStats: NonNullable<CitationProbe['competitors']> = [];
-    // "Ilk anilan" icin adlarin GERCEK baslangici. Eslesme indeksi kelime kuralinda sol sinir
-    // karakterini icerir (ad bir sonraki karakterde baslar), alan adi kuralinda icermez; iki
-    // kural ayni cetvelle kiyaslansin diye ad, indeksten itibaren ilk gecisinden olculur.
-    const startOf = (needle: string, idx: number) => {
-      const s = folded.indexOf(needle, idx);
-      return s === -1 ? idx : s;
-    };
+    // "Ilk anilan" icin adlarin GERCEK baslangici (marka: BrandHit.start, rakip: CompetitorHit.start)
+    // — eslesme indeksi kelime kuralinda sol sinir karakterini icerir; ikisi ayni cetvelle kiyaslanir.
     const brandStart = hit ? hit.start : null;
     for (const compRaw of competitors) {
       // Rakip adlarinda da ayni İ hatasi vardi — orn. "İddaa.com" hicbir zaman
       // sayilmiyordu (ofsayt.com rakip listesinde gercek ornek).
+      // Aciklamali ad ("Ingenico Turkey", "Hugin (Olivetti)") tam haliyle cevapta gecmez:
+      // terimler addan turetilir (competitor-match.ts, 22.11.2026).
       const comp = foldForMatch(compRaw || '').trim();
       if (comp.length < 3 || comp === brandFolded) continue;
-      const esc = escapeRegex(comp);
-      const re = new RegExp(`(?:^|[^a-z0-9à-ſğüşöç])${esc}(?:$|[^a-z0-9à-ſğüşöç])`, 'g');
-      const matches = [...folded.matchAll(re)];
-      if (matches.length > 0) {
-        const ilk = matches[0].index ?? null;
+      const terms = competitorTerms(compRaw).filter((t) => t !== brandFolded);
+      const chit = competitorHitInFolded(folded, terms);
+      if (chit) {
         // "Ilk anilan" (competitor-visibility.ts): marka da anildiysa rakip ondan once mi.
         // Iki ad AYNI yerde basliyorsa metinde yazan UZUN olandir: marka "Lavanta", rakip
         // "Lavanta Kuaför", metin "Lavanta Kuaför" → anilan rakiptir (kisa ad onun icinde
         // eslesmistir). Tersinde (rakip markanin on eki) rakip once sayilmaz.
         // Marka anilmadiysa alan yazilmaz: o cevapta sira rakiplerin kendi konumundan cikar.
-        const compStart = ilk === null ? null : startOf(comp, ilk);
         competitorStats.push({
           name: compRaw,
-          mentions: matches.length,
-          positionFirst: ilk,
-          ...(brandStart !== null && compStart !== null
-            ? { beforeBrand: compStart < brandStart || (compStart === brandStart && comp.length > (hit?.length ?? 0)) }
+          mentions: chit.mentions,
+          positionFirst: chit.index,
+          ...(brandStart !== null
+            ? { beforeBrand: chit.start < brandStart || (chit.start === brandStart && chit.length > (hit?.length ?? 0)) }
             : {}),
         });
       }

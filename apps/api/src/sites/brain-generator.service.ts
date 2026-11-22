@@ -281,7 +281,7 @@ Yukarıdaki prensiplere göre brandVoice'u doldur. Mock değer yazma:
   ],
   "competitors": [
     {
-      "name": "rakip marka adı",
+      "name": "YALIN rakip marka adı, AI cevaplarında geçtiği gibi (örn. 'Ingenico'). Ülke eki, parantez, açıklama YOK ('Ingenico Turkey', 'Hugin (Olivetti)' YANLIŞ)",
       "url": "https://...",
       "strengths": ["..."],
       "weaknesses": ["..."]
