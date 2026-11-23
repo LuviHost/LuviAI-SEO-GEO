@@ -21,6 +21,7 @@ import { IntelDigestService } from './digest.service.js';
 import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
 import { LinkedinOutreachService, type ImportRow } from './linkedin-outreach.service.js';
+import type { ElleKayitGirdi } from './elle-kayit.js';
 import { parseSearchUrls } from './linkedin-outreach-rules.js';
 import { KarneService } from '../prospect/karne.service.js';
 import { DISABLED_SOURCES } from './source-registry.js';
@@ -567,6 +568,27 @@ export class IntelController {
   async linkedinKarneler(@Req() req: Request, @Param('id') id: string) {
     assertAdmin(req);
     return this.karne.prospectKarneleri(id);
+  }
+
+  /**
+   * ELLE KAYIT: kurucunun kendi attigi LinkedIn / e-posta mesaji takip listesine girer
+   * (gonderim YOK — yalniz kayit). Ayni kisiye ikinci mesaj ayni kartin metnine eklenir.
+   */
+  @Post('linkedin/elle-kayit')
+  async linkedinElleKayit(@Req() req: Request, @Body() body: ElleKayitGirdi) {
+    assertAdmin(req);
+    try {
+      return await this.linkedin.elleKayit(body ?? {});
+    } catch (err: any) {
+      throw new BadRequestException(err?.message ?? 'Kayıt eklenemedi');
+    }
+  }
+
+  /** Cevap geldi — ozellikle e-posta kayitlari icin (bot onlari kontrol etmez) */
+  @Post('linkedin/prospects/:id/cevap')
+  async linkedinCevapGeldi(@Req() req: Request, @Param('id') id: string) {
+    assertAdmin(req);
+    return this.linkedin.cevapGeldi(id);
   }
 
   @Post('linkedin/prospects/:id/skip')

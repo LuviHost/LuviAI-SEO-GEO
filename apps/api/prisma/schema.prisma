@@ -3231,6 +3231,12 @@ enum LinkedinKampanya {
   ISBIRLIGI
 }
 
+/// Elle kayitta mesajin gittigi kanal (bot yalniz LINKEDIN kayitlarla ilgilenir)
+enum IletisimKanal {
+  LINKEDIN
+  EPOSTA
+}
+
 model LinkedinProspect {
   id         String           @id @default(cuid())
   ad         String           @db.VarChar(80)
@@ -3247,6 +3253,14 @@ model LinkedinProspect {
   profileUrl String           @unique @db.VarChar(255)
 
   status LinkedinProspectStatus @default(QUEUED)
+
+  /// ELLE KAYIT (23.11.2026): kurucunun kendi attigi mesaj (LinkedIn'den elle / Chrome eklentisiyle
+  /// ya da e-postayla). NEDEN: takip listesi yalniz botun gonderdiklerini tutuyordu; elle gidenler
+  /// hicbir yerde kayitli degildi. EPOSTA kaydinda profileUrl = "mailto:<adres>" (tekil anahtar
+  /// korunur); bot bu kayitlari ne gezer ne cevap kontrolune sokar.
+  kanal  IletisimKanal @default(LINKEDIN)
+  eposta String?       @db.VarChar(191)
+  elle   Boolean       @default(false)
 
   /// Gonderilen baglanti notu (<=300 karakter) — kanit
   noteText    String? @db.Text

@@ -551,6 +551,24 @@ export type LinkedinProspectStatus =
   | 'REPLIED' | 'SKIPPED' | 'FAILED';
 
 export type LinkedinKampanya = 'MUSTERI' | 'YATIRIMCI' | 'ISBIRLIGI';
+/** Elle kayitta mesajin gittigi kanal */
+export type IletisimKanal = 'LINKEDIN' | 'EPOSTA';
+
+/** Kurucunun kendi attigi mesaj — takip listesine kayit (gonderim yapmaz) */
+export interface ElleKayitGirdi {
+  kanal: IletisimKanal;
+  ad: string;
+  soyad?: string;
+  firma: string;
+  unvan?: string | null;
+  profileUrl?: string | null;
+  eposta?: string | null;
+  konu?: string | null;
+  mesaj: string;
+  gonderimAt?: string | null;
+  hatirlatmaAt?: string | null;
+  cevapGeldi?: boolean;
+}
 /** Cevap sonrasi satis hunisi (insan ekseni) */
 export type LinkedinSatisAsamasi =
   | 'YOK' | 'GORUSULDU' | 'KARNE_GONDERILDI' | 'TOPLANTI' | 'TEKLIF' | 'KAZANILDI' | 'KAYBEDILDI';
@@ -572,6 +590,10 @@ export interface LinkedinProspect {
   satisNotu?: string | null;
   hatirlatmaAt?: string | null;
   status: LinkedinProspectStatus;
+  /** Elle kayit: kanal + e-posta; bot gonderdiyse elle=false */
+  kanal?: IletisimKanal;
+  eposta?: string | null;
+  elle?: boolean;
   noteText?: string | null;
   messageText?: string | null;
   requestedAt?: string | null;
@@ -624,6 +646,8 @@ export interface LinkedinOverview {
     hatirlatmaAt: string | null;
     repliedAt: string | null;
     profileUrl: string;
+    kanal?: IletisimKanal;
+    eposta?: string | null;
   }>;
   /** Panelden kaydedilmis ayarlar (bos = varsayilan) */
   ayarlar?: Record<string, number | number[]>;
@@ -2174,6 +2198,15 @@ export const api = {
     request<KarneBaslatYaniti>(`/karneler/${encodeURIComponent(id)}/tekrar`, { method: 'POST', body: JSON.stringify({ ayniGunOnay }) }),
   /** Karne HTML'i — gorulme sayaci ARTMAZ */
   karneOnizleme: (id: string) => request<{ brand: string; html: string }>(`/karneler/${encodeURIComponent(id)}/onizleme`),
+  /** Elle kayit: kendi attigin LinkedIn / e-posta mesajini takip listesine ekle (gonderim YOK) */
+  elleKayitLinkedin: (veri: ElleKayitGirdi) =>
+    request<{ id: string; yeni: boolean }>('/intel/linkedin/elle-kayit', {
+      method: 'POST',
+      body: JSON.stringify(veri),
+    }),
+  /** Cevap geldi olarak isaretle (e-posta kayitlari bot tarafindan kontrol edilmez) */
+  cevapGeldiLinkedin: (id: string) =>
+    request<{ ok: boolean }>(`/intel/linkedin/prospects/${encodeURIComponent(id)}/cevap`, { method: 'POST' }),
   skipLinkedinProspect: (id: string) =>
     request<{ ok?: boolean; status?: LinkedinProspectStatus }>(
       `/intel/linkedin/prospects/${encodeURIComponent(id)}/skip`,
