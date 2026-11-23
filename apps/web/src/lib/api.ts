@@ -568,6 +568,8 @@ export interface ElleKayitGirdi {
   gonderimAt?: string | null;
   hatirlatmaAt?: string | null;
   cevapGeldi?: boolean;
+  /** GIDEN = ben yazdim (varsayilan), GELEN = karsi tarafin cevabi */
+  yon?: 'GIDEN' | 'GELEN';
 }
 /** Cevap sonrasi satis hunisi (insan ekseni) */
 export type LinkedinSatisAsamasi =

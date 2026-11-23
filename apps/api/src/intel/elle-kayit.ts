@@ -14,9 +14,15 @@ import { istanbulParts, normalizeProfileUrl } from './linkedin-outreach-rules.js
  *  - Ayni kisiye ikinci mesaj (hatirlatma) yeni kayit ACMAZ: metin tarihli basliklariyla
  *    mevcut kaydin sonuna eklenir — kime ne yazildigi tek yerde, sirasiyla okunur.
  *  - Hatirlatma verilmezse gonderimden 4 IS GUNU sonra, Istanbul saatiyle 10:00.
+ *  - KONUSMA (23.11): karsi tarafin cevabi da kaydedilir (yon GELEN). Blok basligi
+ *    "── 21.11.2026 20:08 · LinkedIn · Gelen · Konu: X ──"; panel bunu sohbet gibi
+ *    (giden sagda, gelen solda) gosterir (web lib/konusma.ts ayni bicimi okur).
+ *    Gelen mesaj kaydi "Cevap verdi" yapar, hatirlatmayi kaldirir, giden sayacina girmez.
  */
 
 export type Kanal = 'LINKEDIN' | 'EPOSTA';
+/** GIDEN = kurucunun yazdigi, GELEN = karsi tarafin cevabi */
+export type Yon = 'GIDEN' | 'GELEN';
 
 export interface ElleKayitGirdi {
   kanal?: string;
@@ -35,6 +41,8 @@ export interface ElleKayitGirdi {
   hatirlatmaAt?: string | null;
   /** Cevap da geldiyse true → kayit "Cevap verdi" olarak duser */
   cevapGeldi?: boolean;
+  /** Bu mesaji kim yazdi (bos = GIDEN) */
+  yon?: string | null;
 }
 
 export interface ElleKayitHazir {
@@ -51,6 +59,7 @@ export interface ElleKayitHazir {
   gonderimAt: Date;
   hatirlatmaAt: Date;
   cevapGeldi: boolean;
+  yon: Yon;
 }
 
 export const HATIRLATMA_IS_GUNU = 4;
@@ -86,12 +95,18 @@ export function isGunuSonra(baslangic: Date, isGunu = HATIRLATMA_IS_GUNU): Date 
   return new Date(`${istanbulParts(d).ymd}T10:00:00+03:00`);
 }
 
-/** Tarih basligi: "20.11.2026 · E-posta · Konu: X" */
-export function blokBasligi(kanal: Kanal, at: Date, konu?: string | null): string {
+/** Istanbul saati "HH:MM" */
+function istanbulSaat(at: Date): string {
+  return new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', hour12: false }).format(at);
+}
+
+/** Tarih basligi: "── 20.11.2026 15:00 · E-posta · Gelen · Konu: X ──" (Konu her zaman sonda) */
+export function blokBasligi(kanal: Kanal, at: Date, konu?: string | null, yon: Yon = 'GIDEN'): string {
   const { ymd } = istanbulParts(at);
   const [y, m, g] = ymd.split('-');
-  const parca = [`${g}.${m}.${y}`, kanal === 'EPOSTA' ? 'E-posta' : 'LinkedIn'];
-  if (konu && konu.trim()) parca.push(`Konu: ${konu.trim().slice(0, 200)}`);
+  const parca = [`${g}.${m}.${y} ${istanbulSaat(at)}`, kanal === 'EPOSTA' ? 'E-posta' : 'LinkedIn'];
+  if (yon === 'GELEN') parca.push('Gelen');
+  if (konu && konu.trim()) parca.push(`Konu: ${konu.trim().replace(/\s+/g, ' ').replace(/──/g, '—').slice(0, 200)}`);
   return `── ${parca.join(' · ')} ──`;
 }
 
@@ -113,6 +128,7 @@ function tarihOku(v: string | null | undefined, ad: string): Date | null {
 /** Girdiyi dogrula ve kayda hazirla. Eksik / gecersiz alanda acik Turkce hata firlatir. */
 export function elleKayitHazirla(g: ElleKayitGirdi, now: Date = new Date()): ElleKayitHazir {
   const kanal: Kanal = String(g.kanal ?? 'LINKEDIN').toUpperCase() === 'EPOSTA' ? 'EPOSTA' : 'LINKEDIN';
+  const yon: Yon = String(g.yon ?? 'GIDEN').toUpperCase() === 'GELEN' ? 'GELEN' : 'GIDEN';
   const { ad, soyad } = adSoyadAyir(String(g.ad ?? ''), String(g.soyad ?? ''));
   const firma = String(g.firma ?? '').replace(/\s+/g, ' ').trim();
   const mesaj = String(g.mesaj ?? '').replace(/\r\n/g, '\n').trim();
@@ -145,9 +161,11 @@ export function elleKayitHazirla(g: ElleKayitGirdi, now: Date = new Date()): Ell
     unvan: g.unvan ? String(g.unvan).trim().slice(0, 160) || null : null,
     anahtar,
     eposta,
-    blok: `${blokBasligi(kanal, gonderimAt, g.konu)}\n${mesaj.slice(0, MESAJ_SINIR)}`,
+    blok: `${blokBasligi(kanal, gonderimAt, g.konu, yon)}\n${mesaj.slice(0, MESAJ_SINIR)}`,
     gonderimAt,
     hatirlatmaAt,
-    cevapGeldi: g.cevapGeldi === true,
+    // Karsi tarafin mesaji kaydediliyorsa kisi cevap vermistir
+    cevapGeldi: g.cevapGeldi === true || yon === 'GELEN',
+    yon,
   };
 }

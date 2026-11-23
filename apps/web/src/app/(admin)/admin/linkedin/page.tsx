@@ -18,6 +18,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { KonusmaDialog } from './konusma-dialog';
+import { konusmaBalonlari, konusmaOzeti } from '@/lib/konusma';
 import { cn } from '@/lib/utils';
 import {
   IMPORT_BATCH_MAX_ROWS, IMPORT_MAX_ROWS_PER_RUN, importRunNotice, parseImportText, planImportBatches, remainingImportText, runImportBatches,
@@ -116,7 +118,8 @@ export default function AdminLinkedinPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [lastTick, setLastTick] = useState<LastTick | null>(null);
   const [forceDry, setForceDry] = useState(false);
-  const [acik, setAcik] = useState<string | null>(null);
+  // Sohbet penceresinde acik kayit (id; veri her yenilemede listeden taze okunur)
+  const [konusmaId, setKonusmaId] = useState<string | null>(null);
   const [firmaFiltre, setFirmaFiltre] = useState<string>('hepsi');
   const [durumFiltre, setDurumFiltre] = useState<string>('hepsi');
 
@@ -442,7 +445,7 @@ export default function AdminLinkedinPage() {
       )}
 
       {/* ── Bugün ilgilenilecekler ── */}
-      <TakipCard overview={overview ?? undefined} onDone={load} disabled={!!busy} />
+      <TakipCard overview={overview ?? undefined} onDone={load} disabled={!!busy} onKonusma={setKonusmaId} />
 
       {/* ── Elle kayıt: kendi attığın LinkedIn / e-posta mesajı ── */}
       <ElleKayitCard onDone={load} disabled={!!busy} />
@@ -537,8 +540,7 @@ export default function AdminLinkedinPage() {
                     ['istek', p.requestedAt], ['kabul', p.acceptedAt], ['mesaj', p.messagedAt], ['cevap', p.repliedAt],
                   ].filter(([, d]) => !!d) as Array<[string, string]>;
                   const skipDisabled = p.status === 'SKIPPED' || busy === `skip:${p.id}`;
-                  const metinVar = !!(p.noteText || p.messageText);
-                  const acikMi = acik === p.id;
+                  const ozet = konusmaOzeti(konusmaBalonlari(p));
                   return (
                     <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30 align-top">
                       <td className="px-4 py-3">
@@ -572,17 +574,10 @@ export default function AdminLinkedinPage() {
                       </td>
                       <td className="px-4 py-3 text-xs max-w-[260px]">
                         {/* NEDEN: gercek tick oncesi DM'nin kimlik + "istemezseniz bir daha yazmayacagim" cumlesini tasidigi panelden dogrulanabilmeli */}
-                        {metinVar ? (
-                          <button type="button" className="inline-flex items-center gap-1 text-brand-600 hover:underline" onClick={() => setAcik(acikMi ? null : p.id)}>
-                            <MessageSquareText className="h-3 w-3" /> {acikMi ? 'gizle' : 'göster'}
-                          </button>
-                        ) : <span className="text-muted-foreground">—</span>}
-                        {acikMi && (
-                          <div className="mt-2 space-y-2 text-muted-foreground">
-                            {p.noteText && <div><div className="font-medium text-foreground">Bağlantı notu ({p.noteText.length}/300)</div><div className="whitespace-pre-wrap">{p.noteText}</div></div>}
-                            {p.messageText && <div><div className="font-medium text-foreground">Mesaj</div><div className="whitespace-pre-wrap">{p.messageText}</div></div>}
-                          </div>
-                        )}
+                        {/* Sohbet penceresi: giden sagda, gelen solda; buradan yeni mesaj/cevap da kaydedilir */}
+                        <button type="button" className="inline-flex items-center gap-1 text-brand-600 hover:underline whitespace-nowrap" onClick={() => setKonusmaId(p.id)}>
+                          <MessageSquareText className="h-3 w-3" /> {ozet === '—' ? 'Konuşma' : ozet}
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-xs font-mono text-muted-foreground max-w-[180px]">
                         {p.screenshotPath ? (
@@ -644,6 +639,12 @@ export default function AdminLinkedinPage() {
           )}
         </CardContent>
       </Card>
+
+      <KonusmaDialog
+        p={konusmaId ? recentAll.find((r) => r.id === konusmaId) ?? null : null}
+        onClose={() => setKonusmaId(null)}
+        onDone={() => load(true)}
+      />
     </div>
   );
 }
@@ -675,7 +676,7 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
  * Cevap verip beklemede kalanlar + hatirlatmasi gelenler. NEDEN ayri kart: cevap geldiginde
  * bot susuyor ve is insana geciyor; bu liste olmadan cevaplar 148 satirlik tablonun icinde kayboluyordu.
  */
-function TakipCard({ overview, onDone, disabled }: { overview?: LinkedinOverview; onDone: () => Promise<void>; disabled: boolean }) {
+function TakipCard({ overview, onDone, disabled, onKonusma }: { overview?: LinkedinOverview; onDone: () => Promise<void>; disabled: boolean; onKonusma: (id: string) => void }) {
   const liste = overview?.ilgilenilecek ?? [];
   const [calisan, setCalisan] = useState<string | null>(null);
   if (liste.length === 0) return null;
@@ -711,6 +712,9 @@ function TakipCard({ overview, onDone, disabled }: { overview?: LinkedinOverview
                 <div className="text-xs text-muted-foreground">{k.firma}{k.unvan ? ` · ${k.unvan}` : ''}</div>
               </div>
               <KisiLinki profileUrl={k.profileUrl} kanal={k.kanal} eposta={k.eposta} />
+              <button type="button" className="text-xs text-brand-600 hover:underline inline-flex items-center gap-1" onClick={() => onKonusma(k.id)}>
+                <MessageSquareText className="h-3 w-3" /> konuşma
+              </button>
               {k.hatirlatmaAt && (
                 <span className="text-xs text-muted-foreground">hatırlatma: {fmtDate(k.hatirlatmaAt)}</span>
               )}
