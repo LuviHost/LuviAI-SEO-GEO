@@ -83,6 +83,12 @@ model User {
   // icerik kalici silinir (me/account-purge.cron.ts). Faturalar anonim kalir.
   deletionRequestedAt DateTime?
 
+  // Panelden verilen yoneticilik (23.11.2026). Dolu = kurucu bu hesabi /admin/users'tan yonetici
+  // yapti; admin girisi (OTP) icin ADMIN_EMAILS listesine ek olarak gecerli sayilir. Kurucular
+  // (ADMIN_EMAILS) bu alana bakilmadan yoneticidir ve yalniz onlar yonetici ekleyip cikarabilir.
+  adminYetkiAt     DateTime?
+  adminYetkiVeren  String?   @db.VarChar(191)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

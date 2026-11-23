@@ -26,6 +26,8 @@ declare module 'next-auth' {
       subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED';
       /** Yeni hesap: olusturulma zamani (ms), yalniz kayittan sonraki 24 saat; GA4 sign_up icin (lib/signup-event.ts) */
       signupAt?: number;
+      /** Kurucu bu hesabi panelden yonetici yapti (lib/admin-yetki.ts) — admin girisi icin */
+      adminYetkili?: boolean;
     };
   }
 }
@@ -37,7 +39,8 @@ declare module 'next-auth' {
 export const ACCOUNT_DELETED_SIGNIN_ERROR = 'AccountDeleted';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-const prisma =
+// Yonetici ekleme sunucu eylemi de (admin/users/yonetici-actions.ts) ayni istemciyi kullanir
+export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === 'production' ? ['error'] : ['warn', 'error'],
@@ -159,6 +162,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           (token as any).role = dbUser.role;
           (token as any).plan = dbUser.plan;
           (token as any).subscriptionStatus = dbUser.subscriptionStatus;
+          (token as any).adminYetkili = !!dbUser.adminYetkiAt;
           // Yeni hesap mi: signIn callback'i az once olusturduysa (GA4 sign_up, lib/signup-event.ts)
           const signupAt = freshSignupAt(dbUser.createdAt, Date.now());
           if (signupAt !== null) (token as any).signupAt = signupAt;
@@ -171,7 +175,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.sub) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.sub as string },
-          select: { role: true, plan: true, subscriptionStatus: true, deletionRequestedAt: true },
+          select: { role: true, plan: true, subscriptionStatus: true, deletionRequestedAt: true, adminYetkiAt: true },
         });
         // Hesap silindi ya da silme talebi var: null donmek oturumu bitirir ve
         // cerezi temizler (@auth/core 0.41.2 lib/actions/session.js) — talepten
@@ -180,6 +184,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (token as any).role = dbUser.role;
         (token as any).plan = dbUser.plan;
         (token as any).subscriptionStatus = dbUser.subscriptionStatus;
+        // Yoneticilik kaldirilinca bir sonraki istekte duser (rol de ayni anda USER olur)
+        (token as any).adminYetkili = !!dbUser.adminYetkiAt;
         // sign_up penceresi (24 saat) doldu: signupAt token'dan duser
         if ('signupAt' in token && keepSignupAt((token as any).signupAt, Date.now()) === undefined) {
           delete (token as any).signupAt;
@@ -193,6 +199,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = ((token as any).role ?? 'USER') as any;
         session.user.plan = ((token as any).plan ?? 'TRIAL') as any;
         session.user.subscriptionStatus = ((token as any).subscriptionStatus ?? 'TRIAL') as any;
+        session.user.adminYetkili = (token as any).adminYetkili === true;
         const signupAt = (token as any).signupAt;
         if (signupEventDue(signupAt, Date.now())) session.user.signupAt = signupAt;
       }

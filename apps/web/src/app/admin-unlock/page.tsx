@@ -4,8 +4,9 @@ import {
   isAdminUnlockEnabled, isAdminUnlocked, setAdminUnlockCookie, verifyPin,
 } from '@/lib/admin-unlock';
 import {
-  isAdminOtpEnabled, isAuthorizedAdminEmail, requestAdminOtp, verifyAdminOtp,
+  isAdminOtpEnabled, requestAdminOtp, verifyAdminOtp,
 } from '@/lib/admin-otp';
+import { adminGirisIzni, kurucuListesi } from '@/lib/admin-yetki';
 import { Card, CardContent } from '@/components/ui/card';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ async function sendOtpAction(formData: FormData) {
   if (!session?.user?.email || session.user.role !== 'ADMIN') {
     redirect('/dashboard');
   }
-  if (!isAuthorizedAdminEmail(session.user.email)) {
+  if (!adminGirisIzni(session.user, kurucuListesi())) {
     redirect(`/admin-unlock?error=unauthorized`);
   }
   const next = String(formData.get('next') ?? '/admin');
@@ -100,7 +101,7 @@ export default async function AdminUnlockPage({
   const isOtpMode = otpEnabled && (!params.step || params.step === 'send' || params.step === 'otp');
   const isPinMode = !isOtpMode && pinEnabled;
 
-  if (otpEnabled && !isAuthorizedAdminEmail(userEmail)) {
+  if (otpEnabled && !adminGirisIzni(session.user, kurucuListesi())) {
     return (
       <div className="min-h-screen bg-background grid place-items-center px-4">
         <Card className="w-full max-w-sm bg-background border-red-500/40 text-foreground">
