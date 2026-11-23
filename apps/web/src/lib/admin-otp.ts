@@ -87,7 +87,7 @@ export async function requestAdminOtp(email: string): Promise<{ ok: boolean; rea
   // E-postayi API gonderir (tek Resend anahtari, noreply@ranksup.ai) — bkz. api auth/admin-otp-mail.ts
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
   try {
-    const res = await fetch(`${apiBase}/api/auth/admin-otp-mail`, {
+    const res = await fetch(`${apiBase}/api/internal/admin-otp-mail`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey() },
       body: JSON.stringify({ email: key, code }),

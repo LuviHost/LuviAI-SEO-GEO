@@ -1,4 +1,3 @@
-import { ADMIN_OTP_KONU, adminOtpHtml, gecerliOtpKodu } from './admin-otp-mail.js';
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Logger, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { encode } from 'next-auth/jwt';
@@ -253,38 +252,6 @@ export class AuthController {
       data: { name: user.name ?? 'kullanici' },
     });
     return result;
-  }
-
-  /**
-   * POST /api/auth/admin-otp-mail
-   * Web admin girisi (/admin-unlock) 6 haneli kodu uretir; e-postayi buradan gonderir.
-   * NEDEN: web kendi RESEND_API_KEY'iyle gonderiyordu, anahtar yenilenince kod gitmez oldu
-   * (23.11, bkz. admin-otp-mail.ts). Internal-key ile auth. Acik posta rolesi olmasin diye
-   * yalniz rolu ADMIN olan, silme talebi olmayan hesaba gider.
-   */
-  @Public()
-  @Post('admin-otp-mail')
-  async adminOtpMail(
-    @Headers('x-internal-key') headerKey: string | undefined,
-    @Body() body: { email?: string; code?: string },
-  ) {
-    const expected = process.env.INTERNAL_API_KEY ?? process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? '';
-    if (!expected || !headerKey || headerKey !== expected) {
-      throw new ForbiddenException('Internal key gecersiz');
-    }
-    const email = bodyText(body?.email).toLowerCase();
-    const code = bodyText(body?.code);
-    if (!email || !gecerliOtpKodu(code)) throw new BadRequestException('email ve 6 haneli kod gerekli');
-
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-      select: { id: true, role: true, deletionRequestedAt: true },
-    });
-    if (!user || user.role !== 'ADMIN' || user.deletionRequestedAt) {
-      throw new ForbiddenException('Yonetici hesabi degil');
-    }
-    const r = await this.email.sendRaw({ userId: user.id, to: email, subject: ADMIN_OTP_KONU, html: adminOtpHtml(code) });
-    return { ok: r.ok };
   }
 
   // ─── Google OAuth: Search Console + GA4 ────────────────────
