@@ -10,12 +10,14 @@ import {
   type LinkedinProspect,
   type LinkedinProspectStatus,
   type LinkedinTickResult,
+  type IletisimKanal,
 } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   IMPORT_BATCH_MAX_ROWS, IMPORT_MAX_ROWS_PER_RUN, importRunNotice, parseImportText, planImportBatches, remainingImportText, runImportBatches,
@@ -23,7 +25,7 @@ import {
 import {
   Users, RefreshCw, Pause, Play, FlaskConical, Send, Upload,
   AlertTriangle, SkipForward, Camera, ExternalLink, CheckCircle2, XCircle, MessageSquareText, Link2, Search, Clock,
-  FileBarChart, CalendarClock,
+  FileBarChart, CalendarClock, Mail, PenLine, Reply,
 } from 'lucide-react';
 
 /** Cevap sonrasi satis hunisi — insan elle ilerletir (bot dokunmaz) */
@@ -190,6 +192,13 @@ export default function AdminLinkedinPage() {
       await load();
     });
   };
+
+  const cevapGeldi = (p: LinkedinProspect) => run(`cevap:${p.id}`, async () => {
+    const r = await api.cevapGeldiLinkedin(p.id);
+    if (r.ok) toast.success(`${p.ad} ${p.soyad}: cevap verdi olarak işaretlendi`);
+    else toast.error('Bu kayıt işaretlenemedi (zaten cevaplı ya da atlanmış olabilir)');
+    await load();
+  });
 
   const skip = (p: LinkedinProspect) => run(`skip:${p.id}`, async () => {
     await api.skipLinkedinProspect(p.id);
@@ -435,6 +444,9 @@ export default function AdminLinkedinPage() {
       {/* ── Bugün ilgilenilecekler ── */}
       <TakipCard overview={overview ?? undefined} onDone={load} disabled={!!busy} />
 
+      {/* ── Elle kayıt: kendi attığın LinkedIn / e-posta mesajı ── */}
+      <ElleKayitCard onDone={load} disabled={!!busy} />
+
       {/* ── Çalışma ayarları ── */}
       <AyarCard overview={overview ?? undefined} onDone={load} disabled={!!busy} />
 
@@ -531,14 +543,8 @@ export default function AdminLinkedinPage() {
                     <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30 align-top">
                       <td className="px-4 py-3">
                         <div className="font-medium whitespace-nowrap">{p.ad} {p.soyad}</div>
-                        <a
-                          href={p.profileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-brand-600 hover:underline inline-flex items-center gap-1"
-                        >
-                          profil <ExternalLink className="h-3 w-3" />
-                        </a>
+                        <KisiLinki profileUrl={p.profileUrl} kanal={p.kanal} eposta={p.eposta} />
+                        {p.elle && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-muted text-label" title="Elle gönderildi; bot bu kişiye yazmaz">elle</span>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-medium flex items-center gap-2">
@@ -597,6 +603,20 @@ export default function AdminLinkedinPage() {
                           <SkipForward className="h-3.5 w-3.5 mr-1" />
                           Atla
                         </Button>
+                        {/* Elle ve e-posta kayitlarinda cevap kontrolu insanda: tek tikla "Cevap verdi" */}
+                        {p.status === 'MESSAGED' && (p.elle || p.kanal === 'EPOSTA') && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="ml-2"
+                            onClick={() => cevapGeldi(p)}
+                            disabled={!!busy}
+                            title="Bu kişi cevap verdi — hatırlatma kalkar, kişi 'Bugün ilgilenilecekler'e düşer"
+                          >
+                            <Reply className="h-3.5 w-3.5 mr-1" />
+                            Cevap geldi
+                          </Button>
+                        )}
                         {/* Cevap gelmis kayitta ucretsiz karne — satisin acilis hamlesi */}
                         {(p.status === 'REPLIED' || p.status === 'MESSAGED' || p.status === 'ACCEPTED') && (
                           <Button
@@ -690,9 +710,7 @@ function TakipCard({ overview, onDone, disabled }: { overview?: LinkedinOverview
                 <div className="text-sm font-medium">{k.ad} {k.soyad}</div>
                 <div className="text-xs text-muted-foreground">{k.firma}{k.unvan ? ` · ${k.unvan}` : ''}</div>
               </div>
-              <a href={k.profileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline inline-flex items-center gap-1">
-                profil <ExternalLink className="h-3 w-3" />
-              </a>
+              <KisiLinki profileUrl={k.profileUrl} kanal={k.kanal} eposta={k.eposta} />
               {k.hatirlatmaAt && (
                 <span className="text-xs text-muted-foreground">hatırlatma: {fmtDate(k.hatirlatmaAt)}</span>
               )}
@@ -1220,6 +1238,152 @@ function ImportCard({ onDone, disabled }: { onDone: () => Promise<void>; disable
             {parsed.hatalar.slice(0, 8).map((h, i) => <li key={i}>• {h}</li>)}
             {parsed.hatalar.length > 8 && <li>… ve {parsed.hatalar.length - 8} satır daha</li>}
           </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** LinkedIn kaydinda profil linki, e-posta kaydinda mailto */
+function KisiLinki({ profileUrl, kanal, eposta }: { profileUrl: string; kanal?: IletisimKanal; eposta?: string | null }) {
+  if (kanal === 'EPOSTA') {
+    return (
+      <a href={profileUrl} className="text-xs text-brand-600 hover:underline inline-flex items-center gap-1" title={eposta ?? undefined}>
+        e-posta <Mail className="h-3 w-3" />
+      </a>
+    );
+  }
+  return (
+    <a href={profileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline inline-flex items-center gap-1">
+      profil <ExternalLink className="h-3 w-3" />
+    </a>
+  );
+}
+
+const BOS_FORM = {
+  kanal: 'LINKEDIN' as IletisimKanal,
+  adSoyad: '',
+  firma: '',
+  unvan: '',
+  adres: '',
+  konu: '',
+  mesaj: '',
+  tarih: '',
+  hatirlatma: '',
+  cevapGeldi: false,
+};
+
+/**
+ * ELLE KAYIT — kurucunun kendi attigi mesaj (LinkedIn'den elle / Chrome eklentisiyle ya da e-postayla).
+ * NEDEN: takip listesi yalniz botun gonderdiklerini tutuyordu; elle gidenler hicbir yerde kayitli
+ * degildi (23.11). Bu form GONDERMEZ, yalniz kaydeder. Ayni kisiye ikinci mesaj (hatirlatma) ayni
+ * kartin metnine tarihli eklenir. Hatirlatma bos birakilirsa 4 is gunu sonra 10:00.
+ */
+function ElleKayitCard({ onDone, disabled }: { onDone: () => Promise<void>; disabled: boolean }) {
+  const [acik, setAcik] = useState(false);
+  const [f, setF] = useState(BOS_FORM);
+  const [gonderiyor, setGonderiyor] = useState(false);
+  const set = <K extends keyof typeof BOS_FORM>(k: K, v: (typeof BOS_FORM)[K]) => setF((x) => ({ ...x, [k]: v }));
+  const eposta = f.kanal === 'EPOSTA';
+  const hazir = !!(f.adSoyad.trim() && f.firma.trim() && f.adres.trim() && f.mesaj.trim());
+
+  const kaydet = async () => {
+    if (!hazir) return;
+    setGonderiyor(true);
+    try {
+      // datetime-local / date girdisi tarayicinin saat diliminde; ISO'ya cevrilir
+      const iso = (v: string) => (v ? new Date(v).toISOString() : null);
+      const r = await api.elleKayitLinkedin({
+        kanal: f.kanal,
+        ad: f.adSoyad.trim(),
+        firma: f.firma.trim(),
+        unvan: f.unvan.trim() || null,
+        profileUrl: eposta ? null : f.adres.trim(),
+        eposta: eposta ? f.adres.trim() : null,
+        konu: f.konu.trim() || null,
+        mesaj: f.mesaj,
+        gonderimAt: iso(f.tarih),
+        hatirlatmaAt: f.hatirlatma ? new Date(`${f.hatirlatma}T10:00:00`).toISOString() : null,
+        cevapGeldi: f.cevapGeldi,
+      });
+      toast.success(r.yeni ? 'Kayıt eklendi' : 'Bu kişi zaten kayıtlıydı — mesaj kartına eklendi');
+      setF({ ...BOS_FORM, kanal: f.kanal });
+      await onDone();
+    } catch (err: any) {
+      toast.error(`Kaydedilemedi: ${err?.message ?? 'beklenmeyen hata'}`);
+    } finally {
+      setGonderiyor(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-medium flex items-center gap-2">
+              <PenLine className="h-4 w-4" />
+              Elle kayıt ekle
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Kendi attığın LinkedIn ya da e-posta mesajını takip listesine ekler — hiçbir şey göndermez.
+              Aynı kişiye ikinci mesajı (hatırlatma) eklersen aynı karta tarihiyle yazılır. Hatırlatma boşsa 4 iş günü sonra 10:00.
+            </div>
+          </div>
+          <Button size="sm" variant={acik ? 'ghost' : 'outline'} onClick={() => setAcik(!acik)}>
+            {acik ? 'Kapat' : 'Yeni kayıt'}
+          </Button>
+        </div>
+        {acik && (
+          <div className="space-y-3">
+            <div className="flex gap-2" role="radiogroup" aria-label="Kanal">
+              {(['LINKEDIN', 'EPOSTA'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={f.kanal === k}
+                  onClick={() => set('kanal', k)}
+                  className={cn('px-3 py-1.5 rounded-md border text-xs transition-colors', f.kanal === k ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
+                >
+                  {k === 'LINKEDIN' ? 'LinkedIn' : 'E-posta'}
+                </button>
+              ))}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input value={f.adSoyad} onChange={(e) => set('adSoyad', e.target.value)} placeholder="Ad Soyad" aria-label="Ad Soyad" />
+              <Input value={f.firma} onChange={(e) => set('firma', e.target.value)} placeholder="Firma" aria-label="Firma" />
+              <Input
+                value={f.adres}
+                onChange={(e) => set('adres', e.target.value)}
+                placeholder={eposta ? 'E-posta adresi' : 'LinkedIn profil linki (linkedin.com/in/...)'}
+                aria-label={eposta ? 'E-posta adresi' : 'LinkedIn profil linki'}
+              />
+              <Input value={f.unvan} onChange={(e) => set('unvan', e.target.value)} placeholder="Ünvan (isteğe bağlı)" aria-label="Ünvan" />
+              {eposta && (
+                <Input className="sm:col-span-2" value={f.konu} onChange={(e) => set('konu', e.target.value)} placeholder="E-posta konusu" aria-label="E-posta konusu" />
+              )}
+            </div>
+            <Textarea value={f.mesaj} onChange={(e) => set('mesaj', e.target.value)} rows={5} placeholder="Gönderdiğin mesajın tam metni" aria-label="Mesaj metni" />
+            <div className="flex flex-wrap items-end gap-3 text-xs">
+              <label className="space-y-1">
+                <span className="block text-muted-foreground">Gönderim (boş = şimdi)</span>
+                <Input type="datetime-local" value={f.tarih} onChange={(e) => set('tarih', e.target.value)} className="h-8 w-[200px]" />
+              </label>
+              <label className="space-y-1">
+                <span className="block text-muted-foreground">Hatırlatma günü (boş = 4 iş günü)</span>
+                <Input type="date" value={f.hatirlatma} onChange={(e) => set('hatirlatma', e.target.value)} className="h-8 w-[170px]" />
+              </label>
+              <label className="inline-flex items-center gap-2 h-8">
+                <input type="checkbox" checked={f.cevapGeldi} onChange={(e) => set('cevapGeldi', e.target.checked)} />
+                Cevap da geldi
+              </label>
+              <Button size="sm" className="ml-auto" onClick={kaydet} disabled={disabled || gonderiyor || !hazir}>
+                {gonderiyor ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <PenLine className="h-3.5 w-3.5 mr-1.5" />}
+                Kaydet
+              </Button>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

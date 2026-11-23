@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { LINKEDIN_LABELS as L } from './linkedin-selectors.js';
+import { elleKayitHazirla, metneEkle, type ElleKayitGirdi } from './elle-kayit.js';
 import {
   type BlockResult,
   type MessagedProspect,
@@ -897,7 +898,8 @@ export class LinkedinOutreachService {
     await this.screenshot('inbox', istanbulParts(new Date()).ymd);
 
     const messaged: MessagedProspect[] = await this.prisma.linkedinProspect.findMany({
-      where: { status: 'MESSAGED' },
+      // EPOSTA elle kayitlari LinkedIn mesaj kutusunda aranmaz (cevap panelden "Cevap geldi" ile girilir)
+      where: { status: 'MESSAGED', kanal: 'LINKEDIN' },
       select: { id: true, ad: true, soyad: true, firma: true, profileUrl: true, messagedAt: true },
     });
     const { replied, ambiguous } = matchUnreadToProspects(convs, messaged);
@@ -1201,6 +1203,63 @@ export class LinkedinOutreachService {
   }
 
   /**
+   * ELLE KAYIT: kurucunun kendi attigi LinkedIn / e-posta mesaji (bkz. elle-kayit.ts).
+   * Kisi yoksa olusur; varsa mesaj tarihli basligiyla metnin SONUNA eklenir (hatirlatma
+   * mesajlari ayni kartta sirayla okunur). Cevap vermis kisi "Cevap verdi"de kalir.
+   * Bot bu kayda yazmaz: durum MESSAGED/REPLIED, kuyruk yalniz QUEUED/REQUESTED/ACCEPTED okur.
+   */
+  async elleKayit(g: ElleKayitGirdi): Promise<{ id: string; yeni: boolean }> {
+    const h = elleKayitHazirla(g);
+    const simdi = new Date();
+    const eski = await this.prisma.linkedinProspect.findUnique({
+      where: { profileUrl: h.anahtar },
+      select: { id: true, status: true, messageText: true, messagedAt: true, repliedAt: true, eposta: true, unvan: true },
+    });
+    const cevapli = h.cevapGeldi || eski?.status === 'REPLIED';
+    const ortak = {
+      elle: true,
+      status: (cevapli ? 'REPLIED' : 'MESSAGED') as 'REPLIED' | 'MESSAGED',
+      repliedAt: cevapli ? (eski?.repliedAt ?? simdi) : null,
+      // Cevap geldiyse hatirlatma yerine "Bugun ilgilenilecekler" (REPLIED + asama YOK) devreye girer
+      hatirlatmaAt: cevapli ? null : h.hatirlatmaAt,
+      lastError: null,
+    };
+    if (!eski) {
+      const r = await this.prisma.linkedinProspect.create({
+        data: {
+          ...ortak,
+          ad: h.ad, soyad: h.soyad, firma: h.firma, unvan: h.unvan,
+          profileUrl: h.anahtar, kanal: h.kanal, eposta: h.eposta,
+          messageText: h.blok, messagedAt: h.gonderimAt,
+        },
+        select: { id: true },
+      });
+      return { id: r.id, yeni: true };
+    }
+    const sonMesaj = eski.messagedAt && eski.messagedAt > h.gonderimAt ? eski.messagedAt : h.gonderimAt;
+    await this.prisma.linkedinProspect.update({
+      where: { id: eski.id },
+      data: {
+        ...ortak,
+        messageText: metneEkle(eski.messageText, h.blok),
+        messagedAt: sonMesaj,
+        eposta: eski.eposta ?? h.eposta,
+        unvan: eski.unvan ?? h.unvan,
+      },
+    });
+    return { id: eski.id, yeni: false };
+  }
+
+  /** Cevap geldi (ozellikle e-posta kayitlari icin — bot onlari kontrol etmez). Satis asamasina dokunmaz. */
+  async cevapGeldi(id: string): Promise<{ ok: boolean }> {
+    const r = await this.prisma.linkedinProspect.updateMany({
+      where: { id, status: { in: ['MESSAGED', 'ACCEPTED', 'REQUESTED', 'FAILED'] } },
+      data: { status: 'REPLIED', repliedAt: new Date(), hatirlatmaAt: null, lastError: null },
+    });
+    return { ok: r.count > 0 };
+  }
+
+  /**
    * Cevap sonrasi SATIS asamasi (insan ekseni). Botun `status` alanina DOKUNMAZ:
    * bot nerede oldugunu `status` ile, satis nerede oldugunu `satisAsamasi` ile soyler.
    */
@@ -1263,8 +1322,8 @@ export class LinkedinOutreachService {
     const win = acceptRateWindow(now);
     const [requestsToday, messagesToday, inmailsToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, krediRow, ilgilenilecek, ilkKuyruk] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
-      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
-      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null } }),
+      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, kanal: 'LINKEDIN' } }),
+      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null, kanal: 'LINKEDIN', elle: false } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
       this.prisma.linkedinProspect.count({ where: { status: 'QUEUED' } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to } } }),
@@ -1287,7 +1346,7 @@ export class LinkedinOutreachService {
         },
         orderBy: [{ hatirlatmaAt: 'asc' }, { repliedAt: 'desc' }],
         take: 25,
-        select: { id: true, ad: true, soyad: true, firma: true, unvan: true, status: true, satisAsamasi: true, hatirlatmaAt: true, repliedAt: true, profileUrl: true },
+        select: { id: true, ad: true, soyad: true, firma: true, unvan: true, status: true, satisAsamasi: true, hatirlatmaAt: true, repliedAt: true, profileUrl: true, kanal: true, eposta: true },
       }).catch(() => []),
       this.prisma.linkedinProspect.findFirst({
         where: { status: 'QUEUED' },
@@ -1395,9 +1454,11 @@ export class LinkedinOutreachService {
     const win = acceptRateWindow(now);
     const [requestsToday, messagesToday, inmailsToday, requestsWeek, requestsMatured, acceptedMatured, todayRows, failsRow, researchRow] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
-      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
-      // InMail = bugun mesaj gitmis ama HIC baglanti istegi gonderilmemis kayit (dogrudan mesaj)
-      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null } }),
+      // Elle LinkedIn mesajlari da hesabin gunluk mesajidir → sayaca girer; e-posta girmez
+      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, kanal: 'LINKEDIN' } }),
+      // InMail = bugun mesaj gitmis ama HIC baglanti istegi gonderilmemis kayit (dogrudan mesaj).
+      // Elle kayitlar haric: 1. derece kisiye elle yazilan mesaj InMail kredisi harcamaz.
+      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null, kanal: 'LINKEDIN', elle: false } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to }, acceptedAt: { not: null } } }),
@@ -1439,7 +1500,8 @@ export class LinkedinOutreachService {
       this.prisma.linkedinProspect.findMany({ where: { status: 'ACCEPTED' }, orderBy: { acceptedAt: 'asc' }, take: 20, select: sel }),
       this.prisma.linkedinProspect.findMany({ where: { status: 'REQUESTED' }, orderBy: { requestedAt: 'asc' }, take: 20, select: sel }),
       this.prisma.linkedinProspect.findMany({ where: { status: 'QUEUED', lastError: null }, orderBy: order, take: QUEUE_TAKE, select: sel }),
-      this.prisma.linkedinProspect.count({ where: { status: 'MESSAGED' } }),
+      // Cevap kontrolu yalniz LinkedIn kayitlari icin anlamli (e-posta kaydi mesaj kutusunda yok)
+      this.prisma.linkedinProspect.count({ where: { status: 'MESSAGED', kanal: 'LINKEDIN' } }),
     ]);
     const retry = fresh.length < QUEUE_TAKE
       ? await this.prisma.linkedinProspect.findMany({ where: { status: 'QUEUED', lastError: { not: null } }, orderBy: order, take: QUEUE_TAKE - fresh.length, select: sel })
