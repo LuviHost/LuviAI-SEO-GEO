@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { AdminOtpController } from './admin-otp.controller.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthGuard } from './auth.guard.js';
@@ -22,7 +23,7 @@ import { AppleSiwaService } from './apple-siwa.service.js';
       signOptions: { expiresIn: '7d' },
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AdminOtpController],
   providers: [AuthService, AuthGuard, SiteAccessGuard, GscOAuthService, GaOAuthService, AppleSiwaService],
   exports: [AuthService, AuthGuard, SiteAccessGuard, GscOAuthService, GaOAuthService, AppleSiwaService],
 })
