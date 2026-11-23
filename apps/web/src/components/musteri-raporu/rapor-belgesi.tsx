@@ -407,7 +407,7 @@ function SeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
       ) : (
         <div className="rapor-blok">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 print:grid-cols-4">
-            <Kutu etiket="İçerik görseli" deger={trSayi(seo.gorseller.icerikGorseli)} ipucu={`${seo.gorseller.sayfaSayisi} sayfada`} />
+            <Kutu etiket="Taranan görsel" deger={trSayi(seo.gorseller.icerikGorseli)} ipucu={`${seo.gorseller.sayfaSayisi} sayfada`} />
             <Kutu etiket="Alt metni yok" deger={trSayi(seo.gorseller.altMetniYok)} ton={seo.gorseller.altMetniYok > 0 ? 'warning' : 'success'} />
             <Kutu etiket="Alt metni var" deger={trSayi(seo.gorseller.altMetniVar)} />
             <Kutu
@@ -424,8 +424,8 @@ function SeoBolumu({ rapor }: { rapor: MusteriRaporu }) {
                 etiket="Alt metni olmayan görsellerin oranı"
               />
               <p className="mt-1 text-label text-muted-foreground">
-                Alt metni olmayan içerik görseli oranı: %{trSayi(Math.round((seo.gorseller.altMetniYok / seo.gorseller.icerikGorseli) * 100))}.
-                {seo.gorseller.susGorseli > 0 ? ` ${trSayi(seo.gorseller.susGorseli)} süs görseli (alt="") doğru işaretlenmiş.` : ''}
+                Alt metni olmayan görsel oranı: %{trSayi(Math.round((seo.gorseller.altMetniYok / seo.gorseller.icerikGorseli) * 100))}.
+                {seo.gorseller.susGorseli > 0 ? ` ${trSayi(seo.gorseller.susGorseli)} görselin alt metni boş bırakılmış (alt=""); ikon ve süs görselleri için doğru, ürün ve banner görselleri için eksik.` : ''}
               </p>
             </div>
           )}
