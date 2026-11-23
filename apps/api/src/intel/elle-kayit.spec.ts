@@ -39,7 +39,7 @@ describe('elleKayitHazirla', () => {
     expect(r.kanal).toBe('LINKEDIN');
     expect(r.anahtar).toBe('https://www.linkedin.com/in/ayse-demir/');
     expect(r.hatirlatmaAt.toISOString()).toBe('2026-11-26T07:00:00.000Z');
-    expect(r.blok).toBe('── 20.11.2026 · LinkedIn ──\nMerhaba');
+    expect(r.blok).toBe('── 20.11.2026 15:00 · LinkedIn ──\nMerhaba');
   });
   it('E-posta kaydi: anahtar mailto, konu baslikta', () => {
     const r = elleKayitHazirla({
@@ -50,7 +50,7 @@ describe('elleKayitHazirla', () => {
     expect(r.anahtar).toBe('mailto:mert@zirvo.com');
     expect(r.ad).toBe('Mert');
     expect(r.soyad).toBe('Kaya');
-    expect(r.blok.startsWith('── 20.11.2026 · E-posta · Konu: Öneri ──')).toBe(true);
+    expect(r.blok.startsWith('── 20.11.2026 15:00 · E-posta · Konu: Öneri ──')).toBe(true);
   });
   it('eksik alanlarda acik hata', () => {
     expect(() => elleKayitHazirla({ ad: 'Ayşe', firma: 'Kalem', mesaj: 'x' }, NOW)).toThrow(/profil linki/);
@@ -61,6 +61,18 @@ describe('elleKayitHazirla', () => {
   it('verilen hatirlatma tarihi korunur', () => {
     const r = elleKayitHazirla({ ad: 'A', firma: 'B', profileUrl: 'linkedin.com/in/a', mesaj: 'x', hatirlatmaAt: '2026-12-01T07:00:00Z' }, NOW);
     expect(r.hatirlatmaAt.toISOString()).toBe('2026-12-01T07:00:00.000Z');
+  });
+});
+
+describe('yon GELEN', () => {
+  it('karsi tarafin mesaji Gelen basligiyla, cevap verdi sayilir', () => {
+    const r = elleKayitHazirla({ yon: 'gelen', ad: 'Ayşe', soyad: 'Demir', firma: 'Kalem', profileUrl: 'linkedin.com/in/a', mesaj: 'Gönderebilirsiniz.', gonderimAt: '2026-11-21T17:08:00Z' }, NOW);
+    expect(r.yon).toBe('GELEN');
+    expect(r.cevapGeldi).toBe(true);
+    expect(r.blok).toBe('── 21.11.2026 20:08 · LinkedIn · Gelen ──\nGönderebilirsiniz.');
+  });
+  it('konu tek satira iner, baslik ayiricisi bozulmaz', () => {
+    expect(blokBasligi('EPOSTA', new Date('2026-11-20T12:00:00Z'), 'A\n── B')).toBe('── 20.11.2026 15:00 · E-posta · Konu: A — B ──');
   });
 });
 

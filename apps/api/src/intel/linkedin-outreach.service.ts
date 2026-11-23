@@ -1216,10 +1216,12 @@ export class LinkedinOutreachService {
       select: { id: true, status: true, messageText: true, messagedAt: true, repliedAt: true, eposta: true, unvan: true },
     });
     const cevapli = h.cevapGeldi || eski?.status === 'REPLIED';
+    const gelen = h.yon === 'GELEN';
     const ortak = {
       elle: true,
       status: (cevapli ? 'REPLIED' : 'MESSAGED') as 'REPLIED' | 'MESSAGED',
-      repliedAt: cevapli ? (eski?.repliedAt ?? simdi) : null,
+      // Gelen mesajda cevap ani mesajin kendi tarihi
+      repliedAt: cevapli ? (eski?.repliedAt ?? (gelen ? h.gonderimAt : simdi)) : null,
       // Cevap geldiyse hatirlatma yerine "Bugun ilgilenilecekler" (REPLIED + asama YOK) devreye girer
       hatirlatmaAt: cevapli ? null : h.hatirlatmaAt,
       lastError: null,
@@ -1230,13 +1232,14 @@ export class LinkedinOutreachService {
           ...ortak,
           ad: h.ad, soyad: h.soyad, firma: h.firma, unvan: h.unvan,
           profileUrl: h.anahtar, kanal: h.kanal, eposta: h.eposta,
-          messageText: h.blok, messagedAt: h.gonderimAt,
+          // Gelen mesaj "bizim gonderdigimiz" degil: messagedAt (gunluk mesaj sayaci) dolmaz
+          messageText: h.blok, messagedAt: gelen ? null : h.gonderimAt,
         },
         select: { id: true },
       });
       return { id: r.id, yeni: true };
     }
-    const sonMesaj = eski.messagedAt && eski.messagedAt > h.gonderimAt ? eski.messagedAt : h.gonderimAt;
+    const sonMesaj = gelen || (eski.messagedAt && eski.messagedAt > h.gonderimAt) ? eski.messagedAt : h.gonderimAt;
     await this.prisma.linkedinProspect.update({
       where: { id: eski.id },
       data: {
