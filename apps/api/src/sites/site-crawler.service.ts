@@ -6,6 +6,7 @@ import { detectBlock } from '../common/block-detect.js';
 import { extractImages, type ExtractedImage, type ImageAltStats } from './image-extract.js';
 import { isJsShell } from './js-shell.js';
 import { GOOGLE_META_NAMES, type PageRobotsSignals } from '../audit/google-ai-eligibility.js';
+import { probeRedirectChains, type RedirectProbe } from '../audit/redirect-chain.js';
 import { isAllowedForRanksUpBot, parseRanksUpBotGroup, ROBOTS_PARSE_LIMIT, type RanksUpRobotsPolicy } from './ranksup-robots.js';
 import {
   accessFromBlock, accessFromFetchError, accessFromHttpStatus, accessFromRobots, type CrawlAccessIssue,
@@ -101,6 +102,12 @@ export interface CrawlResult {
    * baglanamaz. HTTPS kontrolu bunu bulgu olarak yazar.
    */
   tlsChainIncomplete?: boolean;
+  /**
+   * Alan adinin http/https × www'lu/www'suz yazilislarinin son adrese kac
+   * adimda ulastigi (audit/redirect-chain.ts). Tarama erken durduysa ya da
+   * anasayfa okunamadiysa yoklanmaz (alan yok).
+   */
+  redirectProbes?: RedirectProbe[];
 }
 
 export type TextFetcher = (url: string, opts?: SafeTextOptions) => Promise<SafeTextResult>;
@@ -362,6 +369,12 @@ export class SiteCrawlerService {
       llmsStatus = this.resourceStatus(llmsUrl, llmsRes, llmsTxt !== null);
     }
 
+    // 7) Alan adinin yazilislari kac adimda son adrese ulasiyor (4 kucuk istek)
+    let redirectProbes: RedirectProbe[] | undefined;
+    if (!stoppedEarly) {
+      redirectProbes = await probeRedirectChains(this.fetchText, origin).catch(() => undefined);
+    }
+
     return {
       baseUrl: origin,
       pages,
@@ -376,6 +389,7 @@ export class SiteCrawlerService {
       stoppedEarly,
       resources: { robots: robotsStatus, sitemap: sitemap.status, llms: llmsStatus },
       tlsChainIncomplete: zincirEksikBasta || zincirEksik(),
+      ...(redirectProbes ? { redirectProbes } : {}),
     };
   }
 

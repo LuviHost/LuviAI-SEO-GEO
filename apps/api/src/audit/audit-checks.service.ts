@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { CrawlResourceStatus, CrawlResult } from '../sites/site-crawler.service.js';
 import { computeImageAltCheck } from './image-alt-check.js';
+import { summarizeRedirectChains } from './redirect-chain.js';
 import { computeRobotsCheck, ROBOTS_METHOD_VERSION } from './robots-check.js';
 import { detectLanguageVersions } from './language-versions.js';
 import { excludedFromGoogleAi, googleDirectives } from './google-ai-eligibility.js';
@@ -554,12 +555,26 @@ export class AuditChecksService {
         fixable: false,
       });
     }
+    // Yonlendirme zinciri (redirect-chain.ts): 2+ adim BILGI — puan degismez,
+    // kontrol "gecti" kalir; rapor bunu sayfa duzeyi bilgi satiri olarak gosterir.
+    const redirects = c.redirectProbes ? summarizeRedirectChains(c.redirectProbes) : null;
+    if (redirects && redirects.longChainCount > 0) {
+      issues.push({
+        severity: 'info', type: 'redirect_chain_long',
+        description: `Alan adının ${redirects.longChainCount} yazılışı siteye ${redirects.maxHops} yönlendirmeyle ulaşıyor (${redirects.longChains[0]}). Her yönlendirme açılışı geciktirir; bütün yazılışları tek adımda son adrese yönlendir.`,
+        fixable: false,
+      });
+    }
     return {
       id: 'https', name: 'HTTPS',
       found: isHttps, valid: isHttps && !chainIncomplete,
       score: !isHttps ? 0 : chainIncomplete ? HTTPS_CHAIN_INCOMPLETE_SCORE : 100,
       issues,
-      details: { methodVersion: HTTPS_METHOD_VERSION, ...(chainIncomplete ? { chainIncomplete: true } : {}) },
+      details: {
+        methodVersion: HTTPS_METHOD_VERSION,
+        ...(chainIncomplete ? { chainIncomplete: true } : {}),
+        ...(redirects ? { redirectsProbed: redirects.probed, longChainCount: redirects.longChainCount, longChains: redirects.longChains, maxRedirectHops: redirects.maxHops } : {}),
+      },
     };
   }
 

@@ -75,7 +75,9 @@ describe('crawler — sayfa boyutu tavani', () => {
     let anasayfaIstegi = 0;
     handler = (req, res) => {
       if (kokDosya(req.url)) { res.writeHead(404); res.end(); return; }
-      anasayfaIstegi++;
+      // Taramanin sayfa istekleri onbellek kirma parametresi (_rc) tasir; sondaki
+      // yonlendirme yoklamasi (audit/redirect-chain.ts, 1 KB'ta birakir) tasimaz
+      if (req.url?.includes('_rc=')) anasayfaIstegi++;
       devasaYanit(res, 20 * 1024 * 1024, '<html><head><title>Dev Sayfa</title></head><body>', sayac, HTML);
     };
 

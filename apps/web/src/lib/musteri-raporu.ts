@@ -52,7 +52,7 @@ export interface RaporSayfaSorunu {
   baslik: string;
   onem: Onem;
   sayi: number | null;
-  birim: 'sayfa' | 'görsel' | 'başlık';
+  birim: 'sayfa' | 'görsel' | 'başlık' | 'adres';
   ornekler: string[];
   ornekNotu: string | null;
   aciklama: string;

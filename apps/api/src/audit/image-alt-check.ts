@@ -21,6 +21,8 @@ type PageLike = Pick<CrawledPage, 'url'> & Partial<Pick<CrawledPage, 'imageAltSt
 export function computeImageAltCheck(pages: PageLike[]): CheckResult {
   let total = 0, withAlt = 0, emptyAlt = 0, absent = 0, ariaDecorative = 0, suspicious = 0, excluded = 0;
   let pagesScanned = 0;
+  let noDimensions = 0, dimensionsMeasured = 0;
+  const noDimensionsPages: string[] = [];
   let capped = false;
   const missingAltPages: string[] = [];
   const suspiciousPages: string[] = [];
@@ -37,6 +39,11 @@ export function computeImageAltCheck(pages: PageLike[]): CheckResult {
     suspicious += s.suspicious ?? 0;
     excluded += s.excluded ?? 0;
     if (p.imagesCapped) capped = true;
+    if (typeof s.noDimensions === 'number') {
+      dimensionsMeasured++;
+      noDimensions += s.noDimensions;
+      if (s.noDimensions > 0 && noDimensionsPages.length < MAX_LISTED_PAGES) noDimensionsPages.push(p.url);
+    }
     if ((s.absent ?? 0) > 0 && missingAltPages.length < MAX_LISTED_PAGES) missingAltPages.push(p.url);
     if ((s.suspicious ?? 0) > 0 && suspiciousPages.length < MAX_LISTED_PAGES) suspiciousPages.push(p.url);
   }
@@ -56,6 +63,9 @@ export function computeImageAltCheck(pages: PageLike[]): CheckResult {
     missingAltPages,
     suspiciousPages,
     capped,
+    // Eski taramalarda (alan yok) olculmedi: null; sayi uydurulmaz
+    noDimensions: dimensionsMeasured > 0 ? noDimensions : null,
+    noDimensionsPages,
   };
 
   if (contentImages === 0) {
@@ -77,6 +87,15 @@ export function computeImageAltCheck(pages: PageLike[]): CheckResult {
       severity: 'info',
       type: 'image_alt_suspicious',
       description: `${suspicious} görselin alt metni dosya adı ya da "resim/görsel" gibi genel bir kelime — görseli anlatmıyor.`,
+      fixable: false,
+    });
+  }
+
+  if (noDimensions > 0) {
+    issues.push({
+      severity: 'info',
+      type: 'image_dimensions_missing',
+      description: `${noDimensions} görselin HTML'de genişlik ve yüksekliği yok (${noDimensionsPages.length}${noDimensionsPages.length >= MAX_LISTED_PAGES ? '+' : ''} sayfada). Boyutu bilinmeyen görsel yüklenince alttaki içeriği kaydırır; <img> etiketine width ve height ekle (CSS'te boyut verildiyse gerek yok).`,
       fixable: false,
     });
   }

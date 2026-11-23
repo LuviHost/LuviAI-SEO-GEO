@@ -25,7 +25,7 @@ import { unbrandedOnly } from '../audit/brand-in-query.js';
 import { fixRouteFor, fixRouteForIssue } from '../audit/fix-routes.js';
 import {
   AI_DUSUK_ESIGI, AI_SKOR_YONTEMI, AKSIYON_TIP_METINLERI, BILGI_NOTLARI, GEO_SINYAL_ADI, OLCULMEDI, RAPOR_DISI_TIPLER, RAPOR_ONEM_DUZELTMESI,
-  SAYFA_SORUNU_METINLERI, TIP_NEDENI, TIP_ONCELIGI, TIP_ONERISI, aiGorunurlukAksiyonAciklamasi, aksiyonMetni, bulguMetni, hizAksiyonAciklamasi, kapsamCumlesi, kontrolMetni,
+  SAYFA_SORUNU_METINLERI, TIP_NEDENI, type HizSahaVerisi, TIP_ONCELIGI, TIP_ONERISI, aiGorunurlukAksiyonAciklamasi, aksiyonMetni, bulguMetni, hizAksiyonAciklamasi, kapsamCumlesi, kontrolMetni,
   type BulguBaglami,
 } from './client-report-texts.js';
 import {
@@ -358,6 +358,8 @@ const SAYFA_SORUNU_ALANI: Record<string, { sayi?: string; ornek?: string; not?: 
   js_shell_pages: { sayi: 'jsShellCount', ornek: 'jsShellPages' },
   image_alt_missing: { sayi: 'absent', ornek: 'missingAltPages', not: 'Örnekler, alt metni eksik görsellerin bulunduğu sayfalardır.' },
   image_alt_suspicious: { sayi: 'suspicious', ornek: 'suspiciousPages', not: 'Örnekler, bu görsellerin bulunduğu sayfalardır.' },
+  image_dimensions_missing: { sayi: 'noDimensions', ornek: 'noDimensionsPages', not: 'Örnekler, bu görsellerin bulunduğu sayfalardır.' },
+  redirect_chain_long: { sayi: 'longChainCount', ornek: 'longChains', not: 'Her satır bir yazılışın geçtiği adresleri sırasıyla gösterir.' },
   orphan_pages: { ornek: 'orphans' },
 };
 
@@ -839,6 +841,9 @@ function aksiyonlariDerle(g: RaporGirdisi, ai: RaporAi): RaporAksiyon[] {
   const geoSinyalleri = Array.isArray(nesne(checks.geo).methods) ? (nesne(checks.geo).methods as any[]) : [];
   const tumSorunlar = issuesOf(g.audit?.issues);
   const hizMetinleri = tumSorunlar.filter((i) => aksiyonAnahtari(i) === 'pagespeed').map((i) => metinOf(i.description));
+  // Gercek kullanici verisi (audit/pagespeed-field.ts); 24.11.2026 oncesi taramada yok
+  const hizSahaHam = nesne(nesne(checks.pagespeed).field);
+  const hizSaha = typeof hizSahaHam.gecti === 'boolean' ? (hizSahaHam as HizSahaVerisi) : null;
 
   const turetilen: RaporAksiyon[] = [];
   const gorulen = new Set<string>();
@@ -859,7 +864,7 @@ function aksiyonlariDerle(g: RaporGirdisi, ai: RaporAi): RaporAksiyon[] {
       if (typeof manset === 'number' && manset >= AI_DUSUK_ESIGI) continue;
       aciklama = aiGorunurlukAksiyonAciklamasi(manset);
     } else if (anahtar === 'pagespeed') {
-      aciklama = hizAksiyonAciklamasi(hizMetinleri);
+      aciklama = hizAksiyonAciklamasi(hizMetinleri, hizSaha);
     } else {
       const sinyal = geoSinyalleri.find((m) => m?.id === GEO_SINYALI[anahtar]);
       aciklama = bulguMetni(issue.type, {
@@ -869,10 +874,12 @@ function aksiyonlariDerle(g: RaporGirdisi, ai: RaporAi): RaporAksiyon[] {
       });
     }
     const metin = aksiyonMetni(anahtar, issue.type)!;
+    // Gercek kullanicilar hiz esiklerini geciyorsa lab firsatlarinin aramaya etkisi sinirli
+    const sahaGecti = anahtar === 'pagespeed' && hizSaha?.gecti === true;
     turetilen.push({
       baslik: metin.baslik,
       aciklama,
-      etki: metin.etki ?? (issue.severity === 'critical' ? 'yuksek' : 'orta'),
+      etki: sahaGecti ? 'dusuk' : metin.etki ?? (issue.severity === 'critical' ? 'yuksek' : 'orta'),
       efor: metin.efor,
       kaynak: 'tarama',
       durum: 'todo',

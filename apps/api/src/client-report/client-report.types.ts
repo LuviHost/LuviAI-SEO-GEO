@@ -69,7 +69,7 @@ export interface RaporSayfaSorunu {
   onem: Onem;
   /** Etkilenen birim sayisi; tarama sayiyi tutmadiysa null */
   sayi: number | null;
-  birim: 'sayfa' | 'görsel' | 'başlık';
+  birim: 'sayfa' | 'görsel' | 'başlık' | 'adres';
   /** En fazla 10 ornek adres */
   ornekler: string[];
   /** Ornekler hakkinda durust not (yoksa / kisitliysa nedeni) */
