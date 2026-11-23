@@ -42,11 +42,21 @@ export function KonusmaDialog({ p, onClose, onDone }: {
   const [konu, setKonu] = useState('');
   const [zaman, setZaman] = useState(simdiYerel());
   const [kaydediyor, setKaydediyor] = useState(false);
-  const sonRef = useRef<HTMLDivElement>(null);
+  // Kaydirilan kutu (mesaj listesi). NEDEN kutunun kendisi: scrollIntoView pencere acilirken
+  // (portal + acilis animasyonu) bos kaliyor ya da yanlis kapsayiciyi kaydiriyordu (23.11).
+  const kutuRef = useRef<HTMLDivElement>(null);
 
   // Kisi degisince formu sifirla; acilista ve yeni balonda en alta kaydir
   useEffect(() => { setMetin(''); setKonu(''); setYon('GIDEN'); setZaman(simdiYerel()); }, [p?.id]);
-  useEffect(() => { sonRef.current?.scrollIntoView({ block: 'end' }); }, [balonlar.length, p?.id]);
+  useEffect(() => {
+    if (!p) return;
+    const enAlta = () => { const el = kutuRef.current; if (el) el.scrollTop = el.scrollHeight; };
+    // Hemen, bir sonraki karede ve acilis animasyonu bittikten sonra (icerik olculmus olur)
+    enAlta();
+    const kare = requestAnimationFrame(enAlta);
+    const sure = setTimeout(enAlta, 250);
+    return () => { cancelAnimationFrame(kare); clearTimeout(sure); };
+  }, [balonlar.length, p]);
 
   if (!p) return null;
   const eposta = p.kanal === 'EPOSTA';
@@ -101,7 +111,8 @@ export function KonusmaDialog({ p, onClose, onDone }: {
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="max-h-[55dvh] min-h-[160px] flex-1 overflow-y-auto bg-muted/30">
+        <DialogBody className="p-0 bg-muted/30">
+          <div ref={kutuRef} className="max-h-[55dvh] min-h-[160px] overflow-y-auto px-5 py-4">
           {balonlar.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">Bu kişiyle henüz kayıtlı bir yazışma yok.</div>
           ) : (
@@ -116,9 +127,9 @@ export function KonusmaDialog({ p, onClose, onDone }: {
                   <BalonGorunum b={b} kisi={p.ad} />
                 </Fragment>
               ))}
-              <div ref={sonRef} />
             </div>
           )}
+          </div>
         </DialogBody>
 
         <DialogFooter className="block space-y-2">
