@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { AccountLimitsRow } from './account-limits-row';
+import { yoneticiBilgisi, yoneticiYetkisi } from './yonetici-actions';
 
 const PLAN_VARIANT: Record<string, any> = {
   TRIAL: 'secondary',
@@ -46,6 +47,28 @@ export default function AdminUsersPage() {
   const [secim, setSecim] = useState<Record<string, string>>({});
   const [kaydediliyor, setKaydediliyor] = useState<string | null>(null);
   const [ayarAcik, setAyarAcik] = useState<string | null>(null);
+  // Yonetici ekleme yalniz kurucuda (sunucu eylemi ayrica dogrular; bu yalniz dugme gorunurlugu)
+  const [benKurucu, setBenKurucu] = useState(false);
+  const [kurucular, setKurucular] = useState<string[]>([]);
+  const [yetkiCalisan, setYetkiCalisan] = useState<string | null>(null);
+
+  const yetkiDegistir = async (u: any, islem: 'ver' | 'al') => {
+    const soru = islem === 'ver'
+      ? `${u.email} yönetici yapılsın mı?\n\nTüm müşteri sitelerini ve raporlarını görür, LinkedIn botunu ve ayarları yönetebilir, ücretli ölçüm başlatabilir. Yönetici ekleyip çıkaramaz. Girişte kod kendi e-postasına gelir.`
+      : `${u.email} yöneticilikten çıkarılsın mı? Admin paneline bir sonraki tıklamada erişimi kapanır.`;
+    if (!confirm(soru)) return;
+    setYetkiCalisan(u.id);
+    try {
+      const r = await yoneticiYetkisi(u.id, islem);
+      if (!r.ok) { toast.error(r.neden); return; }
+      setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, role: r.role, adminYetkiAt: r.adminYetkiAt } : x)));
+      toast.success(islem === 'ver' ? `${u.email} yönetici yapıldı` : `${u.email} yöneticilikten çıkarıldı`);
+    } catch (err: any) {
+      toast.error(err?.message || 'İşlem yapılamadı');
+    } finally {
+      setYetkiCalisan(null);
+    }
+  };
 
   const planAta = async (u: any) => {
     const plan = secim[u.id];
@@ -69,7 +92,13 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
-    api.getAdminUsers().then(setUsers).finally(() => setLoading(false));
+    api.getAdminUsers()
+      .then(async (list) => {
+        setUsers(list);
+        const b = await yoneticiBilgisi(list.map((u: any) => u.email ?? '')).catch(() => null);
+        if (b) { setBenKurucu(b.benKurucu); setKurucular(b.kurucular); }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = useMemo(() => {
@@ -119,6 +148,7 @@ export default function AdminUsersPage() {
                     <th className="p-3">Kayıt</th>
                     <th className="p-3">Plan ata</th>
                     <th className="p-3">Ayarlar</th>
+                    <th className="p-3">Yönetici</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -185,13 +215,22 @@ export default function AdminUsersPage() {
                           {ayarAcik === u.id ? 'Kapat' : 'Asistan ve soru'}
                         </button>
                       </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <YoneticiHucresi
+                          u={u}
+                          kurucu={kurucular.includes((u.email ?? '').toLowerCase())}
+                          benKurucu={benKurucu}
+                          calisiyor={yetkiCalisan === u.id}
+                          onDegistir={yetkiDegistir}
+                        />
+                      </td>
                     </tr>
-                    {ayarAcik === u.id && <AccountLimitsRow userId={u.id} colSpan={10} />}
+                    {ayarAcik === u.id && <AccountLimitsRow userId={u.id} colSpan={11} />}
                     </Fragment>
                   ))}
                   {filtered.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={10} className="p-12 text-center text-muted-foreground">
+                      <td colSpan={11} className="p-12 text-center text-muted-foreground">
                         Kullanıcı bulunamadı.
                       </td>
                     </tr>
@@ -203,5 +242,50 @@ export default function AdminUsersPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Yonetici sutunu. Kurucu: degistirilemez. Panelden verilmis yonetici: kurucu cikarabilir.
+ * Rolu ADMIN ama yetkisi panelden verilmemis eski hesap: admin girisine kapali (bilgi).
+ */
+function YoneticiHucresi({ u, kurucu, benKurucu, calisiyor, onDegistir }: {
+  u: any;
+  kurucu: boolean;
+  benKurucu: boolean;
+  calisiyor: boolean;
+  onDegistir: (u: any, islem: 'ver' | 'al') => void;
+}) {
+  if (kurucu) return <span className="text-xs font-medium">Kurucu</span>;
+  if (u.role === 'ADMIN' && u.adminYetkiAt) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Yönetici · {new Date(u.adminYetkiAt).toLocaleDateString('tr-TR')}</span>
+        {benKurucu && (
+          <button
+            type="button"
+            className="h-8 rounded-md border px-3 text-xs font-medium disabled:opacity-50"
+            disabled={calisiyor}
+            onClick={() => onDegistir(u, 'al')}
+          >
+            {calisiyor ? 'Çıkarılıyor' : 'Yöneticilikten çıkar'}
+          </button>
+        )}
+      </div>
+    );
+  }
+  if (u.role === 'ADMIN') {
+    return <span className="text-xs text-muted-foreground" title="Rolü ADMIN ama kurucu listesinde değil ve panelden yetki verilmemiş: admin girişi kapalı">Giriş kapalı</span>;
+  }
+  if (!benKurucu || u.role !== 'USER' || u.deletionRequestedAt) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <button
+      type="button"
+      className="h-8 rounded-md border px-3 text-xs font-medium disabled:opacity-50"
+      disabled={calisiyor}
+      onClick={() => onDegistir(u, 'ver')}
+    >
+      {calisiyor ? 'Yapılıyor' : 'Yönetici yap'}
+    </button>
   );
 }
