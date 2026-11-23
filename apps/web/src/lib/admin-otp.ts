@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 
 /**
  * Admin paneli için email-OTP akışı.
@@ -6,7 +6,7 @@ import { createHmac } from 'node:crypto';
  * Akış:
  *   1) Admin kullanıcı /admin-unlock'a gelir
  *   2) "Kod Gönder" butonuna basar → requestAdminOtp(email) çağrılır
- *   3) 6 haneli kod oluşturulur, 5dk TTL ile in-memory Map'e konur, Resend ile mail
+ *   3) 6 haneli kod oluşturulur, 5dk TTL ile in-memory Map'e konur, e-postayı API gönderir
  *   4) Kullanıcı maildeki kodu form'a girer → verifyAdminOtp(email, code)
  *   5) Doğruysa setAdminUnlockCookie + /admin redirect
  *
@@ -30,12 +30,22 @@ const COOLDOWN_MS = 30 * 1000; // aynı email için tekrar göndermeden önce 30
 const lastSent = new Map<string, number>();
 
 function generateCode(): string {
-  // 6 haneli sayısal kod (kriptografik random değil, ama 5dk TTL + 5 attempt brute-force engeller)
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // 6 haneli sayisal kod, kriptografik rastgele (Math.random tahmin edilebilir)
+  return String(randomInt(100000, 1000000));
 }
 
+/** Web → API dahili anahtari (welcome-hook ile ayni kural) */
+function internalKey(): string {
+  return process.env.INTERNAL_API_KEY ?? process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? '';
+}
+
+/**
+ * NEDEN anahtara bagli: kod e-postasini artik API gonderiyor (23.11); web'in kendi
+ * RESEND_API_KEY'i gerekmez. Eskiden RESEND_API_KEY yoksa OTP kapaniyor, panel kodsuz
+ * aciliyordu — dahili anahtar her zaman var, kapi kendiliginden gevsemez.
+ */
 export function isAdminOtpEnabled(): boolean {
-  return !!process.env.RESEND_API_KEY;
+  return !!internalKey();
 }
 
 export function getAdminEmail(): string | null {
@@ -56,8 +66,7 @@ export function isAuthorizedAdminEmail(email: string): boolean {
 }
 
 export async function requestAdminOtp(email: string): Promise<{ ok: boolean; reason?: string }> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return { ok: false, reason: 'OTP_DISABLED' };
+  if (!internalKey()) return { ok: false, reason: 'OTP_DISABLED' };
 
   const key = email.toLowerCase().trim();
 
@@ -75,48 +84,27 @@ export async function requestAdminOtp(email: string): Promise<{ ok: boolean; rea
   });
   lastSent.set(key, Date.now());
 
-  const html = `<!DOCTYPE html>
-<html lang="tr"><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#0f0a1f;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#e2d9ff;">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#1a0f3d;">
-<tr><td align="center" style="padding:40px 16px;">
-<table role="presentation" width="480" cellspacing="0" cellpadding="0" style="max-width:480px;background:#1a0f3d;border-radius:16px;border:1px solid rgba(250,204,21,0.4);">
-<tr><td style="padding:40px 32px;">
-<div style="display:inline-block;padding:6px 12px;background:rgba(250,204,21,0.15);border-radius:999px;font-family:SF Mono,Menlo,monospace;font-size:10px;letter-spacing:3px;color:#fde047;text-transform:uppercase;margin-bottom:16px;">LUVIAI ADMIN</div>
-<h1 style="font-size:24px;font-weight:700;margin:0 0 8px;color:#fff;">Giriş kodu</h1>
-<p style="margin:0 0 24px;color:#c4b5fd;font-size:14px;">Aşağıdaki kodu admin panelinde gir. Kod 5 dakika geçerli.</p>
-<div style="background:rgba(250,204,21,0.1);border:1px solid rgba(250,204,21,0.3);border-radius:12px;padding:24px;text-align:center;font-family:SF Mono,Menlo,monospace;font-size:42px;letter-spacing:14px;color:#fde047;font-weight:700;margin:0 0 24px;">
-${code}
-</div>
-<p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">Bu giriş denemesini siz yapmadıysanız bu maili göz ardı edin. Hesabınız güvende — kod doğrulanmadan oturum açılmaz.</p>
-</td></tr>
-</table>
-<p style="color:#6b7280;font-size:11px;margin:16px 0 0;font-family:SF Mono,Menlo,monospace;">RanksUp · Admin OTP</p>
-</td></tr></table>
-</body></html>`;
-
+  // E-postayi API gonderir (tek Resend anahtari, noreply@ranksup.ai) — bkz. api auth/admin-otp-mail.ts
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
   try {
-    const res = await fetch('https://api.resend.com/emails', {
+    const res = await fetch(`${apiBase}/api/auth/admin-otp-mail`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: `RanksUp Admin <${process.env.EMAIL_FROM ?? 'noreply@luvihost.com.tr'}>`,
-        to: [email],
-        subject: `🔐 RanksUp Admin giriş kodu: ${code}`,
-        html,
-      }),
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey() },
+      body: JSON.stringify({ email: key, code }),
     });
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('[admin-otp] Resend fail:', res.status, errText);
+    const veri = (await res.json().catch(() => null)) as { ok?: boolean } | null;
+    if (!res.ok || veri?.ok !== true) {
+      console.error('[admin-otp] API e-postasi gonderilemedi:', res.status);
+      // Gitmeyen kod bekletmesin: kullanici hemen yeniden deneyebilsin
+      otpStore.delete(key);
+      lastSent.delete(key);
       return { ok: false, reason: 'MAIL_FAIL' };
     }
     return { ok: true };
   } catch (err: any) {
     console.error('[admin-otp] mail error:', err?.message);
+    otpStore.delete(key);
+    lastSent.delete(key);
     return { ok: false, reason: 'MAIL_FAIL' };
   }
 }
