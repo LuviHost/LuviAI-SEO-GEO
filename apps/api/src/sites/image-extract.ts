@@ -47,6 +47,14 @@ export interface ImageAltStats {
   ariaDecorative: number;
   suspicious: number;
   excluded: number;
+  /**
+   * Degerlendirilen (excluded disi) gorsellerden width ve height ozniteligi
+   * birlikte olmayanlar. Boyutsuz gorsel yuklenince alttaki icerigi kaydirir
+   * (web.dev "Optimize CLS": gorsellere width/height verin; Lighthouse
+   * "unsized-images"). CSS'te boyut / aspect-ratio verilmis olabilir — HTML'den
+   * gorulmez, bu yuzden yalniz BILGI. 24.11.2026 oncesi taramalarda alan yok.
+   */
+  noDimensions?: number;
 }
 
 export const MAX_IMAGES_PER_PAGE = 50;
@@ -102,7 +110,7 @@ export function extractImages(
   opts: { max?: number } = {},
 ): { images: ExtractedImage[]; stats: ImageAltStats; capped: boolean } {
   const max = opts.max ?? MAX_IMAGES_PER_PAGE;
-  const stats: ImageAltStats = { total: 0, withAlt: 0, emptyAlt: 0, absent: 0, ariaDecorative: 0, suspicious: 0, excluded: 0 };
+  const stats: ImageAltStats = { total: 0, withAlt: 0, emptyAlt: 0, absent: 0, ariaDecorative: 0, suspicious: 0, excluded: 0, noDimensions: 0 };
   const images: ExtractedImage[] = [];
   const seen = new Set<string>();
   let capped = false;
@@ -132,6 +140,7 @@ export function extractImages(
 
     const flags = altState === 'present' && alt ? classifyAlt(alt) : [];
 
+    if (!excluded && (width === null || height === null)) stats.noDimensions = (stats.noDimensions ?? 0) + 1;
     if (excluded) {
       stats.excluded++;
     } else if (altState === 'present') {

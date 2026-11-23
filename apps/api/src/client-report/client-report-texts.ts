@@ -127,7 +127,7 @@ export function kontrolMetni(id: string, taramaAdi?: unknown): KontrolMetni {
 
 export interface SayfaSorunuMetni {
   baslik: string;
-  birim: 'sayfa' | 'görsel' | 'başlık';
+  birim: 'sayfa' | 'görsel' | 'başlık' | 'adres';
 }
 
 /**
@@ -145,6 +145,8 @@ export const SAYFA_SORUNU_METINLERI: Readonly<Record<string, SayfaSorunuMetni>> 
   js_shell_pages: { baslik: 'İçeriği yalnız JavaScript ile oluşan sayfalar', birim: 'sayfa' },
   image_alt_missing: { baslik: 'Alt metni olmayan görseller', birim: 'görsel' },
   image_alt_suspicious: { baslik: 'Alt metni dosya adı ya da genel bir kelime olan görseller', birim: 'görsel' },
+  image_dimensions_missing: { baslik: 'Genişliği ve yüksekliği belirtilmemiş görseller', birim: 'görsel' },
+  redirect_chain_long: { baslik: 'Siteye birden çok yönlendirmeyle ulaşan adresler', birim: 'adres' },
   orphan_pages: { baslik: 'Hiçbir sayfadan bağlantı almayan (yetim) sayfalar', birim: 'sayfa' },
 };
 
@@ -329,6 +331,14 @@ export const BULGU_METINLERI: Readonly<Record<string, (b: BulguBaglami) => strin
   image_alt_suspicious: (b) => {
     const n = adet(b, 'suspicious');
     return `${n !== null ? `${n} görselin` : 'Bazı görsellerin'} alt metni dosya adı ya da "resim", "görsel" gibi genel bir kelime; görseli anlatmıyor.`;
+  },
+  image_dimensions_missing: (b) => {
+    const n = adet(b, 'noDimensions');
+    return `${n !== null ? `${n} görselin` : 'Bazı görsellerin'} genişlik ve yüksekliği sayfa kodunda yazmıyor. Boyutu bilinmeyen görsel yüklenince altındaki içeriği aşağı iter; görsel etiketlerine genişlik ve yükseklik değerlerini ekleyin. Boyut stil dosyasında verildiyse değişiklik gerekmez.`;
+  },
+  redirect_chain_long: (b) => {
+    const n = adet(b, 'maxRedirectHops');
+    return `Alan adının bazı yazılışları siteye ${n !== null ? `${n} yönlendirmeyle` : 'birden çok yönlendirmeyle'} ulaşıyor. Her yönlendirme sayfanın açılışını geciktirir; www'lu, www'suz, http ve https yazılışların hepsini tek adımda son adrese yönlendirin.`;
   },
   // Yontem v1 taramalarinin tipi (09.10.2026 oncesi): sayi o kayitta guvenilir degil, sayisiz
   image_alt_low: () => 'Görsellerin bir bölümünde alt metni yok.',
@@ -577,13 +587,45 @@ export const RAPOR_ONEM_DUZELTMESI: Readonly<Record<string, 'warning' | 'info'>>
  * mobil profilde yapilir (audit.service → pagespeed.service runAudit), firsat
  * listesi en fazla 5 maddedir: "sayfalarin" ya da "butun firsatlar" denmez.
  */
-export function hizAksiyonAciklamasi(firsatMetinleri: string[]): string {
+export function hizAksiyonAciklamasi(firsatMetinleri: string[], saha?: HizSahaVerisi | null): string {
   const kazanclar = firsatMetinleri
     .map((m) => /(\d+(?:\.\d+)?)s\s+tasarruf/.exec(m))
     .map((m) => (m ? Number(m[1]) : 0));
   const enBuyuk = Math.max(0, ...kazanclar);
   const n = firsatMetinleri.length;
-  return `PageSpeed ölçümü (anasayfa, mobil), yüklenmeyi hızlandırabilecek ${n} iyileştirme alanı gösterdi${enBuyuk > 0 ? `; en büyük tahmini kazanç ${String(enBuyuk).replace('.', ',')} saniye` : ''}.`;
+  const lab = `PageSpeed ölçümü (anasayfa, mobil), yüklenmeyi hızlandırabilecek ${n} iyileştirme alanı gösterdi${enBuyuk > 0 ? `; en büyük tahmini kazanç ${String(enBuyuk).replace('.', ',')} saniye` : ''}.`;
+  const sahaCumlesi = hizSahaCumlesi(saha);
+  return sahaCumlesi ? `${lab} ${sahaCumlesi}` : lab;
+}
+
+/** audit checks.pagespeed.field (audit/pagespeed-field.ts) — raporun okudugu alanlar */
+export interface HizSahaVerisi {
+  kapsam?: 'sayfa' | 'site';
+  lcpMs?: number | null;
+  inpMs?: number | null;
+  cls?: number | null;
+  gecti?: boolean | null;
+}
+
+const sn = (ms: number) => `${(Math.round(ms / 100) / 10).toFixed(1).replace('.', ',')} saniyede`;
+const kayma = (cls: number) => (cls === 0 ? '0' : cls.toFixed(2).replace('.', ','));
+
+/**
+ * Gercek ziyaretci (CrUX) cumlesi. Lab puani dusuk ama saha verisi esikleri
+ * geciyorsa okur bunu bilmeli: Google siralamada saha verisine bakar. Veri
+ * yoksa (dusuk trafik) ya da degerlendirilemiyorsa cumle yok.
+ */
+export function hizSahaCumlesi(saha?: HizSahaVerisi | null): string | null {
+  if (!saha || typeof saha.gecti !== 'boolean') return null;
+  const kaynak = `Chrome kullanıcıları, son 28 gün${saha.kapsam === 'site' ? ', sitenin geneli' : ''}`;
+  const parca: string[] = [];
+  if (typeof saha.lcpMs === 'number') parca.push(`ana içerik ${sn(saha.lcpMs)} yükleniyor`);
+  if (typeof saha.inpMs === 'number') parca.push(`tıklamalara ${Math.round(saha.inpMs)} ms'de tepki veriyor`);
+  if (typeof saha.cls === 'number') parca.push(`sayfa kayması ${kayma(saha.cls)}`);
+  if (saha.gecti) {
+    return `Gerçek ziyaretçi verisi ise Google'ın hız eşiklerini geçiyor (${kaynak}): ${parca.join(', ')}. Bu yüzden iyileştirmenin aramaya etkisi sınırlıdır.`;
+  }
+  return `Gerçek ziyaretçi verisi de Google'ın hız eşiklerinin altında kalıyor (${kaynak}): ${parca.join(', ')}. Eşikler: yüklenme 2,5 saniye, tepki 200 ms, kayma 0,1.`;
 }
 
 /**

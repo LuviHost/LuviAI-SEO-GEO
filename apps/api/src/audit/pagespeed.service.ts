@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { pageSpeedField } from './pagespeed-field.js';
 
 /**
  * Google PageSpeed Insights API wrapper.
@@ -41,6 +42,8 @@ export class PageSpeedService {
         tbt: audits['total-blocking-time']?.numericValue,
         ttfb: audits['server-response-time']?.numericValue,
         opportunities: this.extractOpportunities(audits),
+        // Gercek kullanici verisi (CrUX, son 28 gun); dusuk trafikte null
+        field: pageSpeedField(data),
       };
     } catch (err: any) {
       this.log.error(`PageSpeed hata: ${err.message}`);
