@@ -257,6 +257,10 @@ model Site {
   gscPropertyUrl  String? // sc-domain:luvihost.com
   gscRefreshToken String?   @db.Text // şifrelenmiş
   gscConnectedAt  DateTime?
+  /// Yayin sonrasi site haritasi tetigi (POST /api/hooks/sitemap) anahtarinin SHA-256'si.
+  /// Anahtar yalniz bu sitenin site haritasini Search Console'a gondermeye yarar;
+  /// kendisi saklanmaz (scripts/sitemap-kancasi-anahtar.ts). 24.11.2026.
+  sitemapKancaHash String? @unique @db.VarChar(64)
 
   // GA4 OAuth token (opsiyonel — bounce/conversion sinyali için)
   gaPropertyId   String? // 123456789 (numeric property id)
