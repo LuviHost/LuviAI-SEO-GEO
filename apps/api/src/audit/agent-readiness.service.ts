@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { findContactLink } from './trust-contact.js';
 import { Cron } from '@nestjs/schedule';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -313,7 +314,12 @@ export class AgentReadinessService {
     ]);
 
     // Sitemap kesfi: once robots.txt Sitemap satirlari, sonra standart konumlar
-    const sitemap = await this.discoverSitemap(origin, robots, get);
+    // Iletisim / hakkimizda sayfasi (trust-contact.ts) — ana sayfanin bagladigi tek sayfa
+    const contactLink = home.state === 'ok' ? findContactLink(home.text, home.finalUrl || siteUrl) : null;
+    const [sitemap, contactProbe] = await Promise.all([
+      this.discoverSitemap(origin, robots, get),
+      contactLink ? get(contactLink.url, { accept: HTML_ACCEPT, maxBytes: HOME_MAX_BYTES }) : Promise.resolve(null),
+    ]);
 
     // SEP-2127: ai-catalog.json'daki MCP / A2A girdilerinin kartlari
     const catalog = aiCatalog.state === 'ok' && !looksLikeHtml(aiCatalog.text) ? parseAiCatalog(aiCatalog.text) : null;
@@ -351,6 +357,7 @@ export class AgentReadinessService {
       a2aCards,
       commerce,
       // Ana sayfaya ancak eksik sertifika zincirini tamamlayarak baglandiysak bulgu olarak gosterilir
+      contactPage: contactLink && contactProbe ? { url: contactLink.url, probe: contactProbe } : null,
       tlsChainIncomplete: [origin, home.finalUrl].some((u) => { try { return tlsChainCompletedFor(new URL(u).hostname); } catch { return false; } }),
     };
   }

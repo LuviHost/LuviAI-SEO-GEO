@@ -166,7 +166,8 @@ describe('AiCitationService.probeGoogleSurface — ag cagrisi', () => {
 
   it('AI Bakisi cikmayan soru "yok" satiri yazilir (anilmadi degil)', async () => {
     const probes = await kos([yanit([{ type: 'organic' }])]);
-    expect(probes[0]).toEqual({ query: 'q1', cited: false, brandMentioned: false, excerpt: 'YOK: Google bu aramada AI Bakışı göstermedi.', surfaceAbsent: true });
+    // Ayni yanittan organik sira da okunur (24.11.2026): sitenin URL'i yoksa rank null
+    expect(probes[0]).toEqual({ query: 'q1', cited: false, brandMentioned: false, excerpt: 'YOK: Google bu aramada AI Bakışı göstermedi.', surfaceAbsent: true, googleOrganic: { rank: null, knowledgePanel: null } });
   });
 
   it('gecici hata 3 kez denenir; sonra HATA satiri (diger sorular devam eder)', async () => {

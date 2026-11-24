@@ -55,7 +55,27 @@ export interface ImageAltStats {
    * gorulmez, bu yuzden yalniz BILGI. 24.11.2026 oncesi taramalarda alan yok.
    */
   noDimensions?: number;
+  /**
+   * Sayfanin ILK UC degerlendirilen gorselinden loading="lazy" tasiyanlar
+   * (genisligi ve yuksekligi 100 pikselden kucuk oldugu yazan ikonlar haric).
+   * Ust gorsel (cogu zaman LCP ogesi) tembel yuklenirse tarayici onu gec ister:
+   * "Don't lazy-load images that are likely to be in-viewport... especially LCP
+   * images" (web.dev browser-level-image-lazy-loading; Google lazy-loading
+   * rehberi ayni). HTML'den ekran konumu bilinmez; ilk uc gorsel yaklasiktir,
+   * bu yuzden yalniz BILGI. 24.11.2026 oncesi taramalarda alan yok.
+   */
+  earlyLazy?: number;
+  /**
+   * Ilk ucten SONRAKI degerlendirilen gorseller ve bunlardan loading="lazy"
+   * tasimayanlar. Ekran altindaki gorseli tembel yuklemek ilk yuklemeyi
+   * hafifletir; zorunlu degil, yalniz bilgi.
+   */
+  laterImages?: number;
+  laterEager?: number;
 }
+
+/** Ust gorsel sayilan ilk degerlendirilen gorsel sayisi */
+export const EARLY_IMAGE_COUNT = 3;
 
 export const MAX_IMAGES_PER_PAGE = 50;
 const ALT_MAX = 300;
@@ -110,10 +130,11 @@ export function extractImages(
   opts: { max?: number } = {},
 ): { images: ExtractedImage[]; stats: ImageAltStats; capped: boolean } {
   const max = opts.max ?? MAX_IMAGES_PER_PAGE;
-  const stats: ImageAltStats = { total: 0, withAlt: 0, emptyAlt: 0, absent: 0, ariaDecorative: 0, suspicious: 0, excluded: 0, noDimensions: 0 };
+  const stats: ImageAltStats = { total: 0, withAlt: 0, emptyAlt: 0, absent: 0, ariaDecorative: 0, suspicious: 0, excluded: 0, noDimensions: 0, earlyLazy: 0, laterImages: 0, laterEager: 0 };
   const images: ExtractedImage[] = [];
   const seen = new Set<string>();
   let capped = false;
+  let evaluated = 0;
 
   $('img').each((_, el) => {
     stats.total++;
@@ -141,6 +162,17 @@ export function extractImages(
     const flags = altState === 'present' && alt ? classifyAlt(alt) : [];
 
     if (!excluded && (width === null || height === null)) stats.noDimensions = (stats.noDimensions ?? 0) + 1;
+    if (!excluded) {
+      const isLazy = (attr('loading') ?? '').trim().toLowerCase() === 'lazy';
+      if (evaluated < EARLY_IMAGE_COUNT) {
+        const icon = width !== null && height !== null && width < 100 && height < 100;
+        if (isLazy && !icon) stats.earlyLazy = (stats.earlyLazy ?? 0) + 1;
+      } else {
+        stats.laterImages = (stats.laterImages ?? 0) + 1;
+        if (!isLazy) stats.laterEager = (stats.laterEager ?? 0) + 1;
+      }
+      evaluated++;
+    }
     if (excluded) {
       stats.excluded++;
     } else if (altState === 'present') {

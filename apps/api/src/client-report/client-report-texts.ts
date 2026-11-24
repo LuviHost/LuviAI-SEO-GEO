@@ -146,6 +146,8 @@ export const SAYFA_SORUNU_METINLERI: Readonly<Record<string, SayfaSorunuMetni>> 
   image_alt_missing: { baslik: 'Alt metni olmayan görseller', birim: 'görsel' },
   image_alt_suspicious: { baslik: 'Alt metni dosya adı ya da genel bir kelime olan görseller', birim: 'görsel' },
   image_dimensions_missing: { baslik: 'Genişliği ve yüksekliği belirtilmemiş görseller', birim: 'görsel' },
+  image_early_lazy: { baslik: 'Üstteki görseli geç yükleyen sayfalar', birim: 'görsel' },
+  image_lazy_missing: { baslik: 'Alttaki görselleri hemen yükleyen sayfalar', birim: 'sayfa' },
   redirect_chain_long: { baslik: 'Siteye birden çok yönlendirmeyle ulaşan adresler', birim: 'adres' },
   orphan_pages: { baslik: 'Hiçbir sayfadan bağlantı almayan (yetim) sayfalar', birim: 'sayfa' },
 };
@@ -335,6 +337,14 @@ export const BULGU_METINLERI: Readonly<Record<string, (b: BulguBaglami) => strin
   image_dimensions_missing: (b) => {
     const n = adet(b, 'noDimensions');
     return `${n !== null ? `${n} görselin` : 'Bazı görsellerin'} genişlik ve yüksekliği sayfa kodunda yazmıyor. Boyutu bilinmeyen görsel yüklenince altındaki içeriği aşağı iter; görsel etiketlerine genişlik ve yükseklik değerlerini ekleyin. Boyut stil dosyasında verildiyse değişiklik gerekmez.`;
+  },
+  image_early_lazy: (b) => {
+    const n = adet(b, 'earlyLazy');
+    return `Sayfaların ilk görsellerinden ${n !== null ? `${n} tanesi` : 'bazıları'} "geç yükle" (loading="lazy") olarak işaretli. Sayfanın üstündeki görsel geç istenince sayfa geç dolar; üstteki görsellerden bu işareti kaldırın. Görsel ekranın altındaysa değişiklik gerekmez.`;
+  },
+  image_lazy_missing: (b) => {
+    const n = adet(b, 'laterEagerPageCount');
+    return `${n !== null ? `${n} sayfada` : 'Bazı sayfalarda'} ekranın altındaki görsellerin hepsi sayfa açılır açılmaz yükleniyor. Bu görsellere "geç yükle" (loading="lazy") eklemek ilk açılışı hafifletir; üstteki görsellere eklemeyin.`;
   },
   redirect_chain_long: (b) => {
     const n = adet(b, 'maxRedirectHops');

@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import * as cheerio from "cheerio";
 import { unblockHint, type BlockKind, type BlockSignal } from "../common/block-detect.js";
 import { fetchCustomerPage, type CustomerPage } from "./customer-page-fetch.js";
-import { contentSignals, hasValidJsonLd, visibleQaScore } from "./geo-content-signals.js";
+import { contentSignals, hasValidJsonLd, visibleQaCount, visibleQaScore } from "./geo-content-signals.js";
 
 export interface GeoSignal {
   id: string;
@@ -57,8 +57,13 @@ export interface GeoAccessBlock {
  * gorunur). Yapisal veri "3 tip varsa 100" yerine gecerli JSON-LD varligina
  * bakar, agirligi 18 -> 8. SSS sinyalinde FAQPage isaretlemesinin 40 puani
  * kalkti; yalniz gorunur soru-cevap sayilir (geo-content-signals.ts).
+ *
+ * v6 (24.11.2026): gorunur soru sayimi metin parcasi bazinda (visibleQaCount).
+ * v5 `body.text()` icinde `?` + satir sonu ariyordu: <summary>Soru?</summary>
+ * hemen ardindan cevap gelince "Soru?Cevap" olup sayilmiyordu, script
+ * icerigindeki `?\n` ise sayiliyordu. Ayni sitenin SSS puani degisebilir.
  */
-export const GEO_METHOD_VERSION = 5;
+export const GEO_METHOD_VERSION = 6;
 
 export interface GeoAuditResult {
   score: number | null;
@@ -243,7 +248,9 @@ export class GeoRunnerService {
     // GEO Citation Lab'de Q&A bicimi alinti derinligine katki gostermedi).
     // v4'te isaretleme 40 puan aliyordu; v5'te 0.
     const text = $("body").text();
-    const qaCount = (text.match(/\?\s*\n/g) ?? []).length;
+    // Soru sayimi metin parcasi bazinda (geo-content-signals.ts visibleQaCount):
+    // <summary>…?</summary><p>cevap</p> eskiden "…?cevap" olup sayilmiyordu
+    const qaCount = visibleQaCount($);
     const faqScore = visibleQaScore(qaCount);
 
     // 3) Definition density — "X nedir", "X ne demek", "X tanimlanir"

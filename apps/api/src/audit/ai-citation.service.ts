@@ -27,8 +27,8 @@ import {
   probeErrorCode, probeErrorExcerpt, safeErrorText, safeReasonToken,
 } from './probe-retry.js';
 import {
-  DATAFORSEO_BASE, GOOGLE_SURFACE_PATH, SURFACE_ABSENT_TEXT, parseSurfaceResponse, surfaceRequestBody,
-  type GoogleSurface, type SurfaceParse,
+  DATAFORSEO_BASE, GOOGLE_SURFACE_PATH, SURFACE_ABSENT_TEXT, parseOrganicSignal, parseSurfaceResponse, surfaceRequestBody,
+  type GoogleOrganicSignal, type GoogleSurface, type SurfaceParse,
 } from './google-ai-surfaces.js';
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
@@ -82,6 +82,11 @@ export interface CitationProbe {
    * Olcum degildir: "anilmadi" sayilmaz, skora ve sayaclara girmez (citation-score.ts).
    */
   surfaceAbsent?: true;
+  /**
+   * Yalniz Google AI Bakisi satirinda: ayni aramada sitenin organik sirasi ve
+   * bilgi paneli (google-ai-surfaces.ts parseOrganicSignal). Ek istek yok.
+   */
+  googleOrganic?: GoogleOrganicSignal;
   /**
    * Cevapta gecen BASKA alan adlari — kendi host'umuz ve genel/noise siteler haric.
    * Onceden rakip tespiti YALNIZCA disaridan verilen listeye bakiyordu; public
@@ -1699,6 +1704,7 @@ export class AiCitationService {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       let son: SurfaceParse | null = null;
+      let organik: GoogleOrganicSignal | null = null;
       for (let deneme = 0; deneme < 3; deneme++) {
         let data: unknown = null;
         try {
@@ -1713,7 +1719,10 @@ export class AiCitationService {
           data = { status_code: null, status_message: safeErrorText(err) };
         }
         son = parseSurfaceResponse(data);
-        if (son.kind !== 'error') break;
+        if (son.kind !== 'error') {
+          if (surface === 'google_ai_overview') organik = parseOrganicSignal(data, host);
+          break;
+        }
         // Kimlik / dogrulama / bakiye: diger sorular da ayni hatayi alir — saglayici durur
         if (son.fatal) throw new ProviderConfigError(`${PROVIDER_LABELS[surface]}: ${son.message}`);
         // Son denemeden sonra beklenmez (sirali dongu; senkron "Yeniden Test" 100 sn sinirinda)
@@ -1724,12 +1733,13 @@ export class AiCitationService {
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(new Error(son?.message ?? 'yanıt yok')) });
         continue;
       }
+      const ek = organik ? { googleOrganic: organik } : {};
       if (son.kind === 'absent') {
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: SURFACE_ABSENT_TEXT[surface], surfaceAbsent: true });
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: SURFACE_ABSENT_TEXT[surface], surfaceAbsent: true, ...ek });
         continue;
       }
       const urls = son.sources.map((s) => s.url).filter((u): u is string => typeof u === 'string');
-      probes.push(this.withSources(this.buildProbe(q, son.text, host, brand, competitors), urls, host, son.sources));
+      probes.push({ ...this.withSources(this.buildProbe(q, son.text, host, brand, competitors), urls, host, son.sources), ...ek });
     }
     return probes;
   }

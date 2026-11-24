@@ -159,18 +159,18 @@ describe('GeoRunnerService — engelli sayfa skora girmez', () => {
   // F7: yontem degisti (HTML llms.txt 0 puan, anasayfa tek ornek, yonlendirme
   // sonrasi koken). Surum damgasi olmazsa karsilastirma farki siteye yazar.
   it('her donus yolu olcum yontemi surumunu tasir (basarili, engelli, okunamayan, hata)', async () => {
-    expect(GEO_METHOD_VERSION).toBe(5);
+    expect(GEO_METHOD_VERSION).toBe(6);
     const svc = new GeoRunnerService();
     const surum = async (map: Record<string, Reply | Error>) => {
       serve(map);
       return (await svc.runAudit('https://site.com')).details;
     };
-    expect(await surum({ 'https://site.com': { status: 200, text: RICH } })).toEqual({ methodVersion: 5 });
-    expect(await surum({ 'https://site.com': CF_WAF })).toEqual({ methodVersion: 5 });
-    expect(await surum({ 'https://site.com': { status: 500, text: 'hata' } })).toEqual({ methodVersion: 5 });
-    expect(await surum({ 'https://site.com': new Error('ag koptu') })).toEqual({ methodVersion: 5 });
+    expect(await surum({ 'https://site.com': { status: 200, text: RICH } })).toEqual({ methodVersion: 6 });
+    expect(await surum({ 'https://site.com': CF_WAF })).toEqual({ methodVersion: 6 });
+    expect(await surum({ 'https://site.com': { status: 500, text: 'hata' } })).toEqual({ methodVersion: 6 });
+    expect(await surum({ 'https://site.com': new Error('ag koptu') })).toEqual({ methodVersion: 6 });
     // Gecersiz adres catch yoluna duser — o da damgali
-    expect((await svc.runAudit('gecersiz adres')).details).toEqual({ methodVersion: 5 });
+    expect((await svc.runAudit('gecersiz adres')).details).toEqual({ methodVersion: 6 });
   });
 
   it('istekler durust bot kimligi ve onbellek atlatma basliklariyla gider (UA ezilmez)', async () => {

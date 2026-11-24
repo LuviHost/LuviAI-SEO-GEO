@@ -136,6 +136,28 @@ export function hasValidJsonLd(blocks: readonly string[]): boolean {
   return false;
 }
 
+/**
+ * Gorunur soru sayisi: soru isaretiyle BITEN metin parcasi (baslik, <summary>,
+ * <dt>, paragraf, liste ogesi...). Script, stil, svg ve sablon disarida.
+ *
+ * NEDEN (24.11.2026): eski sayim `$("body").text()` icinde `?` + satir sonu
+ * ariyordu. cheerio .text() ogeler arasina ayirici koymaz: `<summary>Ucretsiz
+ * mi?</summary><p>Evet…` → "mi?Evet" olur ve soru SAYILMAZ. kobipratik.com'un 12
+ * soruluk SSS'i yalniz araya giren bir svg bosluk metni sayesinde sayiliyordu;
+ * sikistirilmis (minify) bir SSS'te puan 0 cikardi. Script icerigindeki `?\n`
+ * de yanlis pozitif uretiyordu. Metin parcalari artik ayri satir sayilir.
+ */
+export function visibleQaCount($: cheerio.CheerioAPI): number {
+  // cheerio.load her zaman <body> uretir (parca HTML'de de)
+  const root = $("body").first().clone();
+  root.find("script, style, noscript, template, svg").remove();
+  return root.find("*").addBack().contents().toArray()
+    .filter((n) => n.type === "text")
+    .flatMap((n) => (n as unknown as { data: string }).data.split("\n"))
+    .filter((line) => line.trim().endsWith("?"))
+    .length;
+}
+
 /** Gorunur soru-cevap sayisinin tam puan esigi (v4'te gorunur kisim 6 soruda doyuyordu) */
 export const VISIBLE_QA_FULL_AT = 6;
 
