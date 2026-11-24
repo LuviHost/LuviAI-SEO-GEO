@@ -27,6 +27,7 @@ import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger
 import { ContentPivotService, rewriteLeftNoNewVersion } from '../../api/dist/articles/content-pivot.service.js';
 import { AiMentionAlarmService } from '../../api/dist/audit/ai-mention-alarm.service.js';
 import { CrawlerErrorAlarmService } from '../../api/dist/audit/crawler-error-alarm.service.js';
+import { GscSitemapRefreshService } from '../../api/dist/audit/gsc-sitemap-refresh.service.js';
 import { CampaignOrchestratorService } from '../../api/dist/ads/campaign-orchestrator.service.js';
 import { PerformanceSyncService } from '../../api/dist/ads/performance-sync.service.js';
 import { AbTestManagerService } from '../../api/dist/ads/ab-test-manager.service.js';
@@ -68,6 +69,8 @@ if (!pinProcessToIpv4()) log.warn('IPv4 sabitlemesi kapali (ALLOW_IPV6)');
  * havuz anahtarlarindan odenirdi. Uretimde 'false' oldugu icin davranis ayni.
  */
 const isCitationDailyDisabled = () => process.env.AI_CITATION_DAILY_CRON !== 'true';
+/** GSC_SITEMAP_REFRESH varsayilan ACIK (Search Console API ucretsiz); GSC_SITEMAP_DAILY=false kapatir */
+const isGscSitemapDailyDisabled = () => process.env.GSC_SITEMAP_DAILY === 'false';
 /** LinkedIn outreach botu (Faz 8) — varsayilan KAPALI; yalniz bayrak 1 iken tekrar isi kurulur */
 /** Env varsayilani — gercek karar serviste (panel ayari KvStore'da env'i ezer) */
 const isLinkedinOutreachEnvDefault = () => process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED === '1';
@@ -141,6 +144,7 @@ async function bootstrap() {
     contentPivot: app.get(ContentPivotService),
     aiAlarm: app.get(AiMentionAlarmService),
     crawlerAlarm: app.get(CrawlerErrorAlarmService),
+    gscSitemap: app.get(GscSitemapRefreshService),
     adsOrchestrator: app.get(CampaignOrchestratorService),
     adsPerformance: app.get(PerformanceSyncService),
     adsAbTest: app.get(AbTestManagerService),
@@ -780,6 +784,16 @@ async function bootstrap() {
     },
 
     /**
+     * GSC_SITEMAP_REFRESH — gunluk: Search Console'a bagli sitelerin KAYITLI site
+     * haritalarindan son gonderimden sonra degisenleri yeniden gonderir
+     * (gsc-sitemap-refresh.service.ts). Ucretsiz API; LLM yok.
+     */
+    GSC_SITEMAP_REFRESH: async () => {
+      if (isGscSitemapDailyDisabled()) return { skipped: true, reason: 'GSC_SITEMAP_DAILY' };
+      return services.gscSitemap.runAll();
+    },
+
+    /**
      * LINKEDIN_OUTREACH_TICK — 30 dk'da bir: LinkedIn botu bir tur (en fazla 3
      * islem; hafta ici 09-18 TR disinda "yapilacak yok" doner). Servis kendi
      * bayragini da kontrol eder; duraklatilmissa dokunmaz. `jitter:true`:
@@ -1165,6 +1179,22 @@ async function bootstrap() {
       },
     );
 
+    // 7b) GSC_SITEMAP_REFRESH — her gun 03:30 UTC (TR 06:30); GSC_SITEMAP_DAILY=false ise kurulmaz ve silinir
+    if (isGscSitemapDailyDisabled()) {
+      await queue.removeRepeatable('GSC_SITEMAP_REFRESH', { pattern: '30 3 * * *', tz: 'UTC' }, 'cron:gsc-sitemap-daily').catch(() => undefined);
+    } else {
+      await queue.add(
+        'GSC_SITEMAP_REFRESH',
+        { trigger: 'cron' },
+        {
+          repeat: { pattern: '30 3 * * *', tz: 'UTC' },
+          jobId: 'cron:gsc-sitemap-daily',
+          removeOnComplete: { count: 30 },
+          removeOnFail: { count: 20 },
+        },
+      );
+    }
+
     // 8) CRAWLER_ERROR_ALARM — her 6 saat (AiCrawlerHit 4xx/5xx sayaclari zaten toplaniyordu, okunmuyordu)
     await queue.add(
       'CRAWLER_ERROR_ALARM',
@@ -1223,7 +1253,7 @@ async function bootstrap() {
       },
     );
 
-    log.log(`⏰ Cron: PROCESS_SCHEDULED 60dk · SWEEP_STUCK_GENERATING 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · EPOSTA_KAMPANYA_TICK 30dk (anahtar panelden) · LINKEDIN_OUTREACH_TICK 30dk (gonderim anahtari panelden; env varsayilani: ${isLinkedinOutreachEnvDefault() ? 'acik' : 'kapali'})`);
+    log.log(`⏰ Cron: PROCESS_SCHEDULED 60dk · SWEEP_STUCK_GENERATING 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · GSC_SITEMAP_REFRESH ${isGscSitemapDailyDisabled() ? 'KAPALI' : 'gunluk'} · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · EPOSTA_KAMPANYA_TICK 30dk (anahtar panelden) · LINKEDIN_OUTREACH_TICK 30dk (gonderim anahtari panelden; env varsayilani: ${isLinkedinOutreachEnvDefault() ? 'acik' : 'kapali'})`);
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

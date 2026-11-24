@@ -75,17 +75,19 @@ function Sources({ p }: { p: PromptLatestRunProvider }) {
 }
 
 /**
- * Google AI Bakışı satırı: aynı Google aramasında sitenin organik sırası ve
- * (soruda marka adı geçiyorsa) bilgi paneli. Veri AI Bakışı ölçümüyle aynı
- * istekten gelir; ek ölçüm hakkı harcanmaz.
+ * Sorunun Google araması: sitenin organik sırası ve (soruda marka adı geçiyorsa)
+ * bilgi paneli. Veri Google AI Bakışı ölçümüyle aynı istekten gelir; AI Bakışı
+ * çıkmayan aramalarda da kaydedilir. Ek ölçüm hakkı harcanmaz.
  */
-function GoogleOrganik({ p }: { p: PromptLatestRunProvider }) {
-  const g = p.googleOrganic;
-  if (p.provider !== 'google_ai_overview' || !g) return null;
-  const panel = p.brandInQuery && g.knowledgePanel !== null;
+function GoogleOrganik({ data }: { data: PromptLatestRun }) {
+  const g = data.googleOrganic;
+  if (!g) return null;
+  const markaliSoru = data.providers.some((p) => p.brandInQuery);
+  const panel = markaliSoru && g.knowledgePanel !== null;
   return (
     <p className="text-label text-muted-foreground">
       Google arama sonuçlarında: {g.rank !== null ? `siten ${g.rank}. sırada` : 'siten ilk sayfada yok'}
+      {g.aiOverview === false ? ' · bu aramada AI Bakışı yok' : ''}
       {panel ? ` · bilgi paneli var${g.knowledgePanel ? ` (${g.knowledgePanel})` : ''}` : ''}
     </p>
   );
@@ -163,7 +165,6 @@ export function PromptLatestRunView({
                 </span>
               )}
             </div>
-            <GoogleOrganik p={p} />
             <Sources p={p} />
             {p.excerpt && (
               <p className="line-clamp-2 text-label text-muted-foreground" title={p.excerpt}>
@@ -173,6 +174,7 @@ export function PromptLatestRunView({
           </li>
         ))}
       </ul>
+      <GoogleOrganik data={data} />
     </div>
   );
 }

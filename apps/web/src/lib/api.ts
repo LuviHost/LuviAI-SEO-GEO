@@ -217,6 +217,8 @@ export interface PromptLatestRunProvider {
 export interface PromptLatestRun {
   date: string | null;
   providers: PromptLatestRunProvider[];
+  /** Ana sorunun Google aramasında sitenin organik sırası (AI Bakışı çıkmayan arama dahil) */
+  googleOrganic?: { rank: number | null; knowledgePanel: string | null; aiOverview: boolean | null } | null;
 }
 
 export interface AuditComparison {

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { GscSitemapRefreshService } from './gsc-sitemap-refresh.service.js';
 import { SitemapKancaController } from './sitemap-kanca.controller.js';
 import { AuditController } from './audit.controller.js';
 import { AppliedFixService } from './applied-fix.service.js';
@@ -71,6 +72,7 @@ import { AuditCron } from './audit.cron.js';
   imports: [SitesModule, EmailModule, AuthModule, LLMModule, NotificationsModule],
   controllers: [AuditController, TrackerController, PublicCitationController, ImageAltController, SitemapKancaController],
   providers: [
+    GscSitemapRefreshService,
     AppliedFixService,
     ImageInventoryService,
     ImageAltSuggestService,

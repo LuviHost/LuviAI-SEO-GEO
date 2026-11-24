@@ -2329,6 +2329,7 @@ model GeoPrompt {
   trackedApp TrackedApp?      @relation(fields: [trackedAppId], references: [id], onDelete: Cascade)
   runs       GeoPromptRun[]
   fanouts    GeoFanoutQuery[]
+  googleOrganic GeoPromptGoogleOrganic[]
 
   @@index([siteId, isActive])
   @@index([trackedAppId])
@@ -3451,4 +3452,32 @@ model SiteGbp {
   updatedAt DateTime @updatedAt
 
   @@map("site_gbp")
+}
+
+/**
+ * Ana sorunun Google aramasinda sitenin organik sirasi ve bilgi paneli — AI Bakisi
+ * olcumunun AYNI yanitindan (google-ai-surfaces.ts parseOrganicSignal; ek istek yok).
+ *
+ * NEDEN AYRI TABLO (24.11.2026): Google AI Bakisi gostermeyen aramalar ('YOK:')
+ * GeoPromptRun'a yazilmaz (olcum degil, skora girmez). Sira en cok o aramalarda
+ * degerli; burada AI Bakisi olsa da olmasa da tutulur. Skora ve sayaclara girmez.
+ */
+model GeoPromptGoogleOrganic {
+  id             String   @id @default(cuid())
+  siteId         String
+  promptId       String
+  date           DateTime @db.Date
+  /// Sitenin en iyi organik sirasi; donen sonuclarda yoksa null ("ilk sayfada yok")
+  rank           Int?
+  /// Sayfada bilgi paneli varsa basligi ('' = basliksiz panel); yoksa null
+  knowledgePanel String?  @db.VarChar(120)
+  /// Bu aramada Google AI Bakisi gosterildi mi
+  aiOverview     Boolean
+  createdAt      DateTime @default(now())
+
+  prompt GeoPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([promptId, date])
+  @@index([siteId, date])
+  @@map("geo_prompt_google_organic")
 }
