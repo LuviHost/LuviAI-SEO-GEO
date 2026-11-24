@@ -72,7 +72,7 @@ import { AuditCron } from './audit.cron.js';
 
 @Module({
   imports: [SitesModule, EmailModule, AuthModule, LLMModule, NotificationsModule],
-  controllers: [AuditController, TrackerController, PublicCitationController, ImageAltController, SitemapKancaController],
+  controllers: [AuditController, TrackerController, PublicCitationController, ImageAltController, SitemapKancaController, PublicSeoAnalysisController],
   providers: [
     PublicSeoAnalysisService,
     GscSitemapRefreshService,

@@ -100,3 +100,14 @@ describe('ucretsiz SEO analizi — servis', () => {
     expect(PUBLIC_SEO_JOB).toBe('PUBLIC_SEO_ANALYSIS');
   });
 });
+
+describe('ucretsiz SEO analizi — modul kaydi', () => {
+  // 25.11.2026: denetleyici modulun controllers listesine eklenmemisti (metin degisimi eslesmedi);
+  // birim testleri servisi dogrudan kurdugu icin yakalamadi, canlida 404 verdi.
+  it('denetleyici ve servis AuditModule metadata\'sinda', async () => {
+    const { AuditModule } = await import('./audit.module.js');
+    const { PublicSeoAnalysisController } = await import('./public-seo-analysis.controller.js');
+    expect(Reflect.getMetadata('controllers', AuditModule)).toContain(PublicSeoAnalysisController);
+    expect(Reflect.getMetadata('providers', AuditModule)).toContain(PublicSeoAnalysisService);
+  });
+});
