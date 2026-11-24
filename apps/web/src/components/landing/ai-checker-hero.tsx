@@ -30,9 +30,9 @@ import { AnswerSheet, EngineChip, stripEngines } from './answer-sheet';
  * Verilmezse (eski API: test butun asistanlara soruyordu) seridin sayisi kullanilir.
  */
 export function AiCheckerHero({ engines, testEngines }: { engines?: readonly string[]; testEngines?: readonly string[] | null } = {}) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [engine, setEngine] = useState(0);
-  const strip = stripEngines(engines);
+  const strip = stripEngines(engines, locale === 'en' ? 'en' : 'tr');
 
   return (
     <>

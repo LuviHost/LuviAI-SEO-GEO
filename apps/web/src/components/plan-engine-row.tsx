@@ -1,3 +1,6 @@
+'use client';
+
+import { useT } from '@/lib/i18n';
 import { VendorLogo } from '@/components/vendor-logo';
 import { engineVendor } from '@/components/engine-logo';
 import { cn } from '@/lib/utils';
@@ -24,6 +27,8 @@ const NAMES: Record<string, string> = {
   google_ai_mode: 'Google AI Modu',
   google_ai_overview: 'Google AI Bakışı',
 };
+/** Ingilizce arayuzde Google yuzeylerinin adi (digerleri ozel ad, cevrilmez) */
+const NAMES_EN: Record<string, string> = { google_ai_mode: 'Google AI Mode', google_ai_overview: 'Google AI Overviews' };
 
 /** Kare "uygulama ikonu" bicimindeki logolar rozeti doldurur */
 const TILE = new Set(['chatgpt', 'claude-ai']);
@@ -34,11 +39,15 @@ export function PlanEngineRow({ engines, label, className }: {
   label: string;
   className?: string;
 }) {
+  // Dil ziyaretcinin secimi (lib/i18n); Google yuzeylerinin adi EN'de Ingilizce
+  const { locale } = useT();
+  const ad = (e: string) => (locale === 'en' ? NAMES_EN[e] : undefined) ?? NAMES[e];
   const tanimli = (engines ?? []).filter((e) => engineVendor(e) && NAMES[e]);
   // Google AI Modu ve AI Bakisi ayni Google isaretini tasir: tek rozet, adi ikisini birden soyler
   const ikiGoogle = tanimli.includes('google_ai_mode') && tanimli.includes('google_ai_overview');
   const known = ikiGoogle ? tanimli.filter((e) => e !== 'google_ai_overview') : tanimli;
-  const adi = (e: string) => (ikiGoogle && e === 'google_ai_mode' ? 'Google AI Modu ve AI Bakışı' : NAMES[e]);
+  const ikisi = locale === 'en' ? 'Google AI Mode and AI Overviews' : 'Google AI Modu ve AI Bakışı';
+  const adi = (e: string) => (ikiGoogle && e === 'google_ai_mode' ? ikisi : ad(e));
   if (known.length === 0) return null;
   return (
     <ul className={cn('flex flex-wrap items-center gap-1.5', className)} aria-label={label}>
