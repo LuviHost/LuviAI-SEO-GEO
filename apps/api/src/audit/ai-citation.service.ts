@@ -9,7 +9,7 @@ import { ownerHasPlanFeature } from '../billing/plan-site-filter.js';
 import { FREE_TEST_ENGINES, ownerEngines, ownerModelTier } from '../billing/plan-engines.js';
 import type { ModelTier } from '../billing/plans.js';
 import { promptsPerSiteFor } from '../billing/plans.js';
-import { promptRunRows, promptRunSummary } from './prompt-run-rows.js';
+import { organicRows, promptRunRows, promptRunSummary } from './prompt-run-rows.js';
 
 /** Bir olcumde en cok takip sorusu — prompt-lab.service MAX_RUN_ALL ile ayni (dongusel import olmasin diye kopya) */
 const TAKIP_SORU_UST_SINIR = 50;
@@ -959,6 +959,12 @@ export class AiCitationService {
       const now = new Date();
       const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
       for (const [promptId, rows] of byPrompt) {
+        // Google organik sira: AI Bakisi cikmayan aramada da yazilir (satir olmasa bile)
+        const organik = organicRows(siteId, promptId, null, today, rows);
+        if (organik.length) {
+          await (this.prisma as any).geoPromptGoogleOrganic.createMany({ data: organik })
+            .catch((err: any) => this.log.warn(`[${siteId}] Google organik sira yazilamadi: ${String(err?.message ?? err).slice(0, 160)}`));
+        }
         const data = promptRunRows(siteId, promptId, null, today, rows, tier);
         if (data.length === 0) continue;
         await (this.prisma as any).geoPromptRun.createMany({ data });

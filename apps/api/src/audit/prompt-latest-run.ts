@@ -70,10 +70,23 @@ function organikOku(v: unknown): LatestRunProvider['googleOrganic'] {
   };
 }
 
+export interface LatestRunGoogleOrganic {
+  rank: number | null;
+  knowledgePanel: string | null;
+  /** Bu aramada Google AI Bakisi var miydi (eski kayitta bilinmiyorsa null) */
+  aiOverview: boolean | null;
+}
+
 export interface LatestRunView {
   /** YYYY-MM-DD; hic olcum yoksa null */
   date: string | null;
   providers: LatestRunProvider[];
+  /**
+   * Ana sorunun Google aramasinda sitenin organik sirasi (GeoPromptGoogleOrganic;
+   * AI Bakisi cikmayan aramalar dahil). Tablo kaydi yoksa AI Bakisi satirindaki
+   * alandan. Hic yoksa null.
+   */
+  googleOrganic?: LatestRunGoogleOrganic | null;
 }
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -141,6 +154,8 @@ export function buildLatestRun(
   rows: readonly LatestRunRow[],
   ctx: SourceTypeContext,
   labels: Readonly<Record<string, string>>,
+  /** Ayni gunun GeoPromptGoogleOrganic kaydi (prompt-lab latestRun okur) */
+  organik?: { rank: number | null; knowledgePanel: string | null; aiOverview: boolean } | null,
 ): LatestRunView {
   if (rows.length === 0) return { date: null, providers: [] };
 
@@ -187,5 +202,9 @@ export function buildLatestRun(
       };
     });
 
-  return { date: latestDay, providers };
+  const satirdan = providers.find((p) => p.provider === 'google_ai_overview')?.googleOrganic ?? null;
+  const googleOrganic: LatestRunGoogleOrganic | null = organik
+    ? { rank: organik.rank, knowledgePanel: organik.knowledgePanel, aiOverview: organik.aiOverview }
+    : satirdan ? { ...satirdan, aiOverview: true } : null;
+  return { date: latestDay, providers, googleOrganic };
 }

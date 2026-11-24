@@ -51,3 +51,30 @@ export function promptRunSummary(rows: Array<{ probe: CitationProbe }>): { cited
   const valid = rows.filter((r) => !isErrorProbe(r.probe));
   return { cited: valid.filter((r) => r.probe.cited).length, total: valid.length };
 }
+
+/**
+ * Ana sorunun Google organik sirasi (GeoPromptGoogleOrganic). AI Bakisi
+ * gostermeyen ('YOK:') satirlar da dahil — promptRunRows onlari atar, sira
+ * en cok orada degerli. Yalniz ana soru (fan-out dali degil) ve yalniz
+ * google_ai_overview satirinin ayni yanitindan okunan veri.
+ */
+export function organicRows(
+  siteId: string,
+  promptId: string,
+  fanoutId: string | null,
+  date: Date,
+  rows: Array<{ provider: string; probe: CitationProbe }>,
+) {
+  if (fanoutId !== null) return [];
+  return rows
+    .filter((r) => r.provider === 'google_ai_overview' && r.probe.googleOrganic)
+    .slice(0, 1)
+    .map(({ probe }) => ({
+      siteId,
+      promptId,
+      date,
+      rank: probe.googleOrganic!.rank,
+      knowledgePanel: probe.googleOrganic!.knowledgePanel,
+      aiOverview: !probe.surfaceAbsent,
+    }));
+}

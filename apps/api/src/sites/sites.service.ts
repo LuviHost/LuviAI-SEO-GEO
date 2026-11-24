@@ -596,6 +596,7 @@ export function siteRemovalSteps(x: SiteRemovalIds): SiteRemovalStep[] {
     { model: 'TrackedAppKeyword', kind: 'delete', run: (db) => db.trackedAppKeyword.deleteMany({ where: { trackedAppId: idIn(x.trackedAppIds) } }) },
     { model: 'AppReview', kind: 'delete', run: (db) => db.appReview.deleteMany({ where: { trackedAppId: idIn(x.trackedAppIds) } }) },
     { model: 'GeoPromptRun', kind: 'delete', run: (db) => db.geoPromptRun.deleteMany({ where: { OR: [bySite, { promptId: idIn(x.geoPromptIds) }] } }) },
+    { model: 'GeoPromptGoogleOrganic', kind: 'delete', run: (db) => db.geoPromptGoogleOrganic.deleteMany({ where: { OR: [bySite, { promptId: idIn(x.geoPromptIds) }] } }) },
     { model: 'GeoFanoutQuery', kind: 'delete', run: (db) => db.geoFanoutQuery.deleteMany({ where: { OR: [bySite, { promptId: idIn(x.geoPromptIds) }] } }) },
     // Prompt Lab yerel sonucu (sitenin telefonu/adresi) anahtarinda site kimligi
     // tasimaz (prompt-local:<promptId>); sondaki siteKvFilter onu yakalamaz

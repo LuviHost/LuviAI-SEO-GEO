@@ -145,6 +145,7 @@ export function purgeSteps(x: PurgeIds): PurgeStep[] {
     { model: 'TrackedAppKeyword', kind: 'delete', run: (db) => db.trackedAppKeyword.deleteMany({ where: { trackedAppId: ids(x.trackedAppIds) } }) },
     { model: 'AppReview', kind: 'delete', run: (db) => db.appReview.deleteMany({ where: { trackedAppId: ids(x.trackedAppIds) } }) },
     { model: 'GeoPromptRun', kind: 'delete', run: (db) => db.geoPromptRun.deleteMany({ where: { OR: [bySite, { promptId: ids(x.geoPromptIds) }] } }) },
+    { model: 'GeoPromptGoogleOrganic', kind: 'delete', run: (db) => db.geoPromptGoogleOrganic.deleteMany({ where: { OR: [bySite, { promptId: ids(x.geoPromptIds) }] } }) },
     { model: 'GeoFanoutQuery', kind: 'delete', run: (db) => db.geoFanoutQuery.deleteMany({ where: { OR: [bySite, { promptId: ids(x.geoPromptIds) }] } }) },
     // Prompt Lab yerel sonucu (sitenin telefonu/adresi) anahtarinda kullanici ya
     // da site kimligi tasimaz; asagidaki "icerir" kv adimi onu yakalamaz.

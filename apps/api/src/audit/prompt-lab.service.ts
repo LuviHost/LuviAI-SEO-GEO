@@ -20,7 +20,7 @@ import { formatTrPhone } from './tr-phone.js';
 import { PROMPT_LOCAL_KEY_PREFIX, promptLocalKey } from './prompt-local-key.js';
 import { isErrorProbe as isErrorProbeKurali } from './citation-score.js';
 import { promptsPerSiteFor } from '../billing/plans.js';
-import { promptRunRows } from './prompt-run-rows.js';
+import { organicRows, promptRunRows } from './prompt-run-rows.js';
 
 /**
  * Prompt Lab — kullanicinin takip ettigi sorulari yonetir ve calistirir.
@@ -784,7 +784,7 @@ export class PromptLabService {
     });
     if (!last) return { date: null, providers: [] };
 
-    const [rows, site] = await Promise.all([
+    const [rows, site, organik] = await Promise.all([
       this.prisma.geoPromptRun.findMany({
         where: { promptId, siteId, fanoutId: null, date: last.date },
         orderBy: { createdAt: 'desc' },
@@ -799,11 +799,16 @@ export class PromptLabService {
         where: { id: siteId },
         select: { url: true, brain: { select: { competitors: true } } },
       }),
+      this.prisma.geoPromptGoogleOrganic.findFirst({
+        where: { promptId, siteId, date: last.date },
+        orderBy: { createdAt: 'desc' },
+        select: { rank: true, knowledgePanel: true, aiOverview: true },
+      }),
     ]);
     return buildLatestRun(rows, {
       ownHost: hostOf(site?.url ?? null),
       competitors: competitorMatchersFrom(site?.brain?.competitors),
-    }, PROVIDER_LABELS);
+    }, PROVIDER_LABELS, organik);
   }
 
   async history(siteId: string, promptId: string, daysInput: unknown = 30) {
@@ -977,6 +982,12 @@ export class PromptLabService {
     /** Olcumun model kademesi (runQueries sonucundan); yontem surumu buna gore damgalanir */
     tier?: 'standard' | 'premium',
   ) {
+    // Google organik sira (AI Bakisi cikmayan arama dahil) — hata olcumu bozmaz
+    const organik = organicRows(siteId, promptId, fanoutId, date, rows);
+    if (organik.length) {
+      await this.prisma.geoPromptGoogleOrganic.createMany({ data: organik })
+        .catch((err: any) => this.log.warn(`[${siteId}] Google organik sira yazilamadi: ${String(err?.message ?? err).slice(0, 160)}`));
+    }
     const data = promptRunRows(siteId, promptId, fanoutId, date, rows, tier);
     if (data.length === 0) return;
     try {
