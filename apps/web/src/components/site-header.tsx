@@ -21,7 +21,9 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 w-full nav-blur">
       <div className="container-apple h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center">
-          <BrandWordmark size={23} />
+          {/* Koyu temada "Ranks" beyaz (panel/kenar cubugu ile ayni yontem); sabit koyu renk siyah zeminde okunmuyordu */}
+          <span className="dark:hidden"><BrandWordmark size={23} /></span>
+          <span className="hidden dark:inline"><BrandWordmark size={23} reversed /></span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-9 text-[13px] text-muted-foreground">

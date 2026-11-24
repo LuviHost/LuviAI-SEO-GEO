@@ -34,6 +34,15 @@ export class PublicSeoAnalysisController {
     return this.svc.start(body.domain, clientIp(req));
   }
 
+  /** Sonucu gormek icin e-posta: { email, pazarlamaIzni? } */
+  @Public()
+  @Post(':id/email')
+  async email(@Param('id') id: string, @Body() body: { email?: unknown; pazarlamaIzni?: unknown }) {
+    const d = await this.svc.setEmail(id, body?.email, body?.pazarlamaIzni);
+    if (!d) throw new NotFoundException('Analiz bulunamadı');
+    return d;
+  }
+
   @Public()
   @Get(':id')
   async get(@Param('id') id: string) {

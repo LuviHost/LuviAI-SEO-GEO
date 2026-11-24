@@ -22,9 +22,22 @@ export interface SeoAnalizDurumu {
   id: string;
   domain: string;
   status: 'queued' | 'running' | 'done' | 'error';
+  /** Yalniz e-posta yazildiysa dolu (sonucu gormek icin e-posta sarti, 25.11.2026) */
   result: SeoAnalizSonucu | null;
+  /** Bu analiz icin e-posta yazildi mi */
+  emailVar: boolean;
   error: string | null;
   createdAt: string;
+}
+
+export const SEO_EMAIL_MESSAGE = 'Geçerli bir e-posta adresi yaz.';
+
+/** Basit bicim denetimi (gonderim yapilmaz); kucuk harfe cevrilir */
+export function eposta(input: unknown): string | null {
+  if (typeof input !== 'string') return null;
+  const e = input.trim().toLowerCase();
+  if (e.length < 6 || e.length > 191) return null;
+  return /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/.test(e) ? e : null;
 }
 
 /**
@@ -61,16 +74,23 @@ export class PublicSeoAnalysisService {
       where: { domain: host, createdAt: { gte: gun }, status: { in: ['done', 'queued', 'running'] } },
       orderBy: { createdAt: 'desc' },
     });
-    if (son && (son.status === 'done' || simdi - son.createdAt.getTime() < TAKILMA_MS)) return this.durum(son);
-
     const ipHash = this.ipHash(ip);
+    if (son?.status === 'done') {
+      // Her ziyaretcinin kendi kaydi olsun (e-postasi kendi satirina yazilir); sinirlara sayilmaz
+      const kopya = await this.prisma.publicSeoAnalysis.create({
+        data: { domain: host, ipHash, status: 'done', result: son.result as any, onbellek: true, finishedAt: new Date() },
+      });
+      return this.durum(kopya);
+    }
+    if (son && simdi - son.createdAt.getTime() < TAKILMA_MS) return this.durum(son);
+
     const ipAlanlari = await this.prisma.publicSeoAnalysis.findMany({
-      where: { ipHash, createdAt: { gte: gun } },
+      where: { ipHash, createdAt: { gte: gun }, onbellek: false },
       select: { domain: true },
       distinct: ['domain'],
     });
     if (ipAlanlari.length >= IP_GUNLUK) throw new HttpException(SEO_IP_LIMIT_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
-    const bugun = await this.prisma.publicSeoAnalysis.count({ where: { createdAt: { gte: gun } } });
+    const bugun = await this.prisma.publicSeoAnalysis.count({ where: { createdAt: { gte: gun }, onbellek: false } });
     if (bugun >= GLOBAL_GUNLUK) throw new HttpException(SEO_GLOBAL_LIMIT_MESSAGE, HttpStatus.SERVICE_UNAVAILABLE);
 
     await assertPublicDomainResolves(url); // ozel/ic adrese cozulen alan adi 400
@@ -85,8 +105,22 @@ export class PublicSeoAnalysisService {
       this.log.warn(`SEO analizi kuyruga eklenemedi (${host}): ${err?.message ?? err}`);
       throw new HttpException(SEO_FAILED_MESSAGE, HttpStatus.SERVICE_UNAVAILABLE);
     }
-    void this.yoneticiyeBildir(host).catch(() => undefined);
     return this.durum(row);
+  }
+
+  /** Sonucu gormek icin e-posta: analiz kaydina yazilir, durum (sonucla) doner */
+  async setEmail(id: string, emailInput: unknown, pazarlamaIzni: unknown): Promise<SeoAnalizDurumu | null> {
+    if (typeof id !== 'string' || !/^[a-z0-9]{20,40}$/.test(id)) return null;
+    const e = eposta(emailInput);
+    if (!e) throw new HttpException(SEO_EMAIL_MESSAGE, HttpStatus.BAD_REQUEST);
+    const row = await this.prisma.publicSeoAnalysis.findUnique({ where: { id } });
+    if (!row) return null;
+    const guncel = await this.prisma.publicSeoAnalysis.update({
+      where: { id },
+      data: { email: e, pazarlamaIzni: pazarlamaIzni === true },
+    });
+    void this.yoneticiyeBildir(row.domain, e).catch(() => undefined);
+    return this.get(guncel.id);
   }
 
   async get(id: string): Promise<SeoAnalizDurumu | null> {
@@ -139,28 +173,31 @@ export class PublicSeoAnalysisService {
     }
   }
 
-  private durum(row: { id: string; domain: string; status: string; result: unknown; error: string | null; createdAt: Date }): SeoAnalizDurumu {
+  private durum(row: { id: string; domain: string; status: string; result: unknown; error: string | null; createdAt: Date; email?: string | null }): SeoAnalizDurumu {
     const status = (['queued', 'running', 'done', 'error'].includes(row.status) ? row.status : 'error') as SeoAnalizDurumu['status'];
     return {
       id: row.id,
       domain: row.domain,
       status,
-      result: status === 'done' ? (row.result as SeoAnalizSonucu) : null,
+      // Sonuc yalniz e-posta yazildiysa doner (ekranda gizlemek degil: veri hic gonderilmez)
+      result: status === 'done' && row.email ? (row.result as SeoAnalizSonucu) : null,
+      emailVar: !!row.email,
       error: status === 'error' ? (row.error ?? SEO_FAILED_MESSAGE) : null,
       createdAt: row.createdAt.toISOString(),
     };
   }
 
-  /** Panel zili (e-posta yok): yeni alan adi analizi. Hata analizi bozmaz. */
-  private async yoneticiyeBildir(domain: string): Promise<void> {
-    if (!this.bildirim.take(`d:${domain}`, 1) || !this.bildirim.take('toplam', 50)) return;
+  /** Panel zili (e-posta yok): e-posta birakan ziyaretci. Hata analizi bozmaz. */
+  private async yoneticiyeBildir(domain: string, email: string): Promise<void> {
+    if (!this.bildirim.take(`d:${domain}:${email}`, 1) || !this.bildirim.take('toplam', 50)) return;
     const admin = await this.prisma.user.findFirst({ where: { role: 'ADMIN' }, orderBy: { createdAt: 'asc' }, select: { id: true } });
     if (!admin) return;
     await this.notifications.create({
       userId: admin.id,
       type: 'SYSTEM',
       title: `SEO analizi: ${domain}`,
-      body: 'ranksup.ai/seo-analizi sayfasından üye olmadan yeni bir site analizi başlatıldı.',
+      body: `ranksup.ai/seo-analizi sayfasında ${email} adresiyle sonucu açtı. Ayrıntı: /admin/leads.`,
+      link: '/admin/leads',
       refKind: 'public_seo_analysis',
       channels: ['inapp'],
     });

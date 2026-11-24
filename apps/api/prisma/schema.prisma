@@ -3496,6 +3496,12 @@ model PublicSeoAnalysis {
   status     String    @db.VarChar(16)
   result     Json?
   error      String?   @db.VarChar(300)
+  /// Sonucu gormek icin ziyaretcinin yazdigi e-posta (25.11.2026); yazilmadan sonuc donmez
+  email      String?   @db.VarChar(191)
+  /// Ticari ileti onayi (isteğe bagli kutu; 6563 sayili kanun: onaysiz ticari e-posta gonderilmez)
+  pazarlamaIzni Boolean @default(false)
+  /// Onbellekten kopyalanan sonuc (ayni alan adi 24 saat icinde); sinirlara sayilmaz
+  onbellek   Boolean   @default(false)
   createdAt  DateTime  @default(now())
   finishedAt DateTime?
 

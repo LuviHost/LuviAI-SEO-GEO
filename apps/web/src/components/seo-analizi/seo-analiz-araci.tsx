@@ -122,6 +122,47 @@ function Sonuc({ a }: { a: NonNullable<PublicSeoAnalysis['result']> }) {
   );
 }
 
+/** Sonucu gormek icin e-posta formu (analiz surerken de doldurulabilir) */
+function EpostaFormu({ analiz, onDone }: { analiz: PublicSeoAnalysis; onDone: (d: PublicSeoAnalysis) => void }) {
+  const [email, setEmail] = useState('');
+  const [izin, setIzin] = useState(false);
+  const [hata, setHata] = useState<string | null>(null);
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+  const bitti = analiz.status === 'done';
+  const gonder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || gonderiliyor) return;
+    setHata(null); setGonderiliyor(true);
+    try { onDone(await api.publicSeoAnalysisEmail(analiz.id, email.trim(), izin)); }
+    catch (err: any) { setHata(err?.message || 'E-posta kaydedilemedi. Tekrar dene.'); }
+    finally { setGonderiliyor(false); }
+  };
+  return (
+    <form onSubmit={gonder} className="mt-6 max-w-[34rem] rounded-lg border border-border bg-card p-5" aria-describedby="seo-eposta-not">
+      <p className="text-base font-medium text-foreground">
+        {bitti ? `${analiz.domain} analizi hazır.` : `${analiz.domain} analiz ediliyor.`} Sonucu görmek için e-posta adresini yaz.
+      </p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <label htmlFor="seo-eposta" className="sr-only">E-posta adresi</label>
+        <Input id="seo-eposta" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ad@sirket.com" autoComplete="email" className="h-11 flex-1" required />
+        <Button type="submit" className="h-11" disabled={gonderiliyor || !email.trim()}>
+          {gonderiliyor ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+          Sonucu göster
+        </Button>
+      </div>
+      <label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
+        <input type="checkbox" checked={izin} onChange={(e) => setIzin(e.target.checked)} className="mt-0.5" />
+        <span>RanksUp’tan SEO ve yapay zekâ görünürlüğü ipuçları ile kampanya e-postaları almak istiyorum (isteğe bağlı).</span>
+      </label>
+      <p id="seo-eposta-not" className="mt-2 text-xs text-muted-foreground">
+        Adresin bu analizin sonucunu göstermek ve analizle ilgili sana ulaşmak için kullanılır.{' '}
+        <Link href="/kvkk#ucretsiz-seo-analizi" className="underline underline-offset-4">KVKK aydınlatma metni</Link>
+      </p>
+      {hata && <p className="mt-2 text-sm text-destructive">{hata}</p>}
+    </form>
+  );
+}
+
 export function SeoAnalizAraci() {
   const [domain, setDomain] = useState('');
   const [analiz, setAnaliz] = useState<PublicSeoAnalysis | null>(null);
@@ -184,11 +225,14 @@ export function SeoAnalizAraci() {
         </Button>
       </form>
       <p id="seo-analiz-ipucu" className="mt-3 text-xs text-muted-foreground">
-        Ücretsiz, kayıt gerekmez. Sitenin en fazla 10 sayfası taranır; aynı ağdan günde en fazla 3 farklı site analiz edilebilir.
+        Ücretsiz, üyelik gerekmez; sonucu görmek için e-posta adresi istenir. Sitenin en fazla 10 sayfası taranır; aynı ağdan günde en fazla 3 farklı site analiz edilebilir.
       </p>
 
       <div aria-live="polite">
-        {bekliyor && (
+        {analiz && !analiz.emailVar && (analiz.status === 'done' || bekliyor) && (
+          <EpostaFormu analiz={analiz} onDone={(d) => setAnaliz(d)} />
+        )}
+        {bekliyor && analiz!.emailVar && (
           <p className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             {analiz!.domain} taranıyor ve mobil hızı ölçülüyor. Bu genelde 30–90 saniye sürer.

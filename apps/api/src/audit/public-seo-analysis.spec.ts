@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { analizOzeti, hizCumlesi, hizOzeti, IP_GUNLUK, GLOBAL_GUNLUK, KONTROL_ADI_TR } from './public-seo-analysis.js';
-import { PublicSeoAnalysisService, PUBLIC_SEO_JOB } from './public-seo-analysis.service.js';
+import { PublicSeoAnalysisService, PUBLIC_SEO_JOB, eposta } from './public-seo-analysis.service.js';
 import { isObviousBotUa } from './public-seo-analysis.controller.js';
 import { OVERALL_SCORE_WEIGHTS, type CheckResult } from './audit-checks.service.js';
 
@@ -70,13 +70,32 @@ describe('ucretsiz SEO analizi — servis', () => {
     return { svc, prisma, queue };
   }
 
-  it('onbellekteki bitmis analiz doner; yeni is acilmaz ve sinira sayilmaz', async () => {
+  it('onbellek: ziyaretciye kendi kopya kaydi acilir; yeni is yok, sinira sayilmaz, sonuc e-postasiz donmez', async () => {
     const son = { id: 'x'.repeat(25), domain: 'ornek.com', status: 'done', result: { puan: 70 }, error: null, createdAt: new Date() };
     const { svc, prisma, queue } = kur({ son, ipAlanlari: 99 });
     const d = await svc.start('ornek.com', '1.2.3.4');
-    expect(d).toMatchObject({ status: 'done', result: { puan: 70 } });
-    expect(prisma.publicSeoAnalysis.create).not.toHaveBeenCalled();
+    expect(d).toMatchObject({ status: 'done', result: null, emailVar: false });
+    expect(prisma.publicSeoAnalysis.create.mock.calls[0][0].data).toMatchObject({ onbellek: true, status: 'done', result: { puan: 70 } });
     expect(queue.enqueueSystem).not.toHaveBeenCalled();
+  });
+
+  it('sinir sayimlari onbellek kopyalarini disarida birakir', async () => {
+    const { svc, prisma } = kur();
+    await svc.start('ornek.com', '1.2.3.4').catch(() => undefined);
+    expect(prisma.publicSeoAnalysis.findMany.mock.calls[0][0].where).toMatchObject({ onbellek: false });
+    expect(prisma.publicSeoAnalysis.count.mock.calls[0][0].where).toMatchObject({ onbellek: false });
+  });
+
+  it('e-posta: gecersiz 400; gecerli yazilir, sonuc doner, ticari izin yalniz true ise', async () => {
+    const { svc, prisma } = kur();
+    const id = 'z'.repeat(25);
+    const row = { id, domain: 'ornek.com', status: 'done', result: { puan: 80 }, error: null, createdAt: new Date(), email: null as string | null };
+    prisma.publicSeoAnalysis.findUnique.mockResolvedValue(row);
+    prisma.publicSeoAnalysis.update.mockImplementation(async ({ data }: any) => { Object.assign(row, data); return row; });
+    await expect(svc.setEmail(id, 'yanlis', false)).rejects.toMatchObject({ status: 400 });
+    const d = await svc.setEmail(id, '  Ali@Ornek.COM ', 'evet');
+    expect(prisma.publicSeoAnalysis.update.mock.calls[0][0].data).toEqual({ email: 'ali@ornek.com', pazarlamaIzni: false });
+    expect(d).toMatchObject({ emailVar: true, result: { puan: 80 } });
   });
 
   it(`IP basina ${IP_GUNLUK} alan adi siniri 429, genel tavan ${GLOBAL_GUNLUK} 503`, async () => {
@@ -109,5 +128,29 @@ describe('ucretsiz SEO analizi — modul kaydi', () => {
     const { PublicSeoAnalysisController } = await import('./public-seo-analysis.controller.js');
     expect(Reflect.getMetadata('controllers', AuditModule)).toContain(PublicSeoAnalysisController);
     expect(Reflect.getMetadata('providers', AuditModule)).toContain(PublicSeoAnalysisService);
+  });
+});
+
+describe('ucretsiz SEO analizi — yonetici satiri', () => {
+  it('sonuc ozetinden puan, hiz ve bulgu sayilari; ham IP yok', async () => {
+    const { yoneticiSatiri } = await import('./public-seo-analysis.js');
+    const s = yoneticiSatiri({
+      id: 'a', domain: 'ornek.com', status: 'done', createdAt: new Date('2026-11-25T10:00:00Z'), ipHash: 'abcdef1234567890',
+      result: {
+        puan: 71, taranan: 9, engel: null, hiz: { puan: 40, sahaGecti: false },
+        kontroller: [{ bulgular: [{ severity: 'critical' }, { severity: 'warning' }, { severity: 'warning' }, { severity: 'info' }] }],
+      },
+    });
+    expect(s).toMatchObject({ puan: 71, taranan: 9, hizPuani: 40, sahaGecti: false, kritik: 1, uyari: 2, ip: 'abcdef12' });
+    expect(yoneticiSatiri({ id: 'b', domain: 'x.com', status: 'queued', createdAt: new Date(), ipHash: '', result: null }))
+      .toMatchObject({ puan: null, kritik: 0, uyari: 0, engel: null });
+  });
+});
+
+describe('ucretsiz SEO analizi — e-posta bicimi', () => {
+  it('gecerli / gecersiz', () => {
+    expect(eposta('ali@ornek.com')).toBe('ali@ornek.com');
+    expect(eposta('ALI@Ornek.com.tr')).toBe('ali@ornek.com.tr');
+    for (const x of ['ali', 'ali@', '@ornek.com', 'ali@ornek', 'a b@ornek.com', 42, null]) expect(eposta(x)).toBeNull();
   });
 });

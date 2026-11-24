@@ -9,6 +9,7 @@ import { QuotaService } from '../billing/quota.service.js';
 import { SessionOnly } from '../auth/session-only.decorator.js';
 import { EmailTestDto, SetUserLimitsDto, SetUserPlanDto } from './admin.dto.js';
 import { cancelSiteJobs } from '../jobs/site-job-cancel.js';
+import { yoneticiSatiri } from '../audit/public-seo-analysis.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -181,6 +182,21 @@ export class AdminController {
   citationLeadReport(@Req() req: Request, @Param('id') id: string) {
     assertAdmin(req);
     return this.admin.citationLeadReport(id);
+  }
+
+  /**
+   * GET /admin/seo-analyses — ucretsiz SEO analizleri (ranksup.ai/seo-analizi), en yeni once.
+   * Sahip 25.11.2026: denemeler /admin/leads'te gorunsun. Ham IP yok (ipHash'in basi).
+   */
+  @Get('seo-analyses')
+  async seoAnalyses(@Req() req: Request, @Query('limit') limit?: string) {
+    assertAdmin(req);
+    const n = Math.min(Math.max(Number(limit) || 100, 1), 500);
+    const [rows, total] = await Promise.all([
+      this.prisma.publicSeoAnalysis.findMany({ orderBy: { createdAt: 'desc' }, take: n }),
+      this.prisma.publicSeoAnalysis.count(),
+    ]);
+    return { items: rows.map(yoneticiSatiri), total };
   }
 
   /** Anonim AI görünürlük testleri (lead listesi) */

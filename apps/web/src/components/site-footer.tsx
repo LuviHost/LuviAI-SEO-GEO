@@ -26,7 +26,9 @@ export function SiteFooter() {
           {/* Brand column — wider, more breathing room */}
           <div className="md:col-span-5">
             <Link href="/" className="inline-flex items-center">
-              <BrandWordmark size={22} />
+              {/* Koyu temada "Ranks" beyaz (panel/kenar cubugu ile ayni yontem); sabit koyu renk siyah zeminde okunmuyordu */}
+              <span className="dark:hidden"><BrandWordmark size={22} /></span>
+              <span className="hidden dark:inline"><BrandWordmark size={22} reversed /></span>
             </Link>
             <p className="mt-5 max-w-[360px] text-[13px] leading-relaxed text-muted-foreground">
               GEO, SEO, ASO ve Apple Search Ads tek panelden.
