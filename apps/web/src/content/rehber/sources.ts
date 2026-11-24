@@ -23,6 +23,8 @@ const ERISIM_ISLETME = '2026-11-14';
  * "GEON — AI Arama Görünürlük Platformu", meta aciklamada "Türkiye'nin ilk GEO platformu." (curl, 14.11).
  */
 const ERISIM_TURKIYE = '2026-11-14';
+/** 25.11.2026'da eklenen kaynaklar (google-ai-modu) */
+const ERISIM_AI_MODU = '2026-11-25';
 
 export const SRC = {
   openaiBots: {
@@ -61,6 +63,21 @@ export const SRC = {
   googleFaq2026: {
     id: 'google-faq-2026', title: 'Search Central değişiklik günlüğü: Deprecating the FAQ rich result feature (8 Mayıs 2026)', publisher: 'Google Search Central',
     url: 'https://developers.google.com/search/updates', accessed: ERISIM,
+  },
+  // 25.11.2026 okundu (TR). Verbatim: "AI Modu, Google'ın en güçlü yapay zeka destekli arama deneyimidir." ·
+  // "Sorunuz alt konulara bölünür ve her biri aynı anda aranır." · "sorgu yayılımı" · "AI Modu, yapay zeka destekli
+  // bir yanıtın kalitesi veya faydasından yeterince emin olamadığında bir dizi web bağlantısı sağlar." ·
+  // "google.com/ai adresine gidin." · desteklenen ulkeler listesinde "Türkiye", diller listesinde "Türkçe".
+  googleAiModeHelp: {
+    id: 'google-ai-mode-help', title: 'AI Modu ile Google Arama’da yapay zeka destekli yanıtlar alın', publisher: 'Google Arama Yardım',
+    url: 'https://support.google.com/websearch/answer/16011537?hl=tr', accessed: ERISIM_AI_MODU,
+  },
+  // 25.11.2026 okundu. Verbatim: "includes impressions for the following generative AI capabilities on Google Search:"
+  // AI Overviews, AI Mode · "As of August 31, 2026, we've rolled out these insights to all websites worldwide." ·
+  // "Search Console doesn't include data from experiments in Search Labs" · yalniz gosterim tanimi (tiklama yok).
+  gscGenAiReport: {
+    id: 'gsc-genai-report', title: 'Generative AI performance report (Search)', publisher: 'Search Console Yardım',
+    url: 'https://support.google.com/webmasters/answer/16984139?hl=en', accessed: ERISIM_AI_MODU,
   },
   googleTrBlog: {
     id: 'google-tr-blog', title: 'Türkiye’de AI Modu ve AI Bakışı dönemi başlıyor (18 Şubat 2026)', publisher: 'Google Türkiye Blogu',

@@ -1,12 +1,17 @@
 import type { RehberArticle } from './types';
 import { SRC } from './sources';
 
+/**
+ * 25.11.2026: baslik ve aciklama aranan kaliba cekildi. Google Keyword Planner (TR, Turkce): "ai seo" 390,
+ * "geo seo" 260, "generative engine optimization" 260, "yapay zeka seo" 210 aylik; DataForSEO SERP'te 1.
+ * sira "GEO Nedir? Generative Engine Optimization Rehberi". Eski baslik bu terimleri icermiyordu.
+ */
 export const article: RehberArticle = {
   slug: 'geo-nedir',
-  title: 'GEO nedir, SEO’dan farkı ne?',
-  metaTitle: 'GEO nedir, SEO’dan farkı ne?',
+  title: 'GEO (Generative Engine Optimization) nedir, SEO’dan farkı ne?',
+  metaTitle: 'GEO (Generative Engine Optimization) nedir?',
   description:
-    'GEO (üretken motor optimizasyonu) nedir, SEO ve ASO’dan farkı ne? Karşılaştırma tablosu, değişmeyen temeller ve yaygın yanlışlar, kaynaklarıyla.',
+    'GEO (Generative Engine Optimization) nedir? AI SEO ve yapay zekâ SEO ile ilişkisi, SEO ve ASO’dan farkı, değişmeyen temeller ve yaygın yanlışlar.',
   topic: 'Temeller',
   answer:
     'GEO, markanın ChatGPT, Gemini ve Perplexity gibi yapay zekâ asistanlarının cevaplarında anılması ve kaynak gösterilmesi için yapılan çalışmadır. SEO arama sonuçlarında sıralamayı, GEO ise cevabın içinde yer almayı hedefler.',
@@ -32,7 +37,7 @@ export const article: RehberArticle = {
           text: 'Makaleye göre önerilen yöntemler, deney ortamında içeriğin üretken motor cevaplarındaki görünürlüğünü %40’a kadar artırdı. Bu bir araştırma sonucudur; her site için vaat değildir.',
           kaynak: ['geo-paper'],
         },
-        { t: 'p', text: 'AEO (cevap motoru optimizasyonu) ve LLMO gibi terimler de aynı işi anlatmak için kullanılıyor. Bu rehberde hepsine GEO diyoruz.' },
+        { t: 'p', text: 'AEO (cevap motoru optimizasyonu) ve LLMO gibi terimler de aynı işi anlatmak için kullanılıyor. “AI SEO” ve “yapay zekâ SEO” ise iki anlamda geçiyor: bazen bu iş, yani yapay zekâ cevaplarında görünmek; bazen de SEO işini yapay zekâ araçlarıyla yapmak. Bu rehberde ilk anlamı kastediyoruz ve hepsine GEO diyoruz.' },
       ],
     },
     {
