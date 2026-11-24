@@ -43,7 +43,7 @@ export const article: RehberArticle = {
         },
         {
           t: 'p',
-          text: 'Site sahibi için anlamı şu: özetteki bağlantılar, Google’ın cevabı desteklemek için seçtiği sayfalardır. Bu sayfalardan biri olmak, aramada görünürlüğün yeni bir biçimi. Yapay zekâ asistanlarındaki görünürlüğün tamamını [yapay zekâ görünürlüğü rehberinde](/rehber/yapay-zeka-gorunurlugu) anlattık.',
+          text: 'Site sahibi için anlamı şu: özetteki bağlantılar, Google’ın cevabı desteklemek için seçtiği sayfalardır. Bu sayfalardan biri olmak, aramada görünürlüğün yeni bir biçimi. Takip sorusu sorulabilen ayrı arama deneyimi AI Modu’nu [Google AI Modu rehberinde](/rehber/google-ai-modu), yapay zekâ asistanlarındaki görünürlüğün tamamını [yapay zekâ görünürlüğü rehberinde](/rehber/yapay-zeka-gorunurlugu) anlattık.',
           kaynak: ['google-ai-guide'],
         },
       ],
@@ -208,7 +208,7 @@ export const article: RehberArticle = {
     },
   ],
   sources: [SRC.googleTrBlog, SRC.googleTrHelp, SRC.googleAiGuide, SRC.googleAiFeatures, SRC.googleCrawlers],
-  related: ['yapay-zeka-gorunurlugu', 'geo-nedir', 'yapay-zeka-botlari-robots-txt'],
+  related: ['google-ai-modu', 'yapay-zeka-gorunurlugu', 'geo-nedir'],
   published: '2026-10-24',
   schemaType: 'Article',
 };

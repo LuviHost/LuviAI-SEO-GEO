@@ -5,11 +5,15 @@ import { SRC } from './sources';
  * Urun bilgisi kodla dogrulandi (08.11.2026): llms_txt site denetiminin 14 kontrolunden
  * biri ama genel skora GIRMEZ (bilgi; api audit-checks.service.ts OVERALL_SCORE_WEIGHTS'te
  * yok, LLMS_METHOD_VERSION 3; web lib/compare-notes.ts). GEO skorunda da puan yok.
+ *
+ * 25.11.2026: baslik aranan kaliba cekildi. Keyword Planner (TR) "llms txt" 390 aylik; SERP'te Turkce
+ * sonuclar "llms.txt Nedir..." basligiyla 4, 6, 9. siralarda. Search Console: "Tarandı - şu anda dizine
+ * eklenmiş değil" (son tarama 06.11).
  */
 export const article: RehberArticle = {
   slug: 'llms-txt-nedir',
-  title: 'llms.txt gerçekte ne işe yarar?',
-  metaTitle: 'llms.txt nedir, gerçekten işe yarar mı?',
+  title: 'llms.txt nedir, siteme eklemeli miyim?',
+  metaTitle: 'llms.txt nedir, siteme eklemeli miyim?',
   description:
     'llms.txt nedir, kim önerdi, Google ve yapay zekâ asistanları kullanıyor mu? Kanıtlar, ne zaman işe yarayabileceği, nasıl yazılacağı ve önceliği.',
   topic: 'Teknik',
