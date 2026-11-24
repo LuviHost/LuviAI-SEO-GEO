@@ -69,6 +69,11 @@ function Sonuc({ a }: { a: NonNullable<PublicSeoAnalysis['result']> }) {
         </div>
       </div>
 
+      {a.oncelikli.length === 0 && (
+        <p className="rounded-lg border border-border bg-card p-4 text-sm text-foreground">
+          Kritik ya da uyarı düzeyinde sorun bulunmadı. Aşağıdaki kontrollerde yalnız bilgi notları olabilir.
+        </p>
+      )}
       {a.oncelikli.length > 0 && (
         <div>
           <h3 className="text-base font-medium text-foreground">Önce bunlara bakın</h3>
