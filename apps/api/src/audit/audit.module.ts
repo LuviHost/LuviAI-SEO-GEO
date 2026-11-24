@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SitemapKancaController } from './sitemap-kanca.controller.js';
 import { AuditController } from './audit.controller.js';
 import { AppliedFixService } from './applied-fix.service.js';
 import { AuditService } from './audit.service.js';
@@ -68,7 +69,7 @@ import { AuditCron } from './audit.cron.js';
 
 @Module({
   imports: [SitesModule, EmailModule, AuthModule, LLMModule, NotificationsModule],
-  controllers: [AuditController, TrackerController, PublicCitationController, ImageAltController],
+  controllers: [AuditController, TrackerController, PublicCitationController, ImageAltController, SitemapKancaController],
   providers: [
     AppliedFixService,
     ImageInventoryService,
