@@ -221,6 +221,8 @@ export interface PublicSeoAnalysis {
   status: 'queued' | 'running' | 'done' | 'error';
   error: string | null;
   createdAt: string;
+  /** E-posta yazildi mi; yazilmadan sonuc (result) gelmez */
+  emailVar: boolean;
   result: null | {
     domain: string;
     url: string;
@@ -2039,6 +2041,18 @@ export const api = {
     request<any[]>(`/admin/invoices${status ? `?status=${status}` : ''}`),
   getAdminSites: () => request<any[]>('/admin/sites'),
   getAdminFailedJobs: () => request<any[]>('/admin/jobs/failed'),
+  /** Ucretsiz SEO analizleri (ranksup.ai/seo-analizi) — api admin.controller seo-analyses */
+  getAdminSeoAnalyses: (limit = 100) =>
+    request<{
+      items: Array<{
+        id: string; domain: string; status: string; createdAt: string;
+        puan: number | null; taranan: number | null; hizPuani: number | null; sahaGecti: boolean | null;
+        kritik: number; uyari: number; engel: string | null; ip: string;
+        email: string | null; pazarlamaIzni: boolean; onbellek: boolean;
+      }>;
+      total: number;
+    }>(`/admin/seo-analyses?limit=${limit}`),
+
   getAdminCitationLeads: (params: { limit?: number; offset?: number; search?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.limit) qs.set('limit', String(params.limit));
@@ -2854,6 +2868,11 @@ export const api = {
     request<PublicSeoAnalysis>('/public/seo-analiz', { method: 'POST', body: JSON.stringify({ domain }) }),
   publicSeoAnalysisGet: (id: string) =>
     request<PublicSeoAnalysis>(`/public/seo-analiz/${encodeURIComponent(id)}`),
+  /** Sonucu gormek icin e-posta (pazarlamaIzni: ticari ileti onayi, isteğe bagli) */
+  publicSeoAnalysisEmail: (id: string, email: string, pazarlamaIzni: boolean) =>
+    request<PublicSeoAnalysis>(`/public/seo-analiz/${encodeURIComponent(id)}/email`, {
+      method: 'POST', body: JSON.stringify({ email, pazarlamaIzni }),
+    }),
 
   publicCitationRateLimit: () =>
     request<{ ok: boolean; remaining: number; resetIn?: string }>('/public/citation-check/rate-limit', {

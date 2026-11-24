@@ -23,7 +23,7 @@ export default function KvkkPage() {
             Islenen Kisisel Veriler bolumune eklendi; gizlilik sayfasiyla ayni gun.
             11 Kasim 2026: Aktarilan Taraflar'a AI olcumu icin Meta (Muse) eklendi; gizlilik sayfasiyla ayni gun. */}
         <p className="text-sm text-muted-foreground mb-1">Yürürlük: 27 Nisan 2026</p>
-        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 16 Kasım 2026</p>
+        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 25 Kasım 2026</p>
         <p className="text-sm text-muted-foreground mb-8">
           Değişiklik: Aktarılan Taraflar bölümüne yalnız çerez onayınızla yüklenen Google ve Microsoft araçları ile sizi
           davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi. İşlenen Kişisel Veriler bölümüne RanksUp
@@ -35,7 +35,7 @@ export default function KvkkPage() {
           Veriler bölümüne, Canlı Tarayıcı kodunun bot doğrulaması için ilettiği ve saklanmayan IP adresi eklendi
           (2 Kasım 2026). Aktarılan Taraflar bölümüne AI görünürlük ölçümü için Meta (Muse, ABD) eklendi (11 Kasım
           2026). Aktarılan Taraflar bölümüne Google AI Modu ve AI Bakışı ölçümü için DataForSEO (Estonya, AB) eklendi;
-          ona yalnız ölçüm soruları gider (16 Kasım 2026).
+          ona yalnız ölçüm soruları gider (16 Kasım 2026). Ücretsiz SEO Analizi bölümü eklendi (25 Kasım 2026).
         </p>
 
         <div className="space-y-6 text-sm leading-relaxed">
@@ -195,6 +195,34 @@ export default function KvkkPage() {
                 <a href="mailto:kvkk@luvihost.com" className="text-brand-vivid underline-offset-2 hover:underline">kvkk@luvihost.com</a>{' '}
                 adresine yazabilirsiniz. Ayrıntılar{' '}
                 <Link href="/privacy#ucretsiz-araclar" className="text-brand-vivid underline-offset-2 hover:underline">Gizlilik Politikası’nın 8. bölümünde</Link>.
+              </li>
+            </ul>
+          </section>
+
+          {/* 25.11.2026: ucretsiz SEO analizi (api audit/public-seo-analysis*: IP hash, e-posta, ticari ileti
+              onayi isteğe bagli kutu, otomatik silme yok). Hukuki sebep yukaridaki bolumle ayni nedenle YAZILMADI. */}
+          <section id="ucretsiz-seo-analizi" className="scroll-mt-24">
+            <h2 className="text-xl font-bold mb-2">Ücretsiz SEO Analizi</h2>
+            <ul className="text-muted-foreground space-y-2">
+              <li>
+                <strong className="text-foreground">İşlenen veriler:</strong> analiz ettiğiniz alan adı, analiz sonucu, IP
+                adresinizin geri döndürülemez biçimde özetlenmiş (hash) hâli, sonucu görmek için yazdığınız e-posta adresi ve
+                isteğe bağlı ticari ileti onayınız.
+              </li>
+              <li>
+                <strong className="text-foreground">Amaç:</strong> sitenizin teknik SEO analizini yapmak ve sonucu göstermek,
+                kötüye kullanımı önlemek ve analiz hakkını sınırlamak, bu analizle ilgili sizinle iletişim kurmak; onay
+                verdiyseniz SEO ve yapay zekâ görünürlüğüyle ilgili bilgilendirme ve kampanya e-postaları göndermek.
+              </li>
+              <li>
+                <strong className="text-foreground">Aktarım:</strong> sitenizin en fazla 10 sayfası RanksUpBot ile okunur; ana
+                sayfa adresi hız ölçümü için Google PageSpeed Insights’a gönderilir. E-postalar Resend üzerinden gönderilir.
+              </li>
+              <li>
+                <strong className="text-foreground">Saklama ve haklar:</strong> kayıtlar belirli bir süre sonunda kendiliğinden
+                silinmez. Silme ve diğer KVKK md. 11 talepleriniz için{' '}
+                <a href="mailto:kvkk@luvihost.com" className="text-brand-vivid underline-offset-2 hover:underline">kvkk@luvihost.com</a>{' '}
+                adresine yazabilirsiniz; ticari ileti onayınızı aynı adresten geri alabilirsiniz.
               </li>
             </ul>
           </section>

@@ -153,3 +153,48 @@ export function hizCumlesi(h: SeoHiz | null): string | null {
   if (h.puan !== null) return `Gerçek ziyaretçi verisi yok; mobil laboratuvar ölçümünde hız puanı ${h.puan}/100.`;
   return null;
 }
+
+/** Yonetici listesi satiri (/admin/leads "SEO analizleri"): sonuc ozetinden yalniz gereken alanlar */
+export interface SeoAnalizYoneticiSatiri {
+  id: string;
+  domain: string;
+  status: string;
+  createdAt: string;
+  puan: number | null;
+  taranan: number | null;
+  hizPuani: number | null;
+  sahaGecti: boolean | null;
+  kritik: number;
+  uyari: number;
+  engel: string | null;
+  /** IP ozetinin ilk 8 karakteri — ayni ziyaretciyi tanimak icin; ham IP yok */
+  ip: string;
+  email: string | null;
+  pazarlamaIzni: boolean;
+  onbellek: boolean;
+}
+
+export function yoneticiSatiri(row: {
+  id: string; domain: string; status: string; createdAt: Date; ipHash: string; result: unknown;
+  email?: string | null; pazarlamaIzni?: boolean; onbellek?: boolean;
+}): SeoAnalizYoneticiSatiri {
+  const r = (row.result && typeof row.result === 'object' ? row.result : null) as Partial<SeoAnalizSonucu> | null;
+  const bulgular = (r?.kontroller ?? []).flatMap((k) => k.bulgular ?? []);
+  return {
+    id: row.id,
+    domain: row.domain,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+    puan: typeof r?.puan === 'number' ? r.puan : null,
+    taranan: typeof r?.taranan === 'number' ? r.taranan : null,
+    hizPuani: r?.hiz?.puan ?? null,
+    sahaGecti: r?.hiz?.sahaGecti ?? null,
+    kritik: bulgular.filter((b) => b.severity === 'critical').length,
+    uyari: bulgular.filter((b) => b.severity === 'warning').length,
+    engel: r?.engel ?? null,
+    ip: (row.ipHash ?? '').slice(0, 8),
+    email: row.email ?? null,
+    pazarlamaIzni: row.pazarlamaIzni === true,
+    onbellek: row.onbellek === true,
+  };
+}

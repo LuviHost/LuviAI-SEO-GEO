@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { SeoAnalizleri } from './seo-analizleri';
 
 /**
  * Üye olmadan yapılan AI görünürlük testleri.
@@ -364,6 +365,8 @@ export default function AdminLeadsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <SeoAnalizleri needle={needle} yenile={sonYukleme?.getTime() ?? 0} />
 
       {data && (
         <p className="text-xs text-muted-foreground text-center">

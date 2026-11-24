@@ -15,7 +15,7 @@ import { SeoAnalizAraci } from '@/components/seo-analizi/seo-analiz-araci';
  */
 
 const BASLIK = 'Ücretsiz SEO Analizi: teknik SEO ve site hızı testi';
-const ACIKLAMA = 'Sitenizin ücretsiz SEO analizini yapın: 15 teknik kontrol, mobil site hızı ve Core Web Vitals, öncelikli sorunlar. Kayıt gerekmez.';
+const ACIKLAMA = 'Sitenizin ücretsiz SEO analizini yapın: 15 teknik kontrol, mobil site hızı ve Core Web Vitals, öncelikli sorunlar. Üyelik gerekmez.';
 
 export const metadata: Metadata = {
   title: BASLIK,
@@ -45,7 +45,7 @@ const KONTROLLER: Array<[string, string]> = [
 const SSS: Array<{ q: string; a: string }> = [
   {
     q: 'SEO analizi ücretsiz mi?',
-    a: 'Evet. Kayıt gerekmez. Aynı ağdan 24 saatte en fazla 3 farklı site analiz edilebilir; aynı site 24 saat içinde tekrar yazılırsa kayıtlı sonuç gösterilir.',
+    a: 'Evet. Üyelik gerekmez; sonucu görmek için e-posta adresinizi yazmanız istenir. Aynı ağdan 24 saatte en fazla 3 farklı site analiz edilebilir; aynı site 24 saat içinde tekrar yazılırsa kayıtlı sonuç gösterilir.',
   },
   {
     q: 'Analiz sitemin kaç sayfasına bakıyor?',
@@ -97,7 +97,7 @@ export default function SeoAnaliziPage() {
         lead={
           <p>
             Alan adınızı yazın: sitenizin ilk 10 sayfasını tarayıp 15 teknik SEO kontrolünü çalıştıralım, mobil hızını
-            ölçelim ve önce neyi düzeltmeniz gerektiğini gösterelim. Ücretsiz, kayıt gerekmez.
+            ölçelim ve önce neyi düzeltmeniz gerektiğini gösterelim. Ücretsiz, üyelik gerekmez; sonucu e-posta adresinizle açarsınız.
           </p>
         }
       >

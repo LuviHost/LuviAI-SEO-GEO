@@ -21,6 +21,8 @@ const EXACT: ReadonlySet<string> = new Set([
   '/compare',
   '/use-cases',
   '/bot',
+  // 25.11.2026: ucretsiz SEO analizi (vitrin bilesenleriyle yazildi; listede yokken eski kabukla aciliyordu)
+  '/seo-analizi',
   '/privacy',
   '/terms',
   '/kvkk',
