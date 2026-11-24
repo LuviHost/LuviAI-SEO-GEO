@@ -210,6 +210,8 @@ export interface PromptLatestRunProvider {
   sourcesStatus: 'listed' | 'no_search' | 'not_recorded';
   sources: Array<{ url: string; domain: string; title?: string; originOnly?: true; type: SourceType }>;
   moreSources: number;
+  /** Yalnız Google AI Bakışı: aynı aramada sitenin organik sırası (null = ilk sayfada yok) ve bilgi paneli başlığı */
+  googleOrganic?: { rank: number | null; knowledgePanel: string | null } | null;
 }
 
 export interface PromptLatestRun {

@@ -21,6 +21,7 @@
 
 import type { Provider } from './ai-citation.service.js';
 import type { RawSource } from './citation-sources.js';
+import { urlHostMatches } from './host-match.js';
 
 export type GoogleSurface = Extract<Provider, 'google_ai_mode' | 'google_ai_overview'>;
 
@@ -112,4 +113,39 @@ export function parseSurfaceResponse(data: unknown): SurfaceParse {
   const text = ai ? aiText(ai).trim() : '';
   if (!text) return { kind: 'absent' };
   return { kind: 'answer', text, sources: aiSources(ai) };
+}
+
+/**
+ * Ayni Google sonuc sayfasinin ORGANIK kismi (24.11.2026, geo.new karsilastirmasi):
+ * AI Bakisi istegi (organic/live/advanced) zaten tum sonuc sayfasini donduruyor;
+ * yalniz `ai_overview` okunup gerisi atiliyordu. Ek istek ve ek ucret yok.
+ *  - rank: sitenin bu aramadaki en iyi organik sirasi (`rank_group`); donen
+ *    sonuclarda yoksa null ("ilk sayfada degil"). DataForSEO varsayilan derinligi
+ *    ilk sayfa sonuclaridir.
+ *  - knowledgePanel: sayfada bilgi paneli (`knowledge_graph`) varsa basligi.
+ * Bilgi Paneli Google'in Knowledge Graph'indan otomatik olusur, istenerek
+ * actirilamaz (support.google.com/knowledgepanel/answer/9163198): sonuc olarak
+ * gosterilir, skora girmez.
+ */
+export interface GoogleOrganicSignal {
+  rank: number | null;
+  knowledgePanel: string | null;
+}
+
+export function parseOrganicSignal(data: unknown, host: string): GoogleOrganicSignal | null {
+  const d = data as any;
+  if (d?.status_code !== 20000) return null;
+  const task = Array.isArray(d?.tasks) ? d.tasks[0] : null;
+  if (!task || task.status_code !== 20000) return null;
+  const items: any[] = Array.isArray(task?.result?.[0]?.items) ? task.result[0].items : [];
+  if (items.length === 0) return null;
+  let rank: number | null = null;
+  for (const i of items) {
+    if (i?.type !== 'organic' || typeof i?.url !== 'string') continue;
+    const r = typeof i.rank_group === 'number' ? i.rank_group : null;
+    if (r !== null && urlHostMatches(i.url, host) && (rank === null || r < rank)) rank = r;
+  }
+  const kg = items.find((i) => i?.type === 'knowledge_graph');
+  const title = typeof kg?.title === 'string' && kg.title.trim() ? kg.title.trim().slice(0, 120) : null;
+  return { rank, knowledgePanel: kg ? (title ?? '') : null };
 }

@@ -2421,6 +2421,10 @@ model GeoPromptRun {
   /// Kaynak kaydi surumu (SOURCES_VERSION). null = satir kaynaklar
   /// yakalanmadan once yazildi; sources null olmasi "kaynak yok" demek degil.
   sourcesVersion Int?
+  /// Yalniz Google AI Bakisi satiri: ayni aramada sitenin organik sirasi ve bilgi
+  /// paneli { rank: number | null, knowledgePanel: string | null } (google-ai-surfaces.ts
+  /// parseOrganicSignal). 24.11.2026 oncesi satirlarda null.
+  googleOrganic  Json?
 
   /// Alinti eslestirme yontemi surumu. 1 = metin.includes(host) (benzer alan
   /// adlarini da sayiyordu), 2 = etiket sinirli (audit/host-match.ts). Trend ve

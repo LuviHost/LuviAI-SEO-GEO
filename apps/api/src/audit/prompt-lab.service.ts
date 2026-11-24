@@ -792,7 +792,7 @@ export class PromptLabService {
         select: {
           provider: true, date: true, createdAt: true, cited: true, brandMentioned: true,
           brandInQuery: true, position: true, sentiment: true, excerpt: true,
-          competitors: true, sources: true, sourcesVersion: true,
+          competitors: true, sources: true, sourcesVersion: true, googleOrganic: true,
         },
       }),
       this.prisma.site.findUnique({

@@ -359,6 +359,8 @@ const SAYFA_SORUNU_ALANI: Record<string, { sayi?: string; ornek?: string; not?: 
   image_alt_missing: { sayi: 'absent', ornek: 'missingAltPages', not: 'Örnekler, alt metni eksik görsellerin bulunduğu sayfalardır.' },
   image_alt_suspicious: { sayi: 'suspicious', ornek: 'suspiciousPages', not: 'Örnekler, bu görsellerin bulunduğu sayfalardır.' },
   image_dimensions_missing: { sayi: 'noDimensions', ornek: 'noDimensionsPages', not: 'Örnekler, bu görsellerin bulunduğu sayfalardır.' },
+  image_early_lazy: { sayi: 'earlyLazy', ornek: 'earlyLazyPages', not: 'Örnekler, bu görsellerin bulunduğu sayfalardır.' },
+  image_lazy_missing: { sayi: 'laterEagerPageCount', ornek: 'laterEagerPages' },
   redirect_chain_long: { sayi: 'longChainCount', ornek: 'longChains', not: 'Her satır bir yazılışın geçtiği adresleri sırasıyla gösterir.' },
   orphan_pages: { ornek: 'orphans' },
 };

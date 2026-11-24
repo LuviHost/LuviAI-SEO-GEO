@@ -36,6 +36,8 @@ export interface LatestRunRow {
   competitors: unknown;
   sources: unknown;
   sourcesVersion: number | null;
+  /** Google AI Bakisi satiri: organik sira + bilgi paneli; eski satirlarda yok */
+  googleOrganic?: unknown;
 }
 
 export type LatestRunSourcesStatus = 'listed' | 'no_search' | 'not_recorded';
@@ -55,6 +57,17 @@ export interface LatestRunProvider {
   sources: Array<CitationSource & { type: SourceType }>;
   /** LATEST_RUN_SOURCES_MAX'i asan kaynak sayisi */
   moreSources: number;
+  /** Yalniz Google AI Bakisi: ayni aramada sitenin organik sirasi (yoksa null) ve bilgi paneli basligi */
+  googleOrganic: { rank: number | null; knowledgePanel: string | null } | null;
+}
+
+function organikOku(v: unknown): LatestRunProvider['googleOrganic'] {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as { rank?: unknown; knowledgePanel?: unknown };
+  return {
+    rank: typeof o.rank === 'number' && Number.isFinite(o.rank) ? o.rank : null,
+    knowledgePanel: typeof o.knowledgePanel === 'string' ? o.knowledgePanel : null,
+  };
 }
 
 export interface LatestRunView {
@@ -170,6 +183,7 @@ export function buildLatestRun(
         sourcesStatus,
         sources: ordered.slice(0, LATEST_RUN_SOURCES_MAX),
         moreSources: Math.max(0, ordered.length - LATEST_RUN_SOURCES_MAX),
+        googleOrganic: organikOku(r.googleOrganic),
       };
     });
 

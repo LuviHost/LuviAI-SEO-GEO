@@ -39,6 +39,8 @@ export function promptRunRows(
       competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
       // Alintilanan dis kaynaklar (GEO Faz 2) — bkz. citation-sources.ts
       ...sourceColumns(probe),
+      // Google AI Bakisi: ayni aramanin organik sirasi + bilgi paneli (google-ai-surfaces.ts)
+      googleOrganic: probe.googleOrganic ? (probe.googleOrganic as any) : undefined,
       // Kademe de surumde (hizli model = +100): kademesi farkli iki satir kiyaslanmaz
       matchVersion: citationMatchVersion(tier),
     }));

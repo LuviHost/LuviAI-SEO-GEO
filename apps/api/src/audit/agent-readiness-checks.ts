@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { assessTrustContact, isYmylNiche, trustContactStatus } from './trust-contact.js';
 import { KNOWN_AI_BOTS } from './known-ai-bots.js';
 import { parseRobotsAiStance, type RobotsAiStance } from './robots-ai-stance.js';
 import { assessJsFreeDiscovery } from './js-free-discovery.js';
@@ -160,6 +161,11 @@ export interface ScanContext {
    * baglandi (bkz. common/tls-chain.ts). Puansiz bulgu olarak gosterilir.
    */
   tlsChainIncomplete?: boolean;
+  /**
+   * Ana sayfanin bagladigi iletisim / hakkimizda sayfasi (trust-contact.ts
+   * findContactLink); link yoksa null. 24.11.2026 oncesi taramalarda yok.
+   */
+  contactPage?: { url: string; probe: Probe } | null;
 }
 
 export type ProductFeedKind = 'shopify' | 'woocommerce' | 'merchant';
@@ -748,6 +754,27 @@ function levelGroundwork(ctx: ScanContext, ev: InterfaceEvidence, nodes: any[]):
       audit: [{ step: 'PARSE', detail: `tel: ${op.contact.tel} · WhatsApp (wa.me / api.whatsapp.com): ${op.contact.whatsapp}`, ok: contactOk }],
       blocked: homeBlocked,
     });
+
+    // Iletisim ve sorumlu kurulus — BILGI burada; para/saglik/hukuk nislerinde
+    // GEO Skor Karti'nin Otorite sutununda puana girer (geo-score-card trustContactCheck)
+    if (home.state === 'ok') {
+      const cp = ctx.contactPage ?? null;
+      const tc = assessTrustContact(home.text, home.finalUrl || ctx.siteUrl, cp ? { url: cp.url, html: cp.probe.state === 'ok' ? cp.probe.text : null } : null);
+      const ymyl = isYmylNiche(ctx.niche);
+      checks.push({
+        id: 'trust-contact',
+        name: 'İletişim ve sorumlu kuruluş',
+        ok: tc.ok && !tc.hiddenEmailOnly,
+        impact: 'info',
+        statusText: trustContactStatus(tc) + (ymyl ? ' — para, sağlık ve hukuk sitelerinde Google değerlendiricileri iletişim bilgisini özellikle arar' : ''),
+        howTo: 'Ana sayfadan bir İletişim ya da Hakkımızda sayfasına bağlantı ver; o sayfada şirket unvanını, telefonu (<a href="tel:…">) ve e-postayı (<a href="mailto:…">) düz metin olarak yaz. Cloudflare kullanıyorsan Scrape Shield → Email Address Obfuscation\'ı kapat: açıkken JavaScript çalıştırmayan AI tarayıcıları adresi "[email protected]" görür. Organization şemasına telephone, email ya da contactPoint ekle. Google\'ın değerlendirici kılavuzu para işleyen sitelerde iletişim bilgisini "son derece önemli" sayar; bu doğrudan bir sıralama sinyali değildir.',
+        audit: [
+          { step: 'PARSE', detail: tc.link ? `Bağlantı: ${tc.link.url} (${tc.link.kind})${tc.pageRead === false ? ' — sayfa okunamadı' : ''}` : 'Ana sayfada iletişim / hakkımızda bağlantısı yok', ok: !!tc.link },
+          { step: 'PARSE', detail: `tel: ${tc.home.tel + (tc.page?.tel ?? 0)} · mailto: ${tc.home.mailto + (tc.page?.mailto ?? 0)} · metinde e-posta ${tc.home.emailText + (tc.page?.emailText ?? 0)} · metinde telefon ${tc.home.phoneText + (tc.page?.phoneText ?? 0)} · şemada iletişim ${tc.home.schemaContact || tc.page?.schemaContact ? 'var' : 'yok'}`, ok: tc.reachable },
+          { step: 'PARSE', detail: `Cloudflare e-posta gizlemesi: ${tc.home.cfHiddenEmail + (tc.page?.cfHiddenEmail ?? 0)}`, ok: !tc.hiddenEmailOnly },
+        ],
+      });
+    }
 
     if (op.forms.fields > 0) {
       const formOk = op.forms.labeled === op.forms.fields && op.forms.typeMismatches.length === 0;

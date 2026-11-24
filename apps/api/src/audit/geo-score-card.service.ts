@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isYmylNiche } from './trust-contact.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { isHeroPlaceholder } from '../articles/hero-placeholder.js';
 import { lastLiveWriteAt } from '../articles/republish-policy.js';
@@ -100,6 +101,35 @@ export function sameAsCheck(
   };
 }
 
+const TRUST_CONTACT_CHECK = { id: 'trust-contact', name: 'İletişim ve sorumlu kuruluş' } as const;
+
+/**
+ * Otorite sutununun iletisim kontrolu — YALNIZ para, saglik, hukuk ve e-ticaret
+ * nislerinde (trust-contact.ts YMYL_NICHES); diger nislerde null (satir yok).
+ * Kaynak son Agent Readiness taramasinin 'trust-contact' kontrolu (24.11.2026'da
+ * eklendi). Tarama yoksa, kontrolu tasimiyorsa ya da ana sayfa okunamadiysa
+ * unverified: puana girmez. Gerekce: Google degerlendirici kilavuzu 2.5.3 —
+ * para isleyen sitelerde iletisim bilgisi "extremely important".
+ */
+export function trustContactCheck(
+  scan: { ranAt: Date | string; levels: unknown } | null | undefined,
+  niche: string | null | undefined,
+): GeoPillar['checks'][number] | null {
+  if (!isYmylNiche(niche)) return null;
+  const c = readinessCheckOf(scan?.levels, 'trust-contact');
+  if (!scan || !c) {
+    return {
+      ...TRUST_CONTACT_CHECK, ok: false, unverified: true,
+      detail: 'Ana sayfadaki iletişim bilgileri henüz ölçülmedi — Agent Readiness taraması çalıştığında ölçülür; o zamana kadar puana girmez.',
+    };
+  }
+  const tarih = isoDay(scan.ranAt);
+  if (c.state === 'blocked' || c.blocked) {
+    return { ...TRUST_CONTACT_CHECK, ok: false, unverified: true, detail: `${tarih} tarihli Agent Readiness taraması ana sayfayı okuyamadı` };
+  }
+  return { ...TRUST_CONTACT_CHECK, ok: c.ok === true, detail: `Ana sayfa (${tarih} Agent Readiness taraması): ${c.statusText ?? (c.ok ? 'yeterli' : 'eksik')}` };
+}
+
 const ORG_SCHEMA_CHECK = { id: 'org-schema', name: 'Organization / LocalBusiness şeması (site)' } as const;
 
 /**
@@ -177,6 +207,19 @@ export function criticalBotsCheck(entry: any, noAudit: string | null): GeoPillar
 }
 
 /** AgentReadinessScan.levels JSON'unda 'org-schema' kontrolu (bicim bozuksa null) */
+function readinessCheckOf(levels: unknown, id: string): {
+  ok?: unknown; statusText?: string; state?: string; blocked?: { reason?: string } | null;
+} | null {
+  if (!Array.isArray(levels)) return null;
+  for (const level of levels) {
+    const checks = (level as { checks?: unknown } | null)?.checks;
+    if (!Array.isArray(checks)) continue;
+    const c = checks.find((x) => (x as { id?: unknown } | null)?.id === id);
+    if (c && typeof c === 'object') return c as any;
+  }
+  return null;
+}
+
 function orgSchemaCheckOf(levels: unknown): {
   ok?: unknown; statusText?: string; state?: string; blocked?: { reason?: string } | null; audit?: unknown;
 } | null {
@@ -544,6 +587,8 @@ export class GeoScoreCardService {
     const checks: GeoPillar['checks'] = [];
 
     checks.push(sameAsCheck(scan, site.socialProfiles));
+    const iletisim = trustContactCheck(scan, site.niche);
+    if (iletisim) checks.push(iletisim);
 
     const competitors: any[] = Array.isArray(site.brain?.competitors) ? site.brain.competitors : [];
     checks.push({
