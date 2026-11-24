@@ -3481,3 +3481,27 @@ model GeoPromptGoogleOrganic {
   @@index([siteId, date])
   @@map("geo_prompt_google_organic")
 }
+
+/**
+ * Ucretsiz SEO analizi (ranksup.ai/seo-analizi, 25.11.2026). Uye olmadan bir alan adinin
+ * en fazla 10 sayfasini tarar, panelin 15 teknik kontrolunu ve mobil PageSpeed'i calistirir.
+ * Tarama worker'da kosar (PUBLIC_SEO_ANALYSIS). Ayni alan adi 24 saat bu kayittan doner.
+ * Ham IP saklanmaz (ipHash). Kurallar: audit/public-seo-analysis.ts.
+ */
+model PublicSeoAnalysis {
+  id         String    @id @default(cuid())
+  domain     String    @db.VarChar(191)
+  ipHash     String    @db.VarChar(64)
+  /// queued | running | done | error
+  status     String    @db.VarChar(16)
+  result     Json?
+  error      String?   @db.VarChar(300)
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([domain, createdAt])
+  @@index([ipHash, createdAt])
+  @@index([createdAt])
+  @@map("public_seo_analyses")
+}
+

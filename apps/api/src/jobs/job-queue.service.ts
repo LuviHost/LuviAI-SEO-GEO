@@ -97,6 +97,22 @@ export class JobQueueService implements OnModuleInit, OnModuleDestroy {
     return { dbJobId: dbJob.id, bullJobId: bullJob.id };
   }
 
+  /**
+   * Kullaniciya bagli OLMAYAN is (DB Job satiri yazilmaz) — ornek: ucretsiz SEO analizi
+   * (audit/public-seo-analysis.service.ts). Zamanlanmis cron isleri de boyle kuyruga girer;
+   * worker satir bulamayinca hesap/iptal denetimini atlar. Durum isin kendi tablosunda tutulur.
+   * Tek deneme: basarisiz analiz ziyaretciye hata olarak doner, yeniden denenmez.
+   */
+  async enqueueSystem(type: string, payload: Record<string, any>, opts: { jobId?: string } = {}) {
+    const job = await this.queue.add(type, payload, {
+      jobId: opts.jobId,
+      attempts: 1,
+      removeOnComplete: { age: 3600, count: 200 },
+      removeOnFail: { age: 86400, count: 200 },
+    });
+    return { bullJobId: job.id };
+  }
+
   /** Bekleyen delayed job'ı sil (article unschedule veya reschedule). */
   async removeJob(jobId: string): Promise<boolean> {
     const job = await this.queue.getJob(jobId);

@@ -2278,10 +2278,11 @@ describe('Rehber (/rehber) = ürün', () => {
   // planındaki" derse okuyani alamayacagi bir plana yollar (Canli Tarayici artik Kurumsal'da satilir).
   const planAdi = (f: keyof typeof FEATURE_MIN_PLAN) => featureOfferPlan(f).name_tr;
 
-  it('rehber veri modulleri bulunuyor (13 makale + kayit + kaynaklar + tipler)', () => {
+  it('rehber veri modulleri bulunuyor (14 makale + kayit + kaynaklar + tipler)', () => {
     // 11.11.2026: yapay-zeka-gorunurlugu eklendi (PR #68); sayi orada guncellenmemisti.
     // 14.11.2026: chatgpt-isletme-profili eklendi; ayni gun Turkiye listesi, KOBI, e-ticaret ve ajans rehberleri.
-    expect(tum.length).toBe(16);
+    // 25.11.2026: google-ai-modu eklendi (PR #134; bu sayi o PR'da guncellenmemisti).
+    expect(tum.length).toBe(17);
   });
 
   it('14.11.2026 rehberleri (KOBİ, e-ticaret, ajans, Türkiye) plan iddialarini plans.ts ile ayni yaziyor', () => {
