@@ -54,3 +54,12 @@ fi
 
 rm -rf "$ESKI"
 echo "✓ yayinda"
+
+# Site haritasini Search Console'a gonder (apps/api/scripts/gsc-sitemap-gonder.ts).
+# Basarisizlik yayini DUSURMEZ: yalniz uyari. Kapatmak icin: GSC_SITEMAP_GONDER=0
+if [ "${GSC_SITEMAP_GONDER:-1}" != "0" ]; then
+  echo "→ Search Console site haritasi"
+  if ! (cd "$KOK/apps/api" && timeout 90 npx tsx scripts/gsc-sitemap-gonder.ts --host="${GSC_SITEMAP_HOST:-ranksup.ai}"); then
+    echo "UYARI: site haritasi Search Console'a gonderilemedi (yayin etkilenmedi)" >&2
+  fi
+fi
