@@ -22,7 +22,8 @@ import { VitrinBand, VitrinHero, VitrinSection, VITRIN_LINK } from '@/components
  * ticaret yoklamasi: urun site haritasi, urun sayfalari, urun akislari,
  * Shopify products.json, WooCommerce Store API — agent-readiness-checks.ts
  * planCommerceProbes; public-docs.spec.ts yollari karsilastirir), articles/link-validator,
- * topics/competitor (rakip RSS/blog), public-citation (ucretsiz kontrol),
+ * topics/competitor (rakip RSS/blog), public-citation (ucretsiz kontrol), public-seo-analysis
+ * (ucretsiz SEO analizi: site-crawler ile en fazla 10 sayfa),
  * intel/* (sektor takibi; eskiden RanksUpIntel), prospect-utils (pazar
  * arastirmasi), webhook-notifier (POST). Cloudflare adimlari
  * common/block-detect.ts unblockHint ile ayni.
@@ -159,6 +160,12 @@ export default function BotPage() {
             tekrarlanır.
           </li>
           <li className={KAPSAM_SATIR}>
+            <strong className={KAPSAM_AD}>Ücretsiz SEO analizi.</strong> Bir ziyaretçi{' '}
+            <Link href="/seo-analizi" className={VITRIN_LINK}>SEO analizi sayfasında</Link> bir alan adı yazdığında site
+            taramasıyla aynı kurallarla ana sayfadan başlayarak en fazla 10 sayfa, robots.txt, site haritası ve llms.txt okunur;
+            aynı alan adı 24 saat içinde yeniden okunmaz.
+          </li>
+          <li className={KAPSAM_SATIR}>
             <strong className={KAPSAM_AD}>Sektör takibi.</strong> SEO, GEO ve ASO sektöründeki gelişmeleri
             izlemek için herkese açık RSS/Atom akışlarını ve bu akışlarda ya da izlenen X gönderilerinde bağlantısı verilen
             makaleleri okur.
@@ -183,7 +190,7 @@ export default function BotPage() {
         <p>Yalnızca bir bölümü kapatmak için:</p>
         <Kod>{'User-agent: RanksUpBot\nDisallow: /yonetim/'}</Kod>
         <p>
-          Bu gruba site taraması (sayfa keşfi ve adres envanteri) ile yerel işletme bilgisi okuması uyar. GEO analizi,
+          Bu gruba site taraması (sayfa keşfi ve adres envanteri), ücretsiz SEO analizi ve yerel işletme bilgisi okuması uyar. GEO analizi,
           ajan hazırlığı dosyaları, ücretsiz kontrol ve pazar araştırması gibi diğer okumalar bu gruba bakmaz; tüm
           RanksUpBot isteklerini kesin olarak durdurmak için güvenlik duvarınızda bu kullanıcı ajanını engelleyin.
         </p>

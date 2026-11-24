@@ -56,6 +56,8 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/use-cases',             updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/compare',               updated: '2026-11-16', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/about',                 updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.7 },
+  // 25.11.2026: ucretsiz SEO analizi (Keyword Planner TR: "seo analiz" kumesi ~3.700/ay; api public-seo-analysis.ts)
+  { path: '/seo-analizi',           updated: '2026-11-25', changeFrequency: 'monthly', priority: 0.8 },
   // Rehber (GEO icerik merkezi) — icerik content/rehber/*.ts; kaynaklar yeniden kontrol
   // edilince ya da metin degisince ilgili satirin tarihi ayni committe guncellenir.
   // 14.11.2026: ChatGPT isletme profili rehberi eklendi (dizin listesi de degisti).
@@ -94,7 +96,7 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/privacy',               updated: '2026-11-16', changeFrequency: 'yearly',  priority: 0.3 },
   { path: '/terms',                 updated: '2026-11-16', changeFrequency: 'yearly',  priority: 0.3 },
   { path: '/kvkk',                  updated: '2026-11-16', changeFrequency: 'yearly',  priority: 0.3 },
-  { path: '/bot',                   updated: '2026-10-18', changeFrequency: 'yearly',  priority: 0.3 },
+  { path: '/bot',                   updated: '2026-11-25', changeFrequency: 'yearly',  priority: 0.3 },
 ];
 
 /** Sayfanin son guncelleme tarihi (YYYY-MM-DD). Listede olmayan yol programci hatasidir. */

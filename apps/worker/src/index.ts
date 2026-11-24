@@ -27,6 +27,7 @@ import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger
 import { ContentPivotService, rewriteLeftNoNewVersion } from '../../api/dist/articles/content-pivot.service.js';
 import { AiMentionAlarmService } from '../../api/dist/audit/ai-mention-alarm.service.js';
 import { CrawlerErrorAlarmService } from '../../api/dist/audit/crawler-error-alarm.service.js';
+import { PublicSeoAnalysisService } from '../../api/dist/audit/public-seo-analysis.service.js';
 import { GscSitemapRefreshService } from '../../api/dist/audit/gsc-sitemap-refresh.service.js';
 import { CampaignOrchestratorService } from '../../api/dist/ads/campaign-orchestrator.service.js';
 import { PerformanceSyncService } from '../../api/dist/ads/performance-sync.service.js';
@@ -144,6 +145,7 @@ async function bootstrap() {
     contentPivot: app.get(ContentPivotService),
     aiAlarm: app.get(AiMentionAlarmService),
     crawlerAlarm: app.get(CrawlerErrorAlarmService),
+    publicSeo: app.get(PublicSeoAnalysisService),
     gscSitemap: app.get(GscSitemapRefreshService),
     adsOrchestrator: app.get(CampaignOrchestratorService),
     adsPerformance: app.get(PerformanceSyncService),
@@ -781,6 +783,14 @@ async function bootstrap() {
      */
     CRAWLER_ERROR_ALARM: async () => {
       return services.crawlerAlarm.scanAndAlert();
+    },
+
+    /**
+     * PUBLIC_SEO_ANALYSIS — ucretsiz SEO analizi (ranksup.ai/seo-analizi): en fazla 10 sayfa
+     * tarama + 15 kontrol + mobil PageSpeed. Durum public_seo_analyses tablosunda.
+     */
+    PUBLIC_SEO_ANALYSIS: async (data: any) => {
+      return services.publicSeo.run(String(data?.id ?? ''));
     },
 
     /**

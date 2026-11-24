@@ -214,6 +214,29 @@ export interface PromptLatestRunProvider {
   googleOrganic?: { rank: number | null; knowledgePanel: string | null } | null;
 }
 
+export interface PublicSeoFinding { severity: 'critical' | 'warning' | 'info'; kontrol: string; metin: string }
+export interface PublicSeoAnalysis {
+  id: string;
+  domain: string;
+  status: 'queued' | 'running' | 'done' | 'error';
+  error: string | null;
+  createdAt: string;
+  result: null | {
+    domain: string;
+    url: string;
+    puan: number;
+    taranan: number;
+    kontroller: Array<{ id: string; ad: string; puan: number | null; bulgular: PublicSeoFinding[] }>;
+    oncelikli: PublicSeoFinding[];
+    hiz: null | {
+      puan: number | null; lcpMs: number | null; cls: number | null; tbtMs: number | null;
+      saha: null | { kapsam: 'sayfa' | 'site'; lcpMs: number | null; inpMs: number | null; cls: number | null; gecti: boolean | null };
+      sahaGecti: boolean | null;
+    };
+    engel: string | null;
+  };
+}
+
 export interface PromptLatestRun {
   date: string | null;
   providers: PromptLatestRunProvider[];
@@ -2825,6 +2848,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ domain }),
     }),
+
+  /** Ucretsiz SEO analizi (ranksup.ai/seo-analizi) — api audit/public-seo-analysis */
+  publicSeoAnalysisStart: (domain: string) =>
+    request<PublicSeoAnalysis>('/public/seo-analiz', { method: 'POST', body: JSON.stringify({ domain }) }),
+  publicSeoAnalysisGet: (id: string) =>
+    request<PublicSeoAnalysis>(`/public/seo-analiz/${encodeURIComponent(id)}`),
 
   publicCitationRateLimit: () =>
     request<{ ok: boolean; remaining: number; resetIn?: string }>('/public/citation-check/rate-limit', {
