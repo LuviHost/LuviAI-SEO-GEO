@@ -43,15 +43,17 @@ declare global {
   }
 }
 
-export function AiVisibilityChecker({ mode = 'hero', hintId = 'checker-hint' }: {
-  /** Olcum etiketi (landing-track): landing hero'su ya da /rehber icindeki test */
-  mode?: 'hero' | 'rehber';
+export function AiVisibilityChecker({ mode = 'hero', hintId = 'checker-hint', initialDomain }: {
+  /** Olcum etiketi (landing-track): landing hero'su, /rehber icindeki test ya da SEO analizi sonucu */
+  mode?: 'hero' | 'rehber' | 'seo-analizi';
   /** Formu tarif eden metnin id'si (aria-describedby) */
   hintId?: string;
+  /** Alan adi kutusunu doldurur (SEO analizi sonucundan gelen ziyaretci ayni siteyi yeniden yazmasin) */
+  initialDomain?: string;
 } = {}) {
   const { locale } = useT();
   const c = CHECKER_COPY[locale];
-  const [domain, setDomain] = useState('');
+  const [domain, setDomain] = useState(initialDomain ?? '');
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<CheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);

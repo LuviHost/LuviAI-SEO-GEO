@@ -56,9 +56,12 @@ export const GOOGLE_STRIP: Array<{ provider: string; label: string; vendor: Vend
 ];
 
 /** Seritte gosterilecek platformlar: 6 sabit + (API olculuyor diyorsa) Muse ve Google AI yuzeyleri */
-export function stripEngines(measuredProviders?: readonly string[]): Array<{ label: string; vendor: VendorName }> {
+const GOOGLE_STRIP_EN: Record<string, string> = { google_ai_mode: 'Google AI Mode', google_ai_overview: 'Google AI Overviews' };
+
+export function stripEngines(measuredProviders?: readonly string[], locale: 'tr' | 'en' = 'tr'): Array<{ label: string; vendor: VendorName }> {
   const muse = measuredProviders?.includes('meta') ? [MUSE] : [];
-  const google = GOOGLE_STRIP.filter((g) => measuredProviders?.includes(g.provider)).map(({ label, vendor }) => ({ label, vendor }));
+  const google = GOOGLE_STRIP.filter((g) => measuredProviders?.includes(g.provider))
+    .map(({ provider, label, vendor }) => ({ label: (locale === 'en' ? GOOGLE_STRIP_EN[provider] : undefined) ?? label, vendor }));
   return [...MEASURED, ...muse, ...google];
 }
 
