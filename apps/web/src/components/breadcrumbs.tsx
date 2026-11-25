@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ChevronRight, Home } from 'lucide-react';
+import { BreadcrumbHomeLabel } from './breadcrumb-home-label';
 
 export interface BreadcrumbItem {
   label: string;
@@ -43,7 +44,7 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
               {idx === 0 && <Home className="h-3 w-3 mr-0.5" />}
               {item.href && idx < allItems.length - 1 ? (
                 <Link href={item.href as any} className="hover:text-foreground transition-colors">
-                  {item.label}
+                  {idx === 0 ? <BreadcrumbHomeLabel /> : item.label}
                 </Link>
               ) : (
                 <span className={idx === allItems.length - 1 ? 'text-foreground font-medium' : ''}>{item.label}</span>
