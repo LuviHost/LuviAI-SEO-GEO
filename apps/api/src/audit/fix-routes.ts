@@ -75,7 +75,9 @@ const SNIPPET_CHECKS = new Set([
  * burada: o da yalniz Disallow kaldirilarak "duzelir". Googlebot / Bingbot
  * engeli (robots_search_engine_blocked, yontem v3) da ayni nedenle elle.
  */
-const MANUAL_ISSUE_TYPES = new Set(['robots_ai_search_blocked', 'robots_ai_training_blocked', 'robots_search_engine_blocked']);
+// canonical_target_broken (25.11.2026): etiket VAR ama acilmayan adresi gosteriyor —
+// snippet araci yeni etiket uretir, sablondaki yanlis etiketi duzeltmez; elle.
+const MANUAL_ISSUE_TYPES = new Set(['robots_ai_search_blocked', 'robots_ai_training_blocked', 'robots_search_engine_blocked', 'canonical_target_broken']);
 
 export function isAutoFixKey(key: string | null | undefined): boolean {
   return !!key && Object.prototype.hasOwnProperty.call(AUTO_FIX_CANONICAL, key);

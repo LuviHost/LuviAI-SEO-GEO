@@ -7,6 +7,9 @@ import { extractImages, type ExtractedImage, type ImageAltStats } from './image-
 import { isJsShell } from './js-shell.js';
 import { GOOGLE_META_NAMES, type PageRobotsSignals } from '../audit/google-ai-eligibility.js';
 import { probeRedirectChains, type RedirectProbe } from '../audit/redirect-chain.js';
+import { isGenericLinkText, linkTextApplies } from '../audit/link-text.js';
+import type { IndexInspection } from '../audit/gsc-url-inspection.js';
+import { canonicalProbeTargets, classifyCanonicalTarget, type CanonicalTargetProblem } from '../audit/canonical-target.js';
 import { isAllowedForRanksUpBot, parseRanksUpBotGroup, ROBOTS_PARSE_LIMIT, type RanksUpRobotsPolicy } from './ranksup-robots.js';
 import {
   accessFromBlock, accessFromFetchError, accessFromHttpStatus, accessFromRobots, type CrawlAccessIssue,
@@ -20,6 +23,13 @@ export interface CrawledPage {
    * "/" → "/tr/" yonlendiren tek dilli site "kodsuz + kodlu sayfa" gibi gorunmesin.
    */
   finalUrl?: string;
+  /**
+   * Sayfanin acildigi tam adres — yalniz `url`dan FARKLIYSA ve fark yol degilse
+   * (sondaki "/", www, http→https). `url` normalize edilir (sondaki "/" silinir);
+   * Search Console'a sorulan adres sitenin gercek yazilisi olmali
+   * (audit/gsc-url-inspection.ts), yoksa "/yol" ile "/yol/" ayri adres sayilir.
+   */
+  fetchedUrl?: string;
   title: string;
   metaDescription: string;
   h1: string;
@@ -53,6 +63,12 @@ export interface CrawledPage {
    * sayfa tarandi demektir (bos = tel: baglantisi yok).
    */
   telLinks?: string[];
+  /**
+   * Aciklayici olmayan metinli baglanti sayisi ve ilk 5 ornegi (audit/link-text.ts).
+   * Alan VARSA sayfa bu yontemle tarandi demektir; eski taramalarda yok.
+   */
+  genericLinkCount?: number;
+  genericLinks?: Array<{ text: string; href: string }>;
   /**
    * Google'in okudugu dizin / snippet yonergeleri: <meta name="robots|googlebot">
    * ve X-Robots-Tag basligi (audit/google-ai-eligibility.ts degerlendirir).
@@ -108,6 +124,37 @@ export interface CrawlResult {
    * anasayfa okunamadiysa yoklanmaz (alan yok).
    */
   redirectProbes?: RedirectProbe[];
+  /**
+   * Denenip 404 / 410 / 5xx donen sayfalar. Alan VARSA bu yontemle tarandi
+   * demektir (bos dizi = hepsi acildi); eski taramalarda yok.
+   */
+  brokenPages?: BrokenPage[];
+  /** Ayni sitede, acilmayan adresi gosteren canonical etiketleri (audit/canonical-target.ts) */
+  canonicalProblems?: CanonicalTargetProblem[];
+  /** Hukmu verilebilen farkli canonical hedefi sayisi */
+  canonicalTargetsChecked?: number;
+  /**
+   * Google dizin durumu (Search Console URL denetimi). Tarayici DOLDURMAZ:
+   * denetim, Search Console bagliysa taramadan sonra ekler (audit.service).
+   */
+  indexInspection?: IndexInspection;
+}
+
+/** Taramada acilmayan sayfa (site haritasinda ya da ana sayfa baglantisinda) */
+export interface BrokenPage {
+  /** Adres, site haritasinda / baglantida yazildigi haliyle */
+  url: string;
+  status: number;
+  kind: 'not_found' | 'server_error';
+  /** sitemap: site haritasinda listeli; home-link: ana sayfadan baglanti */
+  source: 'sitemap' | 'home-link';
+}
+
+/** 404 / 410 → sayfa yok; 5xx → sunucu hatasi; digerleri bozuk sayfa sayilmaz */
+export function brokenKind(status: number): BrokenPage['kind'] | null {
+  if (status === 404 || status === 410) return 'not_found';
+  if (status >= 500 && status < 600) return 'server_error';
+  return null;
 }
 
 export type TextFetcher = (url: string, opts?: SafeTextOptions) => Promise<SafeTextResult>;
@@ -206,11 +253,15 @@ export class SiteCrawlerService {
    * durur: arkasinda 100 sayfa denemek hem bos is hem de bizi engelleyen siteye
    * kabaliktir.
    *
+   * @param opts.canonicalProbeMax canonical hedefi icin en fazla kac EK sayfa
+   *   istenir (varsayilan 10). Ucretsiz SEO analizi 0 verir: KVKK / gizlilik
+   *   metni "en fazla 10 sayfa okunur" der; taramada 404 gorulen hedef yine
+   *   istek atilmadan raporlanir.
    * @param opts.stopIfHomeUnreadable anasayfa HTTP hatasi (404/500) verdiginde de
    *   dur. Denetim bunu ister (zaten puan vermeyecek); marka beyni gibi
    *   cagiranlar sitemap'teki diger sayfalarla devam edebilir.
    */
-  async crawl(baseUrl: string, maxPages = 30, opts: { stopIfHomeUnreadable?: boolean } = {}): Promise<CrawlResult> {
+  async crawl(baseUrl: string, maxPages = 30, opts: { stopIfHomeUnreadable?: boolean; canonicalProbeMax?: number } = {}): Promise<CrawlResult> {
     const start = new URL(baseUrl);
     const startOrigin = start.origin;
     const blockedPages: CrawlAccessIssue[] = [];
@@ -294,19 +345,32 @@ export class SiteCrawlerService {
     // Set ile tekillestirme: sitemap 50.000 URL tasiyabilir, includes O(n²) olurdu
     const seen = new Set<string>();
     const urls: string[] = [];
-    const add = (u: string | null) => {
+    // Normalize adres → yazildigi hali (site haritasinda / baglantida). Acilmayan
+    // sayfa yazildigi haliyle raporlanir ve normalizasyon (sondaki "/", izleme
+    // parametresi) yuzunden yanlis 404 sayilmasin diye o hal de denenir.
+    const rawByUrl = new Map<string, string>();
+    const fromSitemap = new Set<string>();
+    const add = (u: string | null, raw?: string) => {
       if (!u || seen.has(u) || this.isExcludedPath(u)) return;
       seen.add(u);
       urls.push(u);
+      if (raw && raw !== u) rawByUrl.set(u, raw);
     };
-    for (const raw of sitemap.pageUrls) add(this.normalizeUrl(raw, origin, siteOrigin));
+    for (const raw of sitemap.pageUrls) {
+      const u = this.normalizeUrl(raw, origin, siteOrigin);
+      add(u, raw.trim());
+      if (u) fromSitemap.add(u);
+    }
 
     // 3) Sitemap yetersizse anasayfa link discovery ile tamamla (anasayfa zaten elde)
     if (urls.length < maxPages && homeHtml) {
       const $ = cheerio.load(homeHtml);
       $('a[href]').each((_, el) => {
         const href = $(el).attr('href');
-        if (href) add(this.normalizeUrl(href, homeFinal, siteOrigin));
+        if (!href) return;
+        let raw: string | undefined;
+        try { raw = new URL(href, homeFinal).href.replace(/#.*$/, ''); } catch { /* gecersiz href */ }
+        add(this.normalizeUrl(href, homeFinal, siteOrigin), raw);
       });
     }
 
@@ -315,6 +379,7 @@ export class SiteCrawlerService {
 
     // 5) Paralel fetch (5'erli batch — rate limit + memory dengeli)
     const pages: CrawledPage[] = [];
+    const brokenPages: BrokenPage[] = [];
     let stoppedEarly: string | null = null;
     const BATCH = 5;
     for (let i = 0; i < targetUrls.length && !stoppedEarly; i += BATCH) {
@@ -331,6 +396,7 @@ export class SiteCrawlerService {
           }
           const r = await this.fetchResource(pageUrl, { bust: true, policy });
           if (r.kind === 'blocked') return { blocked: r.access };
+          if (r.kind === 'http') return { broken: await this.brokenPageFrom(pageUrl, r.status, rawByUrl.get(pageUrl), fromSitemap.has(pageUrl), allowed, policy) };
           if (r.kind !== 'ok') return {};
           const finalUrl = stripCacheBust(r.finalUrl);
           // Yonlendirme sonrasi varilan adres RanksUpBot'a yasaksa icerik KULLANILMAZ
@@ -344,8 +410,9 @@ export class SiteCrawlerService {
           return {};
         }
       }));
-      for (const r of results as Array<{ page?: CrawledPage; blocked?: CrawlAccessIssue }>) {
+      for (const r of results as Array<{ page?: CrawledPage; blocked?: CrawlAccessIssue; broken?: BrokenPage | null }>) {
         if (r.page) pages.push(r.page);
+        if (r.broken) brokenPages.push(r.broken);
         if (r.blocked) {
           blockedPages.push(r.blocked);
           if (STOP_KINDS.has(r.blocked.kind) && !stoppedEarly) stoppedEarly = r.blocked.reason;
@@ -353,6 +420,24 @@ export class SiteCrawlerService {
       }
     }
     if (stoppedEarly) this.log.warn(`${origin}: bot korumasi devrede, tarama erken durduruldu — ${stoppedEarly}`);
+
+    // 5b) Canonical hedefleri aciliyor mu (audit/canonical-target.ts) — en fazla 10 istek
+    let canonicalProblems: CanonicalTargetProblem[] | undefined;
+    let canonicalTargetsChecked: number | undefined;
+    if (!stoppedEarly) {
+      const plan = canonicalProbeTargets(pages, (u) => isSameSite(u, siteOrigin), brokenPages, opts.canonicalProbeMax ?? 10);
+      canonicalProblems = [...plan.problems];
+      canonicalTargetsChecked = plan.checked;
+      for (const t of plan.toProbe) {
+        if (!allowed(t.target)) { canonicalTargetsChecked--; continue; }
+        const r = await this.fetchResource(t.target, { bust: true, policy });
+        if (r.kind === 'ok' || r.kind === 'binary') continue;
+        const kind = r.kind === 'http' ? classifyCanonicalTarget(r.status) : null;
+        if (r.kind === 'http' && kind) canonicalProblems.push({ page: t.page, target: t.target, status: r.status, kind });
+        // Engel / ag hatasi / 401-403: hukum yok, "kontrol edildi" sayilmaz
+        else canonicalTargetsChecked--;
+      }
+    }
 
     // 6) llms.txt
     const llmsUrl = `${origin}/llms.txt`;
@@ -389,6 +474,8 @@ export class SiteCrawlerService {
       stoppedEarly,
       resources: { robots: robotsStatus, sitemap: sitemap.status, llms: llmsStatus },
       tlsChainIncomplete: zincirEksikBasta || zincirEksik(),
+      brokenPages,
+      ...(canonicalProblems ? { canonicalProblems, canonicalTargetsChecked } : {}),
       ...(redirectProbes ? { redirectProbes } : {}),
     };
   }
@@ -500,6 +587,34 @@ export class SiteCrawlerService {
           reason: `Anasayfa HTML yerine ${r.contentType || 'bilinmeyen türde'} içerik döndürdü.`,
         };
     }
+  }
+
+  /**
+   * Sayfa HTTP hatasi verdi: raporlanacak "acilmayan sayfa" mi?
+   * Yalniz 404 / 410 (sayfa yok) ve 5xx (sunucu hatasi); 401 / 403 / 429 gibi
+   * kodlar erisim konusudur, "bozuk sayfa" denmez. Adres normalize edilerek
+   * istendiyse (sondaki "/" silindi, izleme parametresi atildi) yazildigi hali
+   * bir kez daha denenir: o hal aciliyorsa sayfa bozuk DEGILDIR.
+   */
+  private async brokenPageFrom(
+    pageUrl: string,
+    status: number,
+    raw: string | undefined,
+    inSitemap: boolean,
+    allowed: (u: string) => boolean,
+    policy: RanksUpRobotsPolicy | null,
+  ): Promise<BrokenPage | null> {
+    const kind = brokenKind(status);
+    if (!kind) return null;
+    let finalStatus = status;
+    if (raw && raw !== pageUrl && allowed(raw)) {
+      const again = await this.fetchResource(raw, { bust: true, policy });
+      if (again.kind !== 'http') return null;
+      const k2 = brokenKind(again.status);
+      if (!k2) return null;
+      finalStatus = again.status;
+    }
+    return { url: raw ?? pageUrl, status: finalStatus, kind: brokenKind(finalStatus)!, source: inSitemap ? 'sitemap' : 'home-link' };
   }
 
   /** robots.txt / llms.txt erisim sonucu */
@@ -689,9 +804,23 @@ export class SiteCrawlerService {
     // sayfa adresleriyle eslesebilsin).
     const outboundLinks: string[] = [];
     const telLinks: string[] = [];
+    // Aciklayici olmayan baglanti metni ("buraya tıklayın", "devamı"): kural ve
+    // liste audit/link-text.ts (Google baglanti belgesi + Lighthouse link-text)
+    const genericLinks: Array<{ text: string; href: string }> = [];
+    let genericLinkCount = 0;
+    const pageNoHash = baseHref.replace(/#.*$/, '');
     $('a[href]').each((_, el) => {
       const href = $(el).attr('href');
       if (!href) return;
+      if (linkTextApplies(href, $(el).attr('rel'))) {
+        const text = $(el).text();
+        let samePage = false;
+        try { samePage = new URL(href, baseHref).href.replace(/#.*$/, '') === pageNoHash; } catch { /* gecersiz href */ }
+        if (!samePage && isGenericLinkText(text)) {
+          genericLinkCount++;
+          if (genericLinks.length < 5) genericLinks.push({ text: text.replace(/\s+/g, ' ').trim().slice(0, 60), href: href.trim().slice(0, 300) });
+        }
+      }
       // tel: ic link degil — site NAP'i icin ayri toplanir (site-nap.ts)
       const h = href.trim();
       if (/^tel:/i.test(h)) {
@@ -717,6 +846,7 @@ export class SiteCrawlerService {
     return {
       url,
       ...(yonlendi(url, baseHref) ? { finalUrl: baseHref } : {}),
+      ...(baseHref !== url && !yonlendi(url, baseHref) ? { fetchedUrl: baseHref } : {}),
       // SADECE head'deki <title> — $('title').text() SVG ikon <title>'larını da
       // birleştirip uzunluğu yanlış şişiriyordu (yanlış "title 60+ karakter").
       title: ($('head title').first().text() || $('title').first().text()).trim() || $('h1').first().text().trim(),
@@ -737,6 +867,8 @@ export class SiteCrawlerService {
       imagesCapped,
       outboundLinks: outboundLinks.slice(0, 30),
       telLinks,
+      genericLinkCount,
+      genericLinks,
       robotsSignals: { metas: robotsMetas, header: xRobotsTag ? xRobotsTag.slice(0, 500) : null },
     };
   }

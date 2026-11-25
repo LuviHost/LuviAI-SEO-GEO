@@ -515,15 +515,35 @@ export class AuditChecksService {
     }
     const total = c.pages.length;
     const coverage = total > 0 ? (count / total) * 100 : 0;
+    const issues: AuditIssue[] = coverage < 80 ? [{
+      severity: 'warning', type: 'canonical_missing',
+      description: `Canonical URL ${count}/${total} sayfada — duplicate content riski`,
+      fixable: false,
+    }] : [];
+    // Canonical hedefi acilmiyor (audit/canonical-target.ts; Google: "rel=canonical
+    // hedefinin var oldugunu, hata ya da yumusak 404 olmadigini kontrol edin").
+    // Puan DEGISMEZ (kapsam puani); bulgu uyari olarak yazilir.
+    const hedefSorunlari = c.canonicalProblems ?? [];
+    if (hedefSorunlari.length > 0) {
+      const ilk = hedefSorunlari[0];
+      issues.push({
+        severity: 'warning', type: 'canonical_target_broken', page: ilk.page,
+        description: `${hedefSorunlari.length} sayfanın canonical etiketi açılmayan bir adresi gösteriyor (${ilk.target} → HTTP ${ilk.status}). Google canonical adresinin gerçekten açılan bir sayfa olmasını ister; etiketi sayfanın kendi adresine ya da açılan asıl sayfaya çevir.`,
+        fixable: false,
+      });
+    }
     return {
       id: 'canonical', name: 'Canonical URL',
       found: count > 0, valid: coverage >= 80,
       score: Math.round(coverage),
-      issues: coverage < 80 ? [{
-        severity: 'warning', type: 'canonical_missing',
-        description: `Canonical URL ${count}/${total} sayfada — duplicate content riski`,
-        fixable: false,
-      }] : [],
+      issues,
+      ...(c.canonicalProblems ? {
+        details: {
+          canonicalTargetsChecked: c.canonicalTargetsChecked ?? 0,
+          canonicalTargetBrokenCount: hedefSorunlari.length,
+          canonicalTargetsBroken: hedefSorunlari.slice(0, 20).map((h) => `${h.page} → ${h.target} (HTTP ${h.status})`),
+        },
+      } : {}),
     };
   }
 
@@ -675,16 +695,58 @@ export class AuditChecksService {
     const orphans = [...inboundCount.entries()].filter(([url, n]) => n === 0 && url !== base);
     const total = c.pages.length;
     const score = total > 0 ? Math.round(((total - orphans.length) / total) * 100) : 0;
+    const issues: AuditIssue[] = orphans.length > 0 ? [{
+      severity: 'warning', type: 'orphan_pages',
+      description: `${orphans.length} orphan sayfa (hiçbir yerden link yok)`,
+      fixable: false,
+    }] : [];
+
+    // Acilmayan sayfalar (site-crawler brokenPages): site haritasinda ya da ana
+    // sayfa baglantisinda olup 404 / 410 / 5xx donenler. Puan DEGISMEZ.
+    // Google: site haritasina var olmayan sayfa koymak yaygin hatadir
+    // (search/blog/2014/10/best-practices-for-xml-sitemaps-rssatom).
+    const broken = c.brokenPages ?? [];
+    if (broken.length > 0) {
+      const haritada = broken.filter((b) => b.source === 'sitemap').length;
+      const yer = haritada === broken.length ? 'site haritasında' : haritada === 0 ? 'ana sayfadaki bağlantılarda' : 'site haritasında ve ana sayfadaki bağlantılarda';
+      issues.push({
+        severity: 'warning', type: 'broken_pages',
+        description: `${yer[0].toUpperCase()}${yer.slice(1)} açılmayan ${broken.length} adres var (${broken[0].url} → HTTP ${broken[0].status}). Ziyaretçi ve Google bu adreslerde hata sayfası görür; adresi düzelt, sayfayı geri getir ya da yeni adrese yönlendir ve site haritasından çıkar.`,
+        fixable: false,
+      });
+    }
+
+    // Aciklayici olmayan baglanti metni (audit/link-text.ts) — BILGI, puan degismez
+    const linkPages = c.pages.filter((p) => (p.genericLinkCount ?? 0) > 0);
+    const genericTotal = linkPages.reduce((n, p) => n + (p.genericLinkCount ?? 0), 0);
+    if (genericTotal > 0) {
+      const ornek = linkPages[0].genericLinks?.[0];
+      issues.push({
+        severity: 'info', type: 'link_text_generic',
+        description: `${linkPages.length} sayfada ${genericTotal} bağlantının metni hedef sayfayı anlatmıyor${ornek ? ` (“${ornek.text}”)` : ''}. Google bağlantı metninden hedef sayfanın ne hakkında olduğunu anlar; “buraya tıklayın”, “devamı” yerine sayfanın konusunu yaz.`,
+        fixable: false,
+      });
+    }
+
+    const scanned = c.pages.some((p) => p.genericLinkCount !== undefined);
     return {
       id: 'internal_linking', name: 'Internal Linking',
       found: true, valid: orphans.length === 0,
       score,
-      issues: orphans.length > 0 ? [{
-        severity: 'warning', type: 'orphan_pages',
-        description: `${orphans.length} orphan sayfa (hiçbir yerden link yok)`,
-        fixable: false,
-      }] : [],
-      details: { methodVersion: INTERNAL_LINKING_METHOD_VERSION, orphans: orphans.slice(0, 5).map(([u]) => u) },
+      issues,
+      details: {
+        methodVersion: INTERNAL_LINKING_METHOD_VERSION,
+        orphans: orphans.slice(0, 5).map(([u]) => u),
+        ...(c.brokenPages ? {
+          brokenPageCount: broken.length,
+          brokenPagesList: broken.slice(0, 20).map((b) => `${b.url} (HTTP ${b.status}, ${b.source === 'sitemap' ? 'site haritasında' : 'ana sayfadan bağlantı'})`),
+        } : {}),
+        ...(scanned ? {
+          genericLinkCount: genericTotal,
+          genericLinkPageCount: linkPages.length,
+          genericLinkExamples: linkPages.slice(0, 10).map((p) => `${p.url}: “${p.genericLinks?.[0]?.text ?? ''}” → ${p.genericLinks?.[0]?.href ?? ''}`),
+        } : {}),
+      },
     };
   }
 
@@ -803,6 +865,17 @@ export class AuditChecksService {
         fixable: false,
       });
     }
+    // Search Console'a gore Google dizininde olmayan sayfalar (gsc-url-inspection.ts).
+    // Tarama yalniz Search Console bagliysa bu alani doldurur. Puan DEGISMEZ.
+    const ix = c.indexInspection;
+    if (ix && ix.notIndexed.length > 0) {
+      const ilk = ix.notIndexed[0];
+      issues.push({
+        severity: 'warning', type: 'google_not_indexed', page: ilk.url,
+        description: `Search Console'a göre sorulan ${ix.inspected} sayfadan ${ix.notIndexed.length} tanesi Google dizininde değil (${ilk.url}${ilk.coverageState ? `: ${ilk.coverageState}` : ''}). Dizinde olmayan sayfa Google aramasında ve AI Bakışı'nda görünmez; nedeni Search Console'daki URL denetiminde yazar.`,
+        fixable: false,
+      });
+    }
     if (noindexPages.length > 0) {
       issues.push({
         severity: 'info', type: 'google_pages_noindex',
@@ -836,6 +909,14 @@ export class AuditChecksService {
         nosnippetCount: nosnippetPages.length,
         noindexPages: noindexPages.slice(0, 50),
         nosnippetPages: nosnippetPages.slice(0, 50),
+        ...(ix ? {
+          indexInspected: ix.inspected,
+          indexedCount: ix.indexedCount,
+          notIndexedCount: ix.notIndexed.length,
+          notIndexedPages: ix.notIndexed.slice(0, 20).map((r) => r.url),
+          notIndexedStates: ix.notIndexed.slice(0, 20).map((r) => `${r.url}: ${r.coverageState ?? r.verdict}`),
+          indexInspectionFailed: ix.failed,
+        } : {}),
       },
     };
   }

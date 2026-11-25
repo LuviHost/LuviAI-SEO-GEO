@@ -150,6 +150,10 @@ export const SAYFA_SORUNU_METINLERI: Readonly<Record<string, SayfaSorunuMetni>> 
   image_lazy_missing: { baslik: 'Alttaki görselleri hemen yükleyen sayfalar', birim: 'sayfa' },
   redirect_chain_long: { baslik: 'Siteye birden çok yönlendirmeyle ulaşan adresler', birim: 'adres' },
   orphan_pages: { baslik: 'Hiçbir sayfadan bağlantı almayan (yetim) sayfalar', birim: 'sayfa' },
+  broken_pages: { baslik: 'Açılmayan sayfalar (404 ya da sunucu hatası)', birim: 'adres' },
+  canonical_target_broken: { baslik: 'Canonical etiketi açılmayan adresi gösteren sayfalar', birim: 'sayfa' },
+  link_text_generic: { baslik: 'Metni hedef sayfayı anlatmayan bağlantılar', birim: 'sayfa' },
+  google_not_indexed: { baslik: 'Google dizininde olmayan sayfalar (Search Console)', birim: 'sayfa' },
 };
 
 // ─── Bulgu metinleri (musteri dili) ─────────────────────────────────
@@ -350,6 +354,28 @@ export const BULGU_METINLERI: Readonly<Record<string, (b: BulguBaglami) => strin
     const n = adet(b, 'maxRedirectHops');
     return `Alan adının bazı yazılışları siteye ${n !== null ? `${n} yönlendirmeyle` : 'birden çok yönlendirmeyle'} ulaşıyor. Her yönlendirme sayfanın açılışını geciktirir; www'lu, www'suz, http ve https yazılışların hepsini tek adımda son adrese yönlendirin.`;
   },
+  // Kaynak: Google, site haritasina var olmayan sayfa koymayi yaygin hata sayar
+  // (search/blog/2014/10/best-practices-for-xml-sitemaps-rssatom)
+  broken_pages: (b) => {
+    const n = adet(b, 'brokenPageCount');
+    return `Site haritasında ya da ana sayfadaki bağlantılarda ${n !== null ? `${n} adres` : 'bazı adresler'} açılmıyor (sayfa bulunamadı ya da sunucu hatası). Ziyaretçi ve Google bu adreslerde hata sayfası görür.`;
+  },
+  // Kaynak: Google, "5 common mistakes with rel=canonical" (2013): hedef var olmali, hata / yumusak 404 olmamali
+  canonical_target_broken: (b) => {
+    const n = adet(b, 'canonicalTargetBrokenCount');
+    return `${n !== null ? `${n} sayfanın` : 'Bazı sayfaların'} canonical etiketi açılmayan bir adresi gösteriyor. Google canonical adresinin gerçekten açılan bir sayfa olmasını ister.`;
+  },
+  // Kaynak: Google baglanti belgesi (links-crawlable) + Lighthouse link-text (audit/link-text.ts)
+  link_text_generic: (b) => {
+    const n = adet(b, 'genericLinkPageCount');
+    return `${n !== null ? `${n} sayfada` : 'Bazı sayfalarda'} "buraya tıklayın", "devamı" gibi hedef sayfayı anlatmayan bağlantı metinleri var. Google bağlantı metninden hedef sayfanın ne hakkında olduğunu anlar.`;
+  },
+  // Google'in kendi metni (coverageState) rapora basilmaz; yalniz sayi
+  google_not_indexed: (b) => {
+    const n = adet(b, 'notIndexedCount');
+    const t = adet(b, 'indexInspected');
+    return `Search Console'a göre ${t !== null ? `sorulan ${t} sayfadan ` : ''}${n !== null ? `${n} tanesi` : 'bazıları'} Google dizininde değil. Dizinde olmayan sayfa Google aramasında ve AI Bakışı'nda görünmez.`;
+  },
   // Yontem v1 taramalarinin tipi (09.10.2026 oncesi): sayi o kayitta guvenilir degil, sayisiz
   image_alt_low: () => 'Görsellerin bir bölümünde alt metni yok.',
   orphan_pages: (b) => {
@@ -435,6 +461,9 @@ export const RAPOR_DISI_TIPLER: ReadonlySet<string> = new Set(['robots_ai_crawle
 export const TIP_NEDENI: Readonly<Record<string, string>> = {
   tls_chain_incomplete: 'Zincir eksik olduğunda site tarayıcıda açılsa bile, eksik sertifikayı kendisi tamamlamayan programlar güvenli bağlantı kuramaz.',
   js_shell_pages: 'İçeriği yalnız JavaScript ile oluşan sayfayı, JavaScript çalıştırmayan tarayıcılar boş görür.',
+  broken_pages: 'Açılmayan adres ziyaretçiye hata sayfası gösterir; site haritasında listelenmesi Google’ın tarama zamanını boşa harcar.',
+  canonical_target_broken: 'Canonical etiketi Google’a sayfanın asıl adresini söyler; bu adres açılmıyorsa Google etiketi kullanamaz ve asıl adresi kendisi seçer.',
+  google_not_indexed: 'Google dizininde olmayan sayfa aramada ve AI Bakışı’nda hiç görünmez.',
 };
 
 export const TIP_ONERISI: Readonly<Record<string, (b: BulguBaglami) => string>> = {
@@ -450,6 +479,9 @@ export const TIP_ONERISI: Readonly<Record<string, (b: BulguBaglami) => string>> 
   google_home_max_snippet: () => 'Sınır bilinçli bir tercih değilse max-snippet yönergesini kaldırın ya da değerini -1 yapın.',
   google_pages_nosnippet: () => 'Görünmesini istediğiniz sayfalardan nosnippet ve max-snippet:0 yönergelerini kaldırın. Yalnız belirli bir bölümü gizlemek istiyorsanız tüm sayfa yerine o bölüme data-nosnippet özniteliği ekleyin.',
   google_pages_noindex: () => 'Listede içerik sayfası varsa noindex yönergesini kaldırın; giriş, sepet ya da teşekkür sayfalarında değişiklik gerekmez.',
+  broken_pages: () => 'Açılmayan adresleri düzeltin: sayfa taşındıysa yeni adrese kalıcı yönlendirme (301) verin, kaldırıldıysa site haritasından ve bağlantılardan çıkarın.',
+  canonical_target_broken: () => 'Bu sayfaların canonical etiketini, sayfanın kendi adresine ya da açılan asıl sayfaya çevirin.',
+  google_not_indexed: () => 'Search Console’da bu sayfaları URL denetimiyle açın; neden orada yazar. İçerik ve teknik sorun giderildikten sonra "Dizine eklenmesini iste" ile Google’a bildirin.',
 };
 
 /** Bilgi amacli kontrollerin (skor/sayac disi) rapordaki notu */
@@ -571,6 +603,9 @@ export const AKSIYON_TIP_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
   meta_desc_short: { baslik: 'Kısa meta açıklamaları genişletin', efor: 'orta' },
   meta_title_short: { baslik: 'Kısa sayfa başlıklarını genişletin', efor: 'orta' },
   schema_low_coverage: { baslik: 'Sayfalara yapısal veri (JSON-LD) ekleyin', efor: 'orta' },
+  broken_pages: { baslik: 'Açılmayan sayfaları düzeltin ya da yönlendirin', efor: 'kolay', ayri: true },
+  canonical_target_broken: { baslik: 'Açılmayan adresi gösteren canonical etiketlerini düzeltin', efor: 'kolay', ayri: true },
+  google_not_indexed: { baslik: 'Google dizininde olmayan sayfaların nedenini Search Console’da inceleyin', efor: 'orta', ayri: true },
 };
 
 /** Tipe ozel baslik varsa o; yoksa kontrolun genel basligi */
