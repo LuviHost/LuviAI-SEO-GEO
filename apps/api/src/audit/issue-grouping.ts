@@ -76,9 +76,11 @@ export function urlTemplate(url: string, baseUrl?: string): string {
 }
 
 /** Kontrol detaylarindan sayfa listesi cikar — details icinde bilinen liste alanlari */
-function pagesFromDetails(details: any): string[] {
+function pagesFromDetails(details: any, type?: string): string[] {
   if (!details || typeof details !== 'object') return [];
-  const keys = ['missingPages', 'orphans', 'pagesWithoutOg', 'pagesWithoutDesc', 'pages', 'duplicatePages', 'missingAltPages'];
+  // `orphans` yalniz yetim sayfa sorununa ait: ayni kontroldeki acilmayan sayfa /
+  // baglanti metni bulgulari (25.11.2026) yetim sayfalara yazilmasin.
+  const keys = ['missingPages', ...(type === undefined || type === 'orphan_pages' ? ['orphans'] : []), 'pagesWithoutOg', 'pagesWithoutDesc', 'pages', 'duplicatePages', 'missingAltPages'];
   const out: string[] = [];
   for (const k of keys) if (Array.isArray(details[k])) out.push(...details[k].filter((p: unknown) => typeof p === 'string'));
   return out;
@@ -104,7 +106,7 @@ export function groupIssues(issues: GroupableIssue[], checks: Record<string, Che
     // Sayfa kaynagi: issue.page + kontrolun details listesi
     const pages = new Set<string>();
     if (issue.page) pages.add(issue.page);
-    for (const p of pagesFromDetails(checks[checkId]?.details)) pages.add(p);
+    for (const p of pagesFromDetails(checks[checkId]?.details, issue.type)) pages.add(p);
 
     if (pages.size === 0) {
       siteWide.push({ type: issue.type, checkId, severity: issue.severity, fixable: issue.fixable, description: issue.description });

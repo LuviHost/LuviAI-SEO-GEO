@@ -142,7 +142,8 @@ export class PublicSeoAnalysisService {
     const url = `https://${row.domain}/`;
     try {
       const [crawl, psi] = await Promise.all([
-        this.crawler.crawl(url, TARANACAK_SAYFA, { stopIfHomeUnreadable: true }),
+        // canonicalProbeMax 0: KVKK / gizlilik metni "en fazla 10 sayfa okunur" der
+        this.crawler.crawl(url, TARANACAK_SAYFA, { stopIfHomeUnreadable: true, canonicalProbeMax: 0 }),
         this.pagespeed.runAudit(url, 'mobile').catch(() => null),
       ]);
       let result: SeoAnalizSonucu;

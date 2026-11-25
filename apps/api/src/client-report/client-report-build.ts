@@ -363,6 +363,10 @@ const SAYFA_SORUNU_ALANI: Record<string, { sayi?: string; ornek?: string; not?: 
   image_lazy_missing: { sayi: 'laterEagerPageCount', ornek: 'laterEagerPages' },
   redirect_chain_long: { sayi: 'longChainCount', ornek: 'longChains', not: 'Her satır bir yazılışın geçtiği adresleri sırasıyla gösterir.' },
   orphan_pages: { ornek: 'orphans' },
+  broken_pages: { sayi: 'brokenPageCount', ornek: 'brokenPagesList', not: 'Her satırda adres, sunucunun yanıtı ve adresin nerede bulunduğu yazar.' },
+  canonical_target_broken: { sayi: 'canonicalTargetBrokenCount', ornek: 'canonicalTargetsBroken', not: 'Her satır sayfayı ve canonical etiketinin gösterdiği adresi gösterir.' },
+  link_text_generic: { sayi: 'genericLinkPageCount', ornek: 'genericLinkExamples', not: 'Her satır sayfayı, bağlantı metnini ve bağlantının hedefini gösterir.' },
+  google_not_indexed: { sayi: 'notIndexedCount', ornek: 'notIndexedPages' },
 };
 
 function sayfaSorunlariniDerle(checks: unknown, issues: Issue[]): RaporSayfaSorunu[] {

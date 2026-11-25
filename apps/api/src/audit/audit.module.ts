@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PublicSeoAnalysisService } from './public-seo-analysis.service.js';
 import { PublicSeoAnalysisController } from './public-seo-analysis.controller.js';
 import { GscSitemapRefreshService } from './gsc-sitemap-refresh.service.js';
+import { GscUrlInspectionService } from './gsc-url-inspection.service.js';
 import { SitemapKancaController } from './sitemap-kanca.controller.js';
 import { AuditController } from './audit.controller.js';
 import { AppliedFixService } from './applied-fix.service.js';
@@ -76,6 +77,7 @@ import { AuditCron } from './audit.cron.js';
   providers: [
     PublicSeoAnalysisService,
     GscSitemapRefreshService,
+    GscUrlInspectionService,
     AppliedFixService,
     ImageInventoryService,
     ImageAltSuggestService,

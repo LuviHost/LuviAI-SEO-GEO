@@ -17,6 +17,7 @@ import { AUDIT_REUSE_WINDOW_MS, pickReusableAuditJob } from './audit-reuse.js';
 import { groupIssues } from './issue-grouping.js';
 import { annotateAuditFixRoutes, withFixRoutes } from './fix-routes.js';
 import { ImageInventoryService } from './image-alt/image-inventory.service.js';
+import { GscUrlInspectionService } from './gsc-url-inspection.service.js';
 import { recordSiteNapFromCrawl } from './site-nap.js';
 import { siteMeasurementVersion } from './host-match.js';
 import { providersWithoutSources } from './citation-sources.js';
@@ -726,6 +727,7 @@ export class AuditService {
     private readonly aiCitation: AiCitationService,
     private readonly jobQueue: JobQueueService,
     @Optional() private readonly imageInventory?: ImageInventoryService,
+    @Optional() private readonly urlInspection?: GscUrlInspectionService,
   ) {}
 
   async getLatest(siteId: string) {
@@ -966,6 +968,12 @@ export class AuditService {
       this.log.warn(`[${siteId}] Site NAP kaydedilemedi: ${err.message}`),
     );
     this.log.log(`[${siteId}] ${crawl.pages.length} sayfa crawl edildi`);
+
+    // 1c) Search Console bagliysa taranan sayfalarin Google dizin durumu
+    // (gsc-url-inspection.ts; en fazla 20 soru, ucretsiz). Hata atmaz; bagli
+    // degilse ya da cevap yoksa alan yazilmaz, bulgu cikmaz.
+    const indexInspection = this.urlInspection ? await this.urlInspection.inspectForAudit(siteId, crawl.pages) : null;
+    if (indexInspection) crawl.indexInspection = indexInspection;
 
     // 2) 14 kontrol noktası
     const checkResults = await this.checks.runAllChecks(crawl);
