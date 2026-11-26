@@ -25,10 +25,10 @@ export class LinkedinClaudeAjanController {
   @HttpCode(200)
   async sonuc(
     @Headers('x-ajan-key') key: string | undefined,
-    @Body() body: { isId?: string; kisiId?: string; durum?: string; aciklama?: string },
+    @Body() body: { isId?: string; kisiId?: string; durum?: string; aciklama?: string; veri?: unknown; maliyet?: unknown },
   ) {
     await this.svc.ajanDogrula(key);
-    return this.svc.sonucYaz(String(body?.isId ?? ''), String(body?.kisiId ?? ''), body?.durum, body?.aciklama);
+    return this.svc.sonucYaz(String(body?.isId ?? ''), String(body?.kisiId ?? ''), body?.durum, body?.aciklama, body?.veri, body?.maliyet);
   }
 
   @Public()

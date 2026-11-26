@@ -70,7 +70,8 @@ function sonucuAyikla(metin) {
   for (let i = adaylar.length - 1; i >= 0; i--) {
     try {
       const j = JSON.parse(adaylar[i]);
-      if (typeof j?.durum === 'string' && SONUC_BICIMI.test(j.durum)) return { durum: j.durum, aciklama: String(j.aciklama ?? '').slice(0, 300) };
+      // veri: tum JSON (kabul kontrolunde "kabul" numaralari burada gelir)
+      if (typeof j?.durum === 'string' && SONUC_BICIMI.test(j.durum)) return { durum: j.durum, aciklama: String(j.aciklama ?? '').slice(0, 300), veri: j };
     } catch { /* sonraki */ }
   }
   return null;
@@ -96,20 +97,23 @@ function claudeCalistir(komut) {
       clearTimeout(zaman);
       if (sinyal === 'SIGKILL') return resolve({ durum: 'HATA', aciklama: 'zaman aşımı (8 dk)' });
       let sonucMetni = out;
+      // Claude kullanimi (API fiyatiyla karsiligi; abonelikte faturaya yansimaz, kotadan duser)
+      let maliyet = null;
       try {
         const j = JSON.parse(out);
         sonucMetni = String(j.result ?? '');
-        if (j.is_error) return resolve({ durum: 'HATA', aciklama: `Claude hatası: ${sonucMetni.slice(0, 200)}` });
+        if (typeof j.total_cost_usd === 'number') maliyet = j.total_cost_usd;
+        if (j.is_error) return resolve({ durum: 'HATA', aciklama: `Claude hatası: ${sonucMetni.slice(0, 200)}`, maliyet });
       } catch { /* düz metin */ }
       const s = sonucuAyikla(sonucMetni);
-      if (s) return resolve(s);
-      resolve({ durum: 'HATA', aciklama: `sonuç okunamadı (çıkış ${kod}): ${(sonucMetni || err).replace(/\s+/g, ' ').slice(0, 160)}` });
+      if (s) return resolve({ ...s, maliyet });
+      resolve({ durum: 'HATA', aciklama: `sonuç okunamadı (çıkış ${kod}): ${(sonucMetni || err).replace(/\s+/g, ' ').slice(0, 160)}`, maliyet });
     });
   });
 }
 
 async function isiYurut(is) {
-  log(`iş ${is.id} alındı: ${is.kisiler.length} kişi${is.kuru ? ' (kuru)' : ''}`);
+  log(`iş ${is.id} alındı (${is.tur || 'ISTEK'}): ${is.kisiler.length} kişi${is.kuru ? ' (kuru)' : ''}`);
   for (let i = 0; i < is.kisiler.length; i++) {
     const k = is.kisiler[i];
     if (i > 0) {
@@ -120,10 +124,10 @@ async function isiYurut(is) {
     }
     log(`  kişi ${k.id} başladı`);
     const s = await claudeCalistir(k.komut);
-    log(`  kişi ${k.id}: ${s.durum} — ${s.aciklama}`);
+    log(`  kişi ${k.id}: ${s.durum} — ${s.aciklama}${s.maliyet != null ? ` (≈${s.maliyet.toFixed(3)} USD)` : ''}`);
     let devam = true;
     try {
-      const r = await istek('sonuc', { isId: is.id, kisiId: k.id, durum: s.durum, aciklama: s.aciklama });
+      const r = await istek('sonuc', { isId: is.id, kisiId: k.id, durum: s.durum, aciklama: s.aciklama, veri: s.veri ?? null, maliyet: s.maliyet ?? null });
       devam = r?.devam !== false;
     } catch (e) {
       // Sonuç yazılamazsa durmak en güvenlisi: aynı kişiye tekrar istek gitmesin

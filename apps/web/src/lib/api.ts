@@ -641,9 +641,16 @@ export interface LinkedinClaudeAday {
   id: string; ad: string; soyad: string; firma: string; unvan: string | null; profileUrl: string; not: string; lastError: string | null;
 }
 export interface LinkedinClaudeAdaylar { kalanBugun: number; isTavani: number; adaylar: LinkedinClaudeAday[] }
-export type LinkedinClaudeKisiSonucu = 'GONDERILDI' | 'KURU_TAMAM' | 'ZATEN_BAGLI' | 'BEKLIYOR' | 'BULUNAMADI' | 'EPOSTA_ISTIYOR' | 'ENGEL' | 'HATA';
+export type LinkedinClaudeKisiSonucu = 'GONDERILDI' | 'KURU_TAMAM' | 'ZATEN_BAGLI' | 'BEKLIYOR' | 'BULUNAMADI' | 'EPOSTA_ISTIYOR' | 'KABUL_TAMAM' | 'KABUL_ETTI' | 'ENGEL' | 'HATA';
 export interface LinkedinClaudeIs {
   id: string;
+  /** ISTEK: baglanti istegi | KABUL: otomatik kabul kontrolu (hafta ici 10/14/17) */
+  tur: 'ISTEK' | 'KABUL';
+  /** Claude kullanimi, API fiyatiyla karsiligi (abonelik kotasindan duser) */
+  maliyet: number;
+  /** KABUL: kontrol edilen kisi sayisi; kisiler yalniz kabul edenler */
+  kontrolEdilen?: number;
+  aciklama?: string | null;
   durum: 'BEKLIYOR' | 'CALISIYOR' | 'BITTI' | 'HATA' | 'IPTAL';
   kuru: boolean;
   hata: string | null;

@@ -29,6 +29,8 @@ const SONUC_ETIKETI: Record<LinkedinClaudeKisiSonucu, { label: string; variant: 
   BEKLIYOR: { label: 'Zaten bekliyor', variant: 'secondary' },
   BULUNAMADI: { label: 'Bulunamadı', variant: 'warning' },
   EPOSTA_ISTIYOR: { label: 'E-posta istiyor', variant: 'warning' },
+  KABUL_TAMAM: { label: 'Kontrol edildi', variant: 'info' },
+  KABUL_ETTI: { label: 'Kabul etti', variant: 'success' },
   ENGEL: { label: 'LinkedIn engeli', variant: 'danger' },
   HATA: { label: 'Hata', variant: 'danger' },
 };
@@ -159,6 +161,7 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
             <div className="text-xs text-muted-foreground max-w-2xl">
               Listeyi ve notları kontrol et, &quot;Claude ile gönder&quot;e bas. İstekleri senin Mac&apos;inde, senin Chrome&apos;unda Claude gönderir;
               Claude aboneliğinin kotasından düşer, ayrıca ücret çıkmaz. Mac açık, Chrome&apos;da Claude eklentisi ve LinkedIn oturumu açık olmalı.
+              Kabul kontrolü hafta içi 10:00, 14:00 ve 17:00&apos;de kendiliğinden yapılır; kabul edenler &quot;Bugün ilgilenilecekler&quot;e düşer.
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -194,13 +197,22 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
                 {(is.durum === 'CALISIYOR' || is.durum === 'BEKLIYOR') && <RefreshCw className="h-3 w-3 mr-1 animate-spin" />}
                 {IS_ETIKETI[is.durum]}
               </Badge>
-              <span className="font-medium">{is.kuru ? 'Kuru deneme' : 'Gerçek gönderim'}</span>
-              <span className="text-muted-foreground">· {is.kisiler.length} kişi · açıldı {saat(is.createdAt)}{is.bittiAt ? ` · bitti ${saat(is.bittiAt)}` : ''}</span>
+              <span className="font-medium">{is.tur === 'KABUL' ? 'Kabul kontrolü' : is.kuru ? 'Kuru deneme' : 'Gerçek gönderim'}</span>
+              <span className="text-muted-foreground">
+                · {is.tur === 'KABUL'
+                  ? `${is.kontrolEdilen ?? 0} kişi kontrol edildi${is.durum === 'BITTI' ? `, ${is.kisiler.length} kabul` : ''}`
+                  : `${is.kisiler.length} kişi`}
+                {' '}· açıldı {saat(is.createdAt)}{is.bittiAt ? ` · bitti ${saat(is.bittiAt)}` : ''}
+                {is.maliyet > 0 && <span title="Claude kullanımı, API fiyatıyla karşılığı — abonelik kotasından düşer, ayrıca ödenmez"> · ≈{is.maliyet.toFixed(2)} USD kota</span>}
+              </span>
               {(is.durum === 'BEKLIYOR' || is.durum === 'CALISIYOR') && (
                 <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={() => iptal(is.id)} disabled={!!mesgul}>İptal</Button>
               )}
             </div>
             {is.hata && <div className="text-xs text-danger">{is.hata}</div>}
+            {is.tur === 'KABUL' && is.durum === 'BITTI' && is.kisiler.length === 0 && (
+              <div className="text-xs text-muted-foreground">Yeni kabul yok.</div>
+            )}
             <ul className="space-y-1">
               {is.kisiler.map((k) => (
                 <li key={k.id} className="flex flex-wrap items-center gap-2 text-xs">
