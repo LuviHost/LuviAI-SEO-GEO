@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ajanCanli, ajanKomutu, epostaSerisiEngelMi, kabulKomutu, kabulNumaralari, sonKabulSlotu, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
+import { teknikUnvanMi, ajanCanli, ajanKomutu, epostaSerisiEngelMi, kabulKomutu, kabulNumaralari, sonKabulSlotu, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
 
 const simdi = new Date('2026-11-26T09:00:00Z');
 
@@ -87,6 +87,11 @@ describe('Claude ile LinkedIn gonderimi', () => {
     expect(kabulNumaralari({ kabul: [3, 1, 3, '2', 0, 9, 1.5, 'x'] }, 3)).toEqual([1, 2, 3]);
     expect(kabulNumaralari({ kabul: 'hepsi' }, 3)).toEqual([]);
     expect(kabulNumaralari(null, 3)).toEqual([]);
+  });
+
+  it('teknik unvanlar aday listesine girmez, pazarlama/satis girer', () => {
+    for (const u of ['CTO', 'Co-Founder & CTO', 'Founder | CTO', 'Yazılım Geliştirme Müdürü', 'Software Engineer']) expect(teknikUnvanMi(u)).toBe(true);
+    for (const u of ['Pazarlama Müdürü', 'Satış ve Pazarlama Direktörü', 'CMO', 'E-ticaret Direktörü', 'Kurucu', 'Genel Müdür', null]) expect(teknikUnvanMi(u)).toBe(false);
   });
 });
 
