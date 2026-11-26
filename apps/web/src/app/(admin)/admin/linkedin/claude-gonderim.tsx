@@ -69,6 +69,12 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
   }, []);
 
   useEffect(() => { void adayYukle(); void durumYukle(); }, [adayYukle, durumYukle]);
+  // CSV ice aktarma bitince aday listesi kendiliginden tazelensin (26.11: yeni kisiler gorunmuyordu)
+  useEffect(() => {
+    const f = () => { void adayYukle(); };
+    window.addEventListener('linkedin-kuyruk-degisti', f);
+    return () => window.removeEventListener('linkedin-kuyruk-degisti', f);
+  }, [adayYukle]);
 
   const aktifIs = durum?.isler.find((i) => i.durum === 'BEKLIYOR' || i.durum === 'CALISIYOR') ?? null;
 
