@@ -286,12 +286,12 @@ describe('parseDegree', () => {
 
 describe('sablonlar', () => {
   const p = { ad: 'Ayşe', soyad: 'Kaya', firma: 'Trendyol', sektor: 'eticaret-perakende-teknoloji' };
-  it('renderNote: hitap "Merhaba Ad Soyad," — Bey/Hanım yok, sektor adi ve firma gecer, <=300', () => {
+  it('renderNote: hitap "Merhaba Ad Soyad," — Bey/Hanım yok, firma eksiz cumlede gecer, <=300', () => {
     const n = renderNote(p);
     expect(n.startsWith('Merhaba Ayşe Kaya,')).toBe(true);
     expect(n).not.toMatch(/Bey|Hanım/);
-    expect(n).toContain('e-ticaret, perakende ve teknoloji');
-    expect(n).toContain('Trendyol kapsamda');
+    expect(n).toContain('Ölçüm listemde Trendyol yer alıyor');
+    expect(n).not.toContain('kapsamda');
     expect(n.length).toBeLessThanOrEqual(300);
   });
   it('renderNote: cok uzun isim/firma → yine <=300; uzun firma cumlesi atilir, CTA kalir', () => {
@@ -358,9 +358,9 @@ describe('sablonlar', () => {
     expect(renderMessage({ ad: 'A', soyad: 'B', firma: 'N11', sektor: null })).not.toContain("N11'");
   });
   it('sektor bilinmiyor ya da slug tanimsiz → "kurumsal" (ham slug metne sizmaz); tr kucuk harf', () => {
-    expect(renderNote({ ad: 'Ali', soyad: 'Veli', firma: 'X', sektor: null })).toContain('Türkiye kurumsal sektörü');
+    // Not metni sektor tasimaz: bos sektor "kurumsal sektörü" gibi bozuk cumle uretmez
+    expect(renderNote({ ad: 'Ali', soyad: 'Veli', firma: 'X', sektor: null })).not.toContain('sektörü');
     const unk = renderNote({ ad: 'A', soyad: 'B', firma: 'X', sektor: 'saglik-ilac' });
-    expect(unk).toContain('Türkiye kurumsal sektörü');
     expect(unk).not.toContain('saglik-ilac');
     expect(sektorAdi('SAĞLIK')).toBe('kurumsal');
     expect(sektorAdi('FİNANS')).toBe('finans'); // İ → i (tr)
