@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   api,
@@ -1035,6 +1035,22 @@ function ImportCard({ onDone, disabled }: { onDone: () => Promise<void>; disable
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   const parsed = useMemo(() => parseImportText(text), [text]);
+  // Dosyadan yukleme (26.11): tablo programindan kopyalayip yapistirmak sutunlari kaydirabiliyordu
+  const dosyaRef = useRef<HTMLInputElement>(null);
+  const [dosyaAdi, setDosyaAdi] = useState<string | null>(null);
+  const dosyaOku = async (f: File | undefined | null) => {
+    if (!f) return;
+    if (f.size > 2_000_000) { toast.error('Dosya çok büyük (en fazla 2 MB)'); return; }
+    if (/\.(xlsx?|numbers)$/i.test(f.name)) { toast.error('Excel / Numbers dosyası okunamaz — CSV olarak dışa aktarıp onu seç'); return; }
+    try {
+      // BOM (Excel "CSV UTF-8" disa aktarimi) basliktaki ilk sutunu bozmasin
+      const metin = (await f.text()).replace(/^\uFEFF/, '');
+      setText(metin);
+      setDosyaAdi(f.name);
+    } catch {
+      toast.error('Dosya okunamadı');
+    }
+  };
   const gonderilecek = parsed.rows.length > IMPORT_MAX_ROWS_PER_RUN ? IMPORT_MAX_ROWS_PER_RUN : parsed.rows.length;
   const partiSayisi = useMemo(() => planImportBatches(parsed.rows.slice(0, IMPORT_MAX_ROWS_PER_RUN)).length, [parsed.rows]);
 
@@ -1087,27 +1103,45 @@ function ImportCard({ onDone, disabled }: { onDone: () => Promise<void>; disable
               CSV içe aktar
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">
-              Sütunlar: <span className="font-mono">ad,soyad,firma,unvan,sektor,kademe,profileUrl</span> — başlık satırı isteğe bağlı,
+              Sütunlar: <span className="font-mono">ad,soyad,firma,unvan,sektor,kademe,profileUrl[,kampanya]</span> — kampanya isteğe bağlı (MUSTERI | YATIRIMCI | ISBIRLIGI); başlık satırı isteğe bağlı,
               ayırıcı virgül/noktalı virgül/sekme. Profil URL&apos;si kanonik hale getirilir (www, dil alt alanı, ?trk, büyük harf farkı kopya oluşturmaz).
               Uzun listeler en fazla {IMPORT_BATCH_MAX_ROWS} satırlık partiler halinde sırayla gönderilir (tek seferde en fazla {IMPORT_MAX_ROWS_PER_RUN.toLocaleString('tr-TR')} satır).
               Aktarılan satırlar metin kutusundan çıkarılır; başlık, sorunlu satırlar ve bir parti hata verirse gönderilmeyen satırlar kutuda kalır, tekrar denemek kopya oluşturmaz.
             </div>
           </div>
+          <div className="flex items-center gap-2">
+          <input
+            ref={dosyaRef}
+            type="file"
+            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+            className="hidden"
+            onChange={(e) => { void dosyaOku(e.target.files?.[0]); e.target.value = ''; }}
+          />
+          <Button size="sm" variant="outline" onClick={() => dosyaRef.current?.click()} disabled={disabled || sending}>
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Dosya seç
+          </Button>
           <Button size="sm" onClick={submit} disabled={disabled || sending || parsed.rows.length === 0}>
             {sending ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
             {sending && progress && progress.total > 1
               ? `Gönderiliyor… (${Math.min(progress.done + 1, progress.total)}/${progress.total}. parti)`
               : `İçe aktar${gonderilecek > 0 ? ` (${gonderilecek}${partiSayisi > 1 ? `, ${partiSayisi} parti` : ''})` : ''}`}
           </Button>
+          </div>
         </div>
+        {dosyaAdi && text.trim() && (
+          <div className="text-xs text-muted-foreground">Dosya: <span className="text-foreground">{dosyaAdi}</span> — satırları kontrol edip &quot;İçe aktar&quot;a bas.</div>
+        )}
         {/* Gonderim boyunca kilitli: partiler birkac istek surer, arada yazilan kaybolmasin */}
         <Textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value); setDosyaAdi(null); }}
+          onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
+          onDrop={(e) => { const f = e.dataTransfer.files?.[0]; if (f) { e.preventDefault(); void dosyaOku(f); } }}
           disabled={sending}
           rows={6}
           spellCheck={false}
-          placeholder={'Ayşe,Yılmaz,Örnek Bank,Dijital Pazarlama Direktörü,finans,1,https://www.linkedin.com/in/ayse-yilmaz'}
+          placeholder={'Dosyayı buraya sürükle ya da "Dosya seç"e bas. Elle: Ayşe,Yılmaz,Örnek Bank,Dijital Pazarlama Direktörü,finans,1,https://www.linkedin.com/in/ayse-yilmaz'}
           className="font-mono text-xs"
         />
         {text.trim() && (

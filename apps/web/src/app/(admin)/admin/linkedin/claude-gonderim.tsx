@@ -216,8 +216,9 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
             <ul className="space-y-1">
               {is.kisiler.map((k) => (
                 <li key={k.id} className="flex flex-wrap items-center gap-2 text-xs">
+                  {/* Bilinmeyen sonuc turu (sunucu yeni, sayfa eski) kartı cokertmesin: duz yazilir */}
                   {k.durum
-                    ? <Badge variant={SONUC_ETIKETI[k.durum].variant}>{SONUC_ETIKETI[k.durum].label}</Badge>
+                    ? <Badge variant={SONUC_ETIKETI[k.durum]?.variant ?? 'secondary'}>{SONUC_ETIKETI[k.durum]?.label ?? k.durum}</Badge>
                     : <Badge variant="outline">sırada</Badge>}
                   <span className="font-medium">{k.ad}</span>
                   {k.aciklama && <span className="text-muted-foreground">— {k.aciklama}</span>}
