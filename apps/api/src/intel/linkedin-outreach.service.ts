@@ -1357,7 +1357,15 @@ export class LinkedinOutreachService {
         select: { ad: true, soyad: true, firma: true, sektor: true },
       }).catch(() => null),
     ]);
+    // NEDEN: anahtar acikken panel "Calisiyor" diyordu ama bot 10.09'dan beri hic gonderemiyordu
+    // (tunel kopuk + LinkedIn arayuzu degisti). Panel artik son basariyi ve son hatayi gosterir.
+    const [sonIstek, sonHata] = await Promise.all([
+      this.prisma.linkedinProspect.findFirst({ where: { requestedAt: { not: null } }, orderBy: { requestedAt: 'desc' }, select: { requestedAt: true } }).catch(() => null),
+      this.prisma.linkedinProspect.findFirst({ where: { lastError: { not: null }, elle: false }, orderBy: { updatedAt: 'desc' }, select: { lastError: true, updatedAt: true } }).catch(() => null),
+    ]);
     return {
+      sonBasariliIstek: sonIstek?.requestedAt?.toISOString() ?? null,
+      sonHata: sonHata ? { metin: String(sonHata.lastError).slice(0, 200), at: sonHata.updatedAt.toISOString() } : null,
       enabled,
       /** Bayrak nereden geliyor: panel ayari mi env mi (panelde gosterilir) */
       enabledSource: enabled === this.envEnabled ? 'env' : 'panel',

@@ -3310,6 +3310,30 @@ model LinkedinProspect {
   @@map("linkedin_prospects")
 }
 
+/// CLAUDE ILE GONDERIM (26.11.2026): panelde onaylanan baglanti istegi listesi. Sunucu yalniz is
+/// kaydi tutar; kurucunun Mac'indeki ajan (scripts/linkedin-claude-ajan.mjs) isi alir, Claude Code'u
+/// Chrome baglantisiyla calistirir, kisi kisi sonucu geri yazar. NEDEN: eski bot (OpenClaw + sabit
+/// dugme adlari) LinkedIn arayuzu degisince ve tunel kopunca 10.09'dan beri hic gonderemiyordu.
+/// durum: BEKLIYOR | CALISIYOR | BITTI | HATA | IPTAL
+model LinkedinClaudeIs {
+  id        String    @id @default(cuid())
+  durum     String    @default("BEKLIYOR") @db.VarChar(16)
+  /// Kuru: formu doldurur, "Gönder"e basmaz
+  kuru      Boolean   @default(true)
+  /// Onaylanan anda kisiler ve notlari: [{ id, not }]
+  kisiler   Json
+  /// Kisi kisi sonuc: [{ id, durum, aciklama, at }]
+  sonuc     Json?
+  hata      String?   @db.Text
+  olusturan String    @db.VarChar(191)
+  alindiAt  DateTime?
+  bittiAt   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([durum, createdAt])
+  @@map("linkedin_claude_isler")
+}
+
 /// Cevap sonrasi satis hunisi — insan tarafindan elle ilerletilir
 enum LinkedinSatisAsamasi {
   /// Henuz dokunulmadi

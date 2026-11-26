@@ -637,7 +637,32 @@ export interface LinkedinProspect {
   updatedAt?: string;
 }
 
+export interface LinkedinClaudeAday {
+  id: string; ad: string; soyad: string; firma: string; unvan: string | null; profileUrl: string; not: string; lastError: string | null;
+}
+export interface LinkedinClaudeAdaylar { kalanBugun: number; isTavani: number; adaylar: LinkedinClaudeAday[] }
+export type LinkedinClaudeKisiSonucu = 'GONDERILDI' | 'KURU_TAMAM' | 'ZATEN_BAGLI' | 'BEKLIYOR' | 'BULUNAMADI' | 'ENGEL' | 'HATA';
+export interface LinkedinClaudeIs {
+  id: string;
+  durum: 'BEKLIYOR' | 'CALISIYOR' | 'BITTI' | 'HATA' | 'IPTAL';
+  kuru: boolean;
+  hata: string | null;
+  createdAt: string;
+  alindiAt: string | null;
+  bittiAt: string | null;
+  kisiler: Array<{ id: string; ad: string; not: string; durum: LinkedinClaudeKisiSonucu | null; aciklama: string | null; at: string | null }>;
+}
+export interface LinkedinClaudeDurum {
+  anahtarVar: boolean;
+  ajan: { sonGorulme: string | null; canli: boolean };
+  isler: LinkedinClaudeIs[];
+}
+
 export interface LinkedinOverview {
+  /** Son basarili baglanti istegi (bot ya da Claude) — hic yoksa null */
+  sonBasariliIstek?: string | null;
+  /** Bot kayitlarindaki en son hata */
+  sonHata?: { metin: string; at: string } | null;
   /** OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1 mi — kapaliysa tick "Kapali" doner */
   enabled?: boolean;
   paused: boolean;
@@ -2250,6 +2275,14 @@ export const api = {
   /** Cevap geldi olarak isaretle (e-posta kayitlari bot tarafindan kontrol edilmez) */
   cevapGeldiLinkedin: (id: string) =>
     request<{ ok: boolean }>(`/intel/linkedin/prospects/${encodeURIComponent(id)}/cevap`, { method: 'POST' }),
+  // Claude ile gonderim (panel onaylar, kurucunun Mac'i yurutur)
+  linkedinClaudeAdaylar: () => request<LinkedinClaudeAdaylar>('/intel/linkedin/claude/adaylar'),
+  linkedinClaudeDurum: () => request<LinkedinClaudeDurum>('/intel/linkedin/claude/durum'),
+  linkedinClaudeIs: (kisiIds: string[], kuru: boolean) =>
+    request<{ id: string; kisi: number; kuru: boolean }>('/intel/linkedin/claude/is', { method: 'POST', body: JSON.stringify({ kisiIds, kuru }) }),
+  linkedinClaudeIptal: (id: string) =>
+    request<{ ok: boolean }>(`/intel/linkedin/claude/is/${encodeURIComponent(id)}/iptal`, { method: 'POST' }),
+  linkedinClaudeAnahtar: () => request<{ anahtar: string }>('/intel/linkedin/claude/anahtar', { method: 'POST' }),
   skipLinkedinProspect: (id: string) =>
     request<{ ok?: boolean; status?: LinkedinProspectStatus }>(
       `/intel/linkedin/prospects/${encodeURIComponent(id)}/skip`,
