@@ -570,15 +570,14 @@ export function renderNote(p: ProspectLike): string {
   const kampanya = normalizeKampanya(p.kampanya);
   if (kampanya === 'YATIRIMCI') return renderNoteYatirimci(p);
   if (kampanya === 'ISBIRLIGI') return renderNoteIsbirligi(p);
-  const sektor = sektorAdi(p.sektor);
+  // NEDEN yeni metin (26.11.2026): eski metin sektoru bos kisilerde "Türkiye kurumsal sektörü"
+  // ve "Hepsiburada kapsamda" gibi bozuk cumle uretiyordu (Claude kuru turunda goruldu). Sektor
+  // metinden cikti; firma ek almayan bir cumlede gecer (da/de ve iyelik eki uyumu riski yok).
   const firma = p.firma.trim();
-  const full =
-    `${hitap(p)}, RanksUp'ta Türkiye ${sektor} sektörü için bağımsız bir AI görünürlük araştırması yürütüyorum; ` +
-    `${firma} kapsamda. Kurumunuza özel karneyi ücretsiz paylaşmak için bağlantı kurmak isterim.`;
+  const olcum = `RanksUp'ta markaların ChatGPT, Gemini ve Google'ın yapay zekâ cevaplarında nasıl göründüğünü ölçüyorum.`;
+  const full = `${hitap(p)}, ${olcum} Ölçüm listemde ${firma} yer alıyor; sonucu ücretsiz paylaşmak için bağlantı kurmak isterim.`;
   if (full.length <= NOTE_MAX_CHARS) return full;
-  const short =
-    `${hitap(p)}, RanksUp'ta Türkiye ${sektor} sektörü için bağımsız bir AI görünürlük araştırması yürütüyorum. ` +
-    `Kurumunuza özel karneyi ücretsiz paylaşmak için bağlantı kurmak isterim.`;
+  const short = `${hitap(p)}, ${olcum} Kurumunuza özel sonucu ücretsiz paylaşmak için bağlantı kurmak isterim.`;
   if (short.length <= NOTE_MAX_CHARS) return short;
   const cut = short.slice(0, NOTE_MAX_CHARS);
   const sp = cut.lastIndexOf(' ');
