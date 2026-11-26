@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ajanCanli, ajanKomutu, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
+import { ajanCanli, ajanKomutu, epostaSerisiEngelMi, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
 
 const simdi = new Date('2026-11-26T09:00:00Z');
 
@@ -58,4 +58,15 @@ describe('Claude ile LinkedIn gonderimi', () => {
     expect(ajanCanli(dk(20), true, t)).toBe(false);
     expect(ajanCanli(null, true, t)).toBe(false);
   });
+
+  it('e-posta isteyen kisi atlanir; ust uste ikincisi isi durdurur', () => {
+    expect(prospectGuncellemesi('EPOSTA_ISTIYOR', false, 'n', 'e-posta istedi', simdi)).toEqual({ status: 'FAILED', lastError: 'Claude: e-posta istedi' });
+    expect(prospectGuncellemesi('EPOSTA_ISTIYOR', true, 'n', 'x', simdi)).toBeNull();
+    expect(epostaSerisiEngelMi([], 'EPOSTA_ISTIYOR')).toBe(false);
+    expect(epostaSerisiEngelMi([{ durum: 'GONDERILDI' }], 'EPOSTA_ISTIYOR')).toBe(false);
+    expect(epostaSerisiEngelMi([{ durum: 'GONDERILDI' }, { durum: 'EPOSTA_ISTIYOR' }], 'EPOSTA_ISTIYOR')).toBe(true);
+    expect(epostaSerisiEngelMi([{ durum: 'EPOSTA_ISTIYOR' }], 'GONDERILDI')).toBe(false);
+    expect(ajanKomutu({ ad: 'A', soyad: 'B', firma: 'X', unvan: null, profileUrl: 'u', not: 'n' }, false)).toContain('"EPOSTA_ISTIYOR". Bu ENGEL değildir');
+  });
 });
+

@@ -14,7 +14,7 @@ export const IS_DURUMLARI = ['BEKLIYOR', 'CALISIYOR', 'BITTI', 'HATA', 'IPTAL'] 
 export type IsDurumu = (typeof IS_DURUMLARI)[number];
 
 /** Ajanin kisi basina dondurdugu sonuc */
-export const KISI_SONUCLARI = ['GONDERILDI', 'KURU_TAMAM', 'ZATEN_BAGLI', 'BEKLIYOR', 'BULUNAMADI', 'ENGEL', 'HATA'] as const;
+export const KISI_SONUCLARI = ['GONDERILDI', 'KURU_TAMAM', 'ZATEN_BAGLI', 'BEKLIYOR', 'BULUNAMADI', 'EPOSTA_ISTIYOR', 'ENGEL', 'HATA'] as const;
 export type KisiSonucu = (typeof KISI_SONUCLARI)[number];
 
 /** Tek iste en fazla kisi (bir tur ~2-6 dk arayla; 10 kisi ~1 saat) */
@@ -80,6 +80,8 @@ export function prospectGuncellemesi(sonuc: KisiSonucu, kuru: boolean, not: stri
     case 'BEKLIYOR': return { status: 'REQUESTED', requestedAt: simdi, lastError: null };
     case 'ZATEN_BAGLI': return { status: 'ACCEPTED', acceptedAt: simdi, lastError: null };
     case 'BULUNAMADI': return { status: 'FAILED', lastError: neden };
+    // Kisi davetleri yalniz e-postasini bilenlerden kabul ediyor: tekrar denemek anlamsiz
+    case 'EPOSTA_ISTIYOR': return { status: 'FAILED', lastError: neden };
     case 'ENGEL':
     case 'HATA': return { lastError: neden };
     case 'KURU_TAMAM': return null;
@@ -132,8 +134,9 @@ export function ajanKomutu(k: AjanKisi, kuru: boolean): string {
     `3. Kişi zaten 1. derece bağlantıysa (üst kartta "Bağlantı kur" yok, ana düğme "Mesaj") hiçbir şeye tıklama → "ZATEN_BAGLI".`,
     `4. Üst kartta "Bekliyor" (Pending) görünüyorsa tıklama → "BEKLIYOR".`,
     `5. "Bağlantı kur" (Connect) üst kartta yoksa üst karttaki "Daha fazla" (More) menüsüne bak. YALNIZ bu kişinin üst kartındaki düğmeyi kullan; yan paneldeki "Diğer kişiler" vb. önerilere asla tıklama.`,
-    `6. Açılan pencerede "Not ekle" (Add a note) seç, notu aynen yaz. Not alanı yoksa ya da LinkedIn not eklemeye izin vermiyorsa (aylık not sınırı vb.) notsuz GÖNDERME → "HATA", açıklamaya nedenini yaz.`,
-    `7. ${son}`,
+    `6. LinkedIn davet için kişinin e-posta adresini isterse ("tanıdığınızı doğrulamak için e-posta adresini girin") hiçbir şey yazma, pencereyi kapat → "EPOSTA_ISTIYOR". Bu ENGEL değildir.`,
+    `7. Açılan pencerede "Not ekle" (Add a note) seç, notu aynen yaz. Not alanı yoksa ya da LinkedIn not eklemeye izin vermiyorsa (aylık not sınırı vb.) notsuz GÖNDERME → "HATA", açıklamaya nedenini yaz.`,
+    `8. ${son}`,
     ``,
     `Durma kuralları:`,
     `- Haftalık davet sınırı, "çok fazla istek", güvenlik doğrulaması, captcha, giriş ekranı ya da hesap kısıtlaması uyarısı görürsen hiçbir şeye tıklamadan dur → "ENGEL".`,
@@ -142,6 +145,15 @@ export function ajanKomutu(k: AjanKisi, kuru: boolean): string {
     `- İş bitince yalnız kendi açtığın sekmeyi kapat.`,
     ``,
     `Cevabının SON satırı yalnız şu JSON olsun (başka metin yok):`,
-    `{"durum":"GONDERILDI|KURU_TAMAM|ZATEN_BAGLI|BEKLIYOR|BULUNAMADI|ENGEL|HATA","aciklama":"kısa Türkçe açıklama"}`,
+    `{"durum":"GONDERILDI|KURU_TAMAM|ZATEN_BAGLI|BEKLIYOR|BULUNAMADI|EPOSTA_ISTIYOR|ENGEL|HATA","aciklama":"kısa Türkçe açıklama"}`,
   ].join('\n');
+}
+
+/**
+ * Ust uste 2 kisi e-posta istediyse tek tek kisi ayari degil, hesap duzeyinde uyari olabilir
+ * (cok sayida kabul edilmemis davet sonrasi LinkedIn her davette e-posta ister) → is durur.
+ * `onceki`: bu isteki sonuclar, zaman sirasiyla (bu kisi haric).
+ */
+export function epostaSerisiEngelMi(onceki: Array<{ durum: string }>, simdiki: KisiSonucu): boolean {
+  return simdiki === 'EPOSTA_ISTIYOR' && onceki.length > 0 && onceki[onceki.length - 1].durum === 'EPOSTA_ISTIYOR';
 }
