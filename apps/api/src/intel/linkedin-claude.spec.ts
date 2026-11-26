@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ajanCanli, ajanKomutu, epostaSerisiEngelMi, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
+import { ajanCanli, ajanKomutu, epostaSerisiEngelMi, kabulKomutu, kabulNumaralari, sonKabulSlotu, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
 
 const simdi = new Date('2026-11-26T09:00:00Z');
 
@@ -67,6 +67,26 @@ describe('Claude ile LinkedIn gonderimi', () => {
     expect(epostaSerisiEngelMi([{ durum: 'GONDERILDI' }, { durum: 'EPOSTA_ISTIYOR' }], 'EPOSTA_ISTIYOR')).toBe(true);
     expect(epostaSerisiEngelMi([{ durum: 'EPOSTA_ISTIYOR' }], 'GONDERILDI')).toBe(false);
     expect(ajanKomutu({ ad: 'A', soyad: 'B', firma: 'X', unvan: null, profileUrl: 'u', not: 'n' }, false)).toContain('"EPOSTA_ISTIYOR". Bu ENGEL değildir');
+  });
+
+  it('kabul kontrolu: hafta ici 10/14/17 saatleri, hafta sonu ve 10:00 oncesi yok', () => {
+    // 26.11.2026 Persembe
+    expect(sonKabulSlotu(new Date('2026-11-26T06:59:00Z'))).toBeNull(); // 09:59 TR
+    expect(sonKabulSlotu(new Date('2026-11-26T07:00:00Z'))?.toISOString()).toBe('2026-11-26T07:00:00.000Z'); // 10:00
+    expect(sonKabulSlotu(new Date('2026-11-26T12:30:00Z'))?.toISOString()).toBe('2026-11-26T11:00:00.000Z'); // 15:30 → 14:00
+    expect(sonKabulSlotu(new Date('2026-11-26T20:00:00Z'))?.toISOString()).toBe('2026-11-26T14:00:00.000Z'); // 23:00 → 17:00
+    expect(sonKabulSlotu(new Date('2026-11-28T09:00:00Z'))).toBeNull(); // Cumartesi
+  });
+
+  it('kabul kontrolu: yalniz okuma komutu, numaralar dogrulanir', () => {
+    const k = kabulKomutu([{ no: 1, adSoyad: 'Ayşe Kaya', profileUrl: 'https://www.linkedin.com/in/ayse/' }, { no: 3, adSoyad: 'Ali Veli', profileUrl: 'https://www.linkedin.com/in/ali/' }]);
+    expect(k).toContain('YALNIZ OKUMA');
+    expect(k).toContain('mynetwork/invite-connect/connections');
+    expect(k).toContain('3. Ali Veli — https://www.linkedin.com/in/ali/');
+    expect(k).toContain('Bildirimler sayfasını açma');
+    expect(kabulNumaralari({ kabul: [3, 1, 3, '2', 0, 9, 1.5, 'x'] }, 3)).toEqual([1, 2, 3]);
+    expect(kabulNumaralari({ kabul: 'hepsi' }, 3)).toEqual([]);
+    expect(kabulNumaralari(null, 3)).toEqual([]);
   });
 });
 

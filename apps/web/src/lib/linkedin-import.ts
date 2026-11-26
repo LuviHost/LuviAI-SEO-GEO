@@ -131,7 +131,8 @@ export function parseImportText(text: string): ParsedImport {
         return;
       }
     }
-    const [ad = '', soyad = '', firma = '', unvan = '', sektor = '', kademeRaw = '', profileRaw = ''] = cols;
+    // 8. sutun (istege bagli): kampanya — MUSTERI | YATIRIMCI | ISBIRLIGI (26.11: ajanslar is birligi notu alsin)
+    const [ad = '', soyad = '', firma = '', unvan = '', sektor = '', kademeRaw = '', profileRaw = '', kampanyaRaw = ''] = cols;
 
     if (!ad || !soyad || !firma || !profileRaw) {
       hatalar.push(`Satır ${satir}: ad, soyad, firma ve profileUrl zorunlu`);
@@ -152,12 +153,17 @@ export function parseImportText(text: string): ParsedImport {
     const kademe = kademeN === 1 || kademeN === 2 ? kademeN : undefined;
     if (kademeRaw && kademe === undefined) hatalar.push(`Satır ${satir}: kademe 1 veya 2 olmalı (boş bırakıldı)`);
 
+    const kampanyaUst = kampanyaRaw.trim().toLocaleUpperCase('tr').replace(/İ/g, 'I').replace(/Ş/g, 'S').replace(/Ğ/g, 'G').replace(/Ü/g, 'U');
+    const kampanya = (['MUSTERI', 'YATIRIMCI', 'ISBIRLIGI'] as const).find((k) => k === kampanyaUst);
+    if (kampanyaRaw.trim() && !kampanya) hatalar.push(`Satır ${satir}: kampanya MUSTERI, YATIRIMCI ya da ISBIRLIGI olmalı (MUSTERI sayıldı)`);
+
     rows.push({
       ad, soyad, firma,
       unvan: unvan || undefined,
       sektor: sektor || undefined,
       kademe,
       profileUrl,
+      ...(kampanya ? { kampanya } : {}),
     });
     kaynak.push(line);
     kaynakSatir.push(idx);

@@ -3317,6 +3317,8 @@ model LinkedinProspect {
 /// durum: BEKLIYOR | CALISIYOR | BITTI | HATA | IPTAL
 model LinkedinClaudeIs {
   id        String    @id @default(cuid())
+  /// ISTEK: baglanti istegi (panelde onaylanir) | KABUL: kabul kontrolu (salt okuma; hafta ici 10/14/17 kendiliginden)
+  tur       String    @default("ISTEK") @db.VarChar(16)
   durum     String    @default("BEKLIYOR") @db.VarChar(16)
   /// Kuru: formu doldurur, "Gönder"e basmaz
   kuru      Boolean   @default(true)

@@ -216,3 +216,16 @@ describe('S17 yan etkisi — hata sonrasi metin kutusundan YALNIZ aktarilan sati
   });
 });
 
+
+describe('ice aktarim: 8. sutun kampanya (istege bagli)', () => {
+  it('ISBIRLIGI / işbirliği tanınır, bos MUSTERI kalir, gecersiz uyarilir', () => {
+    const r = parseImportText([
+      'Ayşe,Kaya,Ajans A,Kurucu,,1,linkedin.com/in/ayse,ISBIRLIGI',
+      'Ali,Veli,Ajans B,Kurucu,,1,linkedin.com/in/ali,işbirliği',
+      'Can,Su,Firma C,CMO,finans,1,linkedin.com/in/can',
+      'Deniz,Ak,Firma D,CMO,,1,linkedin.com/in/deniz,uydurma',
+    ].join('\n'));
+    expect(r.rows.map((x) => x.kampanya)).toEqual(['ISBIRLIGI', 'ISBIRLIGI', undefined, undefined]);
+    expect(r.hatalar.some((h) => h.includes('Satır 4') && h.includes('kampanya'))).toBe(true);
+  });
+});

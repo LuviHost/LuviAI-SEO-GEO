@@ -43,6 +43,11 @@ cat > "$PLIST" <<PL
 PL
 
 launchctl bootout "gui/$(id -u)/$ETIKET" 2>/dev/null || true
+# NEDEN bekleme: bootout eski sureci kapatmadan bootstrap gelirse "Bootstrap failed: 5: Input/output error"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  launchctl print "gui/$(id -u)/$ETIKET" >/dev/null 2>&1 || break
+  sleep 1
+done
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 echo "Kuruldu. Kayıt: ~/Library/Logs/ranksup/linkedin-claude.log"
 sleep 3
