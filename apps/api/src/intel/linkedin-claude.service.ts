@@ -7,6 +7,7 @@ import {
   IS_KISI_TAVANI,
   IS_ZAMAN_ASIMI_MS,
   ajanKomutu,
+  epostaSerisiEngelMi,
   anahtarDogru,
   anahtarOzeti,
   kisiSonucuGecerli,
@@ -193,13 +194,23 @@ export class LinkedinClaudeService {
     if (!kisi) throw new BadRequestException('Kişi bu işte yok');
 
     const simdi = new Date();
-    const sonuc = [...(((is.sonuc as IsSonuc[] | null) ?? []).filter((s) => s.id !== kisiId)), { id: kisiId, durum, aciklama: metin, at: simdi.toISOString() }];
-    const engel = durum === 'ENGEL';
+    const onceki = ((is.sonuc as IsSonuc[] | null) ?? []).filter((s) => s.id !== kisiId);
+    const sonuc = [...onceki, { id: kisiId, durum, aciklama: metin, at: simdi.toISOString() }];
+    const epostaSerisi = epostaSerisiEngelMi(onceki, durum);
+    const engel = durum === 'ENGEL' || epostaSerisi;
     await this.prisma.linkedinClaudeIs.update({
       where: { id: isId },
       data: {
         sonuc,
-        ...(engel && is.durum === 'CALISIYOR' ? { durum: 'HATA', hata: `LinkedIn engeli: ${metin}`.slice(0, 1000), bittiAt: simdi } : {}),
+        ...(engel && is.durum === 'CALISIYOR'
+          ? {
+              durum: 'HATA',
+              hata: (epostaSerisi
+                ? 'Üst üste 2 kişide LinkedIn e-posta istedi — hesap düzeyinde davet uyarısı olabilir; birkaç gün ara verin'
+                : `LinkedIn engeli: ${metin}`).slice(0, 1000),
+              bittiAt: simdi,
+            }
+          : {}),
       },
     });
 

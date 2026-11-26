@@ -28,6 +28,7 @@ const SONUC_ETIKETI: Record<LinkedinClaudeKisiSonucu, { label: string; variant: 
   ZATEN_BAGLI: { label: 'Zaten bağlı', variant: 'secondary' },
   BEKLIYOR: { label: 'Zaten bekliyor', variant: 'secondary' },
   BULUNAMADI: { label: 'Bulunamadı', variant: 'warning' },
+  EPOSTA_ISTIYOR: { label: 'E-posta istiyor', variant: 'warning' },
   ENGEL: { label: 'LinkedIn engeli', variant: 'danger' },
   HATA: { label: 'Hata', variant: 'danger' },
 };

@@ -31,7 +31,8 @@ const CALISMA_DIZINI = join(EV, '.ranksup', 'claude-calisma');
 const LOG_DIZINI = join(EV, 'Library', 'Logs', 'ranksup');
 const SORMA_ARALIGI_MS = 60_000;
 const KISI_ZAMAN_ASIMI_MS = 8 * 60_000;
-const SONUCLAR = ['GONDERILDI', 'KURU_TAMAM', 'ZATEN_BAGLI', 'BEKLIYOR', 'BULUNAMADI', 'ENGEL', 'HATA'];
+// Sunucu ayrica dogrular; burada yalniz bicim (yeni sonuc turu ajani guncellemeden eklenebilsin)
+const SONUC_BICIMI = /^[A-Z_]{3,24}$/;
 
 mkdirSync(CALISMA_DIZINI, { recursive: true });
 mkdirSync(LOG_DIZINI, { recursive: true });
@@ -69,7 +70,7 @@ function sonucuAyikla(metin) {
   for (let i = adaylar.length - 1; i >= 0; i--) {
     try {
       const j = JSON.parse(adaylar[i]);
-      if (SONUCLAR.includes(j?.durum)) return { durum: j.durum, aciklama: String(j.aciklama ?? '').slice(0, 300) };
+      if (typeof j?.durum === 'string' && SONUC_BICIMI.test(j.durum)) return { durum: j.durum, aciklama: String(j.aciklama ?? '').slice(0, 300) };
     } catch { /* sonraki */ }
   }
   return null;

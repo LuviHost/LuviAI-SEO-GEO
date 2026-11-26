@@ -641,7 +641,7 @@ export interface LinkedinClaudeAday {
   id: string; ad: string; soyad: string; firma: string; unvan: string | null; profileUrl: string; not: string; lastError: string | null;
 }
 export interface LinkedinClaudeAdaylar { kalanBugun: number; isTavani: number; adaylar: LinkedinClaudeAday[] }
-export type LinkedinClaudeKisiSonucu = 'GONDERILDI' | 'KURU_TAMAM' | 'ZATEN_BAGLI' | 'BEKLIYOR' | 'BULUNAMADI' | 'ENGEL' | 'HATA';
+export type LinkedinClaudeKisiSonucu = 'GONDERILDI' | 'KURU_TAMAM' | 'ZATEN_BAGLI' | 'BEKLIYOR' | 'BULUNAMADI' | 'EPOSTA_ISTIYOR' | 'ENGEL' | 'HATA';
 export interface LinkedinClaudeIs {
   id: string;
   durum: 'BEKLIYOR' | 'CALISIYOR' | 'BITTI' | 'HATA' | 'IPTAL';
