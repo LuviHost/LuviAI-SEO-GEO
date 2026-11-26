@@ -52,6 +52,8 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
   const [mesgul, setMesgul] = useState<string | null>(null);
   const [anahtarKomutu, setAnahtarKomutu] = useState<string | null>(null);
   const [acikNot, setAcikNot] = useState<string | null>(null);
+  // Aday listesinde ad / firma / unvan ile suzme (liste 100 kisiye kadar)
+  const [ara, setAra] = useState('');
 
   const durumYukle = useCallback(async () => {
     try { setDurum(await api.linkedinClaudeDurum()); } catch { /* sessiz */ }
@@ -91,6 +93,12 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
     if (sonAktif) { setSonAktif(null); void adayYukle(); void onDone(); }
   }, [aktifIs, sonAktif, adayYukle, onDone]);
 
+  const gorunen = useMemo(() => {
+    const q = ara.trim().toLocaleLowerCase('tr');
+    const liste = aday?.adaylar ?? [];
+    if (!q) return liste;
+    return liste.filter((a) => `${a.ad} ${a.soyad} ${a.firma} ${a.unvan ?? ''}`.toLocaleLowerCase('tr').includes(q));
+  }, [aday, ara]);
   const seciliListe = useMemo(() => (aday?.adaylar ?? []).filter((a) => secili.has(a.id)), [aday, secili]);
   const tavan = aday ? Math.min(aday.isTavani, kuru ? aday.isTavani : aday.kalanBugun) : 0;
 
@@ -242,6 +250,14 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
               <span className="text-muted-foreground">
                 Bugün kalan istek: <b className="text-foreground">{aday?.kalanBugun ?? '—'}</b> · tek seferde en fazla {aday?.isTavani ?? 10} kişi
               </span>
+              <input
+                value={ara}
+                onChange={(e) => setAra(e.target.value)}
+                placeholder="Ad, firma ya da unvan ara"
+                aria-label="Adaylarda ara"
+                className="h-8 w-56 rounded-md border bg-background px-2.5 text-xs"
+              />
+              <span className="text-muted-foreground">{aday ? `${gorunen.length} / ${aday.adaylar.length} aday` : ''}</span>
               <label className="ml-auto inline-flex items-center gap-1.5 cursor-pointer select-none">
                 <input type="checkbox" checked={kuru} onChange={(e) => setKuru(e.target.checked)} />
                 Kuru deneme (&quot;Gönder&quot;e basmaz)
@@ -253,7 +269,7 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
               <div className="text-sm text-muted-foreground">Kuyrukta gönderilecek kişi yok.</div>
             ) : (
               <div className="max-h-[420px] overflow-y-auto rounded-md border divide-y">
-                {(aday?.adaylar ?? []).map((a) => (
+                {gorunen.map((a) => (
                   <div key={a.id} className="flex items-start gap-3 p-2.5">
                     <input type="checkbox" className="mt-1" checked={secili.has(a.id)} onChange={() => degistir(a.id)} aria-label={`${a.ad} ${a.soyad} seç`} />
                     <div className="min-w-0 flex-1 space-y-1">

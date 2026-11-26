@@ -39,6 +39,19 @@ export function kisiSonucuGecerli(x: unknown): x is KisiSonucu {
   return typeof x === 'string' && (KISI_SONUCLARI as readonly string[]).includes(x);
 }
 
+/**
+ * Teknik rol mu (CTO, yazilim, muhendis...). Satis/pazarlama hedefinde bu kisiler aday
+ * listesinde gosterilmez (26.11 sahip: "pazarlama, satis, reklam tarafindaki kisiler lazim").
+ * Kayit silinmez; eski kuyruktaki teknik kisiler yalniz listeye girmez.
+ */
+export function teknikUnvanMi(unvan: string | null | undefined): boolean {
+  const u = (unvan ?? '').toLocaleLowerCase('tr');
+  if (!u) return false;
+  // Pazarlama/satis gecen unvan teknik sayilmaz ("satis ve pazarlama direktoru, yazilim" gibi)
+  if (/pazarlama|marketing|satış|satis|sales|marka|brand|e-?ticaret|e-?commerce|growth|reklam|iletişim|cmo/.test(u)) return false;
+  return /\bcto\b|chief technology|yazılım|software|developer|geliştirici|engineer|mühendis|teknoloji direktörü|it müdürü|\bit\b|devops|architect|mimar|data scientist|veri bilim/.test(u);
+}
+
 // ── Ajan anahtari ──────────────────────────────────────────────
 // Anahtar panelde bir kez gosterilir, sunucuda yalniz SHA-256 ozeti durur.
 

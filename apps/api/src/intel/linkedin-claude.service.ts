@@ -12,6 +12,7 @@ import {
   kabulKomutu,
   kabulNumaralari,
   sonKabulSlotu,
+  teknikUnvanMi,
   anahtarDogru,
   anahtarOzeti,
   kisiSonucuGecerli,
@@ -60,7 +61,8 @@ export class LinkedinClaudeService {
 
     const sec = { id: true, ad: true, soyad: true, firma: true, unvan: true, sektor: true, kademe: true, kampanya: true, profileUrl: true, lastError: true } as const;
     const where = { status: 'QUEUED' as const, kanal: 'LINKEDIN' as const, elle: false };
-    const order = [{ kademe: 'asc' as const }, { createdAt: 'asc' as const }];
+    // En yeni ice aktarilan once (26.11: yeni listeler eski kuyrugun arkasinda kaliyordu); kademe 1 yine one
+    const order = [{ kademe: 'asc' as const }, { createdAt: 'desc' as const }];
     // NEDEN genis cekim (26.11): ilk 60 kayit bugun kotasi dolan buyuk firmalardan (Akbank, Vodafone...)
     // geliyor, firma freni hepsini eliyordu; yeni ice aktarilan kisiler listeye hic giremiyordu.
     const [temiz, hatali] = await Promise.all([
@@ -70,12 +72,13 @@ export class LinkedinClaudeService {
     const adaylar: Array<{ id: string; ad: string; soyad: string; firma: string; unvan: string | null; profileUrl: string; not: string; lastError: string | null }> = [];
     for (const p of [...temiz, ...hatali]) {
       if (islerde.has(p.id)) continue;
+      if (teknikUnvanMi(p.unvan)) continue;
       const fk = firmaKey(p.firma);
       // Ayni firmadan gunde en fazla N (eski botun freni) — listeye alinirken de sayilir
       if ((firmaSayaci[fk] ?? 0) >= limits.SAME_COMPANY_PER_DAY) continue;
       firmaSayaci[fk] = (firmaSayaci[fk] ?? 0) + 1;
       adaylar.push({ id: p.id, ad: p.ad, soyad: p.soyad, firma: p.firma, unvan: p.unvan, profileUrl: p.profileUrl, not: renderNote(p), lastError: p.lastError });
-      if (adaylar.length >= 30) break;
+      if (adaylar.length >= 100) break;
     }
     return { kalanBugun, isTavani: IS_KISI_TAVANI, adaylar };
   }
