@@ -26,7 +26,7 @@ import {
 } from '@/lib/linkedin-import';
 import {
   Users, RefreshCw, Pause, Play, Send, Upload,
-  AlertTriangle, SkipForward, Camera, ExternalLink, MessageSquareText, Link2, Search, Clock,
+  AlertTriangle, SkipForward, Camera, ExternalLink, MessageSquareText,
   FileBarChart, CalendarClock, Mail, PenLine, Reply,
 } from 'lucide-react';
 
@@ -74,6 +74,9 @@ const STATUS_META: Record<LinkedinProspectStatus, { label: string; variant: any;
   FAILED: { label: 'Hata', variant: 'destructive' },
 };
 
+/** "Iletisim kurulanlar" filtresi: istek gitmis, kabul etmis, mesajlasilmis ya da cevap vermis */
+const ILETISIM_DURUMLARI: ReadonlySet<string> = new Set(['REQUESTED', 'ACCEPTED', 'MESSAGED', 'REPLIED']);
+
 const SEKTOR_LABEL: Record<string, string> = {
   finans: 'Finans',
   'eticaret-perakende-teknoloji': 'E-tic/Perakende/Tek',
@@ -118,7 +121,8 @@ export default function AdminLinkedinPage() {
   // Sohbet penceresinde acik kayit (id; veri her yenilemede listeden taze okunur)
   const [konusmaId, setKonusmaId] = useState<string | null>(null);
   const [firmaFiltre, setFirmaFiltre] = useState<string>('hepsi');
-  const [durumFiltre, setDurumFiltre] = useState<string>('hepsi');
+  // Varsayilan: iletisim kurulanlar (istek / kabul / mesaj / cevap) — kuyruk ve atlananlar gizli
+  const [durumFiltre, setDurumFiltre] = useState<string>('iletisim');
 
   const load = useCallback(async (sessiz = false) => {
     try {
@@ -225,7 +229,9 @@ export default function AdminLinkedinPage() {
   const byFirma = overview?.byFirma ?? [];
   // NEDEN filtre: kuyruk 100+ satira cikti; firma/durum secmeden gozden gecirmek zor (30.08)
   const recent = recentAll.filter(
-    (p) => (firmaFiltre === 'hepsi' || p.firma === firmaFiltre) && (durumFiltre === 'hepsi' || p.status === durumFiltre),
+    (p) => (firmaFiltre === 'hepsi' || p.firma === firmaFiltre)
+      && (durumFiltre === 'hepsi'
+        || (durumFiltre === 'iletisim' ? ILETISIM_DURUMLARI.has(p.status) : p.status === durumFiltre)),
   );
   const toplamKayit = overview?.recentTotal ?? recentAll.length;
   const L = overview?.limits;
@@ -336,15 +342,8 @@ export default function AdminLinkedinPage() {
       {/* ── Elle kayıt: kendi attığın LinkedIn / e-posta mesajı ── */}
       <ElleKayitCard onDone={load} disabled={!!busy} />
 
-      {/* ── Çalışma ayarları ── */}
-      <AyarCard overview={overview ?? undefined} onDone={load} disabled={!!busy} />
-
-      {/* ── Mesaj şablonları ── */}
-      <SablonCard sablonlar={overview?.sablonlar} />
-
-      {/* ── Arama linkleriyle tarama ── */}
-      <SearchUrlCard onDone={load} disabled={!!busy} />
-
+      {/* Calisma ayarlari, mesaj sablonlari ve arama linkiyle tarama kaldirildi (26.11, sahip):
+          eski bota aitti; Claude gonderiminin frenleri (gunluk / haftalik / ayni firma) sunucuda */}
       {/* ── CSV içe aktar ── */}
       <ImportCard onDone={load} disabled={!!busy} />
 
@@ -392,6 +391,7 @@ export default function AdminLinkedinPage() {
                 className="h-8 rounded-md border bg-background px-2 text-xs"
                 aria-label="Durum filtresi"
               >
+                <option value="iletisim">İletişim kurulanlar</option>
                 <option value="hepsi">Tüm durumlar</option>
                 {Object.entries(STATUS_META).map(([k, m]) => (
                   <option key={k} value={k}>{m.label}</option>
@@ -615,413 +615,6 @@ function TakipCard({ overview, onDone, disabled, onKonusma }: { overview?: Linke
               </select>
             </div>
           ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-const GUN_ADI = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
-
-/** Panelden degistirilebilen ayarlar: etiket, aciklama, alan adi */
-const AYAR_ALANLARI: Array<{ key: string; label: string; ipucu: string }> = [
-  { key: 'MAX_REQUESTS_PER_DAY', label: 'Günlük bağlantı isteği', ipucu: 'Bir günde gönderilecek en fazla bağlantı isteği' },
-  { key: 'MAX_MESSAGES_PER_DAY', label: 'Günlük mesaj', ipucu: 'Kabul edenlere bir günde gönderilecek en fazla mesaj' },
-  { key: 'MAX_REQUESTS_PER_WEEK', label: 'Haftalık istek', ipucu: 'LinkedIn haftalık davet sınırı için üst güvenlik freni' },
-  { key: 'MAX_ACTIONS_PER_TICK', label: 'Tur başına işlem', ipucu: '0 = öldürme anahtarı: bot hiçbir işlem yapmaz' },
-  { key: 'SAME_COMPANY_PER_DAY', label: 'Aynı firmadan / gün', ipucu: 'Bir firmadan günde en fazla kaç kişiye yazılsın' },
-  { key: 'MAX_RESEARCH_PER_DAY', label: 'Günlük tarama', ipucu: 'Arama sayfası tarama sayısı (gönderim değil)' },
-  { key: 'MAX_INMAILS_PER_DAY', label: 'Günlük InMail', ipucu: 'Premium ile bağlantı beklemeden gönderilen doğrudan mesaj (kredi harcar)' },
-];
-
-/** İletişim yöntemleri */
-const MODLAR: Array<{ key: 'baglanti' | 'inmail' | 'karma'; label: string; aciklama: string }> = [
-  { key: 'baglanti', label: 'Bağlantı isteği', aciklama: 'Önce notlu bağlantı isteği; kabul ederse mesaj. Kredi harcamaz, kabul beklenir.' },
-  { key: 'inmail', label: 'Doğrudan mesaj (Premium)', aciklama: 'Bağlantı beklemeden InMail gönderir — Premium kredisi harcar, cevap çok daha hızlı gelir.' },
-  { key: 'karma', label: 'Önce InMail, sonra bağlantı', aciklama: 'Günlük InMail kotası dolunca kalan kişilere bağlantı isteği gönderir.' },
-];
-
-/**
- * Calisma saati ve fren ayarlari — panelden. NEDEN: kullanici saatleri ve limitleri
- * sunucuya girmeden degistirmek istiyor (30.08). Degerler guvenlik tavanlarina kirpilir;
- * tavanlar arka uctan (ayarTavan) gelir, panel kendi kopyasini tasimaz.
- */
-function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview; onDone: () => Promise<void>; disabled: boolean }) {
-  const L = (overview?.limits ?? {}) as Record<string, number | number[]>;
-  const tavan = overview?.ayarTavan ?? {};
-  const [taslak, setTaslak] = useState<Record<string, number> | null>(null);
-  const [gunler, setGunler] = useState<number[] | null>(null);
-  const [taslakMod, setTaslakMod] = useState<'baglanti' | 'inmail' | 'karma' | null>(null);
-  const [kaydediliyor, setKaydediliyor] = useState(false);
-
-  const deger = (k: string): number => (taslak?.[k] ?? (typeof L[k] === 'number' ? (L[k] as number) : 0));
-  const aktifGunler = gunler ?? (Array.isArray(L.WORK_DAYS) ? (L.WORK_DAYS as number[]) : [1, 2, 3, 4, 5]);
-  const degisti = taslak !== null || gunler !== null || (taslakMod !== null && taslakMod !== overview?.mod);
-
-  const kaydet = async () => {
-    setKaydediliyor(true);
-    try {
-      const govde: Record<string, number | number[] | string> = { ...(taslak ?? {}), WORK_DAYS: aktifGunler };
-      for (const k of ['WORK_HOUR_START', 'WORK_HOUR_END']) if (govde[k] === undefined) govde[k] = deger(k);
-      if (taslakMod) govde.MOD = taslakMod;
-      await api.setLinkedinAyarlar(govde);
-      toast.success('Ayarlar kaydedildi — sonraki turdan itibaren geçerli');
-      setTaslak(null);
-      setGunler(null);
-      setTaslakMod(null);
-      await onDone();
-    } catch (err: any) {
-      toast.error(`Kaydedilemedi: ${err.message}`);
-    } finally {
-      setKaydediliyor(false);
-    }
-  };
-
-  const setDeger = (k: string, v: number) => setTaslak((t) => ({ ...(t ?? {}), [k]: v }));
-
-  return (
-    <Card>
-      <CardContent className="p-4 space-y-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-sm font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Çalışma ayarları
-            </div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              Saat ve limitler burada; kaydettiğinde sunucuya girmeye gerek yok. Değerler güvenlik aralığına kırpılır
-              (hesap kısıtlanmasın diye üst sınırlar var).
-            </div>
-          </div>
-          <Button size="sm" onClick={kaydet} disabled={disabled || kaydediliyor || !degisti}>
-            {kaydediliyor ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
-            Kaydet
-          </Button>
-        </div>
-
-        {/* İletişim modu */}
-        <div className="rounded-md border p-3 space-y-2">
-          <div className="text-xs font-medium">İletişim yöntemi</div>
-          <div className="flex flex-wrap gap-2">
-            {MODLAR.map((m) => {
-              const secili = (taslakMod ?? overview?.mod ?? 'baglanti') === m.key;
-              return (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => setTaslakMod(m.key)}
-                  className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', secili ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
-                  title={m.aciklama}
-                >
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {MODLAR.find((m) => m.key === (taslakMod ?? overview?.mod ?? 'baglanti'))?.aciklama}
-            {typeof overview?.inmailKredi === 'number' && (
-              <> · Kalan InMail kredisi: <span className="font-medium text-foreground">{overview.inmailKredi}</span></>
-            )}
-          </div>
-        </div>
-
-        {/* Çalışma penceresi */}
-        <div className="rounded-md border p-3 space-y-3">
-          <div className="text-xs font-medium">Çalışma penceresi (Europe/Istanbul)</div>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="text-xs text-muted-foreground flex items-center gap-2">
-              Başlangıç
-              <select
-                value={deger('WORK_HOUR_START')}
-                onChange={(e) => setDeger('WORK_HOUR_START', Number(e.target.value))}
-                className="h-8 rounded-md border bg-background px-2 text-xs tabular-nums"
-              >
-                {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
-              </select>
-            </label>
-            <label className="text-xs text-muted-foreground flex items-center gap-2">
-              Bitiş
-              <select
-                value={deger('WORK_HOUR_END')}
-                onChange={(e) => setDeger('WORK_HOUR_END', Number(e.target.value))}
-                className="h-8 rounded-md border bg-background px-2 text-xs tabular-nums"
-              >
-                {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
-              </select>
-            </label>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-muted-foreground mr-1">Günler:</span>
-              {GUN_ADI.map((ad, i) => {
-                const secili = aktifGunler.includes(i);
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => {
-                      const yeni = secili ? aktifGunler.filter((d) => d !== i) : [...aktifGunler, i].sort();
-                      setGunler(yeni.length ? yeni : aktifGunler);
-                    }}
-                    className={cn('px-2 py-1 rounded border text-xs transition-colors', secili ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
-                  >
-                    {ad}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Bot yalnız seçili gün ve saatlerde bağlantı isteği/mesaj gönderir; tarama (arama linki) bu pencereye bakmaz.
-          </div>
-        </div>
-
-        {/* Frenler */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {AYAR_ALANLARI.map((a) => {
-            const t = tavan[a.key];
-            return (
-              <label key={a.key} className="rounded-md border p-3 space-y-1.5 block">
-                <div className="text-xs font-medium">{a.label}</div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={deger(a.key)}
-                    min={t?.min ?? 0}
-                    max={t?.max ?? 999}
-                    onChange={(e) => setDeger(a.key, Number(e.target.value))}
-                    className="h-8 w-20 rounded-md border bg-background px-2 text-xs tabular-nums"
-                  />
-                  {t ? <span className="text-xs text-muted-foreground">{t.min}–{t.max} arası</span> : null}
-                </div>
-                <div className="text-xs text-muted-foreground">{a.ipucu}</div>
-              </label>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/**
- * Kampanya mesaj sablonlari — LinkedIn gorunumunde. NEDEN ayri kart: kullanici gonderilecek
- * metni secim aninda ve bir bakista gormek istiyor (30.08 "panelden gorelim mesajlari").
- * Metinler arka uctan gelir (overview.sablonlar) — panel kendi kopyasini tasimaz, sapma olmaz.
- */
-function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }) {
-  const [secili, setSecili] = useState<LinkedinKampanya>('MUSTERI');
-  const [kopyalanan, setKopyalanan] = useState<string | null>(null);
-  const aktif = sablonlar?.find((x) => x.kampanya === secili);
-
-  const kopyala = async (metin: string, etiket: string) => {
-    try {
-      await navigator.clipboard.writeText(metin);
-      setKopyalanan(etiket);
-      setTimeout(() => setKopyalanan(null), 1500);
-    } catch {
-      toast.error('Kopyalanamadı');
-    }
-  };
-
-  /** Kisiye gore degisen parcalari (ad, firma) vurgula */
-  const vurgula = (metin: string, ornek?: { kisi: string; firma: string }) => {
-    const parcalar = [ornek?.kisi, ornek?.firma].filter((x): x is string => !!x && x.length > 1);
-    if (parcalar.length === 0) return metin;
-    const kalip = new RegExp(`(${parcalar.map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
-    return metin.split(kalip).map((par, i) =>
-      parcalar.includes(par)
-        ? <mark key={i} className="bg-brand-500/15 text-brand-700 dark:text-brand-300 rounded px-0.5">{par}</mark>
-        : <span key={i}>{par}</span>,
-    );
-  };
-
-  if (!sablonlar?.length) return null;
-
-  return (
-    <Card>
-      <CardContent className="p-4 space-y-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-sm font-medium flex items-center gap-2">
-              <MessageSquareText className="h-4 w-4" />
-              Mesaj şablonları
-            </div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              Kişiye önce <span className="font-medium">bağlantı isteği notu</span> gider; kabul ederse{' '}
-              <span className="font-medium">mesaj</span> gönderilir.
-              {aktif?.ornek ? (
-                <> Önizleme kuyruktaki kişiyle: <span className="font-medium text-foreground">{aktif.ornek.kisi} / {aktif.ornek.firma}</span> —{' '}
-                  <span className="bg-brand-500/15 text-brand-700 dark:text-brand-300 px-1 rounded">turuncu</span> kısımlar her kişide değişir.
-                </>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {sablonlar.map((s) => (
-              <button
-                key={s.kampanya}
-                type="button"
-                onClick={() => setSecili(s.kampanya)}
-                className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', secili === s.kampanya ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
-              >
-                {s.ad}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {aktif && (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {/* 1) Bağlantı isteği notu */}
-            <div className="rounded-lg border bg-muted/20 overflow-hidden">
-              <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
-                <div className="text-xs font-medium">1. Bağlantı isteği notu</div>
-                <div className="flex items-center gap-2">
-                  <span className={cn('text-xs tabular-nums', aktif.notUzunluk > aktif.notSinir ? 'text-rose-600' : 'text-muted-foreground')}>
-                    {aktif.notUzunluk}/{aktif.notSinir}
-                  </span>
-                  <button type="button" onClick={() => kopyala(aktif.not, 'not')} className="text-xs text-brand-600 hover:underline">
-                    {kopyalanan === 'not' ? 'kopyalandı' : 'kopyala'}
-                  </button>
-                </div>
-              </div>
-              <div className="p-3">
-                <div className="flex gap-2">
-                  <div className="h-7 w-7 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-xs font-semibold shrink-0">RU</div>
-                  <div className="rounded-lg rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
-                    {vurgula(aktif.not, aktif.ornek)}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 2) InMail ya da kabul sonrası mesaj */}
-            <div className="rounded-lg border bg-muted/20 overflow-hidden">
-              <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
-                <div className="text-xs font-medium">2. Kabul edince gönderilen mesaj</div>
-                <button type="button" onClick={() => kopyala(aktif.mesaj, 'mesaj')} className="text-xs text-brand-600 hover:underline">
-                  {kopyalanan === 'mesaj' ? 'kopyalandı' : 'kopyala'}
-                </button>
-              </div>
-              <div className="p-3">
-                <div className="flex gap-2">
-                  <div className="h-7 w-7 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-xs font-semibold shrink-0">RU</div>
-                  <div className="rounded-lg rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
-                    {vurgula(aktif.mesaj, aktif.ornek)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="text-xs text-muted-foreground">
-          Her kişiye kendi adı ve firması yazılır (yukarıdaki turuncu kısımlar). Metinler{' '}
-          <span className="font-mono">apps/api/src/intel/linkedin-outreach-rules.ts</span> içinde; değiştirmek istersen söyle.
-          Üçü de kimlik açıklar ve &quot;istemezseniz bir daha yazmayacağım&quot; ile biter (6563 md. 8/3 ret hakkı).
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/**
- * LinkedIn arama linkleriyle tarama. Kullanici LinkedIn'de kendi filtresini kurar
- * (unvan, konum, sirket, baglanti derecesi), linki buraya yapistirir; bot sayfayi
- * gezip hedef unvanli kisileri kuyruga yazar. GONDERIM YOK — yalniz kuyruk.
- */
-function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disabled: boolean }) {
-  const [text, setText] = useState('');
-  const [kampanya, setKampanya] = useState<LinkedinKampanya>('MUSTERI');
-  const [sayfa, setSayfa] = useState(5);
-  const [sending, setSending] = useState(false);
-  const linkSayisi = useMemo(
-    () => text.split(/[\n,;]+/).map((t) => t.trim()).filter((t) => /linkedin\.com\/search\/results\/people/i.test(t)).length,
-    [text],
-  );
-
-  const submit = async () => {
-    if (linkSayisi === 0) return;
-    setSending(true);
-    try {
-      const res = await api.researchLinkedinUrls({ urls: text, kampanya, sayfa });
-      if (!res?.started) {
-        toast.error(res?.reason ?? 'Tarama başlatılamadı');
-        return;
-      }
-      toast.success(`${res.urls} link × ${sayfa} sayfa taranıyor — sonuçlar aşağıdaki listeye düşecek`);
-      if (res.gecersiz?.length) toast.warning(`${res.gecersiz.length} satır anlaşılmadı (kişi arama linki değil)`);
-      setText('');
-      setTimeout(() => { void onDone(); }, 4000);
-    } catch (err: any) {
-      toast.error(`Tarama başlatılamadı: ${err.message}`);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <Card>
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-sm font-medium flex items-center gap-2">
-              <Link2 className="h-4 w-4" />
-              Arama linkleriyle tara
-            </div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              LinkedIn&apos;de aramanı yap (ünvan, konum, şirket filtreleri), adres çubuğundaki linki buraya yapıştır — her satıra bir link.
-              Bot sayfayı gezip <span className="font-medium">hedef ünvanlı</span> kişileri kuyruğa yazar; <span className="font-medium">mesaj göndermez</span>.
-            </div>
-          </div>
-          <Button size="sm" onClick={submit} disabled={disabled || sending || linkSayisi === 0}>
-            {sending ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Search className="h-3.5 w-3.5 mr-1.5" />}
-            Taramayı başlat{linkSayisi > 0 ? ` (${linkSayisi})` : ''}
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Kampanya:</span>
-          {KAMPANYA.map((k) => (
-            <button
-              key={k.key}
-              type="button"
-              onClick={() => setKampanya(k.key)}
-              title={k.aciklama}
-              className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', kampanya === k.key ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
-            >
-              {k.label}
-            </button>
-          ))}
-          <span className="text-xs text-muted-foreground">{KAMPANYA.find((k) => k.key === kampanya)?.aciklama}</span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Kaç sonuç sayfası:</span>
-          {[1, 3, 5, 10].map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setSayfa(n)}
-              className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', sayfa === n ? 'bg-foreground text-background border-foreground' : 'hover:bg-muted')}
-            >
-              {n} sayfa
-            </button>
-          ))}
-          <span className="text-xs text-muted-foreground">≈ {sayfa * 10} kişi taranır · her sayfa ~1 dk</span>
-        </div>
-
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={4}
-          spellCheck={false}
-          placeholder={'https://www.linkedin.com/search/results/people/?keywords=CEO&origin=SWITCH_SEARCH_VERTICAL\nhttps://www.linkedin.com/search/results/people/?keywords=CMO'}
-          className="font-mono text-xs"
-        />
-        <div className="text-xs text-muted-foreground">
-          Firma bilgisi kartın &quot;Mevcut: … şirketinde …&quot; satırından ya da başlıktan (&quot;CTO at X&quot;, &quot;CTO - X&quot;) okunur; firması okunamayan kişi kaydedilmez.
-          Tek seferde en fazla 12 link × 10 sayfa.
         </div>
       </CardContent>
     </Card>
