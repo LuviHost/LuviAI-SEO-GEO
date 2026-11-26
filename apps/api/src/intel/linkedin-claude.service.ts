@@ -50,11 +50,16 @@ export class LinkedinClaudeService {
   async adaylar() {
     const limits = await this.outreach.getLimits();
     const gunBasi = istanbulDayStart(new Date());
-    const [bugunIstekler, aktifIsler] = await Promise.all([
+    const [bugunIstekler, aktifIsler, haftaIstek] = await Promise.all([
       this.prisma.linkedinProspect.findMany({ where: { requestedAt: { gte: gunBasi } }, select: { firma: true } }),
       this.prisma.linkedinClaudeIs.findMany({ where: { durum: { in: AKTIF } }, select: { kisiler: true } }),
+      this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: new Date(Date.now() - 7 * 86_400_000) } } }),
     ]);
-    const kalanBugun = Math.max(0, limits.MAX_REQUESTS_PER_DAY - bugunIstekler.length);
+    // Haftalik fren de uygulanir (26.11): LinkedIn haftalik davet siniri hesap kisitlamasinda ana esik
+    const kalanBugun = Math.max(0, Math.min(
+      limits.MAX_REQUESTS_PER_DAY - bugunIstekler.length,
+      limits.MAX_REQUESTS_PER_WEEK - haftaIstek,
+    ));
     const firmaSayaci: Record<string, number> = {};
     for (const r of bugunIstekler) firmaSayaci[firmaKey(r.firma)] = (firmaSayaci[firmaKey(r.firma)] ?? 0) + 1;
     const islerde = new Set(aktifIsler.flatMap((i) => (i.kisiler as IsKisi[]).map((k) => k.id)));
