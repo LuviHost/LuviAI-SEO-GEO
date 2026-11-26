@@ -61,9 +61,11 @@ export class LinkedinClaudeService {
     const sec = { id: true, ad: true, soyad: true, firma: true, unvan: true, sektor: true, kademe: true, kampanya: true, profileUrl: true, lastError: true } as const;
     const where = { status: 'QUEUED' as const, kanal: 'LINKEDIN' as const, elle: false };
     const order = [{ kademe: 'asc' as const }, { createdAt: 'asc' as const }];
+    // NEDEN genis cekim (26.11): ilk 60 kayit bugun kotasi dolan buyuk firmalardan (Akbank, Vodafone...)
+    // geliyor, firma freni hepsini eliyordu; yeni ice aktarilan kisiler listeye hic giremiyordu.
     const [temiz, hatali] = await Promise.all([
-      this.prisma.linkedinProspect.findMany({ where: { ...where, lastError: null }, orderBy: order, take: 60, select: sec }),
-      this.prisma.linkedinProspect.findMany({ where: { ...where, lastError: { not: null } }, orderBy: order, take: 20, select: sec }),
+      this.prisma.linkedinProspect.findMany({ where: { ...where, lastError: null }, orderBy: order, take: 1000, select: sec }),
+      this.prisma.linkedinProspect.findMany({ where: { ...where, lastError: { not: null } }, orderBy: order, take: 200, select: sec }),
     ]);
     const adaylar: Array<{ id: string; ad: string; soyad: string; firma: string; unvan: string | null; profileUrl: string; not: string; lastError: string | null }> = [];
     for (const p of [...temiz, ...hatali]) {

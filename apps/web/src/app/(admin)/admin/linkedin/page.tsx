@@ -1084,7 +1084,11 @@ function ImportCard({ onDone, disabled }: { onDone: () => Promise<void>; disable
       if (n.tone === 'error') toast.error(n.title, { description: n.description, duration: 15_000 });
       else if (n.tone === 'warning') toast.warning(n.title, { description: n.description, duration: 15_000 });
       else toast.success(n.title, { description: n.description });
-      if (res.sentRows > 0) await onDone();
+      if (res.sentRows > 0) {
+        await onDone();
+        // Claude kartinin aday listesi ayri yuklenir: haber ver
+        window.dispatchEvent(new Event('linkedin-kuyruk-degisti'));
+      }
     } catch (err: any) {
       toast.error(`İçe aktarılamadı: ${err?.message ?? 'beklenmeyen hata'}`);
     } finally {
