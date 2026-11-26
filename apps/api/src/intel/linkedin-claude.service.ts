@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { LinkedinOutreachService } from './linkedin-outreach.service.js';
 import { firmaKey, istanbulDayStart, renderNote } from './linkedin-outreach-rules.js';
 import {
-  AJAN_CANLI_MS,
+  ajanCanli,
   IS_KISI_TAVANI,
   IS_ZAMAN_ASIMI_MS,
   ajanKomutu,
@@ -120,7 +120,7 @@ export class LinkedinClaudeService {
     const sonGorulme = gorulme?.value ? new Date(gorulme.value) : null;
     return {
       anahtarVar: !!anahtar,
-      ajan: { sonGorulme: sonGorulme?.toISOString() ?? null, canli: !!sonGorulme && Date.now() - sonGorulme.getTime() < AJAN_CANLI_MS },
+      ajan: { sonGorulme: sonGorulme?.toISOString() ?? null, canli: ajanCanli(sonGorulme, isler.some((i) => i.durum === 'CALISIYOR')) },
       isler: isler.map((i) => {
         const sonuc = (i.sonuc as IsSonuc[] | null) ?? [];
         return {
