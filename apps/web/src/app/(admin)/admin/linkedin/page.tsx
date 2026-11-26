@@ -9,7 +9,6 @@ import {
   type LinkedinOverview,
   type LinkedinProspect,
   type LinkedinProspectStatus,
-  type LinkedinTickResult,
   type IletisimKanal,
 } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,8 +25,8 @@ import {
   IMPORT_BATCH_MAX_ROWS, IMPORT_MAX_ROWS_PER_RUN, importRunNotice, parseImportText, planImportBatches, remainingImportText, runImportBatches,
 } from '@/lib/linkedin-import';
 import {
-  Users, RefreshCw, Pause, Play, FlaskConical, Send, Upload,
-  AlertTriangle, SkipForward, Camera, ExternalLink, CheckCircle2, XCircle, MessageSquareText, Link2, Search, Clock,
+  Users, RefreshCw, Pause, Play, Send, Upload,
+  AlertTriangle, SkipForward, Camera, ExternalLink, MessageSquareText, Link2, Search, Clock,
   FileBarChart, CalendarClock, Mail, PenLine, Reply,
 } from 'lucide-react';
 
@@ -111,14 +110,11 @@ function limitOf(limits: Record<string, number> | undefined, keys: string[], fal
 //  SAYFA
 // ═══════════════════════════════════════════════════════════════
 
-type LastTick = { dryRun: boolean; at: Date; result: LinkedinTickResult };
 
 export default function AdminLinkedinPage() {
   const [overview, setOverview] = useState<LinkedinOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [lastTick, setLastTick] = useState<LastTick | null>(null);
-  const [forceDry, setForceDry] = useState(false);
   // Sohbet penceresinde acik kayit (id; veri her yenilemede listeden taze okunur)
   const [konusmaId, setKonusmaId] = useState<string | null>(null);
   const [firmaFiltre, setFirmaFiltre] = useState<string>('hepsi');
@@ -153,50 +149,6 @@ export default function AdminLinkedinPage() {
     }
   };
 
-  const pause = () => {
-    const reason = window.prompt('Duraklatma nedeni (isteğe bağlı):', 'Elle duraklatıldı');
-    if (reason === null) return; // vazgecti
-    run('pause', async () => {
-      await api.pauseLinkedin(reason.trim() || undefined);
-      toast.success('Bot duraklatıldı — worker tick atsa da işlem yapmaz');
-      await load();
-    });
-  };
-
-  const resume = () => run('resume', async () => {
-    await api.resumeLinkedin();
-    toast.success('Bot devam ediyor');
-    await load();
-  });
-
-  const tick = (dryRun: boolean) => {
-    if (!dryRun) {
-      const ok = window.confirm(
-        'GERÇEK tick: LinkedIn\'de gerçekten bağlantı isteği / mesaj gönderilir (tick başına en fazla 3 işlem, işlemler arası 2-6 dk). Arka planda çalışır; sonuç tabloda görünür. Devam edilsin mi?',
-      );
-      if (!ok) return;
-    }
-    run(dryRun ? 'dry' : 'real', async () => {
-      const result = await api.tickLinkedin({ dryRun, force: dryRun && forceDry });
-      if (!dryRun && result?.started) {
-        // NEDEN arka plan: gercek tick 5-20 dk surer; ters vekil senkron istegi keser
-        toast.success('Gerçek tick arka planda başladı — sonuçlar 1-2 dk içinde tabloda ve durum kartında');
-        setLastTick({ dryRun, at: new Date(), result: { actions: [], started: true, reason: result.reason } });
-        window.setTimeout(() => load(true), 45_000);
-        window.setTimeout(() => load(true), 180_000);
-        return;
-      }
-      setLastTick({ dryRun, at: new Date(), result: result ?? { actions: [] } });
-      const n = result?.actions?.length ?? 0;
-      const hatali = result?.actions?.filter((a) => !a.ok).length ?? 0;
-      if (result?.paused) toast.warning('Tick bot\'u duraklattı — nedeni durum kartında');
-      else if (result?.reason && n === 0) toast.info(result.reason);
-      else if (hatali) toast.warning(`${n} işlem, ${hatali} hatalı`);
-      else toast.success(dryRun ? `Kuru tick bitti: ${n} işlem (gönderim yok)` : `Tick bitti: ${n} işlem`);
-      await load();
-    });
-  };
-
   const cevapGeldi = (p: LinkedinProspect) => run(`cevap:${p.id}`, async () => {
     const r = await api.cevapGeldiLinkedin(p.id);
     if (r.ok) toast.success(`${p.ad} ${p.soyad}: cevap verdi olarak işaretlendi`);
@@ -222,7 +174,6 @@ export default function AdminLinkedinPage() {
     );
   }
 
-  const paused = overview?.paused ?? false;
   const enabled = overview?.enabled ?? true;
 
   /** Gonderimi ac/kapat — dis dunyaya cikan eylem, onay ister */
@@ -250,28 +201,22 @@ export default function AdminLinkedinPage() {
     }
   };
 
-  const toggleEnabled = async () => {
-    const acilyor = !enabled;
-    if (acilyor) {
-      const onay = window.confirm(
-        `Gönderim açılsın mı?\n\nKuyrukta ${overview?.queued ?? 0} kişi var. Açtığında bot hafta içi 09-18 arasında ` +
-        `günde en fazla ${limit.dayRequests} bağlantı isteği ve ${limit.dayMessages} mesaj gönderir. ` +
-        `İstediğin an "Duraklat" ya da bu düğmeyle kapatabilirsin.`,
-      );
-      if (!onay) return;
-    }
+  /** Eski botu kapat (acma dugmesi yok: bozuk bot kisileri hatali isaretleyip kuyruktan dusuruyordu) */
+  const eskiBotuKapat = async () => {
     setBusy('enabled');
     try {
-      await api.setLinkedinEnabled(acilyor);
-      toast.success(acilyor ? 'Gönderim açıldı — ilk tur çalışma penceresinde başlayacak' : 'Gönderim kapatıldı');
+      await api.setLinkedinEnabled(false);
+      toast.success('Eski bot kapatıldı — gönderim yalnız Claude ile');
       await load();
     } catch (err: any) {
-      toast.error(`Değiştirilemedi: ${err.message}`);
+      toast.error(`Kapatılamadı: ${err.message}`);
     } finally {
       setBusy(null);
     }
   };
-  const inWindow = overview?.workWindow;
+  const claudeKartinaGit = () => {
+    document.getElementById('claude-gonderim')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const today = overview?.today ?? { requests: 0, messages: 0 };
   const week = overview?.week ?? { requests: 0 };
   const acceptPct = ratePct(overview?.acceptRate7d);
@@ -300,8 +245,8 @@ export default function AdminLinkedinPage() {
             LinkedIn Outreach
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Kurucu hesabından sıkı frenli bağlantı isteği + mesaj. Worker hafta içi 09–18 arası ~30 dakikada bir tick atar
-            (%25&apos;i rastgele atlanır); cevap gelince bot susar, insan devralır.
+            Kurucu hesabından sıkı frenli bağlantı isteği. Listeyi ve notları sen onaylarsın, istekleri senin Mac&apos;inde
+            Claude gönderir; cevap gelince konuşmayı sen sürdürürsün.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -309,34 +254,10 @@ export default function AdminLinkedinPage() {
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Yenile
           </Button>
-          {paused ? (
-            <Button size="sm" onClick={resume} disabled={!!busy}>
-              {busy === 'resume' ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}
-              Devam
-            </Button>
-          ) : (
-            <Button size="sm" variant="outline" onClick={pause} disabled={!!busy}>
-              {busy === 'pause' ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Pause className="h-3.5 w-3.5 mr-1.5" />}
-              Duraklat
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={() => tick(true)} disabled={!!busy || !enabled} title={!enabled ? 'Gönderim kapalı — Durum kartından açabilirsin' : 'Açar, okur, doldurur; GÖNDERMEZ'}>
-            {busy === 'dry' ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5 mr-1.5" />}
-            Kuru tick
-          </Button>
-          <label className="text-xs text-muted-foreground flex items-center gap-1 select-none" title="Kuru tick'i 09-18 penceresi dışında da çalıştır">
-            <input type="checkbox" checked={forceDry} onChange={(e) => setForceDry(e.target.checked)} />
-            pencere dışı (kuru)
-          </label>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => tick(false)}
-            disabled={!!busy || paused || !enabled}
-            title={!enabled ? 'Gönderim kapalı — Durum kartından açabilirsin' : paused ? 'Bot duraklatılmış' : 'Gerçekten gönderir — onay ister, arka planda çalışır'}
-          >
-            {busy === 'real' ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
-            Gerçek tick
+          {/* Gonderim artik yalniz Claude ile (26.11): eski botun tick/duraklat dugmeleri kaldirildi */}
+          <Button size="sm" onClick={claudeKartinaGit}>
+            <Send className="h-3.5 w-3.5 mr-1.5" />
+            Claude ile gönder
           </Button>
         </div>
       </div>
@@ -347,7 +268,7 @@ export default function AdminLinkedinPage() {
         <div>
           <span className="font-medium">LinkedIn otomasyonu kullanım koşullarına aykırıdır; hesap kısıtlanabilir.</span>{' '}
           Günde ≤{limit.dayRequests} istek, ≤{limit.dayMessages} mesaj; haftada ≤{limit.weekRequests} istek. Limit/captcha/giriş duvarı
-          görülürse bot kendini duraklatır. DM de ticari elektronik ileti sayılabilir — İYS/KVKK rejimi e-posta listesiyle aynıdır.
+          görülürse Claude durur. DM de ticari elektronik ileti sayılabilir — İYS/KVKK rejimi e-posta listesiyle aynıdır.
         </div>
       </div>
 
@@ -370,94 +291,44 @@ export default function AdminLinkedinPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className={cn('border md:col-span-1', !enabled ? 'border-border bg-muted' : paused ? 'border-rose-500/40 bg-rose-500/5' : 'border-emerald-500/40 bg-emerald-500/5')}>
+        <Card className={cn('border md:col-span-1', enabled ? 'border-rose-500/40 bg-rose-500/5' : 'border-emerald-500/40 bg-emerald-500/5')}>
           <CardContent className="p-4">
-            <div className="text-xs font-medium text-muted-foreground">Eski bot (OpenClaw)</div>
-            <div className={cn('text-xl font-[450] tracking-[-0.04em] mt-2 flex items-center gap-1.5', !enabled ? 'text-muted-foreground' : paused ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
-              {!enabled ? <Pause className="h-4 w-4" /> : paused ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {!enabled ? 'Gönderim kapalı' : paused ? 'Duraklatıldı' : 'Çalışıyor'}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1 line-clamp-2" title={overview?.pauseReason ?? ''}>
-              {!enabled
-                ? 'aşağıdaki düğmeyle açabilirsin'
-                : paused
-                  ? (overview?.pauseReason || 'neden belirtilmedi')
-                  : inWindow === undefined ? '' : inWindow ? 'çalışma penceresinde (09–18 TR)' : 'pencere dışı — tick beklemede'}
-            </div>
-            {/* Anahtar acik olsa da gercekten gonderiyor mu: son basari + son hata */}
-            <div className="text-xs mt-1 space-y-0.5">
-              <div className="text-muted-foreground">
-                Son başarılı istek: <span className="text-foreground">{overview?.sonBasariliIstek ? new Date(overview.sonBasariliIstek).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'hiç'}</span>
-              </div>
-              {overview?.sonHata && (
-                <div className="text-danger line-clamp-2" title={overview.sonHata.metin}>
-                  Son hata ({new Date(overview.sonHata.at).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}): {overview.sonHata.metin}
+            <div className="text-xs font-medium text-muted-foreground">Gönderim</div>
+            {enabled ? (
+              <>
+                {/* Eski bot (OpenClaw) bozuk: aciksa kisileri hatali isaretleyip kuyruktan dusurur */}
+                <div className="text-xl font-[450] tracking-[-0.04em] mt-2 flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                  <AlertTriangle className="h-4 w-4" /> Eski bot açık
                 </div>
-              )}
-            </div>
-            {/* Gonderim anahtari: panelden kalici ac/kapat */}
-            <Button
-              size="sm"
-              variant={enabled ? 'outline' : 'default'}
-              className="mt-3 w-full"
-              onClick={toggleEnabled}
-              disabled={!!busy}
-              title={enabled ? 'Gönderimi kapat (kuyruk durur, veri silinmez)' : 'Gönderimi aç — hafta içi 09-18 arasında istek göndermeye başlar'}
-            >
-              {busy === 'enabled' ? (
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              ) : enabled ? (
-                <Pause className="h-3.5 w-3.5 mr-1.5" />
-              ) : (
-                <Play className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              {enabled ? 'Gönderimi kapat' : 'Gönderimi başlat'}
-            </Button>
+                <div className="text-xs text-muted-foreground mt-1">Eski bot çalışmıyor ve kişileri kuyruktan düşürebilir. Kapat, gönderimi Claude ile yap.</div>
+                <Button size="sm" variant="destructive" className="mt-3 w-full" onClick={eskiBotuKapat} disabled={!!busy}>
+                  {busy === 'enabled' ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Pause className="h-3.5 w-3.5 mr-1.5" />}
+                  Eski botu kapat
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="text-xl font-[450] tracking-[-0.04em] mt-2 flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <Send className="h-4 w-4" /> Claude ile
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Son başarılı istek: <span className="text-foreground">{overview?.sonBasariliIstek ? new Date(overview.sonBasariliIstek).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'hiç'}</span>
+                </div>
+                <Button size="sm" className="mt-3 w-full" onClick={claudeKartinaGit}>
+                  <Play className="h-3.5 w-3.5 mr-1.5" />
+                  Yeni tur başlat
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* ── Son tick sonucu ── */}
-      {lastTick && (
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="text-sm font-medium flex items-center gap-2">
-                {lastTick.dryRun ? <FlaskConical className="h-4 w-4 text-sky-500" /> : <Send className="h-4 w-4 text-primary" />}
-                {lastTick.dryRun ? 'Kuru tick' : 'Gerçek tick'} — {lastTick.at.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                {lastTick.result.paused && <Badge variant="warning">bot duraklatıldı</Badge>}
-                {lastTick.result.started && <Badge variant="secondary">arka planda çalışıyor</Badge>}
-              </div>
-              <span className="text-xs text-muted-foreground">{lastTick.result.actions.length} işlem</span>
-            </div>
-            {lastTick.result.started ? (
-              <div className="text-sm text-muted-foreground">Gerçek tick arka planda; işlemler arası 2-6 dk bekleme var. Tablo 45 sn ve 3 dk sonra kendiliğinden yenilenir.</div>
-            ) : lastTick.result.actions.length === 0 ? (
-              <div className="text-sm text-muted-foreground">{lastTick.result.reason || 'Yapılacak işlem yoktu (kuyruk boş, saat penceresi dışı ya da limit dolu).'}</div>
-            ) : (
-              <ul className="text-sm space-y-1">
-                {lastTick.result.actions.map((a, i) => {
-                  const p = a.prospectId ? recent.find((r) => r.id === a.prospectId) : undefined;
-                  return (
-                    <li key={i} className="flex items-start gap-2">
-                      {a.ok
-                        ? <CheckCircle2 className="h-4 w-4 mt-0.5 text-emerald-500 shrink-0" />
-                        : <XCircle className="h-4 w-4 mt-0.5 text-rose-500 shrink-0" />}
-                      <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-muted">{a.type}</span>
-                      {p && <span className="font-medium">{p.ad} {p.soyad}</span>}
-                      {!p && a.prospectId && <span className="font-mono text-xs text-muted-foreground">{a.prospectId}</span>}
-                      {a.note && <span className="text-muted-foreground">— {a.note}</span>}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* ── Claude ile gönderim (Mac'te, kurucunun Chrome'unda) ── */}
-      <ClaudeGonderimCard onDone={load} />
+      <div id="claude-gonderim" className="scroll-mt-4">
+        <ClaudeGonderimCard onDone={load} />
+      </div>
 
       {/* ── Bugün ilgilenilecekler ── */}
       <TakipCard overview={overview ?? undefined} onDone={load} disabled={!!busy} onKonusma={setKonusmaId} />
