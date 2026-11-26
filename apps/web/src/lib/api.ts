@@ -740,6 +740,8 @@ export interface LinkedinImportRow {
   sektor?: string;
   kademe?: number;
   profileUrl: string;
+  /** MUSTERI | YATIRIMCI | ISBIRLIGI (bos = MUSTERI); ajanslar ISBIRLIGI notu alir */
+  kampanya?: LinkedinKampanya;
 }
 
 export interface LinkedinTickAction {
