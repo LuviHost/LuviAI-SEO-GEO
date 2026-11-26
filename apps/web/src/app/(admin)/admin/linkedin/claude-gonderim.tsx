@@ -79,6 +79,12 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
   }, [adayYukle]);
 
   const aktifIs = durum?.isler.find((i) => i.durum === 'BEKLIYOR' || i.durum === 'CALISIYOR') ?? null;
+  // Son 12 saatte hata / engelle duran is (iptal degil): bir satirlik uyari
+  const sonDuran = (() => {
+    const i = durum?.isler.find((x) => x.durum !== 'BEKLIYOR' && x.durum !== 'CALISIYOR');
+    if (!i || i.durum !== 'HATA' || !i.hata || !i.bittiAt) return null;
+    return Date.now() - new Date(i.bittiAt).getTime() < 12 * 3_600_000 ? i : null;
+  })();
 
   // Is surerken 15 sn'de bir, yoksa dakikada bir (Mac servisi durumu)
   useEffect(() => {
@@ -204,7 +210,15 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
         )}
 
         {/* ── Suren / son isler ── */}
-        {(durum?.isler ?? []).slice(0, 3).map((is) => (
+        {/* Biten isler gosterilmez (26.11, sahip): gonderilen kisi alttaki listeye duser, ne yazildigi
+            "Konuşma"da gorulur. Yalniz suren is ve son 12 saatte DURAN isin uyarisi kalir. */}
+        {sonDuran && (
+          <div className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/5 p-3 text-xs">
+            <Badge variant="danger">Durdu</Badge>
+            <span>{saat(sonDuran.bittiAt)} — {sonDuran.hata}</span>
+          </div>
+        )}
+        {(aktifIs ? [aktifIs] : []).map((is) => (
           <div key={is.id} className={cn('rounded-md border p-3 space-y-2', (is.durum === 'BEKLIYOR' || is.durum === 'CALISIYOR') && 'border-brand/50 bg-brand/5')}>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <Badge variant={is.durum === 'BITTI' ? 'success' : is.durum === 'HATA' ? 'danger' : is.durum === 'IPTAL' ? 'secondary' : 'info'}>
