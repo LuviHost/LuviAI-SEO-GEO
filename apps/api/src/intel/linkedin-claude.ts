@@ -23,6 +23,16 @@ export const IS_KISI_TAVANI = 10;
 export const IS_ZAMAN_ASIMI_MS = 3 * 60 * 60_000;
 /** Ajan bu kadar suredir sormadiysa panel "Mac servisi kapali" der */
 export const AJAN_CANLI_MS = 3 * 60_000;
+/**
+ * Is surerken ajan yalniz sonuc yazarken haber verir: kisiler arasi 2-6 dk bekleme + kisi basi en fazla
+ * 8 dk calisma. 3 dk sinir bu arada "kapali" gosteriyordu (26.11 ilk gercek tur) → is surerken 15 dk.
+ */
+export const AJAN_CANLI_IS_SURERKEN_MS = 15 * 60_000;
+
+export function ajanCanli(sonGorulme: Date | null, isSuruyor: boolean, simdi: Date = new Date()): boolean {
+  if (!sonGorulme) return false;
+  return simdi.getTime() - sonGorulme.getTime() < (isSuruyor ? AJAN_CANLI_IS_SURERKEN_MS : AJAN_CANLI_MS);
+}
 
 export function kisiSonucuGecerli(x: unknown): x is KisiSonucu {
   return typeof x === 'string' && (KISI_SONUCLARI as readonly string[]).includes(x);

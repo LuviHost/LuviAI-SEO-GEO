@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ajanKomutu, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
+import { ajanCanli, ajanKomutu, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
 
 const simdi = new Date('2026-11-26T09:00:00Z');
 
@@ -47,5 +47,15 @@ describe('Claude ile LinkedIn gonderimi', () => {
       expect(m).toContain('https://www.linkedin.com/in/ornek/');
       expect(m).toContain('"ENGEL"');
     }
+  });
+
+  it('Mac servisi: is surerken kisiler arasi beklemede "kapali" gorunmez', () => {
+    const t = new Date('2026-11-26T14:20:00Z');
+    const dk = (n: number) => new Date(t.getTime() - n * 60_000);
+    expect(ajanCanli(dk(1), false, t)).toBe(true);
+    expect(ajanCanli(dk(6), false, t)).toBe(false);
+    expect(ajanCanli(dk(6), true, t)).toBe(true);
+    expect(ajanCanli(dk(20), true, t)).toBe(false);
+    expect(ajanCanli(null, true, t)).toBe(false);
   });
 });
