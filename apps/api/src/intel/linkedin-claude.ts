@@ -1,0 +1,137 @@
+/**
+ * Claude ile LinkedIn gonderimi — saf kurallar (26.11.2026).
+ *
+ * Akis: panel listeyi gosterir → kurucu "Claude ile gönder"e basar (= bu kisiler ve bu notlar icin
+ * onay) → sunucu is kaydi acar → kurucunun Mac'indeki ajan isi alir, her kisi icin Claude Code'u
+ * Chrome baglantisiyla calistirir → sonucu kisi kisi geri yazar.
+ *
+ * Komut metni (prompt) SUNUCUDA uretilir: LinkedIn arayuzu degisince ya da kural eklenince Mac'teki
+ * ajani guncellemek gerekmesin.
+ */
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+
+export const IS_DURUMLARI = ['BEKLIYOR', 'CALISIYOR', 'BITTI', 'HATA', 'IPTAL'] as const;
+export type IsDurumu = (typeof IS_DURUMLARI)[number];
+
+/** Ajanin kisi basina dondurdugu sonuc */
+export const KISI_SONUCLARI = ['GONDERILDI', 'KURU_TAMAM', 'ZATEN_BAGLI', 'BEKLIYOR', 'BULUNAMADI', 'ENGEL', 'HATA'] as const;
+export type KisiSonucu = (typeof KISI_SONUCLARI)[number];
+
+/** Tek iste en fazla kisi (bir tur ~2-6 dk arayla; 10 kisi ~1 saat) */
+export const IS_KISI_TAVANI = 10;
+/** CALISIYOR kalan is bu sureden sonra HATA sayilir (Mac uyudu / ajan coktu) */
+export const IS_ZAMAN_ASIMI_MS = 3 * 60 * 60_000;
+/** Ajan bu kadar suredir sormadiysa panel "Mac servisi kapali" der */
+export const AJAN_CANLI_MS = 3 * 60_000;
+
+export function kisiSonucuGecerli(x: unknown): x is KisiSonucu {
+  return typeof x === 'string' && (KISI_SONUCLARI as readonly string[]).includes(x);
+}
+
+// ── Ajan anahtari ──────────────────────────────────────────────
+// Anahtar panelde bir kez gosterilir, sunucuda yalniz SHA-256 ozeti durur.
+
+export function yeniAnahtar(): string {
+  return `lca_${randomBytes(24).toString('base64url')}`;
+}
+
+export function anahtarOzeti(anahtar: string): string {
+  return createHash('sha256').update(anahtar, 'utf8').digest('hex');
+}
+
+export function anahtarDogru(kayitliOzet: string | null | undefined, gelen: string | null | undefined): boolean {
+  if (!kayitliOzet || !gelen || typeof gelen !== 'string' || gelen.length > 200) return false;
+  const a = Buffer.from(kayitliOzet, 'hex');
+  const b = Buffer.from(anahtarOzeti(gelen), 'hex');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// ── Kayit guncellemesi ─────────────────────────────────────────
+
+export interface ProspectGuncelleme {
+  status?: 'REQUESTED' | 'ACCEPTED' | 'FAILED';
+  requestedAt?: Date;
+  acceptedAt?: Date;
+  noteText?: string;
+  lastError?: string | null;
+}
+
+/**
+ * Kisi sonucunun linkedin_prospects kaydina etkisi. null = kayda dokunma.
+ * Kuru turda HIC yazilmaz (kayit kuyrukta kalir). HATA/ENGEL kaydi kuyrukta birakir ama
+ * lastError yazar (aday listesinde sona duser, ayni kisi hemen tekrar denenmez).
+ */
+export function prospectGuncellemesi(sonuc: KisiSonucu, kuru: boolean, not: string, aciklama: string, simdi: Date): ProspectGuncelleme | null {
+  if (kuru) return null;
+  const neden = `Claude: ${aciklama}`.slice(0, 500);
+  switch (sonuc) {
+    case 'GONDERILDI': return { status: 'REQUESTED', requestedAt: simdi, noteText: not, lastError: null };
+    // Zaten bekleyen davet: tarihini bilmiyoruz; kabul kontrolu icin REQUESTED yeterli
+    case 'BEKLIYOR': return { status: 'REQUESTED', requestedAt: simdi, lastError: null };
+    case 'ZATEN_BAGLI': return { status: 'ACCEPTED', acceptedAt: simdi, lastError: null };
+    case 'BULUNAMADI': return { status: 'FAILED', lastError: neden };
+    case 'ENGEL':
+    case 'HATA': return { lastError: neden };
+    case 'KURU_TAMAM': return null;
+  }
+}
+
+/** Ajan ciktisindan son {"durum": ...} JSON'unu cikarir */
+export function sonucuAyikla(metin: string): { durum: KisiSonucu; aciklama: string } | null {
+  if (typeof metin !== 'string') return null;
+  const adaylar = metin.match(/\{[^{}]*"durum"[^{}]*\}/g);
+  if (!adaylar) return null;
+  for (let i = adaylar.length - 1; i >= 0; i--) {
+    try {
+      const j = JSON.parse(adaylar[i]);
+      if (kisiSonucuGecerli(j?.durum)) return { durum: j.durum, aciklama: String(j.aciklama ?? '').slice(0, 300) };
+    } catch { /* sonraki aday */ }
+  }
+  return null;
+}
+
+// ── Komut metni ────────────────────────────────────────────────
+
+export interface AjanKisi {
+  ad: string;
+  soyad: string;
+  firma: string;
+  unvan: string | null;
+  profileUrl: string;
+  not: string;
+}
+
+export function ajanKomutu(k: AjanKisi, kuru: boolean): string {
+  const adSoyad = `${k.ad} ${k.soyad}`.trim();
+  const son = kuru
+    ? `KURU DENEME: "Gönder" (Send) düğmesine BASMA. Not yazılı hâlde pencerenin ekran görüntüsünü al, sonra pencereyi "Vazgeç"/X ile kapat → durum "KURU_TAMAM".`
+    : `"Gönder" (Send) düğmesine bas. Ardından profilde düğmenin "Bekliyor" (Pending) olduğunu doğrula → durum "GONDERILDI". Doğrulayamazsan → "HATA".`;
+  return [
+    `Sen RanksUp kurucusu Emir Burgazlı'nın LinkedIn bağlantı isteği asistanısın. Emir bu kişiyi ve aşağıdaki notu RanksUp yönetim panelinde inceleyip "Claude ile gönder" düğmesine basarak onayladı. Yalnız bu kişi için, yalnız bu notla bağlantı isteği gönder.`,
+    ``,
+    `Kişi: ${adSoyad}${k.unvan ? ` — ${k.unvan}` : ''} (${k.firma})`,
+    `Profil: ${k.profileUrl}`,
+    `Not (300 karakter sınırı içinde, AYNEN yazılacak, tek karakter değiştirme):`,
+    `<<<`,
+    k.not,
+    `>>>`,
+    ``,
+    `Adımlar:`,
+    `1. Chrome araçlarını yükle, tabs_context ile sekmeleri al, YENİ bir sekme aç ve profili orada aç. Kullanıcının mevcut sekmelerine dokunma.`,
+    `2. Profilin üst kartındaki ad "${adSoyad}" ile uyuşmalı (Türkçe karakter / büyük-küçük harf farkı olabilir). Uyuşmuyorsa ya da sayfa bulunamadıysa hiçbir şeye tıklama → "BULUNAMADI".`,
+    `3. Kişi zaten 1. derece bağlantıysa (üst kartta "Bağlantı kur" yok, ana düğme "Mesaj") hiçbir şeye tıklama → "ZATEN_BAGLI".`,
+    `4. Üst kartta "Bekliyor" (Pending) görünüyorsa tıklama → "BEKLIYOR".`,
+    `5. "Bağlantı kur" (Connect) üst kartta yoksa üst karttaki "Daha fazla" (More) menüsüne bak. YALNIZ bu kişinin üst kartındaki düğmeyi kullan; yan paneldeki "Diğer kişiler" vb. önerilere asla tıklama.`,
+    `6. Açılan pencerede "Not ekle" (Add a note) seç, notu aynen yaz. Not alanı yoksa ya da LinkedIn not eklemeye izin vermiyorsa (aylık not sınırı vb.) notsuz GÖNDERME → "HATA", açıklamaya nedenini yaz.`,
+    `7. ${son}`,
+    ``,
+    `Durma kuralları:`,
+    `- Haftalık davet sınırı, "çok fazla istek", güvenlik doğrulaması, captcha, giriş ekranı ya da hesap kısıtlaması uyarısı görürsen hiçbir şeye tıklamadan dur → "ENGEL".`,
+    `- LinkedIn oturumu açık değilse giriş yapmaya çalışma, parola girme → "ENGEL".`,
+    `- Başka hiçbir kişiye istek ya da mesaj gönderme, hiçbir ayarı değiştirme, başka sayfaya gitme.`,
+    `- İş bitince yalnız kendi açtığın sekmeyi kapat.`,
+    ``,
+    `Cevabının SON satırı yalnız şu JSON olsun (başka metin yok):`,
+    `{"durum":"GONDERILDI|KURU_TAMAM|ZATEN_BAGLI|BEKLIYOR|BULUNAMADI|ENGEL|HATA","aciklama":"kısa Türkçe açıklama"}`,
+  ].join('\n');
+}

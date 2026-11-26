@@ -21,6 +21,7 @@ import { IntelDigestService } from './digest.service.js';
 import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
 import { LinkedinOutreachService, type ImportRow } from './linkedin-outreach.service.js';
+import { LinkedinClaudeService } from './linkedin-claude.service.js';
 import type { ElleKayitGirdi } from './elle-kayit.js';
 import { parseSearchUrls } from './linkedin-outreach-rules.js';
 import { KarneService } from '../prospect/karne.service.js';
@@ -60,6 +61,7 @@ export class IntelController {
     private readonly xSearch: XSearchService,
     private readonly openClaw: OpenClawService,
     private readonly linkedin: LinkedinOutreachService,
+    private readonly linkedinClaude: LinkedinClaudeService,
     private readonly karne: KarneService,
   ) {}
 
@@ -377,6 +379,40 @@ export class IntelController {
   // ────────────────────────────────────────────────────────────
   //  LINKEDIN OUTREACH BOTU (Faz 8) — /admin/linkedin
   // ────────────────────────────────────────────────────────────
+
+  // ── Claude ile gonderim (26.11.2026): panel onaylar, kurucunun Mac'i yurutur ──
+
+  @Get('linkedin/claude/adaylar')
+  async linkedinClaudeAdaylar(@Req() req: Request) {
+    assertAdmin(req);
+    return this.linkedinClaude.adaylar();
+  }
+
+  @Get('linkedin/claude/durum')
+  async linkedinClaudeDurum(@Req() req: Request) {
+    assertAdmin(req);
+    return this.linkedinClaude.durum();
+  }
+
+  /** Secilen kisiler + o anki notlari = kurucunun onayi. kuru: Gonder'e basilmaz. */
+  @Post('linkedin/claude/is')
+  async linkedinClaudeIs(@Req() req: Request, @Body() body: { kisiIds?: unknown; kuru?: boolean }) {
+    const user = assertAdmin(req);
+    return this.linkedinClaude.isOlustur(body?.kisiIds, body?.kuru !== false, String(user.email ?? user.id ?? 'admin'));
+  }
+
+  @Post('linkedin/claude/is/:id/iptal')
+  async linkedinClaudeIptal(@Req() req: Request, @Param('id') id: string) {
+    assertAdmin(req);
+    return this.linkedinClaude.iptal(id);
+  }
+
+  /** Mac ajani icin yeni anahtar — bir kez gosterilir; eskisi gecersiz olur */
+  @Post('linkedin/claude/anahtar')
+  async linkedinClaudeAnahtar(@Req() req: Request) {
+    assertAdmin(req);
+    return this.linkedinClaude.anahtarOlustur();
+  }
 
   @Get('linkedin/overview')
   async linkedinOverview(@Req() req: Request) {

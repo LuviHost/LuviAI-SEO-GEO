@@ -14,6 +14,8 @@ import { IntelActionService } from './intel-action.service.js';
 import { ActionPlansModule } from '../action-plans/action-plans.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { LinkedinOutreachService } from './linkedin-outreach.service.js';
+import { LinkedinClaudeService } from './linkedin-claude.service.js';
+import { LinkedinClaudeAjanController } from './linkedin-claude-ajan.controller.js';
 import { ProspectModule } from '../prospect/prospect.module.js';
 
 /**
@@ -28,7 +30,7 @@ import { ProspectModule } from '../prospect/prospect.module.js';
  */
 @Module({
   imports: [ProspectModule, LLMModule, ActionPlansModule, NotificationsModule],
-  controllers: [IntelController],
+  controllers: [IntelController, LinkedinClaudeAjanController],
   providers: [
     IntelCollectorService,
     XSearchService,
@@ -41,6 +43,7 @@ import { ProspectModule } from '../prospect/prospect.module.js';
     IntelCronService,
     IntelActionService,
     LinkedinOutreachService,
+    LinkedinClaudeService,
   ],
   exports: [ClaimLedgerService, IntelDigestService],
 })

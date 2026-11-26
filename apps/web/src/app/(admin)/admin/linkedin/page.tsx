@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { KonusmaDialog } from './konusma-dialog';
+import { ClaudeGonderimCard } from './claude-gonderim';
 import { konusmaBalonlari, konusmaOzeti } from '@/lib/konusma';
 import { cn } from '@/lib/utils';
 import {
@@ -371,7 +372,7 @@ export default function AdminLinkedinPage() {
         </Card>
         <Card className={cn('border md:col-span-1', !enabled ? 'border-border bg-muted' : paused ? 'border-rose-500/40 bg-rose-500/5' : 'border-emerald-500/40 bg-emerald-500/5')}>
           <CardContent className="p-4">
-            <div className="text-xs font-medium text-muted-foreground">Durum</div>
+            <div className="text-xs font-medium text-muted-foreground">Eski bot (OpenClaw)</div>
             <div className={cn('text-xl font-[450] tracking-[-0.04em] mt-2 flex items-center gap-1.5', !enabled ? 'text-muted-foreground' : paused ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
               {!enabled ? <Pause className="h-4 w-4" /> : paused ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               {!enabled ? 'Gönderim kapalı' : paused ? 'Duraklatıldı' : 'Çalışıyor'}
@@ -382,6 +383,17 @@ export default function AdminLinkedinPage() {
                 : paused
                   ? (overview?.pauseReason || 'neden belirtilmedi')
                   : inWindow === undefined ? '' : inWindow ? 'çalışma penceresinde (09–18 TR)' : 'pencere dışı — tick beklemede'}
+            </div>
+            {/* Anahtar acik olsa da gercekten gonderiyor mu: son basari + son hata */}
+            <div className="text-xs mt-1 space-y-0.5">
+              <div className="text-muted-foreground">
+                Son başarılı istek: <span className="text-foreground">{overview?.sonBasariliIstek ? new Date(overview.sonBasariliIstek).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'hiç'}</span>
+              </div>
+              {overview?.sonHata && (
+                <div className="text-danger line-clamp-2" title={overview.sonHata.metin}>
+                  Son hata ({new Date(overview.sonHata.at).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}): {overview.sonHata.metin}
+                </div>
+              )}
             </div>
             {/* Gonderim anahtari: panelden kalici ac/kapat */}
             <Button
@@ -443,6 +455,9 @@ export default function AdminLinkedinPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Claude ile gönderim (Mac'te, kurucunun Chrome'unda) ── */}
+      <ClaudeGonderimCard onDone={load} />
 
       {/* ── Bugün ilgilenilecekler ── */}
       <TakipCard overview={overview ?? undefined} onDone={load} disabled={!!busy} onKonusma={setKonusmaId} />
