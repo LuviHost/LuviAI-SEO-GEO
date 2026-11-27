@@ -16,7 +16,7 @@ export const IS_DURUMLARI = ['BEKLIYOR', 'CALISIYOR', 'BITTI', 'HATA', 'IPTAL'] 
 export type IsDurumu = (typeof IS_DURUMLARI)[number];
 
 /** Ajanin kisi basina dondurdugu sonuc */
-export const KISI_SONUCLARI = ['GONDERILDI', 'KURU_TAMAM', 'ZATEN_BAGLI', 'BEKLIYOR', 'BULUNAMADI', 'EPOSTA_ISTIYOR', 'KABUL_TAMAM', 'ENGEL', 'HATA'] as const;
+export const KISI_SONUCLARI = ['GONDERILDI', 'KURU_TAMAM', 'ZATEN_BAGLI', 'BEKLIYOR', 'BULUNAMADI', 'EPOSTA_ISTIYOR', 'KABUL_TAMAM', 'MESAJ_TAMAM', 'ENGEL', 'HATA'] as const;
 export type KisiSonucu = (typeof KISI_SONUCLARI)[number];
 
 /** Tek iste en fazla kisi (bir tur ~2-6 dk arayla; 10 kisi ~1 saat) */
@@ -100,7 +100,8 @@ export function prospectGuncellemesi(sonuc: KisiSonucu, kuru: boolean, not: stri
     case 'ENGEL':
     case 'HATA': return { lastError: neden };
     case 'KURU_TAMAM':
-    case 'KABUL_TAMAM': return null;
+    case 'KABUL_TAMAM':
+    case 'MESAJ_TAMAM': return null;
   }
 }
 
@@ -133,6 +134,11 @@ export interface AjanKisi {
  * Komutta gecen gonderen adi (27.11.2026, iki yonetici): istegi kimin hesabi gonderiyorsa o.
  * Ad bos ise e-postanin @ oncesi; o da yoksa "RanksUp yöneticisi".
  */
+/** Panelde kisa gosterim: "Talat Yılmaz" → "Talat" */
+export function ilkAd(u: { name?: string | null; email?: string | null } | null | undefined): string {
+  return gonderenAdi(u).split(' ')[0];
+}
+
 export function gonderenAdi(u: { name?: string | null; email?: string | null } | null | undefined): string {
   const ad = (u?.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
   if (ad) return ad;
@@ -240,3 +246,97 @@ export function kabulNumaralari(veri: unknown, n: number): number[] {
   return [...out].sort((a, b) => a - b);
 }
 
+
+
+// ── Mesaj taramasi (28.11.2026) ────────────────────────────────
+// Sahip: "Talat LinkedIn uzerinden mesaj atti, bunu tarayip buradaki veriyi guncellemek gerekli ki ben de
+// gorebileyim." Her yoneticinin Mac'i kendi LinkedIn mesaj kutusunu okur (salt okuma), takip
+// listesindeki kisilerle yapilan konusmalari geri yazar; panel kimin ne yazdigini gosterir.
+// Kabul kontrolunun hemen ardindan, ayni saatlerde (10/14/17) kendiliginden acilir.
+
+/** Tek taramada eslestirme listesi (komut boyu) */
+export const MESAJ_KISI_TAVANI = 300;
+/** Mesaj kutusunda geriye bakilan gun ve en fazla konusma */
+export const MESAJ_GUN = 14;
+export const MESAJ_KONUSMA_TAVANI = 20;
+/** Tek mesaj metni siniri (karakter) */
+export const MESAJ_METIN_SINIRI = 2000;
+
+export interface MesajKisi { no: number; adSoyad: string; firma: string; profileUrl: string }
+
+/**
+ * NEDEN duz JSON (ic ice nesne yok): Mac'teki ajan cevaptaki son {"durum": ...} nesnesini
+ * /\{[^{}]*"durum"[^{}]*\}/ ile buluyor; ic ice {} olursa sonuc okunamaz. Mesajlar dizi icinde dizi.
+ */
+export function mesajKomutu(liste: MesajKisi[], gonderen: string): string {
+  return [
+    `Sen RanksUp ekibinden ${gonderen} adlı kişinin LinkedIn asistanısın. Bu görev YALNIZ OKUMA: hiç kimseye mesaj ya da istek gönderme, mesaj yazma kutusuna bir şey yazma, hiçbir şeyi silme, arşivleme ya da kabul etme.`,
+    ``,
+    `Amaç: ${gonderen} adlı kişinin bu Chrome'da açık LinkedIn hesabının mesaj kutusunda, aşağıdaki listedeki kişilerle son ${MESAJ_GUN} günde yapılan yazışmaları okumak.`,
+    ``,
+    `Adımlar:`,
+    `1. Chrome araçlarını yükle, tabs_context ile sekmeleri al, YENİ bir sekme aç ve https://www.linkedin.com/messaging/ adresini aç. Kullanıcının mevcut sekmelerine dokunma.`,
+    `2. Soldaki konuşma listesinde en yeniden başlayarak son ${MESAJ_GUN} gün içinde yazışılan en fazla ${MESAJ_KONUSMA_TAVANI} konuşmaya bak; gerekirse listeyi aşağı kaydır.`,
+    `3. Konuşmadaki kişi aşağıdaki listede ise (profil adresi linkedin.com/in/... kısmı ya da ad soyad birebir; Türkçe karakter / büyük-küçük harf farkı olabilir) konuşmayı aç ve son ${MESAJ_GUN} gündeki mesajları oku. Listede olmayan konuşmaları AÇMA ve hiçbir bilgisini yazma. Emin değilsen o kişiyi atla.`,
+    `4. Okunmamış bir konuşmayı açmak onu okundu yapar: yalnız listedeki kişilerin konuşmalarını aç.`,
+    `5. İş bitince yalnız kendi açtığın sekmeyi kapat.`,
+    `- LinkedIn giriş ekranı, güvenlik doğrulaması, captcha ya da hesap kısıtlaması görürsen dur → durum "ENGEL".`,
+    ``,
+    `Her mesaj için bir dizi yaz: [kişi numarası, "GIDEN" ya da "GELEN", "YYYY-MM-DD HH:MM", "mesaj metni"]`,
+    `- GIDEN = ${gonderen} yazdı, GELEN = karşı taraf yazdı. Saat İstanbul saati; saat görünmüyorsa yalnız "YYYY-MM-DD".`,
+    `- Mesaj metnini olduğu gibi yaz (en fazla ${MESAJ_METIN_SINIRI} karakter); satır sonlarını \\n yaz; metindeki { ve } işaretlerini ( ve ) yap.`,
+    `- Bağlantı isteği notu, "bağlantı kuruldu" gibi sistem satırları ve ek / görsel adları mesaj sayılmaz.`,
+    ``,
+    `Liste:`,
+    ...liste.map((k) => `${k.no}. ${k.adSoyad} (${k.firma}) — ${k.profileUrl}`),
+    ``,
+    `Cevabının SON satırı yalnız şu JSON olsun (başka metin yok; mesaj yoksa "mesajlar":[]):`,
+    `{"durum":"MESAJ_TAMAM","mesajlar":[[3,"GIDEN","2026-11-27 14:05","Merhaba ..."],[3,"GELEN","2026-11-27 15:10","Teşekkürler ..."]],"aciklama":"kısa Türkçe açıklama"}`,
+  ].join('\n');
+}
+
+export interface TaranmisMesaj { no: number; yon: 'GIDEN' | 'GELEN'; at: Date; metin: string }
+
+/** "2026-11-27 14:05" / "2026-11-27" (Istanbul) → an; gelecekte ya da cok eskiyse null */
+export function mesajZamani(v: unknown, simdi: Date = new Date()): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(v ?? '').trim());
+  if (!m) return null;
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4] ?? '12'}:${m[5] ?? '00'}:00+03:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  // Saat dilimi / yuvarlama payi: 1 saat ileri tolere edilir
+  if (d.getTime() > simdi.getTime() + 3_600_000) return null;
+  if (d.getTime() < simdi.getTime() - 120 * 86_400_000) return null;
+  return d;
+}
+
+/** Ajanin dondurdugu mesaj dizileri → gecerli kayitlar (numara 1..n, yon, zaman, bos olmayan metin) */
+export function mesajlariAyikla(veri: unknown, n: number, simdi: Date = new Date()): TaranmisMesaj[] {
+  const ham = (veri as { mesajlar?: unknown } | null)?.mesajlar;
+  if (!Array.isArray(ham)) return [];
+  const out: TaranmisMesaj[] = [];
+  for (const x of ham.slice(0, 500)) {
+    if (!Array.isArray(x) || x.length < 4) continue;
+    const no = typeof x[0] === 'string' ? Number(x[0]) : x[0];
+    if (typeof no !== 'number' || !Number.isInteger(no) || no < 1 || no > n) continue;
+    const yon = String(x[1]).toUpperCase();
+    if (yon !== 'GIDEN' && yon !== 'GELEN') continue;
+    const at = mesajZamani(x[2], simdi);
+    if (!at) continue;
+    const metin = String(x[3] ?? '').replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim().slice(0, MESAJ_METIN_SINIRI);
+    if (!metin) continue;
+    out.push({ no, yon, at, metin });
+  }
+  return out.sort((a, b) => a.at.getTime() - b.at.getTime());
+}
+
+/** Tekrar kontrolu icin metin ozu: harf/rakam disi atilir, kucuk harf */
+export function metinOzu(s: string | null | undefined): string {
+  return String(s ?? '').toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+/** Bu mesaj kayitta zaten var mi (bot mesaji, elle kayit, baglanti notu) — ilk 200 harflik oz ile */
+export function mesajKayitliMi(metin: string, mevcut: Array<string | null | undefined>): boolean {
+  const oz = metinOzu(metin).slice(0, 200);
+  if (oz.length < 4) return true;
+  return mevcut.some((m) => metinOzu(m).includes(oz));
+}

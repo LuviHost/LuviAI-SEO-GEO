@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LinkedinOutreachService } from './linkedin-outreach.service.js';
 import { firmaKey, istanbulDayStart, renderNote } from './linkedin-outreach-rules.js';
+import { blokBasligi, isGunuSonra, metneEkle } from './elle-kayit.js';
 import {
   ajanCanli,
   IS_KISI_TAVANI,
@@ -12,6 +13,12 @@ import {
   kabulKomutu,
   kabulNumaralari,
   sonKabulSlotu,
+  ilkAd,
+  MESAJ_KISI_TAVANI,
+  mesajKayitliMi,
+  mesajKomutu,
+  mesajlariAyikla,
+  type TaranmisMesaj,
   teknikUnvanMi,
   anahtarOzeti,
   gonderenAdi,
@@ -32,7 +39,9 @@ function gonderenFiltresi(userId: string) {
 }
 
 type IsKisi = { id: string; not: string };
-type IsSonuc = { id: string; durum: KisiSonucu; aciklama: string; at: string; maliyet?: number | null; kabul?: string[] };
+type IsSonuc = { id: string; durum: KisiSonucu; aciklama: string; at: string; maliyet?: number | null; kabul?: string[]; guncellenen?: string[] };
+/** MESAJ isinde tek "kisi": tum mesaj kutusu taramasi */
+const MESAJ_ID = 'mesaj';
 /** KABUL isinde tek "kisi": tum kontrol */
 const KABUL_ID = 'kabul';
 
@@ -63,7 +72,8 @@ export class LinkedinClaudeService {
     const [bugunIstekler, aktifIsler, bugunBenim, haftaBenim] = await Promise.all([
       // Firma freni ORTAK: ayni firmaya iki hesaptan ayni gun yuklenilmesin
       this.prisma.linkedinProspect.findMany({ where: { requestedAt: { gte: gunBasi } }, select: { firma: true } }),
-      this.prisma.linkedinClaudeIs.findMany({ where: { durum: { in: AKTIF } }, select: { kisiler: true } }),
+      // Yalniz istek isleri kisiyi kilitler: kabul / mesaj taramasi salt okuma
+      this.prisma.linkedinClaudeIs.findMany({ where: { durum: { in: AKTIF }, tur: 'ISTEK' }, select: { kisiler: true } }),
       // Kota HESAP BASINA: LinkedIn'in gunluk/haftalik davet siniri her hesabin kendisine
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: gunBasi }, ...gonderenFiltresi(userId) } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: new Date(Date.now() - 7 * 86_400_000) }, ...gonderenFiltresi(userId) } }),
@@ -106,10 +116,10 @@ export class LinkedinClaudeService {
     if (ids.length === 0) throw new BadRequestException('En az bir kişi seçin');
     if (ids.length > IS_KISI_TAVANI) throw new BadRequestException(`Tek seferde en fazla ${IS_KISI_TAVANI} kişi`);
     // Her yoneticinin Mac'i ayni anda tek is yurutur; digerinin isi bunu engellemez
-    const aktifIsler = await this.prisma.linkedinClaudeIs.findMany({ where: { durum: { in: AKTIF } }, select: { sahipId: true, kisiler: true } });
+    const aktifIsler = await this.prisma.linkedinClaudeIs.findMany({ where: { durum: { in: AKTIF } }, select: { sahipId: true, tur: true, kisiler: true } });
     if (aktifIsler.some((i) => i.sahipId === kullanici.id)) throw new BadRequestException('Bekleyen ya da süren bir işin var; bitmesini bekle ya da iptal et');
     // Ayni kisiye iki hesaptan istek gitmesin: baska yoneticinin surmekte olan isindeki kisi secilemez
-    const baskasinda = new Set(aktifIsler.flatMap((i) => (i.kisiler as IsKisi[]).map((k) => k.id)));
+    const baskasinda = new Set(aktifIsler.filter((i) => i.tur === 'ISTEK').flatMap((i) => (i.kisiler as IsKisi[]).map((k) => k.id)));
     if (ids.some((id) => baskasinda.has(id))) throw new BadRequestException('Seçilenlerden bazıları diğer yöneticinin süren işinde; listeyi yenileyin');
     if (!kuru) {
       const { kalanBugun } = await this.adaylar(kullanici.id);
@@ -157,7 +167,9 @@ export class LinkedinClaudeService {
     // KABUL isinde yuzlerce kisi olabilir: yalniz kabul edenlerin adlari gerekir
     const ids = [...new Set(isler.flatMap((i) => (i.tur === 'KABUL'
       ? (((i.sonuc as IsSonuc[] | null) ?? []).find((x) => x.id === KABUL_ID)?.kabul ?? [])
-      : (i.kisiler as IsKisi[]).map((k) => k.id))))];
+      : i.tur === 'MESAJ'
+        ? (((i.sonuc as IsSonuc[] | null) ?? []).find((x) => x.id === MESAJ_ID)?.guncellenen ?? [])
+        : (i.kisiler as IsKisi[]).map((k) => k.id))))];
     const kisiler = ids.length
       ? await this.prisma.linkedinProspect.findMany({ where: { id: { in: ids } }, select: { id: true, ad: true, soyad: true, firma: true } })
       : [];
@@ -190,6 +202,16 @@ export class LinkedinClaudeService {
             aciklama: s?.aciklama ?? null,
             // Yalniz kabul edenler listelenir (kontrol edilen herkes degil)
             kisiler: (s?.kabul ?? []).map((id) => ({ id, ad: isAdi(id), not: '', durum: 'KABUL_ETTI' as const, aciklama: null, at: s?.at ?? null })),
+          };
+        }
+        if (i.tur === 'MESAJ') {
+          const s = sonuc.find((x) => x.id === MESAJ_ID);
+          return {
+            ...ortak,
+            kontrolEdilen: (i.kisiler as IsKisi[]).length,
+            aciklama: s?.aciklama ?? null,
+            // Yalniz yeni mesaji kayda gecen kisiler listelenir
+            kisiler: (s?.guncellenen ?? []).map((id) => ({ id, ad: isAdi(id), not: '', durum: 'MESAJ_GUNCELLENDI' as const, aciklama: null, at: s?.at ?? null })),
           };
         }
         return {
@@ -235,6 +257,8 @@ export class LinkedinClaudeService {
       data: { durum: 'HATA', hata: 'Zaman aşımı: ajan işi bitirmedi', bittiAt: new Date() },
     });
     await this.kabulIsiGerekirseAc(userId);
+    // Kabul kontrolu acildiysa mesaj taramasi bir sonraki yoklamada (kabul bitince) acilir
+    await this.mesajIsiGerekirseAc(userId);
     // YALNIZ bu yoneticinin isi: baska yoneticinin onayladigi istek bu Mac'teki LinkedIn hesabindan gitmesin
     const is = await this.prisma.linkedinClaudeIs.findFirst({ where: { durum: 'BEKLIYOR', sahipId: userId }, orderBy: { createdAt: 'asc' } });
     if (!is) return { is: null };
@@ -257,6 +281,19 @@ export class LinkedinClaudeService {
       });
       this.log.log(`Claude kabul kontrolu alindi ${is.id} (${liste.length} kisi)`);
       return { is: { id: is.id, tur: 'KABUL', kuru: false, kisiler: [{ id: KABUL_ID, adSoyad: 'Kabul kontrolü', komut: kabulKomutu(liste, gonderen) }] } };
+    }
+    if (is.tur === 'MESAJ') {
+      const kayitlar = await this.prisma.linkedinProspect.findMany({
+        where: { id: { in: kisiler.map((k) => k.id) } },
+        select: { id: true, ad: true, soyad: true, firma: true, profileUrl: true },
+      });
+      const kayit = new Map(kayitlar.map((p) => [p.id, p]));
+      const liste = kisiler.flatMap((k, i) => {
+        const p = kayit.get(k.id);
+        return p ? [{ no: i + 1, adSoyad: `${p.ad} ${p.soyad}`.trim(), firma: p.firma, profileUrl: p.profileUrl }] : [];
+      });
+      this.log.log(`Claude mesaj taramasi alindi ${is.id} (${liste.length} kisi)`);
+      return { is: { id: is.id, tur: 'MESAJ', kuru: false, kisiler: [{ id: MESAJ_ID, adSoyad: 'Mesaj taraması', komut: mesajKomutu(liste, gonderen) }] } };
     }
     const kayitlar = await this.prisma.linkedinProspect.findMany({ where: { id: { in: kisiler.map((k) => k.id) } } });
     const kayit = new Map(kayitlar.map((p) => [p.id, p]));
@@ -322,6 +359,33 @@ export class LinkedinClaudeService {
     this.log.log(`Kabul kontrolu acildi (${bekleyen.length} kisi)`);
   }
 
+  /**
+   * Mesaj taramasi (28.11.2026): kabul kontrolu ile ayni saatlerde (10/14/17), kabulden sonra.
+   * Bu yoneticinin LinkedIn mesaj kutusu okunur; takip listesindeki (istek gitmis / kabul etmis /
+   * yazisilmis) kisilerle yapilan konusmalar kayda gecer. Sahip: "Talat LinkedIn'den mesaj attiysa
+   * ben de panelde gorebileyim."
+   */
+  private async mesajIsiGerekirseAc(userId: string) {
+    const slot = sonKabulSlotu(new Date());
+    if (!slot) return;
+    const [acilmis, aktif] = await Promise.all([
+      this.prisma.linkedinClaudeIs.count({ where: { tur: 'MESAJ', sahipId: userId, createdAt: { gte: slot } } }),
+      this.prisma.linkedinClaudeIs.count({ where: { durum: { in: AKTIF }, sahipId: userId } }),
+    ]);
+    if (acilmis > 0 || aktif > 0) return;
+    const kisiler = await this.prisma.linkedinProspect.findMany({
+      where: { kanal: 'LINKEDIN', status: { in: ['REQUESTED', 'ACCEPTED', 'MESSAGED', 'REPLIED'] } },
+      orderBy: { updatedAt: 'desc' },
+      take: MESAJ_KISI_TAVANI,
+      select: { id: true },
+    });
+    if (kisiler.length === 0) return;
+    await this.prisma.linkedinClaudeIs.create({
+      data: { tur: 'MESAJ', kuru: false, kisiler: kisiler.map((p) => ({ id: p.id, not: '' })), olusturan: 'otomatik (mesaj taraması)', sahipId: userId },
+    });
+    this.log.log(`Mesaj taramasi acildi (${kisiler.length} kisi)`);
+  }
+
   /** Tek kisinin sonucu. Donus: devam edilsin mi (iptal / ENGEL → hayir) */
   async sonucYaz(userId: string, isId: string, kisiId: string, durum: unknown, aciklama: unknown, veri?: unknown, maliyetHam?: unknown) {
     if (!kisiSonucuGecerli(durum)) throw new BadRequestException('Geçersiz durum');
@@ -331,6 +395,7 @@ export class LinkedinClaudeService {
     // Baska yoneticinin isine sonuc yazilamaz (yanlis hesabin sonucu kayda gecmesin)
     if (!is || is.sahipId !== userId) throw new NotFoundException('İş yok');
     if (is.tur === 'KABUL') return this.kabulSonucu(is, kisiId, durum, metin, veri, maliyet);
+    if (is.tur === 'MESAJ') return this.mesajSonucu(userId, is, kisiId, durum, metin, veri, maliyet);
     const kisi = (is.kisiler as IsKisi[]).find((k) => k.id === kisiId);
     if (!kisi) throw new BadRequestException('Kişi bu işte yok');
 
@@ -394,6 +459,75 @@ export class LinkedinClaudeService {
     });
     this.log.log(`Kabul kontrolu ${is.id}: ${kabulIds.length} kabul`);
     // Tek adimli is: devam bayragi yalniz engel bilgisini tasir (ajan log'u "durduruldu" demesin)
+    return { devam: !engel };
+  }
+
+  /**
+   * Mesaj taramasi sonucu: kayitta olmayan mesajlar tarihli basligiyla kisinin konusmasina eklenir
+   * (giden mesajda "Yazan: <yonetici>"). Gelen mesaj → "Cevap verdi"; yalniz giden → "Mesaj gönderildi"
+   * + 4 is gunu sonra hatirlatma. Gonderen bossa bu yonetici yazilir.
+   */
+  private async mesajSonucu(userId: string, is: { id: string; durum: string; kisiler: unknown }, kisiId: string, durum: KisiSonucu, metin: string, veri: unknown, maliyet: number | null) {
+    if (kisiId !== MESAJ_ID) throw new BadRequestException('Mesaj taramasında tek sonuç olur');
+    const kisiler = is.kisiler as IsKisi[];
+    const simdi = new Date();
+    const guncellenen: string[] = [];
+    if (durum === 'MESAJ_TAMAM') {
+      const mesajlar = mesajlariAyikla(veri, kisiler.length, simdi);
+      const kisiye = new Map<string, TaranmisMesaj[]>();
+      for (const m of mesajlar) {
+        const id = kisiler[m.no - 1].id;
+        kisiye.set(id, [...(kisiye.get(id) ?? []), m]);
+      }
+      if (kisiye.size) {
+        const [kayitlar, yonetici] = await Promise.all([
+          this.prisma.linkedinProspect.findMany({
+            where: { id: { in: [...kisiye.keys()] } },
+            select: { id: true, status: true, noteText: true, messageText: true, messagedAt: true, repliedAt: true, acceptedAt: true, gonderenId: true },
+          }),
+          this.prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+        ]);
+        const yazan = ilkAd(yonetici);
+        for (const p of kayitlar) {
+          let metinKaydi = p.messageText ?? '';
+          const yeni: TaranmisMesaj[] = [];
+          for (const m of kisiye.get(p.id) ?? []) {
+            if (mesajKayitliMi(m.metin, [metinKaydi, p.noteText])) continue;
+            metinKaydi = metneEkle(metinKaydi, `${blokBasligi('LINKEDIN', m.at, null, m.yon, m.yon === 'GIDEN' ? yazan : null)}\n${m.metin}`);
+            yeni.push(m);
+          }
+          if (!yeni.length) continue;
+          const gelen = yeni.filter((m) => m.yon === 'GELEN');
+          const giden = yeni.filter((m) => m.yon === 'GIDEN');
+          const sonGiden = giden.length ? giden[giden.length - 1].at : null;
+          const data: Record<string, unknown> = { messageText: metinKaydi, lastError: null };
+          if (!p.gonderenId) data.gonderenId = userId;
+          // Mesajlasildiysa baglanti kurulmus demektir
+          if ((p.status === 'REQUESTED' || p.status === 'QUEUED') && !p.acceptedAt) data.acceptedAt = yeni[0].at;
+          if (sonGiden && (!p.messagedAt || p.messagedAt < sonGiden)) data.messagedAt = sonGiden;
+          if (gelen.length) {
+            data.status = 'REPLIED';
+            data.repliedAt = p.repliedAt ?? gelen[0].at;
+            data.hatirlatmaAt = null;
+          } else if (sonGiden && p.status !== 'REPLIED') {
+            data.status = 'MESSAGED';
+            data.hatirlatmaAt = isGunuSonra(sonGiden);
+          }
+          await this.prisma.linkedinProspect.update({ where: { id: p.id }, data });
+          guncellenen.push(p.id);
+        }
+      }
+    }
+    const engel = durum === 'ENGEL';
+    await this.prisma.linkedinClaudeIs.update({
+      where: { id: is.id },
+      data: {
+        sonuc: [{ id: MESAJ_ID, durum, aciklama: metin, at: simdi.toISOString(), maliyet, guncellenen }],
+        ...(engel && is.durum === 'CALISIYOR' ? { durum: 'HATA', hata: `LinkedIn engeli: ${metin}`.slice(0, 1000), bittiAt: simdi } : {}),
+        ...(!engel && durum !== 'MESAJ_TAMAM' && is.durum === 'CALISIYOR' ? { durum: 'HATA', hata: `Mesaj taraması yapılamadı: ${metin}`.slice(0, 1000), bittiAt: simdi } : {}),
+      },
+    });
+    this.log.log(`Mesaj taramasi ${is.id}: ${guncellenen.length} kisi guncellendi`);
     return { devam: !engel };
   }
 

@@ -153,17 +153,17 @@ describe('LinkedinClaudeService — iki yonetici', () => {
     const { svc, prisma } = kur();
     const queued = (id: string) => ({ id, status: 'QUEUED', kanal: 'LINKEDIN', elle: false, ad: 'A', soyad: 'B', firma: `F-${id}`, unvan: null, kampanya: 'MUSTERI' });
     // Emir'in suren isi var, Talat yeni is acabilir
-    prisma.linkedinClaudeIs.findMany.mockResolvedValueOnce([{ sahipId: 'u-emir', kisiler: [{ id: 'p1', not: '' }] }]);
+    prisma.linkedinClaudeIs.findMany.mockResolvedValueOnce([{ sahipId: 'u-emir', tur: 'ISTEK', kisiler: [{ id: 'p1', not: '' }] }]);
     prisma.linkedinProspect.findMany.mockResolvedValueOnce([queued('p2')]);
     await expect(svc.isOlustur(['p2'], true, { id: 'u-talat', email: 'talat@x.com' })).resolves.toMatchObject({ id: 'is1' });
     expect(prisma.linkedinClaudeIs.create.mock.calls[0][0].data).toMatchObject({ sahipId: 'u-talat', olusturan: 'talat@x.com' });
 
     // Emir'in isindeki kisi Talat tarafindan secilemez
-    prisma.linkedinClaudeIs.findMany.mockResolvedValueOnce([{ sahipId: 'u-emir', kisiler: [{ id: 'p1', not: '' }] }]);
+    prisma.linkedinClaudeIs.findMany.mockResolvedValueOnce([{ sahipId: 'u-emir', tur: 'ISTEK', kisiler: [{ id: 'p1', not: '' }] }]);
     await expect(svc.isOlustur(['p1'], true, { id: 'u-talat', email: 'talat@x.com' })).rejects.toThrow('diğer yöneticinin');
 
     // Kendi aktif isi varken ikinci is acilamaz
-    prisma.linkedinClaudeIs.findMany.mockResolvedValueOnce([{ sahipId: 'u-talat', kisiler: [] }]);
+    prisma.linkedinClaudeIs.findMany.mockResolvedValueOnce([{ sahipId: 'u-talat', tur: 'ISTEK', kisiler: [] }]);
     await expect(svc.isOlustur(['p2'], true, { id: 'u-talat', email: 'talat@x.com' })).rejects.toThrow('işin var');
   });
 });

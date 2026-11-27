@@ -123,6 +123,8 @@ export default function AdminLinkedinPage() {
   const [firmaFiltre, setFirmaFiltre] = useState<string>('hepsi');
   // Varsayilan: iletisim kurulanlar (istek / kabul / mesaj / cevap) — kuyruk ve atlananlar gizli
   const [durumFiltre, setDurumFiltre] = useState<string>('iletisim');
+  // Iki yonetici (28.11.2026): "Emir mi gonderdi, Talat mi" — 'hepsi' | gonderenId | 'yok'
+  const [gonderenFiltre, setGonderenFiltre] = useState<string>('hepsi');
 
   const load = useCallback(async (sessiz = false) => {
     try {
@@ -231,8 +233,10 @@ export default function AdminLinkedinPage() {
   const recent = recentAll.filter(
     (p) => (firmaFiltre === 'hepsi' || p.firma === firmaFiltre)
       && (durumFiltre === 'hepsi'
-        || (durumFiltre === 'iletisim' ? ILETISIM_DURUMLARI.has(p.status) : p.status === durumFiltre)),
+        || (durumFiltre === 'iletisim' ? ILETISIM_DURUMLARI.has(p.status) : p.status === durumFiltre))
+      && (gonderenFiltre === 'hepsi' || (gonderenFiltre === 'yok' ? !p.gonderenId : p.gonderenId === gonderenFiltre)),
   );
+  const gonderenler = overview?.gonderenler ?? {};
   const toplamKayit = overview?.recentTotal ?? recentAll.length;
   const L = overview?.limits;
   const limit = {
@@ -387,6 +391,18 @@ export default function AdminLinkedinPage() {
             </div>
             <div className="flex items-center gap-2">
               <select
+                value={gonderenFiltre}
+                onChange={(e) => setGonderenFiltre(e.target.value)}
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                aria-label="Gönderen filtresi"
+              >
+                <option value="hepsi">Tüm gönderenler</option>
+                {Object.entries(gonderenler).map(([id, ad]) => (
+                  <option key={id} value={id}>{ad}</option>
+                ))}
+                <option value="yok">Gönderen yok</option>
+              </select>
+              <select
                 value={durumFiltre}
                 onChange={(e) => setDurumFiltre(e.target.value)}
                 className="h-8 rounded-md border bg-background px-2 text-xs"
@@ -413,6 +429,7 @@ export default function AdminLinkedinPage() {
                   <th className="px-4 py-3 font-medium">Firma / Ünvan</th>
                   <th className="px-4 py-3 font-medium">Sektör</th>
                   <th className="px-4 py-3 font-medium">Durum</th>
+                  <th className="px-4 py-3 font-medium">Gönderen</th>
                   <th className="px-4 py-3 font-medium">Tarihler</th>
                   <th className="px-4 py-3 font-medium">Hata</th>
                   <th className="px-4 py-3 font-medium">Metin</th>
@@ -450,6 +467,11 @@ export default function AdminLinkedinPage() {
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={meta.variant} className={cn('whitespace-nowrap', meta.cls)}>{meta.label}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {p.gonderenId
+                          ? <span className="px-1.5 py-0.5 rounded bg-muted font-medium">{gonderenler[p.gonderenId] ?? 'yönetici'}</span>
+                          : <span className="text-muted-foreground">—</span>}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                         {tarihler.length === 0 ? '—' : tarihler.map(([k, d]) => (
@@ -529,6 +551,7 @@ export default function AdminLinkedinPage() {
 
       <KonusmaDialog
         p={konusmaId ? recentAll.find((r) => r.id === konusmaId) ?? null : null}
+        gonderen={(() => { const g = recentAll.find((r) => r.id === konusmaId)?.gonderenId; return g ? gonderenler[g] ?? null : null; })()}
         onClose={() => setKonusmaId(null)}
         onDone={() => load(true)}
       />
