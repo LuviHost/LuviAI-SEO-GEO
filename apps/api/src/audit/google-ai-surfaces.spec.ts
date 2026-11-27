@@ -31,7 +31,10 @@ describe('surfaceRequestBody', () => {
   it('Turkiye konumu ve Turkce; AI Bakisi icin async AI Bakisi yuklemesi istenir', () => {
     expect(GOOGLE_LOCATION).toEqual({ location_code: 2792, language_code: 'tr' });
     expect(surfaceRequestBody('google_ai_mode', 'lojistik firmaları')).toEqual([{ keyword: 'lojistik firmaları', location_code: 2792, language_code: 'tr' }]);
-    expect(surfaceRequestBody('google_ai_overview', 'lojistik firmaları')).toEqual([{ keyword: 'lojistik firmaları', location_code: 2792, language_code: 'tr', load_async_ai_overview: true }]);
+    // AI Bakisi kaynaklari google.com/goto yerine gercek adresle gelsin (27.11: kaynaklarin %45'i goto idi);
+    // AI Modu ucu bu alani reddediyor (40501) — orada yok
+    expect(surfaceRequestBody('google_ai_overview', 'lojistik firmaları')).toEqual([{ keyword: 'lojistik firmaları', location_code: 2792, language_code: 'tr', load_async_ai_overview: true, resolve_goto_urls: true }]);
+    expect(surfaceRequestBody('google_ai_mode', 'x')[0]).not.toHaveProperty('resolve_goto_urls');
     // Anahtar kelime siniri (700 karakter)
     expect(String(surfaceRequestBody('google_ai_mode', 'x'.repeat(900))[0].keyword)).toHaveLength(700);
   });
