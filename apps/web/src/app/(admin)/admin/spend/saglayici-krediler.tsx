@@ -119,10 +119,14 @@ export function SaglayiciKrediler() {
                           : <>Bakiye bilinmiyor</>
                       : <>Bakiye API&apos;si yok</>}
                   </div>
-                  <div className="text-xs text-muted-foreground min-w-[220px]">
+                  <div className="text-xs text-muted-foreground min-w-[220px] max-w-[420px]">
                     Son başarılı çağrı: {zaman(s.sonBasari)}
                     {s.sonKrediHatasi && <> · son kredi hatası: <span className={cn(s.durum === 'KREDI_BITTI' && 'text-danger')}>{zaman(s.sonKrediHatasi)}</span></>}
-                    {s.sonKontrolHatasi && <div className="text-warning break-all">Kontrol hatası ({zaman(s.sonKontrolHatasiAt ?? null)}): {s.sonKontrolHatasi}</div>}
+                    {s.sonKontrolHatasi && (
+                      <div className="text-warning line-clamp-2 break-all max-w-[420px]" title={s.sonKontrolHatasi}>
+                        Kontrol hatası ({zaman(s.sonKontrolHatasiAt ?? null)}): {s.sonKontrolHatasi}
+                      </div>
+                    )}
                   </div>
                   <Button asChild size="sm" variant={s.durum === 'KREDI_BITTI' || s.durum === 'AZALDI' ? 'default' : 'outline'}>
                     <a href={s.yukleUrl} target="_blank" rel="noopener noreferrer">
