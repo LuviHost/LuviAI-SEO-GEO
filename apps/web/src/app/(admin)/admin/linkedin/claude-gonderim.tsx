@@ -186,13 +186,14 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
               Listeyi ve notları kontrol et, &quot;Claude ile gönder&quot;e bas. İstekleri senin Mac&apos;inde, senin Chrome&apos;unda Claude gönderir;
               Claude aboneliğinin kotasından düşer, ayrıca ücret çıkmaz. Mac açık, Chrome&apos;da Claude eklentisi ve LinkedIn oturumu açık olmalı.
               Kabul kontrolü hafta içi 10:00, 14:00 ve 17:00&apos;de kendiliğinden yapılır; kabul edenler &quot;Bugün ilgilenilecekler&quot;e düşer.
-              Her yöneticinin kendi Mac anahtarı ve kendi günlük kotası vardır; açtığın iş yalnız senin Mac&apos;inde çalışır.
+              Her yöneticinin kendi Mac anahtarı ve kendi günlük kotası vardır. Açtığın iş yalnız senin Mac&apos;inde çalışır ve istek,
+              o Mac&apos;teki Chrome&apos;da açık olan LinkedIn hesabından gider.
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={ajan?.canli ? 'success' : 'secondary'} className="gap-1">
               <Laptop className="h-3 w-3" />
-              {ajan?.canli ? 'Mac servisi açık' : ajan?.sonGorulme ? `Mac servisi kapalı (son: ${saat(ajan.sonGorulme)})` : 'Mac servisi hiç bağlanmadı'}
+              {ajan?.canli ? 'Senin Mac servisin açık' : ajan?.sonGorulme ? `Senin Mac servisin kapalı (son: ${saat(ajan.sonGorulme)})` : 'Senin Mac servisin hiç bağlanmadı'}
             </Badge>
             <Button size="sm" variant="outline" onClick={anahtarOlustur} disabled={!!mesgul} title="Mac'teki servisin sunucuya bağlanma anahtarı">
               <KeyRound className="h-3.5 w-3.5 mr-1.5" />
@@ -214,13 +215,16 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
           </div>
         )}
 
-        {/* Diger yoneticinin suren isi: bilgi satiri (secilen kisiler bu listede zaten gorunmez) */}
+        {/* Diger yoneticinin suren isi: bilgi satiri (secilen kisiler bu listede zaten gorunmez).
+            NEDEN acik ifade (27.11): "kendi Mac'inde, kendi hesabiyla" ikinci yonetici tarafindan
+            "senin Mac'inden Emir adina gonderilecek" diye okundu. */}
         {(durum?.digerIsler ?? []).map((d) => (
           <div key={d.id} className="flex flex-wrap items-center gap-2 rounded-md border p-2.5 text-xs text-muted-foreground">
-            <Badge variant="outline">{d.durum === 'CALISIYOR' ? 'Çalışıyor' : 'Mac bekleniyor'}</Badge>
+            <Badge variant="outline">Diğer yönetici</Badge>
             <span>
               <b className="text-foreground">{d.sahip}</b> · {d.tur === 'KABUL' ? 'kabul kontrolü' : `${d.kisi} kişi${d.kuru ? ', kuru deneme' : ''}`}
-              {' '}· kendi Mac&apos;inde, kendi LinkedIn hesabıyla · açıldı {saat(d.createdAt)}
+              {' '}· {d.durum === 'CALISIYOR' ? 'çalışıyor' : 'Mac bekleniyor'} · açıldı {saat(d.createdAt)}.
+              {' '}Bu iş onun Mac&apos;inde ve onun LinkedIn hesabıyla yürür; senin Mac&apos;ine, hesabına ve kotana dokunmaz.
             </span>
           </div>
         ))}
