@@ -73,6 +73,35 @@ describe('LinkedinClaudeService — iki yonetici', () => {
     expect(r.is.kisiler[0].komut).toContain('Talat Yılmaz adlı kişinin');
   });
 
+  it('ayni saniyede iki is: once acilan gonderir, sonraki ortak kisiyi atlar', async () => {
+    const { svc, prisma } = kur();
+    prisma.linkedinClaudeIs.count.mockResolvedValue(1);
+    const t = new Date('2026-11-28T10:00:00Z');
+    prisma.linkedinClaudeIs.findFirst.mockResolvedValueOnce({
+      id: 'is-b', tur: 'ISTEK', kuru: false, createdAt: t, sahipId: 'u-talat',
+      kisiler: [{ id: 'p1', not: 'Merhaba' }, { id: 'p2', not: 'Merhaba' }],
+    });
+    const kisi = (id: string) => ({ id, ad: 'Ayşe', soyad: id, firma: 'X', unvan: null, profileUrl: `https://www.linkedin.com/in/${id}/`, status: 'QUEUED' });
+    prisma.linkedinProspect.findMany.mockResolvedValueOnce([kisi('p1'), kisi('p2')]);
+    // Emir'in isi ayni milisaniyede acildi, id'si kucuk → once o sayilir; p1 onda
+    prisma.linkedinClaudeIs.findMany.mockResolvedValueOnce([{ id: 'is-a', createdAt: t, kisiler: [{ id: 'p1', not: '' }] }]);
+    const r: any = await svc.isAl('u-talat');
+    expect(r.is.kisiler.map((k: any) => k.id)).toEqual(['p2']);
+    const where = prisma.linkedinClaudeIs.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ tur: 'ISTEK', kuru: false, NOT: { id: 'is-b' } });
+  });
+
+  it('sonra acilmis baska is kisiyi ELEMEZ (o is atlar)', async () => {
+    const { svc, prisma } = kur();
+    prisma.linkedinClaudeIs.count.mockResolvedValue(1);
+    const t = new Date('2026-11-28T10:00:00Z');
+    prisma.linkedinClaudeIs.findFirst.mockResolvedValueOnce({ id: 'is-a', tur: 'ISTEK', kuru: false, createdAt: t, sahipId: 'u-emir', kisiler: [{ id: 'p1', not: '' }] });
+    prisma.linkedinProspect.findMany.mockResolvedValueOnce([{ id: 'p1', ad: 'A', soyad: 'B', firma: 'X', unvan: null, profileUrl: 'https://www.linkedin.com/in/p1/', status: 'QUEUED' }]);
+    prisma.linkedinClaudeIs.findMany.mockResolvedValueOnce([{ id: 'is-b', createdAt: t, kisiler: [{ id: 'p1', not: '' }] }]);
+    const r: any = await svc.isAl('u-emir');
+    expect(r.is.kisiler.map((k: any) => k.id)).toEqual(['p1']);
+  });
+
   it('kabul kontrolu yonetici basina acilir ve yalniz onun (ya da sahipsiz) isteklerine bakar', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-27T11:30:00+03:00')); // Cuma 11:30 → 10:00 slotu

@@ -260,11 +260,14 @@ export class LinkedinClaudeService {
     }
     const kayitlar = await this.prisma.linkedinProspect.findMany({ where: { id: { in: kisiler.map((k) => k.id) } } });
     const kayit = new Map(kayitlar.map((p) => [p.id, p]));
+    const oncekiIslerde = await this.oncekiIslerdekiKisiler(is);
     const liste: Array<{ id: string; adSoyad: string; komut: string }> = [];
     for (const k of kisiler) {
       const p = kayit.get(k.id);
       // Onaydan sonra baska yoldan ilerlemis kisiye dokunulmaz (elle yazilmis, atlanmis vb.)
       if (!p || p.status !== 'QUEUED') continue;
+      // Iki yonetici ayni anda ayni kisiyi sectiyse ONCE acilan is gonderir; bu is o kisiyi atlar
+      if (oncekiIslerde.has(p.id)) continue;
       liste.push({
         id: p.id,
         adSoyad: `${p.ad} ${p.soyad}`.trim(),
@@ -273,6 +276,21 @@ export class LinkedinClaudeService {
     }
     this.log.log(`Claude isi alindi ${is.id} (${liste.length} kisi)`);
     return { is: { id: is.id, tur: 'ISTEK', kuru: is.kuru, kisiler: liste } };
+  }
+
+  /**
+   * Bu istek isinden ONCE acilmis, hala aktif (bekleyen / suren) diger istek islerindeki kisiler.
+   * NEDEN (28.11): isOlustur'daki "baska yoneticinin isinde mi" kontrolu ile is kaydi tek adim degil;
+   * iki yonetici ayni saniyede ayni kisiyi secerse iki is de acilabiliyordu. Ayni anda olusturulmus
+   * islerde sira id ile kesinlesir, boylece iki taraf da ayni kisiyi gondermeye kalkmaz.
+   */
+  private async oncekiIslerdekiKisiler(is: { id: string; createdAt: Date }): Promise<Set<string>> {
+    const digerleri = await this.prisma.linkedinClaudeIs.findMany({
+      where: { tur: 'ISTEK', kuru: false, durum: { in: AKTIF }, NOT: { id: is.id }, createdAt: { lte: is.createdAt } },
+      select: { id: true, createdAt: true, kisiler: true },
+    });
+    const once = digerleri.filter((d) => d.createdAt < is.createdAt || (d.createdAt.getTime() === is.createdAt.getTime() && d.id < is.id));
+    return new Set(once.flatMap((d) => (d.kisiler as IsKisi[]).map((k) => k.id)));
   }
 
   /**
