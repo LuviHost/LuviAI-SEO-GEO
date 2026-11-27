@@ -45,7 +45,7 @@ export class SaglayiciKrediCron {
           admin = await this.prisma.user.findFirst({ where: { role: 'ADMIN' }, orderBy: { createdAt: 'asc' }, select: { id: true } });
         }
         if (!admin) { this.log.warn('Kredi uyarisi icin ADMIN kullanici yok'); return; }
-        const m = uyariMetni(s);
+        const m = uyariMetni({ ...s, tahmin: s.tahmin ? { tutar: s.tahmin.tutar, paraBirimi: s.tahmin.paraBirimi } : null });
         await this.notifications.create({
           userId: admin.id,
           type: 'SYSTEM',

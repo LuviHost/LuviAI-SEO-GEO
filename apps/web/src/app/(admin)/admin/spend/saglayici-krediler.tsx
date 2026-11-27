@@ -32,13 +32,34 @@ function zaman(iso: string | null): string {
 }
 
 function para(tutar: number, birim: string | null): string {
-  return `${tutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${birim ?? 'USD'}`;
+  return `${tutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${birim === 'TRY' ? 'TL' : birim ?? 'USD'}`;
 }
 
 export function SaglayiciKrediler() {
   const [veri, setVeri] = useState<SaglayiciKrediTablosu | null>(null);
   const [yukleniyor, setYukleniyor] = useState(false);
   const [kontrolde, setKontrolde] = useState(false);
+  // Tahmini bakiye girisi: saglayicinin panelindeki tutar yazilir, sonraki harcama dusulur
+  const [giris, setGiris] = useState<{ id: string; tutar: string; paraBirimi: 'USD' | 'TRY' } | null>(null);
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+
+  const bakiyeKaydet = async () => {
+    if (!giris) return;
+    // "943,98" / "1.234,56" (Turkce) ya da "120.70" (panellerdeki gibi): virgul varsa ondalik ayraci odur
+    const ham = giris.tutar.trim();
+    const n = Number(ham.includes(',') ? ham.replace(/\./g, '').replace(',', '.') : ham);
+    if (!giris.tutar.trim() || !Number.isFinite(n) || n < 0) { toast.error('Geçerli bir tutar yaz'); return; }
+    setKaydediliyor(true);
+    try {
+      setVeri(await api.saglayiciBakiyeGir(giris.id, n, giris.paraBirimi));
+      setGiris(null);
+      toast.success('Bakiye kaydedildi; bundan sonraki harcama düşülecek');
+    } catch (err: any) {
+      toast.error(`Kaydedilemedi: ${err.message}`);
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
 
   // Her saglayiciya en kucuk istek: kayit beklemeden durumu hemen ogrenir (toplam < 0,01 USD)
   const kontrolEt = async () => {
@@ -80,8 +101,9 @@ export function SaglayiciKrediler() {
             <p className="font-semibold">Sağlayıcı kredileri</p>
             <p className="text-xs text-muted-foreground">
               Ölçümlerin kullandığı sistem anahtarları. Bakiye yalnız DeepSeek ve DataForSEO&apos;da sorgulanabiliyor;
-              diğerlerinde durum ölçüm çağrılarımızdan çıkar (kredi bitince 402 hatası verir) ya da &quot;Şimdi kontrol et&quot;
-              ile hemen öğrenilir. Kredi bitince ya da bakiye azalınca zile ve e-postana uyarı düşer. &quot;Yükle&quot;
+              diğerlerinde sağlayıcının panelindeki tutarı &quot;Bakiye gir&quot;e yazarsan sonraki harcamamız düşülür
+              (tahmini — aynı anahtarı başka bir şey kullanırsa ya da otomatik yükleme olursa sapar; arada güncelle).
+              Durum ayrıca ölçüm çağrılarından (kredi bitince 402) ya da &quot;Şimdi kontrol et&quot; ile öğrenilir. Kredi bitince ya da bakiye azalınca zile ve e-postana uyarı düşer. &quot;Yükle&quot;
               sağlayıcının ödeme sayfasını yeni sekmede açar.
             </p>
           </div>
@@ -117,7 +139,49 @@ export function SaglayiciKrediler() {
                         : s.bakiye.tutar !== null
                           ? <>Bakiye: <b className={cn('text-foreground', s.durum !== 'CALISIYOR' && 'text-danger')}>{para(s.bakiye.tutar, s.bakiye.paraBirimi)}</b></>
                           : <>Bakiye bilinmiyor</>
-                      : <>Bakiye API&apos;si yok</>}
+                      : s.bakiyeTuru === 'fatura'
+                        ? <>Kartla ödeniyor (sonradan fatura) — biten bakiye yok</>
+                        : s.tahmin
+                          ? (
+                            <span title={`Giriş: ${para(s.tahmin.girisTutar, s.tahmin.paraBirimi)} · ${zaman(s.tahmin.girisAt)} · o andan beri kayıtlı harcama ${para(s.tahmin.kullanilanUsd, 'USD')}. Aynı anahtarı başka bir şey kullanıyorsa ya da otomatik yükleme olduysa gerçek bakiye farklıdır.`}>
+                              Tahmini bakiye: <b className={cn('text-foreground', s.durum === 'AZALDI' && 'text-danger')}>{para(s.tahmin.tutar, s.tahmin.paraBirimi)}</b>
+                              <span className="block">giriş {zaman(s.tahmin.girisAt)} · harcama {para(s.tahmin.kullanilanUsd, 'USD')}</span>
+                            </span>
+                          )
+                          : <>Bakiye girilmedi</>}
+                    {s.bakiyeTuru === 'manuel' && (
+                      giris?.id === s.id ? (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <input
+                            value={giris.tutar}
+                            onChange={(ev) => setGiris({ ...giris, tutar: ev.target.value })}
+                            inputMode="decimal"
+                            placeholder="Tutar"
+                            aria-label={`${s.ad} bakiyesi`}
+                            className="h-7 w-24 rounded-md border bg-background px-2 text-xs"
+                          />
+                          <select
+                            value={giris.paraBirimi}
+                            onChange={(ev) => setGiris({ ...giris, paraBirimi: ev.target.value as 'USD' | 'TRY' })}
+                            aria-label="Para birimi"
+                            className="h-7 rounded-md border bg-background px-1 text-xs"
+                          >
+                            <option value="USD">USD</option>
+                            <option value="TRY">TL</option>
+                          </select>
+                          <Button size="sm" className="h-7" onClick={bakiyeKaydet} disabled={kaydediliyor}>Kaydet</Button>
+                          <Button size="sm" variant="ghost" className="h-7" onClick={() => setGiris(null)}>Vazgeç</Button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="mt-0.5 block text-brand-600 hover:underline"
+                          onClick={() => setGiris({ id: s.id, tutar: '', paraBirimi: s.tahmin?.paraBirimi ?? (s.id === 'gemini' ? 'TRY' : 'USD') })}
+                        >
+                          {s.tahmin ? 'Bakiyeyi güncelle' : 'Bakiye gir'}
+                        </button>
+                      )
+                    )}
                     <div title="Bizim sunucunun ölçüm çağrılarının gerçek maliyeti (token × fiyat + arama ücreti). Sağlayıcı panelindeki aylık tutarla fark varsa anahtarı başka bir şey de kullanıyordur.">
                       Bu ay ölçüm harcamamız:{' '}
                       {s.gercekBuAy

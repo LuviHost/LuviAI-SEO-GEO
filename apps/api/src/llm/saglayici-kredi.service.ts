@@ -1,8 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
+import { FxService } from '../billing/fx.service.js';
+import { gercekToplamAnahtari } from '../audit/olcum-gercek-maliyet.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SAGLAYICI_DURUM_KV, durumOku, krediDurumu, saglayiciKontrolKaydet, type SaglayiciDurumKaydi } from '../audit/saglayici-durum.js';
 import { isBillingProviderError } from '../audit/probe-retry.js';
-import { KREDI_SAGLAYICILARI, dataforseoBakiye, deepseekBakiye, satirDurumu, type KrediSaglayici, type SatirDurumu } from './saglayici-kredi.js';
+import {
+  BAKIYE_KV, BAKIYE_TURU, HARCAMA_SAGLAYICILARI, KREDI_SAGLAYICILARI, bakiyeGirisiOku, dataforseoBakiye, deepseekBakiye,
+  satirDurumu, tahminiBakiye, type BakiyeGirisi, type BakiyeTuru, type KrediSaglayici, type SatirDurumu,
+} from './saglayici-kredi.js';
 
 /** Bakiye uclarini her sayfa acilisinda cagirmamak icin (surec bellegi) */
 const BAKIYE_ONBELLEK_MS = 5 * 60_000;
@@ -35,6 +40,13 @@ export interface KrediSatiri {
    */
   gercekBuAy: { usd: number; baslangic: string } | null;
   sonKontrolHatasiAt: string | null;
+  /** api = saglayicidan sorgulanir, manuel = admin girisi − harcama, fatura = kartla sonradan (Meta) */
+  bakiyeTuru: BakiyeTuru;
+  /** Manuel: girilen bakiye − girişten bu yana kayitli harcama (olcum + icerik uretimi) */
+  tahmin: {
+    tutar: number; paraBirimi: 'USD' | 'TRY'; usd: number | null;
+    girisTutar: number; girisAt: string; kullanilanUsd: number;
+  } | null;
 }
 
 /** Elle kontrolde saglayiciya atilan en kucuk istek (5-16 token; Perplexity istek ucreti ~0,005 USD) */
@@ -48,7 +60,74 @@ export class SaglayiciKrediService {
   private readonly log = new Logger(SaglayiciKrediService.name);
   private onbellek = new Map<KrediSaglayici, Bakiye>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly fx?: FxService,
+  ) {}
+
+  /** Olcum harcamasinin kumulatif toplami (USD), verilen saglayici adlari icin */
+  private async olcumToplamUsd(saglayicilar: string[]): Promise<number> {
+    if (!saglayicilar.length) return 0;
+    const satirlar = await this.prisma.kvStore
+      .findMany({ where: { key: { in: saglayicilar.map(gercekToplamAnahtari) } }, select: { value: true } })
+      .catch(() => [] as Array<{ value: string }>);
+    return satirlar.reduce((t, r) => t + (Number(r.value) || 0), 0);
+  }
+
+  /** Icerik uretimi (LLM modulu) harcamasi — token_usage_records.costUsd, verilen andan beri */
+  private async llmHarcamaUsd(saglayicilar: string[], beri: Date): Promise<number> {
+    if (!saglayicilar.length) return 0;
+    const r = await this.prisma.tokenUsageRecord
+      .aggregate({ where: { provider: { in: saglayicilar }, createdAt: { gte: beri } }, _sum: { costUsd: true } })
+      .catch(() => null);
+    return Number(r?._sum?.costUsd ?? 0) || 0;
+  }
+
+  /** Admin bakiye girisi (manuel saglayicilar). tutar null → giris silinir. */
+  async bakiyeGir(id: unknown, tutar: unknown, paraBirimi: unknown) {
+    const t = KREDI_SAGLAYICILARI.find((s) => s.id === id);
+    if (!t || BAKIYE_TURU[t.id] !== 'manuel') throw new BadRequestException('Bu sağlayıcıya bakiye girilmez');
+    const key = BAKIYE_KV + t.id;
+    if (tutar === null) {
+      await this.prisma.kvStore.delete({ where: { key } }).catch(() => undefined);
+      return this.tablo();
+    }
+    if (tutar === undefined || (typeof tutar === 'string' && !tutar.trim())) throw new BadRequestException('Tutar girin');
+    const n = typeof tutar === 'number' ? tutar : Number(String(tutar).replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0 || n > 10_000_000) throw new BadRequestException('Geçerli bir tutar girin');
+    if (paraBirimi !== 'USD' && paraBirimi !== 'TRY') throw new BadRequestException('Para birimi USD ya da TRY olmalı');
+    const giris: BakiyeGirisi = {
+      tutar: Math.round(n * 100) / 100,
+      paraBirimi,
+      girisAt: new Date().toISOString(),
+      olcumToplamAnlikUsd: await this.olcumToplamUsd(HARCAMA_SAGLAYICILARI[t.id]?.olcum ?? []),
+    };
+    const value = JSON.stringify(giris);
+    await this.prisma.kvStore.upsert({ where: { key }, create: { key, value }, update: { value } });
+    return this.tablo();
+  }
+
+  /** Manuel saglayicilarin tahmini bakiyesi */
+  private async tahminler(): Promise<Map<KrediSaglayici, NonNullable<KrediSatiri['tahmin']>>> {
+    const girisler = await this.prisma.kvStore
+      .findMany({ where: { key: { startsWith: BAKIYE_KV } }, select: { key: true, value: true } })
+      .catch(() => [] as Array<{ key: string; value: string }>);
+    const out = new Map<KrediSaglayici, NonNullable<KrediSatiri['tahmin']>>();
+    if (!girisler.length) return out;
+    const usdTry = (await this.fx?.getUsdToTryRate().catch(() => null)) ?? null;
+    for (const r of girisler) {
+      const id = r.key.slice(BAKIYE_KV.length) as KrediSaglayici;
+      const g = bakiyeGirisiOku(r.value);
+      const h = HARCAMA_SAGLAYICILARI[id];
+      if (!g || !h || BAKIYE_TURU[id] !== 'manuel') continue;
+      const olcum = Math.max(0, (await this.olcumToplamUsd(h.olcum)) - g.olcumToplamAnlikUsd);
+      const llm = await this.llmHarcamaUsd(h.llm, new Date(g.girisAt));
+      const kullanilanUsd = Math.round((olcum + llm) * 10_000) / 10_000;
+      const t = tahminiBakiye(g, kullanilanUsd, usdTry);
+      out.set(id, { tutar: t.tutar, paraBirimi: g.paraBirimi, usd: t.usd, girisTutar: g.tutar, girisAt: g.girisAt, kullanilanUsd });
+    }
+    return out;
+  }
 
   async tablo(opts: { tazele?: boolean } = {}): Promise<{ satirlar: KrediSatiri[]; at: string }> {
     const kayitlar = await this.prisma.kvStore
@@ -61,6 +140,7 @@ export class SaglayiciKrediService {
     const dfsKayit = [kayit.get('google_ai_mode'), kayit.get('google_ai_overview')].filter(Boolean);
 
     const gercek = await this.gercekBuAy();
+    const tahmin = await this.tahminler();
     const [deepseek, dataforseo] = await Promise.all([
       this.bakiyeAl('deepseek', opts.tazele === true),
       this.bakiyeAl('dataforseo', opts.tazele === true),
@@ -90,6 +170,7 @@ export class SaglayiciKrediService {
           bakiyeUsd: b && !b.hata && (b.paraBirimi === null || b.paraBirimi === 'USD') ? b.usd : null,
           bakiyeKullanilabilir: b?.kullanilabilir ?? null,
           kontrolHatasiGuncel,
+          tahminiUsd: tahmin.get(t.id)?.usd ?? null,
         }),
         bakiye: b ? { tutar: b.usd, paraBirimi: b.paraBirimi, hata: b.hata, at: b.at } : null,
         sonBasari: k.sonBasari ?? null,
@@ -97,6 +178,8 @@ export class SaglayiciKrediService {
         sonKontrolHatasi: kontrolHatasiGuncel ? k.sonKontrolHatasi ?? null : null,
         sonKontrolHatasiAt: kontrolHatasiGuncel ? k.sonKontrolHatasiAt ?? null : null,
         gercekBuAy: gercek.get(t.id) ?? null,
+        bakiyeTuru: BAKIYE_TURU[t.id],
+        tahmin: tahmin.get(t.id) ?? null,
       };
     });
     return { satirlar, at: new Date().toISOString() };

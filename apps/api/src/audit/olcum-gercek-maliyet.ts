@@ -118,6 +118,11 @@ export function dataforseoKullanim(data: unknown): KullanimOzeti {
   return { girdi: 0, cikti: 0, arama: 0, saglayiciUsd: typeof c === 'number' ? c : null };
 }
 
+/** Kumulatif gercek maliyet (suresiz): admin bakiye girisi anindaki deger saklanir, fark = o andan beri harcama */
+export function gercekToplamAnahtari(provider: string): string {
+  return `ai-gercek-toplam:${provider}`;
+}
+
 /** Gercek maliyet gunluk sayaci (UTC gunu; butce defteriyle ayni gun anahtari) */
 export function gercekMaliyetAnahtari(provider: string, gun: string): string {
   return `ai-gercek:${provider}:${gun}`;

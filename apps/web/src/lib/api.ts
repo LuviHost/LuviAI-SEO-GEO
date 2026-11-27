@@ -654,6 +654,10 @@ export interface SaglayiciKrediSatiri {
   sonKontrolHatasiAt?: string | null;
   /** Bu ay bizim sunucunun olcum cagrilarinin gercek maliyeti (USD); baslangic = ilk kayit gunu */
   gercekBuAy?: { usd: number; baslangic: string } | null;
+  /** api = saglayicidan sorgulanir, manuel = admin girisi − harcama, fatura = kartla sonradan (Meta) */
+  bakiyeTuru?: 'api' | 'manuel' | 'fatura';
+  /** Manuel: girilen bakiye − girişten bu yana kayitli harcama */
+  tahmin?: { tutar: number; paraBirimi: 'USD' | 'TRY'; usd: number | null; girisTutar: number; girisAt: string; kullanilanUsd: number } | null;
 }
 export interface SaglayiciKrediTablosu { satirlar: SaglayiciKrediSatiri[]; at: string }
 
@@ -2144,6 +2148,9 @@ export const api = {
   getSaglayiciKredi: (tazele = false) =>
     request<SaglayiciKrediTablosu>(`/admin/saglayici-kredi${tazele ? '?tazele=1' : ''}`),
   /** Her saglayiciya en kucuk istek (toplam < 0,01 USD) — sonucu kaydeder, tabloyu doner */
+  /** Tahmini bakiye girisi (tutar null = sil) */
+  saglayiciBakiyeGir: (id: string, tutar: number | null, paraBirimi?: 'USD' | 'TRY') =>
+    request<SaglayiciKrediTablosu>('/admin/saglayici-kredi/bakiye', { method: 'POST', body: JSON.stringify({ id, tutar, paraBirimi }) }),
   saglayiciKrediKontrol: () =>
     request<SaglayiciKrediTablosu>('/admin/saglayici-kredi/kontrol', { method: 'POST' }),
 
