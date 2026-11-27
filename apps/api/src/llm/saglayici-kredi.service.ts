@@ -29,6 +29,11 @@ export interface KrediSatiri {
   sonKrediHatasi: string | null;
   /** Elle kontrolde kredi disi hata (gecersiz anahtar, model yok...) */
   sonKontrolHatasi: string | null;
+  /**
+   * Bu ay BIZIM SUNUCUNUN olcum cagrilarinin gercek maliyeti (USD, audit/olcum-gercek-maliyet.ts).
+   * Saglayici panelindeki tutarla farki dis kullanimi gosterir. `baslangic`: bu aydaki ilk kayit gunu.
+   */
+  gercekBuAy: { usd: number; baslangic: string } | null;
   sonKontrolHatasiAt: string | null;
 }
 
@@ -55,6 +60,7 @@ export class SaglayiciKrediService {
     // Google AI Modu + AI Bakisi ayni DataForSEO hesabi
     const dfsKayit = [kayit.get('google_ai_mode'), kayit.get('google_ai_overview')].filter(Boolean);
 
+    const gercek = await this.gercekBuAy();
     const [deepseek, dataforseo] = await Promise.all([
       this.bakiyeAl('deepseek', opts.tazele === true),
       this.bakiyeAl('dataforseo', opts.tazele === true),
@@ -90,9 +96,32 @@ export class SaglayiciKrediService {
         sonKrediHatasi: k.sonKrediHatasi ?? null,
         sonKontrolHatasi: kontrolHatasiGuncel ? k.sonKontrolHatasi ?? null : null,
         sonKontrolHatasiAt: kontrolHatasiGuncel ? k.sonKontrolHatasiAt ?? null : null,
+        gercekBuAy: gercek.get(t.id) ?? null,
       };
     });
     return { satirlar, at: new Date().toISOString() };
+  }
+
+  /** `ai-gercek:<provider>:<YYYY-MM-DD>` sayaclarindan bu ayin toplami (Google yuzeyleri → dataforseo) */
+  private async gercekBuAy(): Promise<Map<KrediSaglayici, { usd: number; baslangic: string }>> {
+    const ay = new Date().toISOString().slice(0, 7);
+    const satirlar = await this.prisma.kvStore
+      .findMany({ where: { key: { startsWith: `ai-gercek:` } }, select: { key: true, value: true } })
+      .catch(() => [] as Array<{ key: string; value: string }>);
+    const out = new Map<KrediSaglayici, { usd: number; baslangic: string }>();
+    for (const r of satirlar) {
+      const [, provider, gun] = r.key.split(':');
+      if (!gun?.startsWith(ay)) continue;
+      const id = (provider === 'google_ai_mode' || provider === 'google_ai_overview' ? 'dataforseo' : provider) as KrediSaglayici;
+      const usd = Number(r.value);
+      if (!Number.isFinite(usd)) continue;
+      const eski = out.get(id);
+      out.set(id, {
+        usd: Math.round(((eski?.usd ?? 0) + usd) * 10_000) / 10_000,
+        baslangic: eski && eski.baslangic < gun ? eski.baslangic : gun,
+      });
+    }
+    return out;
   }
 
   /**

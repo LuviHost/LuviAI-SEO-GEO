@@ -163,8 +163,10 @@ describe('addCost — maliyet sayaci suresi', () => {
     const svc = new AiCitationService(prisma as any, {} as any, {} as any, {} as any);
     await svc.runPublicProbes({ brand: 'Kobipratik', host: 'kobipratik.com', queries: ['soru 1', 'soru 2'] });
 
-    expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(1);
-    const [sql, key, value, inc] = prisma.$executeRawUnsafe.mock.calls[0] as unknown as [string, string, string, number];
+    // Butce defteri (ai-cost) tek yazim; gercek maliyet (ai-gercek) ayri sayaca gider
+    const butce = prisma.$executeRawUnsafe.mock.calls.filter((c: any[]) => String(c[1]).startsWith('ai-cost:'));
+    expect(butce).toHaveLength(1);
+    const [sql, key, value, inc] = butce[0] as unknown as [string, string, string, number];
     expect(key).toBe(`ai-cost:perplexity:${new Date().toISOString().slice(0, 10)}`);
     // perplexity tavani (citation-providers.ts) x 2 probe — sayi tablodan okunur
     expect(Number(value)).toBeCloseTo(2 * COST_PER_PROBE_USD.perplexity, 10);
@@ -378,7 +380,7 @@ describe('runForSite — her soru her asistana N kez (CITATION_TEKRAR)', () => {
     expect(pr.score).toBe(50);
     expect(pr.gorunme).toMatchObject({ gorunen: 3, olculen: 6, oran: 50 });
     // Havuz maliyeti 6 probe uzerinden (global + kiraci defteri)
-    const tutarlar = prisma.$executeRawUnsafe.mock.calls.map((c: any[]) => Number(c[2]));
+    const tutarlar = prisma.$executeRawUnsafe.mock.calls.filter((c: any[]) => String(c[1]).startsWith('ai-cost:')).map((c: any[]) => Number(c[2]));
     expect(tutarlar).toHaveLength(2);
     for (const t of tutarlar) expect(t).toBeCloseTo(6 * COST_PER_PROBE_USD.perplexity, 10);
   });
