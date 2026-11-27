@@ -401,6 +401,13 @@ export class IntelController {
     return this.linkedinClaude.isOlustur(body?.kisiIds, body?.kuru !== false, { id: String(user.id), email: String(user.email ?? user.id ?? 'admin') });
   }
 
+  /** "Konuşmaları güncelle": her yoneticinin Mac'i kendi LinkedIn mesaj kutusunu hemen tarar */
+  @Post('linkedin/claude/konusmalari-guncelle')
+  async linkedinKonusmalariGuncelle(@Req() req: Request) {
+    const user = assertAdmin(req);
+    return this.linkedinClaude.konusmalariGuncelle({ id: String(user.id), email: String(user.email ?? user.id ?? 'admin') });
+  }
+
   @Post('linkedin/claude/is/:id/iptal')
   async linkedinClaudeIptal(@Req() req: Request, @Param('id') id: string) {
     assertAdmin(req);

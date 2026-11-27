@@ -373,17 +373,53 @@ export class LinkedinClaudeService {
       this.prisma.linkedinClaudeIs.count({ where: { durum: { in: AKTIF }, sahipId: userId } }),
     ]);
     if (acilmis > 0 || aktif > 0) return;
+    await this.mesajIsiAc(userId, 'otomatik (mesaj taraması)');
+  }
+
+  /** Mesaj taramasi isi acar; listede kimse yoksa acmaz. Donus: taranacak kisi sayisi */
+  private async mesajIsiAc(userId: string, olusturan: string): Promise<number> {
     const kisiler = await this.prisma.linkedinProspect.findMany({
       where: { kanal: 'LINKEDIN', status: { in: ['REQUESTED', 'ACCEPTED', 'MESSAGED', 'REPLIED'] } },
       orderBy: { updatedAt: 'desc' },
       take: MESAJ_KISI_TAVANI,
       select: { id: true },
     });
-    if (kisiler.length === 0) return;
+    if (kisiler.length === 0) return 0;
     await this.prisma.linkedinClaudeIs.create({
-      data: { tur: 'MESAJ', kuru: false, kisiler: kisiler.map((p) => ({ id: p.id, not: '' })), olusturan: 'otomatik (mesaj taraması)', sahipId: userId },
+      data: { tur: 'MESAJ', kuru: false, kisiler: kisiler.map((p) => ({ id: p.id, not: '' })), olusturan: olusturan.slice(0, 191), sahipId: userId },
     });
-    this.log.log(`Mesaj taramasi acildi (${kisiler.length} kisi)`);
+    this.log.log(`Mesaj taramasi acildi (${kisiler.length} kisi, ${olusturan})`);
+    return kisiler.length;
+  }
+
+  /**
+   * "Konuşmaları güncelle" dugmesi (28.11.2026, sahip istegi): Mac ajani kurulu HER yonetici icin
+   * hemen bir mesaj taramasi acar. Her Mac yalniz kendi LinkedIn mesaj kutusunu okur; kapali Mac
+   * acilinca tarar. Zaten bekleyen / suren taramasi olana ikinci is acilmaz. Suren gonderim isi
+   * varsa tarama onun ardindan yapilir.
+   */
+  async konusmalariGuncelle(isteyen: { id: string; email: string }) {
+    const ajanlar = await this.prisma.linkedinClaudeAjan.findMany({ select: { userId: true, sonGorulme: true } });
+    if (ajanlar.length === 0) throw new BadRequestException('Bağlı Mac yok: önce "Claude ile gönderim" kartından Mac servisini kur');
+    const ids = ajanlar.map((a) => a.userId);
+    const [aktifler, kullanicilar] = await Promise.all([
+      this.prisma.linkedinClaudeIs.findMany({ where: { durum: { in: AKTIF }, sahipId: { in: ids } }, select: { sahipId: true, tur: true, durum: true } }),
+      this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }),
+    ]);
+    const ad = new Map(kullanicilar.map((u) => [u.id, ilkAd(u)]));
+    const sonuc: Array<{ ad: string; durum: 'SIRADA' | 'ZATEN_SIRADA' | 'KISI_YOK'; macAcik: boolean; kisi: number }> = [];
+    for (const a of ajanlar) {
+      const onun = aktifler.filter((i) => i.sahipId === a.userId);
+      const macAcik = ajanCanli(a.sonGorulme, onun.some((i) => i.durum === 'CALISIYOR'));
+      const kim = ad.get(a.userId) ?? 'yönetici';
+      if (onun.some((i) => i.tur === 'MESAJ')) {
+        sonuc.push({ ad: kim, durum: 'ZATEN_SIRADA', macAcik, kisi: 0 });
+        continue;
+      }
+      const kisi = await this.mesajIsiAc(a.userId, `elle: ${isteyen.email}`);
+      sonuc.push({ ad: kim, durum: kisi ? 'SIRADA' : 'KISI_YOK', macAcik, kisi });
+    }
+    return { sonuc };
   }
 
   /** Tek kisinin sonucu. Donus: devam edilsin mi (iptal / ENGEL → hayir) */
