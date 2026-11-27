@@ -44,9 +44,18 @@ export const SURFACE_ABSENT_TEXT: Readonly<Record<GoogleSurface, string>> = {
 };
 
 /** Istek govdesi (DataForSEO dizi bekler; tek gorev) */
+/**
+ * AI Bakisi istegi `resolve_goto_urls: true` tasir (27.11.2026). NEDEN: Google AI Bakisi kaynaklarini
+ * google.com/goto yonlendirmesiyle veriyor; son 14 gunde 148 kaynagin 67'si (%45) bu bicimde ve alan
+ * adi "google.com" kaydedilmisti — musterinin sitesi aralarindaysa "kaynak gosterilmedi" sayiliyordu.
+ * Parametre DataForSEO'nun (dataforseo.com/update/get-final-destination-urls-with-serp-api) ve canli
+ * denemede ayni aramada goto 7 → 0, ucret ayni (0,002 USD). AI Modu ucu parametreyi REDDEDIYOR
+ * (40501 Invalid Field, ayni gun denendi) ve orada goto adresi gorulmedi: yalniz AI Bakisi.
+ * Ayni cevaptaki organik siralama (parseOrganicSignal) da gercek adreslerle eslesir.
+ */
 export function surfaceRequestBody(surface: GoogleSurface, query: string): Array<Record<string, unknown>> {
   const g = { keyword: query.slice(0, 700), ...GOOGLE_LOCATION };
-  return [surface === 'google_ai_overview' ? { ...g, load_async_ai_overview: true } : g];
+  return [surface === 'google_ai_overview' ? { ...g, load_async_ai_overview: true, resolve_goto_urls: true } : g];
 }
 
 /** Yanit ayristirma sonucu */
