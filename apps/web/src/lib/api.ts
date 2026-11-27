@@ -637,7 +637,7 @@ export interface LinkedinProspect {
   updatedAt?: string;
 }
 
-export type SaglayiciKrediDurumu = 'CALISIYOR' | 'KREDI_BITTI' | 'AZALDI' | 'ANAHTAR_YOK' | 'BILINMIYOR';
+export type SaglayiciKrediDurumu = 'CALISIYOR' | 'KREDI_BITTI' | 'AZALDI' | 'HATA' | 'ANAHTAR_YOK' | 'BILINMIYOR';
 export interface SaglayiciKrediSatiri {
   id: string;
   ad: string;
@@ -649,6 +649,9 @@ export interface SaglayiciKrediSatiri {
   bakiye: { tutar: number | null; paraBirimi: string | null; hata: string | null; at: string } | null;
   sonBasari: string | null;
   sonKrediHatasi: string | null;
+  /** "Şimdi kontrol et"te kredi disi hata (gecersiz anahtar, model yok...) — son basaridan yeniyse */
+  sonKontrolHatasi?: string | null;
+  sonKontrolHatasiAt?: string | null;
 }
 export interface SaglayiciKrediTablosu { satirlar: SaglayiciKrediSatiri[]; at: string }
 
@@ -2138,6 +2141,9 @@ export const api = {
   /** Havuz anahtarli AI saglayicilarinin kredi durumu + yukleme linki (27.11.2026) */
   getSaglayiciKredi: (tazele = false) =>
     request<SaglayiciKrediTablosu>(`/admin/saglayici-kredi${tazele ? '?tazele=1' : ''}`),
+  /** Her saglayiciya en kucuk istek (toplam < 0,01 USD) — sonucu kaydeder, tabloyu doner */
+  saglayiciKrediKontrol: () =>
+    request<SaglayiciKrediTablosu>('/admin/saglayici-kredi/kontrol', { method: 'POST' }),
 
   // Faz 12 — LLM Spend (LibreChat tx pattern)
   getAdminSpend: (days = 30) =>
