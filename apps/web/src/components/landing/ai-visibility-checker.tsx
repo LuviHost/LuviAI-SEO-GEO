@@ -57,6 +57,8 @@ export function AiVisibilityChecker({ mode = 'hero', hintId = 'checker-hint', in
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<CheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Sonucu acmak icin yazilan e-posta (takip formu bununla dolar) */
+  const [kapiEposta, setKapiEposta] = useState('');
   const turnstileRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const tokenResolverRef = useRef<((token: string | null) => void) | null>(null);
@@ -163,6 +165,7 @@ export function AiVisibilityChecker({ mode = 'hero', hintId = 'checker-hint', in
     setPhase('idle');
     setResult(null);
     setError(null);
+    setKapiEposta('');
   };
 
   return (
@@ -231,6 +234,12 @@ export function AiVisibilityChecker({ mode = 'hero', hintId = 'checker-hint', in
           c={c}
           onReset={handleReset}
           getTurnstileToken={getTurnstileToken}
+          email={kapiEposta}
+          onUnlocked={(full, adres) => {
+            setResult(full);
+            setKapiEposta(adres);
+            trackCta('checker_result_open', { mode, sorular: full?.queries?.length ?? 0 });
+          }}
         />
       )}
     </>

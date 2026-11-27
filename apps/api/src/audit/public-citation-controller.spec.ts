@@ -292,7 +292,7 @@ describe('POST citation-check — servise giden IP istemcinin yazdigi adres degi
   afterEach(() => vi.restoreAllMocks());
 
   function kurKontrol() {
-    const citation = { check: vi.fn(async () => ({ fromCache: false, queries: [] })) };
+    const citation = { check: vi.fn(async () => ({ fromCache: false, queries: [], competitorRanking: [] })), ipHash: vi.fn(() => 'h') };
     const ctrl = new PublicCitationController(citation as never, {} as never, {} as never, {} as never, DENEME_YOK);
     const istek = (headers: Record<string, string>) =>
       ({ headers: { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) Firefox/140.0', ...headers }, socket: { remoteAddress: '127.0.0.1' } }) as never;
@@ -336,7 +336,8 @@ describe('POST citation-check — mobil uygulama (Turnstile token gonderemiyor)'
     const fetchSahte = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       new Response(JSON.stringify({ success: o.turnstileBasarili ?? true }), { status: 200 }));
     const citation = {
-      check: vi.fn(async () => ({ fromCache: false, queries: [] })),
+      check: vi.fn(async () => ({ fromCache: false, queries: [], competitorRanking: [] })),
+      ipHash: vi.fn(() => 'h'),
       checkRateLimit: vi.fn(async () => ({ ok: true, remaining: 1 })),
     };
     const ctrl = new PublicCitationController(citation as never, {} as never, {} as never, {} as never, DENEME_YOK);
@@ -409,5 +410,64 @@ describe('POST citation-check — mobil uygulama (Turnstile token gonderemiyor)'
     expect(t.citation.checkRateLimit).toHaveBeenLastCalledWith('203.0.113.7', PUBLIC_CHECK_IP_LIMIT_STRICT);
     await t.ctrl.rateLimit(t.istek(TARAYICI));
     expect(t.citation.checkRateLimit).toHaveBeenLastCalledWith('203.0.113.7', undefined);
+  });
+});
+
+describe('Ucretsiz test e-posta kapisi (27.11.2026)', () => {
+  const TARAYICI = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36';
+  const MOBIL = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 RanksUp-iOS/1.0';
+  const TAM = {
+    domain: 'ornek.com', brand: 'Ornek', fromCache: false,
+    queries: [{ query: 'en iyi ornek', providers: [{ provider: 'openai', excerpt: 'cevap metni' }] }],
+    competitorRanking: [{ name: 'Rakip', mentions: 1, pct: 100 }],
+  };
+  const ORJ_SECRET = process.env.TURNSTILE_SECRET;
+  afterEach(() => {
+    if (ORJ_SECRET === undefined) delete process.env.TURNSTILE_SECRET;
+    else process.env.TURNSTILE_SECRET = ORJ_SECRET;
+  });
+
+  function kur() {
+    delete process.env.TURNSTILE_SECRET;
+    const citation = { check: vi.fn(async () => TAM), ipHash: vi.fn(() => 'h') };
+    const attempts = { record: vi.fn(async () => undefined), epostaYaz: vi.fn(async () => undefined) };
+    const ctrl = new PublicCitationController(citation as never, {} as never, {} as never, {} as never, attempts as never);
+    const istek = (ua: string) => ({ headers: { 'user-agent': ua, 'cf-connecting-ip': '203.0.113.9' }, socket: { remoteAddress: '127.0.0.1' } }) as never;
+    return { ctrl, attempts, istek };
+  }
+
+  it('tarayicida sonuc gonderilmez; yalniz ozet ve anahtar doner', async () => {
+    const { ctrl, istek } = kur();
+    const r = (await ctrl.check(istek(TARAYICI), { domain: 'ornek.com' })) as any;
+    expect(r.queries).toEqual([]);
+    expect(r.competitorRanking).toEqual([]);
+    expect(JSON.stringify(r)).not.toContain('cevap metni');
+    expect(r.kilit.soru).toBe(1);
+    expect(r.kilit.anahtar).toMatch(/^[a-f0-9]{48}$/);
+  });
+
+  it('mobil uygulama kapisiz: tam sonuc', async () => {
+    const { ctrl, istek } = kur();
+    const r = (await ctrl.check(istek(MOBIL), { domain: 'ornek.com' })) as any;
+    expect(r.queries).toHaveLength(1);
+    expect(r.kilit).toBeUndefined();
+  });
+
+  it('gecerli e-posta ile tam sonuc doner ve deneme kaydina yazilir', async () => {
+    const { ctrl, attempts, istek } = kur();
+    const k = (await ctrl.check(istek(TARAYICI), { domain: 'ornek.com' })) as any;
+    const r = (await ctrl.ac(istek(TARAYICI), { anahtar: k.kilit.anahtar, email: ' Ali@Firma.com ', pazarlamaIzni: true })) as any;
+    expect(r.queries).toHaveLength(1);
+    expect(attempts.epostaYaz).toHaveBeenCalledWith(expect.objectContaining({
+      anahtar: k.kilit.anahtar, domain: 'ornek.com', email: 'ali@firma.com', pazarlamaIzni: true, outcome: 'measured',
+    }));
+  });
+
+  it('gecersiz e-posta 400, bilinmeyen anahtar 410; ikisinde de sonuc gitmez', async () => {
+    const { ctrl, attempts, istek } = kur();
+    const k = (await ctrl.check(istek(TARAYICI), { domain: 'ornek.com' })) as any;
+    await expect(ctrl.ac(istek(TARAYICI), { anahtar: k.kilit.anahtar, email: 'ali@' })).rejects.toMatchObject({ status: 400 });
+    await expect(ctrl.ac(istek(TARAYICI), { anahtar: 'a'.repeat(48), email: 'ali@firma.com' })).rejects.toMatchObject({ status: 410 });
+    expect(attempts.epostaYaz).not.toHaveBeenCalled();
   });
 });

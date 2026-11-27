@@ -245,7 +245,7 @@ export class AdminService {
         where: attemptWhere,
         orderBy: { createdAt: 'desc' },
         take: ADMIN_ATTEMPT_LIMIT,
-        select: { id: true, domain: true, outcome: true, checkId: true, detail: true, notifiedAt: true, createdAt: true },
+        select: { id: true, domain: true, outcome: true, checkId: true, detail: true, notifiedAt: true, email: true, pazarlamaIzni: true, createdAt: true },
       }).catch(() => null),
       this.prisma.publicCheckAttempt.count({ where: { createdAt: { gte: startOfToday } } }).catch(() => null),
     ]);

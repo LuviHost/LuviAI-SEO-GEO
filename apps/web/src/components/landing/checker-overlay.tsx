@@ -56,9 +56,13 @@ export interface CheckerOverlayProps {
    * testte kullanilan token yeniden gonderilemez.
    */
   getTurnstileToken?: () => Promise<string | null>;
+  /** E-posta kapisi acildi: tam sonuc ve yazilan adres (takip formu bu adresle dolar) */
+  onUnlocked?: (full: CheckResult, email: string) => void;
+  /** Kapida yazilan e-posta (takip formunun baslangic degeri) */
+  email?: string;
 }
 
-export default function CheckerOverlay({ phase, result, locale, c, onReset, getTurnstileToken }: CheckerOverlayProps) {
+export default function CheckerOverlay({ phase, result, locale, c, onReset, getTurnstileToken, onUnlocked, email }: CheckerOverlayProps) {
   const [loadingIdx, setLoadingIdx] = useState(0);
   const [expandedQueries, setExpandedQueries] = useState<Set<number>>(new Set());
 
@@ -150,7 +154,11 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
           </div>
         )}
 
-        {phase === 'result' && result && (
+        {phase === 'result' && result?.kilit && (
+          <EpostaKapisi result={result} kilit={result.kilit} c={c} onReset={onReset} onUnlocked={onUnlocked} />
+        )}
+
+        {phase === 'result' && result && !result.kilit && (
           <div className="p-5 sm:p-8 space-y-6">
             <div className="flex items-center gap-4 pr-12">
               <DomainFavicon domain={result.domain} brand={result.brand} />
@@ -227,7 +235,7 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset, getT
                   )}
                 </div>
 
-                <OptinCard result={result} locale={locale} c={c} score={summary && summary.engines.length > 0 ? summary.score : null} getTurnstileToken={getTurnstileToken} />
+                <OptinCard result={result} locale={locale} c={c} score={summary && summary.engines.length > 0 ? summary.score : null} getTurnstileToken={getTurnstileToken} initialEmail={email} />
 
                 <div className="space-y-2">
                   <Link href="/signin?signup=1" onClick={onReset} className="v-btn-line w-full">
@@ -300,6 +308,99 @@ function ReusedResultNotice({
   );
 }
 
+/**
+ * Sonucu gormek icin e-posta (27.11.2026, sahip: "iletisim saglayamiyoruz"). Sunucu sonucu bu form
+ * dolmadan gondermez (api public-check-gate.ts); burada gizlenen veri yok. Sure dolduysa (410)
+ * ziyaretci testi yeniden baslatir — ayni alan adi onbellekten aninda doner.
+ */
+function EpostaKapisi({
+  result,
+  kilit,
+  c,
+  onReset,
+  onUnlocked,
+}: {
+  result: CheckResult;
+  kilit: { anahtar: string; soru: number; asistan: number };
+  c: CheckerCopy;
+  onReset: () => void;
+  onUnlocked?: (full: CheckResult, email: string) => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [izin, setIzin] = useState(false);
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+  const [hata, setHata] = useState<string | null>(null);
+  const [sureDoldu, setSureDoldu] = useState(false);
+
+  const gonder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || gonderiliyor) return;
+    setHata(null);
+    setGonderiliyor(true);
+    try {
+      const full = await api.publicCitationAc(kilit.anahtar, email.trim(), izin);
+      trackCta('checker_email', { pazarlama: izin });
+      onUnlocked?.(full, email.trim());
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 410) setSureDoldu(true);
+      setHata(err instanceof ApiError ? err.message : c.gateError);
+    } finally {
+      setGonderiliyor(false);
+    }
+  };
+
+  return (
+    <div className="px-6 py-12 sm:px-14 sm:py-16">
+      <div className="flex items-center gap-4 pr-12">
+        <DomainFavicon domain={result.domain} brand={result.brand} />
+        <div className="min-w-0">
+          <DialogTitle className="truncate pb-1 text-panel-1">{c.gateTitle.replace('{domain}', result.domain)}</DialogTitle>
+          <DialogDescription className="mt-1">
+            {c.gateBody.replace('{soru}', String(kilit.soru)).replace('{asistan}', String(kilit.asistan))}
+          </DialogDescription>
+        </div>
+      </div>
+      <form onSubmit={gonder} className="mt-8 max-w-[34rem] space-y-3" aria-describedby="checker-eposta-not">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <label htmlFor="checker-eposta" className="sr-only">{c.gateLabel}</label>
+          <input
+            id="checker-eposta"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={c.gatePlaceholder}
+            autoComplete="email"
+            autoFocus
+            required
+            disabled={gonderiliyor || sureDoldu}
+            className="h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus-visible:border-foreground"
+          />
+          <button type="submit" disabled={gonderiliyor || sureDoldu || !email.trim()} className="v-btn h-11 px-5 text-sm">
+            {gonderiliyor && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+            {c.gateBtn}
+          </button>
+        </div>
+        <label className="flex cursor-pointer items-start gap-2 text-xs leading-snug text-muted-foreground">
+          <input type="checkbox" checked={izin} onChange={(e) => setIzin(e.target.checked)} className="mt-0.5 shrink-0 accent-foreground" />
+          <span>{c.gateMarketing}</span>
+        </label>
+        <p id="checker-eposta-not" className="text-xs text-muted-foreground">
+          {c.gateNote}{' '}
+          <Link href="/kvkk#ucretsiz-test" className="underline underline-offset-4">{c.gateKvkk}</Link>
+        </p>
+        {hata && (
+          <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 p-2 text-xs text-danger">{hata}</p>
+        )}
+        {sureDoldu && (
+          <button type="button" onClick={onReset} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> {c.testAnother}
+          </button>
+        )}
+      </form>
+    </div>
+  );
+}
+
 /** 90 gunluk e-posta takibi (birincil CTA) */
 function OptinCard({
   result,
@@ -307,6 +408,7 @@ function OptinCard({
   c,
   score,
   getTurnstileToken,
+  initialEmail,
 }: {
   result: CheckResult;
   locale: Locale;
@@ -314,8 +416,9 @@ function OptinCard({
   /** Bugunku skor — cizginin ilk noktasi; ozet yoksa null (nokta rakamsiz kalir) */
   score: number | null;
   getTurnstileToken?: () => Promise<string | null>;
+  initialEmail?: string;
 }) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail ?? '');
   const [consent, setConsent] = useState(false);
   /** Ayri pazarlama izni — varsayilan bos, gonderimi engellemez */
   const [marketing, setMarketing] = useState(false);

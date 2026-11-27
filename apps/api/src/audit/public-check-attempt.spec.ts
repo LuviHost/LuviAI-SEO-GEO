@@ -153,7 +153,7 @@ describe('PublicCheckAttemptService — kayit + bildirim', () => {
     // Panel bildirimi kisa metin olarak kalir
     expect(cagri.body).toBe('Örnek Klinik · estetik\nSonuç: 1/12 cevapta kaynak gösterildi.\nAna sayfadaki ücretsiz testle yapılan yeni bir ölçüm.');
     // Kayit: alan adi, sonuc turu, IP ozeti — rapor yok
-    expect(Object.keys(t.prisma.publicCheckAttempt.create.mock.calls[0][0].data).sort()).toEqual(['checkId', 'detail', 'domain', 'ip', 'outcome']);
+    expect(Object.keys(t.prisma.publicCheckAttempt.create.mock.calls[0][0].data).sort()).toEqual(['anahtar', 'checkId', 'detail', 'domain', 'ip', 'outcome']);
   });
 
   it('e-posta gitmeyen bildirimde govde kurulmaz; raporsuz denemede e-posta yalniz durumu soyler', async () => {
@@ -296,6 +296,8 @@ describe('POST citation-check — deneme kaydi', () => {
       // 15.11.2026: bildirim e-postasi ziyaretcinin gordugu raporu tasir (yalniz e-postada
       // kullanilir; kayda yazilmaz). Ozetle AYNI sayilardan: 8 cevabin 1'i → skor 13.
       report: expect.objectContaining({ brand: 'Murat Aktaş', score: 13 }),
+      // 27.11.2026: tarayicida sonuc kilitli doner; e-posta bu anahtarla kayda yazilir
+      anahtar: expect.stringMatching(/^[a-f0-9]{48}$/),
     });
     // Rapor kisi bilgisi tasimaz: IP ozeti ve ham girdi raporda yok
     const gonderilen = JSON.stringify((t.attempts.record as any).mock.calls[0][0].report);

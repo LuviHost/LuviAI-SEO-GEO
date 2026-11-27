@@ -181,6 +181,7 @@ export default function AdminLeadsPage() {
     if (!needle) return list;
     return list.filter((d) =>
       (d.domain ?? '').toLowerCase().includes(needle) ||
+      (d.email ?? '').toLowerCase().includes(needle) ||
       denemeEtiketi(d.outcome).toLowerCase().includes(needle) ||
       uyeMetni(d.member).toLowerCase().includes(needle));
   }, [data, needle]);
@@ -283,6 +284,12 @@ export default function AdminLeadsPage() {
                           <a href={`https://${d.domain}`} target="_blank" rel="noopener" className="font-medium hover:underline">{d.domain}</a>
                           {bugunMu(d.createdAt) && <BugunIsareti />}
                         </div>
+                        {d.email && (
+                          <div className="mt-0.5 text-xs">
+                            <a href={`mailto:${d.email}`} className="text-foreground hover:underline">{d.email}</a>
+                            {d.pazarlamaIzni && <span className="ml-1.5 text-muted-foreground">· ticari ileti onayı var</span>}
+                          </div>
+                        )}
                         <UyeSatiri member={d.member} />
                         {(d.checkId || sonOlcum.get(d.domain)) && (
                           <RaporDugmesi onClick={() => setRaporId(d.checkId || sonOlcum.get(d.domain)!)} />

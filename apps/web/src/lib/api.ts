@@ -2105,7 +2105,7 @@ export const api = {
       /** Her deneme (kayıtlı sonucu gören, sınıra takılan, tamamlanamayan dahil) — eski sunucuda yok */
       attempts?: Array<{
         id: string; domain: string; outcome: string; checkId: string | null;
-        detail: string | null; notifiedAt: string | null; createdAt: string;
+        detail: string | null; notifiedAt: string | null; email?: string | null; pazarlamaIzni?: boolean; createdAt: string;
         member?: { name: string | null; email: string | null; plan: string | null; status: string | null; siteAddedAt: string } | null;
       }>;
       attemptsToday?: number;
@@ -2890,9 +2890,21 @@ export const api = {
        * kayitta yok (v3 ya da daha eski); farkli surumlu iki sonuc kiyaslanmaz.
        */
       matchVersion?: number;
+      /**
+       * 27.11.2026: tarayicida sonuc e-postasiz gelmez (api public-check-gate.ts). Doluysa
+       * queries ve competitorRanking BOS; publicCitationAc ile e-posta yazilinca tam sonuc gelir.
+       */
+      kilit?: { anahtar: string; soru: number; asistan: number };
     }>('/public/citation-check', {
       method: 'POST',
       body: JSON.stringify({ domain, turnstileToken }),
+    }),
+
+  /** Kilitli ucretsiz test sonucunu e-postayla acar (410: sure doldu, test yeniden baslatilir) */
+  publicCitationAc: (anahtar: string, email: string, pazarlamaIzni: boolean) =>
+    request<Awaited<ReturnType<typeof api.publicCitationCheck>>>('/public/citation-check/ac', {
+      method: 'POST',
+      body: JSON.stringify({ anahtar, email, pazarlamaIzni }),
     }),
 
   /**

@@ -28,6 +28,8 @@ export interface AttemptInput {
    * turu, IP ozeti — public-check-attempt.ts).
    */
   report?: AttemptReport | null;
+  /** Kilitli sonucun anahtari (public-check-gate.ts); e-posta sonradan bu kayda yazilir */
+  anahtar?: string | null;
 }
 
 /**
@@ -75,6 +77,7 @@ export class PublicCheckAttemptService {
           checkId: input.checkId ?? null,
           ip: input.ipHash || null,
           detail: input.detail ?? null,
+          anahtar: input.anahtar ?? null,
         },
         select: { id: true },
       });
@@ -86,6 +89,46 @@ export class PublicCheckAttemptService {
       await this.notify(row.id, input);
     } catch (err: any) {
       this.log.warn(`Deneme kaydi yazilamadi (${input.domain}): ${err?.message ?? err}`);
+    }
+  }
+
+  /**
+   * Ziyaretci sonucu acmak icin e-postasini yazdi: deneme kaydina yazilir, yoneticiye haber
+   * verilir (panel + e-posta; gunluk tavanli). Deneme kaydi tavana takilip yazilmadiysa yeni
+   * kayit acilir — e-posta birakan kisi kaybolmaz. Hata yutulur: sonucu acmayi bozmaz.
+   */
+  async epostaYaz(g: { anahtar: string; domain: string; ipHash: string; outcome: AttemptOutcome; email: string; pazarlamaIzni: boolean }): Promise<void> {
+    try {
+      const simdi = new Date();
+      const veri = { email: g.email, emailAt: simdi, pazarlamaIzni: g.pazarlamaIzni };
+      const guncel = await this.prisma.publicCheckAttempt.updateMany({ where: { anahtar: g.anahtar }, data: veri });
+      let id: string | null = null;
+      if (guncel.count === 0) {
+        const row = await this.prisma.publicCheckAttempt.create({
+          data: { domain: g.domain, outcome: g.outcome, ip: g.ipHash || null, anahtar: g.anahtar, ...veri },
+          select: { id: true },
+        });
+        id = row.id;
+      } else {
+        const row = await this.prisma.publicCheckAttempt.findUnique({ where: { anahtar: g.anahtar }, select: { id: true } });
+        id = row?.id ?? null;
+      }
+      // Ayni adres + alan adi icin tek bildirim; gunde en fazla 50
+      if (!this.perDomainNotify.take(`eposta:${g.domain}:${g.email}`, 1) || !this.global.take('eposta-birakan', 50)) return;
+      const admin = await this.prisma.user.findFirst({ where: { role: 'ADMIN' }, orderBy: { createdAt: 'asc' }, select: { id: true } });
+      if (!admin) return;
+      await this.notifications.create({
+        userId: admin.id,
+        type: 'SYSTEM',
+        title: `Ücretsiz test: ${g.domain} e-posta bıraktı`,
+        body: `${g.domain} testinin sonucunu ${g.email} adresiyle açtı${g.pazarlamaIzni ? ' (ticari ileti onayı var)' : ''}. Ayrıntı: /admin/leads.`,
+        link: PANEL_LINK,
+        refKind: 'public_check_attempt',
+        refId: id ?? undefined,
+        channels: ['inapp', 'email'],
+      });
+    } catch (err: any) {
+      this.log.warn(`Deneme e-postasi yazilamadi (${g.domain}): ${err?.message ?? err}`);
     }
   }
 

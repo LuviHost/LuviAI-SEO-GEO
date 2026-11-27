@@ -23,7 +23,7 @@ export default function KvkkPage() {
             Islenen Kisisel Veriler bolumune eklendi; gizlilik sayfasiyla ayni gun.
             11 Kasim 2026: Aktarilan Taraflar'a AI olcumu icin Meta (Muse) eklendi; gizlilik sayfasiyla ayni gun. */}
         <p className="text-sm text-muted-foreground mb-1">Yürürlük: 27 Nisan 2026</p>
-        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 25 Kasım 2026</p>
+        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 27 Kasım 2026</p>
         <p className="text-sm text-muted-foreground mb-8">
           Değişiklik: Aktarılan Taraflar bölümüne yalnız çerez onayınızla yüklenen Google ve Microsoft araçları ile sizi
           davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi. İşlenen Kişisel Veriler bölümüne RanksUp
@@ -66,8 +66,8 @@ export default function KvkkPage() {
               botu olarak tanıtan isteklerin sayfa adresi, tarayıcı bilgisi ve IP adresi; IP adresi yalnız resmi IP
               listeleri ve DNS kaydıyla bot doğrulaması için kullanılır ve saklanmaz, yalnız doğrulama sonucu ve ağ
               numarası (ASN) saklanır (Gizlilik Politikası 4. bölüm). Hesabı olmayan ziyaretçilerde ücretsiz testte girilen alan adı, IP
-              adresinin özetlenmiş (hash) hâli ve tekrar ölçüm e-postası istenirse e-posta adresi (aşağıda ve Gizlilik
-              Politikası 8. bölüm).
+              adresinin özetlenmiş (hash) hâli, sonucu görmek için yazılan e-posta adresi ve tekrar ölçüm e-postası istenirse
+              abonelik bilgileri (aşağıda ve Gizlilik Politikası 8. bölüm).
             </p>
           </section>
 
@@ -170,12 +170,14 @@ export default function KvkkPage() {
               <li>
                 <strong className="text-foreground">İşlenen veriler:</strong> test ettiğiniz alan adı, sitenizden tespit
                 edilen marka adı ve sektör, ölçüm sonuçları ve IP adresinizin geri döndürülemez biçimde özetlenmiş (hash)
-                hâli. Tekrar ölçüm e-postası isterseniz ayrıca e-posta adresiniz, dil tercihiniz, onay zamanınız ve size
-                gönderilen e-postaların kaydı.
+                hâli, sonucu görmek için yazdığınız e-posta adresi ve isteğe bağlı ticari ileti onayınız. Tekrar ölçüm
+                e-postası isterseniz ayrıca dil tercihiniz, onay zamanınız ve size gönderilen e-postaların kaydı.
               </li>
               <li>
                 <strong className="text-foreground">Amaç:</strong> markanızın yapay zekâ asistanlarındaki görünürlüğünü
-                ölçmek, kötüye kullanımı önlemek ve test hakkını sınırlamak; onay verirseniz sitenizi 15, 30, 60 ve 90.
+                ölçmek ve sonucu göstermek, kötüye kullanımı önlemek ve test hakkını sınırlamak, bu testle ilgili sizinle
+                iletişim kurmak; ticari ileti onayı verdiyseniz yapay zekâ görünürlüğüyle ilgili bilgilendirme ve kampanya
+                e-postaları göndermek; onay verirseniz sitenizi 15, 30, 60 ve 90.
                 günlerde yeniden ölçüp sonucu e-postayla göndermek. Onay e-postasındaki bağlantıyla aboneliği onaylamazsanız
                 başka e-posta gönderilmez; dört ölçümden sonra e-postalar kendiliğinden durur.
               </li>
