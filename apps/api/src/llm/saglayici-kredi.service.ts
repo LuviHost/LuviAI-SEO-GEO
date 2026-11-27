@@ -46,6 +46,8 @@ export interface KrediSatiri {
   tahmin: {
     tutar: number; paraBirimi: 'USD' | 'TRY'; usd: number | null;
     girisTutar: number; girisAt: string; kullanilanUsd: number;
+    /** Saglayicida otomatik yukleme acik: tahmin "Azaldı" uretmez */
+    otomatikYukleme: boolean;
   } | null;
 }
 
@@ -83,11 +85,21 @@ export class SaglayiciKrediService {
     return Number(r?._sum?.costUsd ?? 0) || 0;
   }
 
-  /** Admin bakiye girisi (manuel saglayicilar). tutar null → giris silinir. */
-  async bakiyeGir(id: unknown, tutar: unknown, paraBirimi: unknown) {
+  /**
+   * Admin bakiye girisi (manuel saglayicilar). tutar null → giris silinir. Yalniz `otomatikYukleme`
+   * verilirse (tutar yok) mevcut girisin yalniz bayragi degisir — harcama tabani sifirlanmaz.
+   */
+  async bakiyeGir(id: unknown, tutar: unknown, paraBirimi: unknown, otomatikYukleme?: unknown) {
     const t = KREDI_SAGLAYICILARI.find((s) => s.id === id);
     if (!t || BAKIYE_TURU[t.id] !== 'manuel') throw new BadRequestException('Bu sağlayıcıya bakiye girilmez');
     const key = BAKIYE_KV + t.id;
+    if (tutar === undefined && typeof otomatikYukleme === 'boolean') {
+      const eski = bakiyeGirisiOku((await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null))?.value);
+      if (!eski) throw new BadRequestException('Önce bakiye girin');
+      const value = JSON.stringify({ ...eski, otomatikYukleme });
+      await this.prisma.kvStore.upsert({ where: { key }, create: { key, value }, update: { value } });
+      return this.tablo();
+    }
     if (tutar === null) {
       await this.prisma.kvStore.delete({ where: { key } }).catch(() => undefined);
       return this.tablo();
@@ -101,6 +113,7 @@ export class SaglayiciKrediService {
       paraBirimi,
       girisAt: new Date().toISOString(),
       olcumToplamAnlikUsd: await this.olcumToplamUsd(HARCAMA_SAGLAYICILARI[t.id]?.olcum ?? []),
+      otomatikYukleme: otomatikYukleme === true,
     };
     const value = JSON.stringify(giris);
     await this.prisma.kvStore.upsert({ where: { key }, create: { key, value }, update: { value } });
@@ -124,7 +137,7 @@ export class SaglayiciKrediService {
       const llm = await this.llmHarcamaUsd(h.llm, new Date(g.girisAt));
       const kullanilanUsd = Math.round((olcum + llm) * 10_000) / 10_000;
       const t = tahminiBakiye(g, kullanilanUsd, usdTry);
-      out.set(id, { tutar: t.tutar, paraBirimi: g.paraBirimi, usd: t.usd, girisTutar: g.tutar, girisAt: g.girisAt, kullanilanUsd });
+      out.set(id, { tutar: t.tutar, paraBirimi: g.paraBirimi, usd: t.usd, girisTutar: g.tutar, girisAt: g.girisAt, kullanilanUsd, otomatikYukleme: g.otomatikYukleme });
     }
     return out;
   }
@@ -170,7 +183,8 @@ export class SaglayiciKrediService {
           bakiyeUsd: b && !b.hata && (b.paraBirimi === null || b.paraBirimi === 'USD') ? b.usd : null,
           bakiyeKullanilabilir: b?.kullanilabilir ?? null,
           kontrolHatasiGuncel,
-          tahminiUsd: tahmin.get(t.id)?.usd ?? null,
+          // Otomatik yuklemede tahmin esigin altina duser ama hesap dolar: uyari tahminden uretilmez
+          tahminiUsd: tahmin.get(t.id)?.otomatikYukleme ? null : tahmin.get(t.id)?.usd ?? null,
         }),
         bakiye: b ? { tutar: b.usd, paraBirimi: b.paraBirimi, hata: b.hata, at: b.at } : null,
         sonBasari: k.sonBasari ?? null,

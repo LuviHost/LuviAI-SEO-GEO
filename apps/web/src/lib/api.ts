@@ -657,7 +657,7 @@ export interface SaglayiciKrediSatiri {
   /** api = saglayicidan sorgulanir, manuel = admin girisi − harcama, fatura = kartla sonradan (Meta) */
   bakiyeTuru?: 'api' | 'manuel' | 'fatura';
   /** Manuel: girilen bakiye − girişten bu yana kayitli harcama */
-  tahmin?: { tutar: number; paraBirimi: 'USD' | 'TRY'; usd: number | null; girisTutar: number; girisAt: string; kullanilanUsd: number } | null;
+  tahmin?: { tutar: number; paraBirimi: 'USD' | 'TRY'; usd: number | null; girisTutar: number; girisAt: string; kullanilanUsd: number; otomatikYukleme?: boolean } | null;
 }
 export interface SaglayiciKrediTablosu { satirlar: SaglayiciKrediSatiri[]; at: string }
 
@@ -2149,8 +2149,11 @@ export const api = {
     request<SaglayiciKrediTablosu>(`/admin/saglayici-kredi${tazele ? '?tazele=1' : ''}`),
   /** Her saglayiciya en kucuk istek (toplam < 0,01 USD) — sonucu kaydeder, tabloyu doner */
   /** Tahmini bakiye girisi (tutar null = sil) */
-  saglayiciBakiyeGir: (id: string, tutar: number | null, paraBirimi?: 'USD' | 'TRY') =>
-    request<SaglayiciKrediTablosu>('/admin/saglayici-kredi/bakiye', { method: 'POST', body: JSON.stringify({ id, tutar, paraBirimi }) }),
+  saglayiciBakiyeGir: (id: string, tutar: number | null, paraBirimi?: 'USD' | 'TRY', otomatikYukleme?: boolean) =>
+    request<SaglayiciKrediTablosu>('/admin/saglayici-kredi/bakiye', { method: 'POST', body: JSON.stringify({ id, tutar, paraBirimi, otomatikYukleme }) }),
+  /** Yalniz otomatik yukleme bayragi (tutar ve harcama tabani degismez) */
+  saglayiciOtomatikYukleme: (id: string, otomatikYukleme: boolean) =>
+    request<SaglayiciKrediTablosu>('/admin/saglayici-kredi/bakiye', { method: 'POST', body: JSON.stringify({ id, otomatikYukleme }) }),
   saglayiciKrediKontrol: () =>
     request<SaglayiciKrediTablosu>('/admin/saglayici-kredi/kontrol', { method: 'POST' }),
 
