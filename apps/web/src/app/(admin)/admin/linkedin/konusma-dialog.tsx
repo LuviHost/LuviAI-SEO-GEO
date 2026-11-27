@@ -31,8 +31,10 @@ function simdiYerel(): string {
   return d.toISOString().slice(0, 16);
 }
 
-export function KonusmaDialog({ p, onClose, onDone }: {
+export function KonusmaDialog({ p, gonderen, onClose, onDone }: {
   p: LinkedinProspect | null;
+  /** Iletisimi kuran yonetici ("Emir" / "Talat"): yazani bilinmeyen giden balonlarda gorunur */
+  gonderen?: string | null;
   onClose: () => void;
   onDone: () => Promise<void>;
 }) {
@@ -124,7 +126,7 @@ export function KonusmaDialog({ p, onClose, onDone }: {
                       <span className="rounded-full border bg-background px-2.5 py-0.5 text-label text-muted-foreground">{b.tarih}</span>
                     </div>
                   )}
-                  <BalonGorunum b={b} kisi={p.ad} />
+                  <BalonGorunum b={b} kisi={p.ad} gonderen={gonderen ?? null} />
                 </Fragment>
               ))}
             </div>
@@ -170,7 +172,7 @@ export function KonusmaDialog({ p, onClose, onDone }: {
   );
 }
 
-function BalonGorunum({ b, kisi }: { b: Balon; kisi: string }) {
+function BalonGorunum({ b, kisi, gonderen }: { b: Balon; kisi: string; gonderen: string | null }) {
   const giden = b.yon === 'giden';
   return (
     <div className={cn('flex flex-col', giden ? 'items-end' : 'items-start')}>
@@ -187,7 +189,7 @@ function BalonGorunum({ b, kisi }: { b: Balon; kisi: string }) {
         <div className="whitespace-pre-wrap break-words leading-relaxed">{b.metin}</div>
       </div>
       <div className="mt-1 px-1 text-label font-normal text-muted-foreground">
-        {giden ? 'Sen' : kisi}{b.saat ? ` · ${b.saat}` : ''}{b.kanal ? ` · ${b.kanal}` : ''}
+        {giden ? (b.yazan ?? gonderen ?? 'Sen') : kisi}{b.saat ? ` · ${b.saat}` : ''}{b.kanal ? ` · ${b.kanal}` : ''}
       </div>
     </div>
   );

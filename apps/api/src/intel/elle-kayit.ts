@@ -100,12 +100,17 @@ function istanbulSaat(at: Date): string {
   return new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', hour12: false }).format(at);
 }
 
-/** Tarih basligi: "── 20.11.2026 15:00 · E-posta · Gelen · Konu: X ──" (Konu her zaman sonda) */
-export function blokBasligi(kanal: Kanal, at: Date, konu?: string | null, yon: Yon = 'GIDEN'): string {
+/**
+ * Tarih basligi: "── 20.11.2026 15:00 · E-posta · Gelen · Yazan: Talat · Konu: X ──" (Konu her zaman sonda).
+ * Yazan (28.11.2026, iki yonetici): giden mesaji hangi yoneticinin yazdigi; web lib/konusma.ts okur.
+ */
+export function blokBasligi(kanal: Kanal, at: Date, konu?: string | null, yon: Yon = 'GIDEN', yazan?: string | null): string {
   const { ymd } = istanbulParts(at);
   const [y, m, g] = ymd.split('-');
   const parca = [`${g}.${m}.${y} ${istanbulSaat(at)}`, kanal === 'EPOSTA' ? 'E-posta' : 'LinkedIn'];
   if (yon === 'GELEN') parca.push('Gelen');
+  const yz = (yazan ?? '').replace(/[·─]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (yz) parca.push(`Yazan: ${yz}`);
   if (konu && konu.trim()) parca.push(`Konu: ${konu.trim().replace(/\s+/g, ' ').replace(/──/g, '—').slice(0, 200)}`);
   return `── ${parca.join(' · ')} ──`;
 }
@@ -126,7 +131,8 @@ function tarihOku(v: string | null | undefined, ad: string): Date | null {
 }
 
 /** Girdiyi dogrula ve kayda hazirla. Eksik / gecersiz alanda acik Turkce hata firlatir. */
-export function elleKayitHazirla(g: ElleKayitGirdi, now: Date = new Date()): ElleKayitHazir {
+/** `yazan`: kaydi giren yonetici; GIDEN mesajin basligina yazilir (GELEN'i karsi taraf yazdi) */
+export function elleKayitHazirla(g: ElleKayitGirdi, now: Date = new Date(), yazan?: string | null): ElleKayitHazir {
   const kanal: Kanal = String(g.kanal ?? 'LINKEDIN').toUpperCase() === 'EPOSTA' ? 'EPOSTA' : 'LINKEDIN';
   const yon: Yon = String(g.yon ?? 'GIDEN').toUpperCase() === 'GELEN' ? 'GELEN' : 'GIDEN';
   const { ad, soyad } = adSoyadAyir(String(g.ad ?? ''), String(g.soyad ?? ''));
@@ -161,7 +167,7 @@ export function elleKayitHazirla(g: ElleKayitGirdi, now: Date = new Date()): Ell
     unvan: g.unvan ? String(g.unvan).trim().slice(0, 160) || null : null,
     anahtar,
     eposta,
-    blok: `${blokBasligi(kanal, gonderimAt, g.konu, yon)}\n${mesaj.slice(0, MESAJ_SINIR)}`,
+    blok: `${blokBasligi(kanal, gonderimAt, g.konu, yon, yon === 'GIDEN' ? yazan : null)}\n${mesaj.slice(0, MESAJ_SINIR)}`,
     gonderimAt,
     hatirlatmaAt,
     // Karsi tarafin mesaji kaydediliyorsa kisi cevap vermistir

@@ -7,6 +7,7 @@
  *      a) Elle kayit bloklari: "── 21.11.2026 20:08 · LinkedIn · Gelen · Konu: X ──\nmetin"
  *         (saat ve "Gelen" isteğe bagli; eski kayitlarda saat yok)
  *      b) Botun tek mesaji (baslik yok); InMail ise "[InMail] konu\n\nmetin"
+ *  - "· Yazan: Talat" (28.11.2026, iki yonetici): giden mesaji hangi yonetici yazdi
  *  - repliedAt dolu ama hic "Gelen" blok yoksa: "cevap verdi (metin kaydedilmedi)" balonu,
  *    boylece sohbet "cevapsiz" gorunmez.
  */
@@ -25,6 +26,8 @@ export interface Balon {
   metin: string;
   /** Metni kaydedilmemis cevap isareti */
   yerTutucu?: boolean;
+  /** Giden mesaji yazan yonetici ("Talat"); eski kayitlarda yok */
+  yazan?: string | null;
 }
 
 export interface KonusmaKaydi {
@@ -36,7 +39,7 @@ export interface KonusmaKaydi {
   kanal?: 'LINKEDIN' | 'EPOSTA';
 }
 
-const BASLIK_RE = /^── (\d{2}\.\d{2}\.\d{4})(?: (\d{2}:\d{2}))? · (LinkedIn|E-posta)( · Gelen)?(?: · Konu: (.*))? ──$/;
+const BASLIK_RE = /^── (\d{2}\.\d{2}\.\d{4})(?: (\d{2}:\d{2}))? · (LinkedIn|E-posta)( · Gelen)?(?: · Yazan: ([^·]+?))?(?: · Konu: (.*))? ──$/;
 
 /** ISO ani → { tarih: "dd.mm.yyyy", saat: "HH:MM" } (Istanbul) */
 export function isoTarihSaat(iso: string | null | undefined): { tarih: string | null; saat: string | null } {
@@ -71,7 +74,8 @@ function bloklar(metin: string): Balon[] | null {
         tarih: m[1],
         saat: m[2] ?? null,
         kanal: m[3] as Balon['kanal'],
-        baslik: m[5]?.trim() || null,
+        baslik: m[6]?.trim() || null,
+        yazan: m[5]?.trim() || null,
         metin: '',
       };
     } else if (cur) {

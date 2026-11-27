@@ -35,6 +35,8 @@ const SONUC_ETIKETI: Record<LinkedinClaudeKisiSonucu, { label: string; variant: 
   EPOSTA_ISTIYOR: { label: 'E-posta istiyor', variant: 'warning' },
   KABUL_TAMAM: { label: 'Kontrol edildi', variant: 'info' },
   KABUL_ETTI: { label: 'Kabul etti', variant: 'success' },
+  MESAJ_TAMAM: { label: 'Tarandı', variant: 'info' },
+  MESAJ_GUNCELLENDI: { label: 'Yeni mesaj', variant: 'success' },
   ENGEL: { label: 'LinkedIn engeli', variant: 'danger' },
   HATA: { label: 'Hata', variant: 'danger' },
 };
@@ -185,7 +187,7 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
             <div className="text-xs text-muted-foreground max-w-2xl">
               Listeyi ve notları kontrol et, &quot;Claude ile gönder&quot;e bas. İstekleri senin Mac&apos;inde, senin Chrome&apos;unda Claude gönderir;
               Claude aboneliğinin kotasından düşer, ayrıca ücret çıkmaz. Mac açık, Chrome&apos;da Claude eklentisi ve LinkedIn oturumu açık olmalı.
-              Kabul kontrolü hafta içi 10:00, 14:00 ve 17:00&apos;de kendiliğinden yapılır; kabul edenler &quot;Bugün ilgilenilecekler&quot;e düşer.
+              Kabul kontrolü hafta içi 10:00, 14:00 ve 17:00&apos;de kendiliğinden yapılır; kabul edenler &quot;Bugün ilgilenilecekler&quot;e düşer. Ardından mesaj kutun taranır: listedeki kişilerle LinkedIn&apos;den yazdıkların ve gelen cevaplar konuşmaya &quot;Yazan: adın&quot; ile işlenir.
               Her yöneticinin kendi Mac anahtarı ve kendi günlük kotası vardır. Açtığın iş yalnız senin Mac&apos;inde çalışır ve istek,
               o Mac&apos;teki Chrome&apos;da açık olan LinkedIn hesabından gider.
             </div>
@@ -222,7 +224,7 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
           <div key={d.id} className="flex flex-wrap items-center gap-2 rounded-md border p-2.5 text-xs text-muted-foreground">
             <Badge variant="outline">Diğer yönetici</Badge>
             <span>
-              <b className="text-foreground">{d.sahip}</b> · {d.tur === 'KABUL' ? 'kabul kontrolü' : `${d.kisi} kişi${d.kuru ? ', kuru deneme' : ''}`}
+              <b className="text-foreground">{d.sahip}</b> · {d.tur === 'KABUL' ? 'kabul kontrolü' : d.tur === 'MESAJ' ? 'mesaj taraması' : `${d.kisi} kişi${d.kuru ? ', kuru deneme' : ''}`}
               {' '}· {d.durum === 'CALISIYOR' ? 'çalışıyor' : 'Mac bekleniyor'} · açıldı {saat(d.createdAt)}.
               {' '}Bu iş onun Mac&apos;inde ve onun LinkedIn hesabıyla yürür; senin Mac&apos;ine, hesabına ve kotana dokunmaz.
             </span>
@@ -245,10 +247,12 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
                 {(is.durum === 'CALISIYOR' || is.durum === 'BEKLIYOR') && <RefreshCw className="h-3 w-3 mr-1 animate-spin" />}
                 {IS_ETIKETI[is.durum]}
               </Badge>
-              <span className="font-medium">{is.tur === 'KABUL' ? 'Kabul kontrolü' : is.kuru ? 'Kuru deneme' : 'Gerçek gönderim'}</span>
+              <span className="font-medium">{is.tur === 'KABUL' ? 'Kabul kontrolü' : is.tur === 'MESAJ' ? 'Mesaj taraması' : is.kuru ? 'Kuru deneme' : 'Gerçek gönderim'}</span>
               <span className="text-muted-foreground">
                 · {is.tur === 'KABUL'
                   ? `${is.kontrolEdilen ?? 0} kişi kontrol edildi${is.durum === 'BITTI' ? `, ${is.kisiler.length} kabul` : ''}`
+                  : is.tur === 'MESAJ'
+                  ? `${is.kontrolEdilen ?? 0} kişinin konuşmasına bakıldı${is.durum === 'BITTI' ? `, ${is.kisiler.length} kişide yeni mesaj` : ''}`
                   : `${is.kisiler.length} kişi`}
                 {' '}· açıldı {saat(is.createdAt)}{is.bittiAt ? ` · bitti ${saat(is.bittiAt)}` : ''}
                 {is.maliyet > 0 && <span title="Claude kullanımı, API fiyatıyla karşılığı — abonelik kotasından düşer, ayrıca ödenmez"> · ≈{is.maliyet.toFixed(2)} USD kota</span>}
@@ -260,6 +264,9 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
             {is.hata && <div className="text-xs text-danger">{is.hata}</div>}
             {is.tur === 'KABUL' && is.durum === 'BITTI' && is.kisiler.length === 0 && (
               <div className="text-xs text-muted-foreground">Yeni kabul yok.</div>
+            )}
+            {is.tur === 'MESAJ' && is.durum === 'BITTI' && is.kisiler.length === 0 && (
+              <div className="text-xs text-muted-foreground">Kayda geçmemiş yeni mesaj yok.</div>
             )}
             <ul className="space-y-1">
               {is.kisiler.map((k) => (

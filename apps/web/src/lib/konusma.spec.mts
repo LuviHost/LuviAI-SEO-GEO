@@ -53,3 +53,20 @@ describe('konusmaBalonlari', () => {
     expect(konusmaOzeti([])).toBe('—');
   });
 });
+
+describe('yazan (iki yonetici, 28.11.2026)', () => {
+  it('"· Yazan: Talat" giden balona yazan olarak, konu yine okunur', () => {
+    const b = konusmaBalonlari({
+      messageText: [
+        '── 27.11.2026 14:05 · LinkedIn · Yazan: Talat ──', 'Merhaba Ayşe Hanım', '',
+        '── 27.11.2026 15:10 · LinkedIn · Gelen ──', 'Teşekkürler', '',
+        '── 27.11.2026 16:00 · E-posta · Yazan: Emir · Konu: Karne ──', 'Ekte',
+      ].join('\n'),
+    });
+    expect(b.map((x) => [x.yon, x.yazan ?? null, x.baslik])).toEqual([
+      ['giden', 'Talat', null],
+      ['gelen', null, null],
+      ['giden', 'Emir', 'Karne'],
+    ]);
+  });
+});

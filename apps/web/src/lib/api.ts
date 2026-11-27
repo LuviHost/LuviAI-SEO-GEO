@@ -633,6 +633,8 @@ export interface LinkedinProspect {
   repliedAt?: string | null;
   lastError?: string | null;
   screenshotPath?: string | null;
+  /** Iletisimi kuran yonetici (users.id); ad overview.gonderenler'de */
+  gonderenId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -667,11 +669,11 @@ export interface LinkedinClaudeAday {
   id: string; ad: string; soyad: string; firma: string; unvan: string | null; profileUrl: string; not: string; lastError: string | null;
 }
 export interface LinkedinClaudeAdaylar { kalanBugun: number; isTavani: number; adaylar: LinkedinClaudeAday[] }
-export type LinkedinClaudeKisiSonucu = 'GONDERILDI' | 'KURU_TAMAM' | 'ZATEN_BAGLI' | 'BEKLIYOR' | 'BULUNAMADI' | 'EPOSTA_ISTIYOR' | 'KABUL_TAMAM' | 'KABUL_ETTI' | 'ENGEL' | 'HATA';
+export type LinkedinClaudeKisiSonucu = 'GONDERILDI' | 'KURU_TAMAM' | 'ZATEN_BAGLI' | 'BEKLIYOR' | 'BULUNAMADI' | 'EPOSTA_ISTIYOR' | 'KABUL_TAMAM' | 'KABUL_ETTI' | 'MESAJ_TAMAM' | 'MESAJ_GUNCELLENDI' | 'ENGEL' | 'HATA';
 export interface LinkedinClaudeIs {
   id: string;
   /** ISTEK: baglanti istegi | KABUL: otomatik kabul kontrolu (hafta ici 10/14/17) */
-  tur: 'ISTEK' | 'KABUL';
+  tur: 'ISTEK' | 'KABUL' | 'MESAJ';
   /** Claude kullanimi, API fiyatiyla karsiligi (abonelik kotasindan duser) */
   maliyet: number;
   /** KABUL: kontrol edilen kisi sayisi; kisiler yalniz kabul edenler */
@@ -689,7 +691,7 @@ export interface LinkedinClaudeDurum {
   /** Bu yoneticinin Mac anahtari var mi (her yoneticinin ayri anahtari) */
   anahtarVar: boolean;
   /** Diger yoneticilerin suren isleri — yalniz bilgi; kendi Mac'lerinde, kendi hesaplariyla calisir */
-  digerIsler?: Array<{ id: string; tur: 'ISTEK' | 'KABUL'; durum: 'BEKLIYOR' | 'CALISIYOR'; kuru: boolean; kisi: number; sahip: string; createdAt: string }>;
+  digerIsler?: Array<{ id: string; tur: 'ISTEK' | 'KABUL' | 'MESAJ'; durum: 'BEKLIYOR' | 'CALISIYOR'; kuru: boolean; kisi: number; sahip: string; createdAt: string }>;
   ajan: { sonGorulme: string | null; canli: boolean };
   isler: LinkedinClaudeIs[];
 }
@@ -716,6 +718,8 @@ export interface LinkedinOverview {
   /** Arka uctaki etkin frenler (env ile yalniz asagi cekilmis olabilir) */
   limits?: Record<string, number>;
   recent: LinkedinProspect[];
+  /** Iki yonetici (28.11.2026): gonderenId → kisa ad ("Emir", "Talat") */
+  gonderenler?: Record<string, string>;
   /** Firma bazli dagilim — panel ozet seridi */
   byFirma?: Array<{ firma: string; toplam: number; kuyrukta: number }>;
   /** DB'deki toplam kayit (recent kesilmis olabilir) */

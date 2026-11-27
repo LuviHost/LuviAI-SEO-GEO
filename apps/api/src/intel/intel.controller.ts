@@ -612,9 +612,9 @@ export class IntelController {
    */
   @Post('linkedin/elle-kayit')
   async linkedinElleKayit(@Req() req: Request, @Body() body: ElleKayitGirdi) {
-    assertAdmin(req);
+    const user = assertAdmin(req);
     try {
-      return await this.linkedin.elleKayit(body ?? {});
+      return await this.linkedin.elleKayit(body ?? {}, String(user.id));
     } catch (err: any) {
       throw new BadRequestException(err?.message ?? 'Kayıt eklenemedi');
     }

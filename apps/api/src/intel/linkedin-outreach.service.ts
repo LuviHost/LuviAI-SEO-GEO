@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { LINKEDIN_LABELS as L } from './linkedin-selectors.js';
 import { elleKayitHazirla, metneEkle, type ElleKayitGirdi } from './elle-kayit.js';
+import { ilkAd } from './linkedin-claude.js';
 import {
   type BlockResult,
   type MessagedProspect,
@@ -1208,12 +1209,15 @@ export class LinkedinOutreachService {
    * mesajlari ayni kartta sirayla okunur). Cevap vermis kisi "Cevap verdi"de kalir.
    * Bot bu kayda yazmaz: durum MESSAGED/REPLIED, kuyruk yalniz QUEUED/REQUESTED/ACCEPTED okur.
    */
-  async elleKayit(g: ElleKayitGirdi): Promise<{ id: string; yeni: boolean }> {
-    const h = elleKayitHazirla(g);
+  async elleKayit(g: ElleKayitGirdi, kaydedenId?: string): Promise<{ id: string; yeni: boolean }> {
+    // Iki yonetici (28.11.2026): giden mesajin basligina kaydi girenin adi yazilir
+    const u = kaydedenId ? await this.prisma.user.findUnique({ where: { id: kaydedenId }, select: { name: true, email: true } }).catch(() => null) : null;
+    const kaydeden = kaydedenId ? { id: kaydedenId, ad: ilkAd(u) } : undefined;
+    const h = elleKayitHazirla(g, new Date(), kaydeden?.ad);
     const simdi = new Date();
     const eski = await this.prisma.linkedinProspect.findUnique({
       where: { profileUrl: h.anahtar },
-      select: { id: true, status: true, messageText: true, messagedAt: true, repliedAt: true, eposta: true, unvan: true },
+      select: { id: true, status: true, messageText: true, messagedAt: true, repliedAt: true, eposta: true, unvan: true, gonderenId: true },
     });
     const cevapli = h.cevapGeldi || eski?.status === 'REPLIED';
     const gelen = h.yon === 'GELEN';
@@ -1232,6 +1236,8 @@ export class LinkedinOutreachService {
           ...ortak,
           ad: h.ad, soyad: h.soyad, firma: h.firma, unvan: h.unvan,
           profileUrl: h.anahtar, kanal: h.kanal, eposta: h.eposta,
+          // Iki yonetici (28.11): kaydi giren yonetici bu kisiyle iletisimi kurandir
+          gonderenId: kaydeden?.id ?? null,
           // Gelen mesaj "bizim gonderdigimiz" degil: messagedAt (gunluk mesaj sayaci) dolmaz
           messageText: h.blok, messagedAt: gelen ? null : h.gonderimAt,
         },
@@ -1248,6 +1254,8 @@ export class LinkedinOutreachService {
         messagedAt: sonMesaj,
         eposta: eski.eposta ?? h.eposta,
         unvan: eski.unvan ?? h.unvan,
+        // Gonderen bos ise kaydi giren yonetici; dolu ise degismez (istegi kim attiysa o)
+        ...(eski.gonderenId || !kaydeden ? {} : { gonderenId: kaydeden.id }),
       },
     });
     return { id: eski.id, yeni: false };
@@ -1362,6 +1370,12 @@ export class LinkedinOutreachService {
         select: { ad: true, soyad: true, firma: true, sektor: true },
       }).catch(() => null),
     ]);
+    // Iki yonetici (28.11.2026): listede "kim gonderdi" — gonderenId → kisa ad
+    const gonderenIds = [...new Set(recent.flatMap((p) => (p.gonderenId ? [p.gonderenId] : [])))];
+    const gonderenKullanicilar = gonderenIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: gonderenIds } }, select: { id: true, name: true, email: true } }).catch(() => [])
+      : [];
+    const gonderenler = Object.fromEntries(gonderenKullanicilar.map((u) => [u.id, ilkAd(u)]));
     // NEDEN: anahtar acikken panel "Calisiyor" diyordu ama bot 10.09'dan beri hic gonderemiyordu
     // (tunel kopuk + LinkedIn arayuzu degisti). Panel artik son basariyi ve son hatayi gosterir.
     const [sonIstek, sonHata] = await Promise.all([
@@ -1410,6 +1424,7 @@ export class LinkedinOutreachService {
       recentTotal: Object.values(Object.fromEntries(byStatus.map((s) => [s.status, s._count as number]))).reduce((a: number, b: number) => a + b, 0),
       limits,
       recent,
+      gonderenler,
     };
   }
 
