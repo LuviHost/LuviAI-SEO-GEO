@@ -25,6 +25,10 @@ export interface TestDenemesi {
   checkId: string | null;
   detail: string | null;
   notifiedAt: string | null;
+  /** Sonucu açmak için yazılan e-posta (27.11.2026; eski kayıtta ve mobil testte yok) */
+  email?: string | null;
+  /** Ticari ileti onayı kutusu işaretlendi mi */
+  pazarlamaIzni?: boolean;
   createdAt: string;
   member?: TestUyesi | null;
 }

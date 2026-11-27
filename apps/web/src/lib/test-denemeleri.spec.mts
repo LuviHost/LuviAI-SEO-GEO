@@ -61,7 +61,8 @@ describe('gizlilik metniyle uyum', () => {
     expect(sayfa).not.toContain('aynı ziyaretçi');
     // Sunucu deneme listesine IP ozetini vermez; uye eslesmesi alan adiyladir
     const admin = oku('../../../api/src/admin/admin.service.ts');
-    expect(admin).toContain("select: { id: true, domain: true, outcome: true, checkId: true, detail: true, notifiedAt: true, createdAt: true },");
+    // 27.11.2026: sonucu acmak icin yazilan e-posta listede gorunur (gizlilik 8. bolum); IP ozeti yine yok
+    expect(admin).toContain("select: { id: true, domain: true, outcome: true, checkId: true, detail: true, notifiedAt: true, email: true, pazarlamaIzni: true, createdAt: true },");
     expect(admin).toContain('members.get(hostKey(domain))');
   });
 

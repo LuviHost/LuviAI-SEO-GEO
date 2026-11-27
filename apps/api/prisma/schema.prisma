@@ -2177,6 +2177,13 @@ model PublicCheckAttempt {
   detail     String?
   /// Yoneticiye bildirim yazildiysa zamani; null = bildirim kisildi ya da yazilamadi
   notifiedAt DateTime?
+  /// Sonucu acmak icin yazilan e-posta (27.11.2026: sonuc e-postasiz gosterilmez, public-check-gate.ts)
+  email      String?   @db.VarChar(191)
+  emailAt    DateTime?
+  /// Ticari ileti onayi kutusu (istege bagli, varsayilan bos)
+  pazarlamaIzni Boolean @default(false)
+  /// Kilitli sonucun anahtari; e-posta bu anahtarla dogru denemeye yazilir
+  anahtar    String?   @unique @db.VarChar(64)
   createdAt  DateTime  @default(now())
 
   @@index([createdAt])

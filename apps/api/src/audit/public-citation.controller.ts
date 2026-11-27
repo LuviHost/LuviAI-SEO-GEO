@@ -19,6 +19,9 @@ import {
   SUBSCRIBE_WELCOME_PER_EMAIL,
   SUBSCRIBE_WELCOME_PER_EMAIL_STRICT,
 } from './public-subscribe-limits.js';
+import {
+  KAPI_EPOSTA_MESAJI, KAPI_IP_GUNLUK, KAPI_SURESI_DOLDU_MESAJI, SonucKasasi, kapiEposta, kilitliSonuc, yeniKapiAnahtari,
+} from './public-check-gate.js';
 
 interface PublicCheckBody {
   domain: string;
@@ -119,6 +122,10 @@ export class PublicCitationController {
    * ister; token'siz yolda bu kilit ayni IP'yi bir anda tek kontrole indirir.
    */
   private readonly mobileChecksInFlight = new Set<string>();
+  /** Kilitli sonuclar (e-posta kapisi, public-check-gate.ts) */
+  private readonly kapi = new SonucKasasi<PublicCheckResult>();
+  /** citation-check/ac denemeleri — IP basina 24 saat */
+  private readonly kapiDenemeleri = new AttemptWindow(24 * 60 * 60 * 1000);
 
   constructor(
     private readonly citation: PublicCitationService,
@@ -184,7 +191,7 @@ export class PublicCitationController {
     // ve yoneticiye haber verilir. BEKLENMEZ: kayit / e-posta ziyaretcinin cevabini geciktirmez.
     // Hicbir hatasi testi bozmaz: esZamanli hata try/catch'te, reddedilen soz .catch'te kalir.
     // Alan adina cevrilemeyen girdi YAZILMAZ — ham metin saklanmaz (public-check-attempt.ts).
-    const denemeKaydi = (sonuc: PublicCheckResult | null, hata?: { status?: number; message?: string }) => {
+    const denemeKaydi = (sonuc: PublicCheckResult | null, hata?: { status?: number; message?: string }, anahtar?: string) => {
       try {
         const domain = sonuc?.domain || attemptHost(body.domain, (d) => this.citation.hostOf(d));
         if (!domain) return;
@@ -198,6 +205,7 @@ export class PublicCitationController {
           // Bildirim e-postasi ziyaretcinin gordugu raporu tasir (public-check-report-email.ts);
           // yalniz e-postada kullanilir, kayda yazilmaz
           report: sonuc ? reportOfResult(sonuc) : undefined,
+          anahtar: anahtar ?? null,
         };
         void Promise.resolve()
           .then(() => this.attempts.record(girdi))
@@ -215,8 +223,16 @@ export class PublicCitationController {
         'manual',
         mobileWithoutToken ? { ipDailyLimit: PUBLIC_CHECK_IP_LIMIT_STRICT } : {},
       );
-      denemeKaydi(sonuc);
-      return sonuc;
+      // E-posta kapisi (27.11.2026, public-check-gate.ts): tarayicidan gelen testte sonuc
+      // istemciye gitmez; e-posta yazilinca citation-check/ac doner. Mobil uygulama kapisiz.
+      if (isMobileAppClient(uaRaw)) {
+        denemeKaydi(sonuc);
+        return sonuc;
+      }
+      const anahtar = yeniKapiAnahtari();
+      this.kapi.koy(anahtar, { sonuc, domain: sonuc.domain, ipHash: this.citation.ipHash(ip) });
+      denemeKaydi(sonuc, undefined, anahtar);
+      return kilitliSonuc(sonuc, anahtar);
     } catch (err: any) {
       // Ic hata (status yok) kayda "tamamlanamadi" diye girer; ic hata METNI girmez (attemptDetail)
       denemeKaydi(null, err);
@@ -230,6 +246,38 @@ export class PublicCitationController {
     } finally {
       if (mobileWithoutToken) this.mobileChecksInFlight.delete(inFlightKey);
     }
+  }
+
+  /**
+   * POST /public/citation-check/ac — kilitli sonucu e-postayla acar (public-check-gate.ts).
+   * Body: { anahtar, email, pazarlamaIzni? }. E-posta deneme kaydina (/admin/leads) yazilir.
+   * Ayni anahtar suresi icinde tekrar acilabilir (sayfa yenilenmeden ikinci goruntuleme).
+   */
+  @Public()
+  @Post('citation-check/ac')
+  async ac(@Req() req: Request, @Body() body: { anahtar?: unknown; email?: unknown; pazarlamaIzni?: unknown }): Promise<PublicCheckResult> {
+    if (this.isObviousBot((req.headers['user-agent'] ?? '').toString().toLowerCase())) {
+      throw new HttpException('Bot tespit edildi', HttpStatus.FORBIDDEN);
+    }
+    const ip = clientIp(req);
+    if (!this.kapiDenemeleri.take(ip || 'unknown', KAPI_IP_GUNLUK)) {
+      throw new HttpException('Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    const email = kapiEposta(body?.email);
+    if (!email) throw new HttpException(KAPI_EPOSTA_MESAJI, HttpStatus.BAD_REQUEST);
+    const anahtar = typeof body?.anahtar === 'string' && /^[a-f0-9]{48}$/.test(body.anahtar) ? body.anahtar : null;
+    const kayit = anahtar ? this.kapi.al(anahtar) : null;
+    if (!anahtar || !kayit) throw new HttpException(KAPI_SURESI_DOLDU_MESAJI, HttpStatus.GONE);
+    // Beklenir ama hatasi yutulur (servis): kayit yazilamasa da ziyaretci sonucunu gorur
+    await this.attempts.epostaYaz({
+      anahtar,
+      domain: kayit.domain,
+      ipHash: kayit.ipHash,
+      outcome: outcomeOfResult(kayit.sonuc),
+      email,
+      pazarlamaIzni: body?.pazarlamaIzni === true,
+    });
+    return kayit.sonuc;
   }
 
   @Public()

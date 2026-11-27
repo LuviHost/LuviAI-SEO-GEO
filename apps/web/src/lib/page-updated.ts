@@ -93,9 +93,9 @@ export const PUBLIC_PAGES: readonly PublicPage[] = [
   { path: '/help/glossary',         updated: '2026-11-11', changeFrequency: 'monthly', priority: 0.6 },
   // 11.11.2026: uc sayfanin gorunur tarihi PR #69'da (Meta/Muse aktarimi) 11 Kasim oldu ama bu
   // satirlar guncellenmemisti; page-updated.spec main'de kirmiziydi, sitemap eski tarihi veriyordu.
-  { path: '/privacy',               updated: '2026-11-25', changeFrequency: 'yearly',  priority: 0.3 },
+  { path: '/privacy',               updated: '2026-11-27', changeFrequency: 'yearly',  priority: 0.3 },
   { path: '/terms',                 updated: '2026-11-16', changeFrequency: 'yearly',  priority: 0.3 },
-  { path: '/kvkk',                  updated: '2026-11-25', changeFrequency: 'yearly',  priority: 0.3 },
+  { path: '/kvkk',                  updated: '2026-11-27', changeFrequency: 'yearly',  priority: 0.3 },
   { path: '/bot',                   updated: '2026-11-25', changeFrequency: 'yearly',  priority: 0.3 },
 ];
 
