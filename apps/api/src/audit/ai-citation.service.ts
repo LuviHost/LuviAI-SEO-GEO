@@ -35,7 +35,7 @@ import { noteMeasured } from '../billing/measurement-allowance.js';
 import { tekrarSayisiFor } from './citation-repeat.js';
 import { saglayiciBasariKaydet, saglayiciKrediHatasiKaydet } from './saglayici-durum.js';
 import {
-  anthropicKullanim, dataforseoKullanim, geminiKullanim, gercekMaliyetAnahtari, gercekMaliyetUsd, perplexityKullanim,
+  anthropicKullanim, dataforseoKullanim, geminiKullanim, gercekMaliyetAnahtari, gercekMaliyetUsd, gercekToplamAnahtari, perplexityKullanim,
   responsesKullanim, type KullanimOzeti,
 } from './olcum-gercek-maliyet.js';
 import { gorunmeAraligi, type GorunmeAraligi } from './visibility-interval.js';
@@ -525,6 +525,8 @@ export class AiCitationService {
     }
     if (usd <= 0) return;
     void this.bumpCostKey(gercekMaliyetAnahtari(provider, new Date().toISOString().slice(0, 10)), usd, 'gercek', GERCEK_MALIYET_KV_GUN);
+    // Kumulatif toplam: admin "tahmini bakiye" girisinden bu yana harcamayi gun bolunmeden verir
+    void this.bumpCostKey(gercekToplamAnahtari(provider), usd, 'gercek-toplam', 3650);
   }
 
   private readonly fiyatsizModeller = new Set<string>();

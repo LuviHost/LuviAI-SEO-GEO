@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { LLMProviderService } from './llm-provider.service.js';
 import { SaglayiciKrediService } from './saglayici-kredi.service.js';
@@ -23,6 +23,14 @@ export class SpendController {
   async saglayiciKredi(@Req() req: Request, @Query('tazele') tazele?: string) {
     assertAdmin(req);
     return this.kredi.tablo({ tazele: tazele === '1' });
+  }
+
+  /** POST /admin/saglayici-kredi/bakiye {id, tutar, paraBirimi} — tahmini bakiye icin admin girisi (tutar null = sil) */
+  @Post('admin/saglayici-kredi/bakiye')
+  @HttpCode(200)
+  async saglayiciBakiyeGir(@Req() req: Request, @Body() body: { id?: unknown; tutar?: unknown; paraBirimi?: unknown }) {
+    assertAdmin(req);
+    return this.kredi.bakiyeGir(body?.id, body?.tutar, body?.paraBirimi);
   }
 
   /** POST /admin/saglayici-kredi/kontrol — her saglayiciya en kucuk istek (toplam < 0,01 USD) */
