@@ -156,6 +156,16 @@ export const HARCAMA_SAGLAYICILARI: Readonly<Partial<Record<KrediSaglayici, { ol
   gemini: { olcum: ['gemini'], llm: [] },
   perplexity: { olcum: ['perplexity'], llm: [] },
   xai: { olcum: ['xai'], llm: [] },
+  // Meta (fatura): olcum kaydi saglayici adi 'meta' (probeResponsesWebSearch)
+  meta: { olcum: ['meta'], llm: [] },
+};
+
+/**
+ * Fatura (sonradan odeme) saglayicisinda kartin cekildigi esik. dev.meta.ai Billing (28.11.2026):
+ * "Your balance reaches 500.00 TL" ya da ay basi (Dec 1) — hangisi once gelirse.
+ */
+export const FATURA_ESIGI: Readonly<Partial<Record<KrediSaglayici, { tutar: number; paraBirimi: 'USD' | 'TRY' }>>> = {
+  meta: { tutar: 500, paraBirimi: 'TRY' },
 };
 
 export interface BakiyeGirisi {
@@ -186,6 +196,21 @@ export function bakiyeGirisiOku(value: string | null | undefined): BakiyeGirisi 
   } catch {
     return null;
   }
+}
+
+/**
+ * Fatura saglayicisi: girilen "ödenecek tutar" (Outstanding balance) + girişten bu yana harcama.
+ * Kart cekilince saglayicida sifirlanir; tahmin bunu goremez — admin yeniden girer.
+ */
+export function tahminiBorc(g: BakiyeGirisi, kullanilanUsd: number, usdTry: number | null): { tutar: number; usd: number | null } {
+  const harcama = Math.max(0, kullanilanUsd);
+  if (g.paraBirimi === 'USD') {
+    const t = Math.round((g.tutar + harcama) * 100) / 100;
+    return { tutar: t, usd: t };
+  }
+  if (!usdTry || !(usdTry > 0)) return { tutar: g.tutar, usd: null };
+  const t = Math.round((g.tutar + harcama * usdTry) * 100) / 100;
+  return { tutar: t, usd: Math.round((t / usdTry) * 100) / 100 };
 }
 
 /** Girilen tutardan harcamayi (USD) dus; TRY girisinde kurla cevir. Sonuc giris para biriminde. */

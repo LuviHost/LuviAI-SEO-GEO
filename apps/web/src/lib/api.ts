@@ -658,6 +658,8 @@ export interface SaglayiciKrediSatiri {
   bakiyeTuru?: 'api' | 'manuel' | 'fatura';
   /** Manuel: girilen bakiye − girişten bu yana kayitli harcama */
   tahmin?: { tutar: number; paraBirimi: 'USD' | 'TRY'; usd: number | null; girisTutar: number; girisAt: string; kullanilanUsd: number; otomatikYukleme?: boolean } | null;
+  /** Fatura saglayicisi: kartin cekildigi esik (Meta 500 TL); tahmin bu turde odenecek tutardir */
+  faturaEsigi?: { tutar: number; paraBirimi: 'USD' | 'TRY' } | null;
 }
 export interface SaglayiciKrediTablosu { satirlar: SaglayiciKrediSatiri[]; at: string }
 
