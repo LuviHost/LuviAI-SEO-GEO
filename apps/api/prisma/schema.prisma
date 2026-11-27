@@ -3293,6 +3293,9 @@ model LinkedinProspect {
   acceptedAt  DateTime?
   messagedAt  DateTime?
   repliedAt   DateTime?
+  /// Istegi hangi yoneticinin LinkedIn hesabi gonderdi (users.id). Iki yonetici (27.11.2026): kota ve
+  /// kabul kontrolu hesap basina. null = eski kayit / elle kayit (her hesabin kotasindan sayilir).
+  gonderenId  String? @db.VarChar(191)
 
   lastError      String? @db.Text
   /// Son adimin ekran goruntusu (data/linkedin/<id>-<adim>.png)
@@ -3314,6 +3317,7 @@ model LinkedinProspect {
   @@index([requestedAt])
   @@index([satisAsamasi])
   @@index([hatirlatmaAt])
+  @@index([gonderenId, requestedAt])
   @@map("linkedin_prospects")
 }
 
@@ -3335,12 +3339,28 @@ model LinkedinClaudeIs {
   sonuc     Json?
   hata      String?   @db.Text
   olusturan String    @db.VarChar(191)
+  /// Isi acan yonetici (users.id): is YALNIZ onun Mac ajanina gider (27.11.2026, iki yonetici)
+  sahipId   String?   @db.VarChar(191)
   alindiAt  DateTime?
   bittiAt   DateTime?
   createdAt DateTime  @default(now())
 
   @@index([durum, createdAt])
+  @@index([sahipId, durum])
   @@map("linkedin_claude_isler")
+}
+
+/// Yonetici basina Mac ajani (27.11.2026). NEDEN: tek anahtar vardi; ikinci yonetici "Anahtarı yenile"ye
+/// basinca kurucunun Mac'i kopuyordu ve is, onu ilk soran Mac'e (yanlis LinkedIn hesabina) gidiyordu.
+/// Anahtarin yalniz SHA-256 ozeti durur.
+model LinkedinClaudeAjan {
+  userId       String    @id @db.VarChar(191)
+  anahtarOzeti String    @unique @db.VarChar(64)
+  sonGorulme   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("linkedin_claude_ajanlar")
 }
 
 /// Cevap sonrasi satis hunisi — insan tarafindan elle ilerletilir

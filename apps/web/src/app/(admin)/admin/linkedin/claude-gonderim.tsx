@@ -20,6 +20,10 @@ import { cn } from '@/lib/utils';
  * gonderemiyordu. Burada kurucu listeyi ve notlari gorur, "Claude ile gönder"e basar (= onay);
  * kendi Mac'indeki ajan Claude Code'u Chrome'da calistirip istekleri gonderir, sonuc buraya duser.
  * Sunucu LinkedIn'e hic dokunmaz.
+ *
+ * IKI YONETICI (27.11.2026): her yonetici kendi Mac anahtarini olusturur; actigi is yalniz kendi
+ * Mac'ine (kendi LinkedIn hesabina) gider, kota hesap basina sayilir. Kart yalniz bakanin islerini
+ * gosterir; digerinin suren isi tek satir bilgi olarak gorunur.
  */
 
 const SONUC_ETIKETI: Record<LinkedinClaudeKisiSonucu, { label: string; variant: 'success' | 'info' | 'secondary' | 'warning' | 'danger' }> = {
@@ -151,7 +155,7 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
   };
 
   const anahtarOlustur = async () => {
-    if (durum?.anahtarVar && !window.confirm('Yeni anahtar oluşturulursa Mac\'teki eski anahtar geçersiz olur. Devam?')) return;
+    if (durum?.anahtarVar && !window.confirm('Yeni anahtar oluşturulursa SENİN Mac\'indeki eski anahtar geçersiz olur (diğer yöneticilerinki etkilenmez). Devam?')) return;
     setMesgul('anahtar');
     try {
       const { anahtar } = await api.linkedinClaudeAnahtar();
@@ -182,6 +186,7 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
               Listeyi ve notları kontrol et, &quot;Claude ile gönder&quot;e bas. İstekleri senin Mac&apos;inde, senin Chrome&apos;unda Claude gönderir;
               Claude aboneliğinin kotasından düşer, ayrıca ücret çıkmaz. Mac açık, Chrome&apos;da Claude eklentisi ve LinkedIn oturumu açık olmalı.
               Kabul kontrolü hafta içi 10:00, 14:00 ve 17:00&apos;de kendiliğinden yapılır; kabul edenler &quot;Bugün ilgilenilecekler&quot;e düşer.
+              Her yöneticinin kendi Mac anahtarı ve kendi günlük kotası vardır; açtığın iş yalnız senin Mac&apos;inde çalışır.
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -208,6 +213,17 @@ export function ClaudeGonderimCard({ onDone }: { onDone: () => Promise<void> }) 
             </div>
           </div>
         )}
+
+        {/* Diger yoneticinin suren isi: bilgi satiri (secilen kisiler bu listede zaten gorunmez) */}
+        {(durum?.digerIsler ?? []).map((d) => (
+          <div key={d.id} className="flex flex-wrap items-center gap-2 rounded-md border p-2.5 text-xs text-muted-foreground">
+            <Badge variant="outline">{d.durum === 'CALISIYOR' ? 'Çalışıyor' : 'Mac bekleniyor'}</Badge>
+            <span>
+              <b className="text-foreground">{d.sahip}</b> · {d.tur === 'KABUL' ? 'kabul kontrolü' : `${d.kisi} kişi${d.kuru ? ', kuru deneme' : ''}`}
+              {' '}· kendi Mac&apos;inde, kendi LinkedIn hesabıyla · açıldı {saat(d.createdAt)}
+            </span>
+          </div>
+        ))}
 
         {/* ── Suren / son isler ── */}
         {/* Biten isler gosterilmez (26.11, sahip): gonderilen kisi alttaki listeye duser, ne yazildigi

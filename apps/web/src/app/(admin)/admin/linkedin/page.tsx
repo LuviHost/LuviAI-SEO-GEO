@@ -251,8 +251,8 @@ export default function AdminLinkedinPage() {
             LinkedIn Outreach
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Kurucu hesabından sıkı frenli bağlantı isteği. Listeyi ve notları sen onaylarsın, istekleri senin Mac&apos;inde
-            Claude gönderir; cevap gelince konuşmayı sen sürdürürsün.
+            Her yönetici kendi LinkedIn hesabından, sıkı frenle bağlantı isteği gönderir. Listeyi ve notları sen onaylarsın,
+            istekleri senin Mac&apos;inde Claude gönderir; cevap gelince konuşmayı sen sürdürürsün.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -280,9 +280,10 @@ export default function AdminLinkedinPage() {
 
       {/* ── Sayaçlar ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Counter label="Bugün istek" value={today.requests} limit={limit.dayRequests} />
+        {/* Istek sayaclari panele bakan yoneticinin LinkedIn hesabi (27.11.2026, iki yonetici) */}
+        <Counter label="Bugün istek (hesabın)" value={today.requests} limit={limit.dayRequests} />
         <Counter label="Bugün mesaj" value={today.messages} limit={limit.dayMessages} />
-        <Counter label="Hafta istek" value={week.requests} limit={limit.weekRequests} />
+        <Counter label="Hafta istek (hesabın)" value={week.requests} limit={limit.weekRequests} />
         <Counter label="Kuyruk" value={overview?.queued ?? 0} />
         <Card className={cn('border', acceptPct !== null && acceptPct < ACCEPT_RATE_FLOOR_PCT && 'border-rose-500/40 bg-rose-500/5')}>
           <CardContent className="p-4">

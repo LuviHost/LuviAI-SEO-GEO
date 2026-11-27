@@ -1317,17 +1317,22 @@ export class LinkedinOutreachService {
 
   // ── Panel / API ─────────────────────────────────────────────
 
-  async overview() {
+  /**
+   * @param userId panele bakan yonetici: gunluk/haftalik istek sayaci ONUN LinkedIn hesabinin kotasi
+   * (27.11.2026, iki yonetici; gonderenId null eski kayitlar herkese sayilir). Verilmezse toplam.
+   */
+  async overview(userId?: string) {
     const limits = await this.getLimits();
     const now = new Date();
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
+    const hesap = userId ? { OR: [{ gonderenId: userId }, { gonderenId: null }] } : {};
     const [requestsToday, messagesToday, inmailsToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, krediRow, ilgilenilecek, ilkKuyruk] = await Promise.all([
-      this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
+      this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart }, ...hesap } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, kanal: 'LINKEDIN' } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null, kanal: 'LINKEDIN', elle: false } }),
-      this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
+      this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo }, ...hesap } }),
       this.prisma.linkedinProspect.count({ where: { status: 'QUEUED' } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to }, acceptedAt: { not: null } } }),

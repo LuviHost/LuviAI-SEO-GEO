@@ -384,21 +384,21 @@ export class IntelController {
 
   @Get('linkedin/claude/adaylar')
   async linkedinClaudeAdaylar(@Req() req: Request) {
-    assertAdmin(req);
-    return this.linkedinClaude.adaylar();
+    const user = assertAdmin(req);
+    return this.linkedinClaude.adaylar(String(user.id));
   }
 
   @Get('linkedin/claude/durum')
   async linkedinClaudeDurum(@Req() req: Request) {
-    assertAdmin(req);
-    return this.linkedinClaude.durum();
+    const user = assertAdmin(req);
+    return this.linkedinClaude.durum(String(user.id));
   }
 
   /** Secilen kisiler + o anki notlari = kurucunun onayi. kuru: Gonder'e basilmaz. */
   @Post('linkedin/claude/is')
   async linkedinClaudeIs(@Req() req: Request, @Body() body: { kisiIds?: unknown; kuru?: boolean }) {
     const user = assertAdmin(req);
-    return this.linkedinClaude.isOlustur(body?.kisiIds, body?.kuru !== false, String(user.email ?? user.id ?? 'admin'));
+    return this.linkedinClaude.isOlustur(body?.kisiIds, body?.kuru !== false, { id: String(user.id), email: String(user.email ?? user.id ?? 'admin') });
   }
 
   @Post('linkedin/claude/is/:id/iptal')
@@ -410,14 +410,14 @@ export class IntelController {
   /** Mac ajani icin yeni anahtar — bir kez gosterilir; eskisi gecersiz olur */
   @Post('linkedin/claude/anahtar')
   async linkedinClaudeAnahtar(@Req() req: Request) {
-    assertAdmin(req);
-    return this.linkedinClaude.anahtarOlustur();
+    const user = assertAdmin(req);
+    return this.linkedinClaude.anahtarOlustur(String(user.id));
   }
 
   @Get('linkedin/overview')
   async linkedinOverview(@Req() req: Request) {
-    assertAdmin(req);
-    return this.linkedin.overview();
+    const user = assertAdmin(req);
+    return this.linkedin.overview(String(user.id));
   }
 
   /** CSV'den yapistirilan satirlar: ad,soyad,firma,unvan,sektor,kademe,profileUrl — profileUrl tekil (upsert) */

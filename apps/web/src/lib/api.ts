@@ -660,7 +660,10 @@ export interface LinkedinClaudeIs {
   kisiler: Array<{ id: string; ad: string; not: string; durum: LinkedinClaudeKisiSonucu | null; aciklama: string | null; at: string | null }>;
 }
 export interface LinkedinClaudeDurum {
+  /** Bu yoneticinin Mac anahtari var mi (her yoneticinin ayri anahtari) */
   anahtarVar: boolean;
+  /** Diger yoneticilerin suren isleri — yalniz bilgi; kendi Mac'lerinde, kendi hesaplariyla calisir */
+  digerIsler?: Array<{ id: string; tur: 'ISTEK' | 'KABUL'; durum: 'BEKLIYOR' | 'CALISIYOR'; kuru: boolean; kisi: number; sahip: string; createdAt: string }>;
   ajan: { sonGorulme: string | null; canli: boolean };
   isler: LinkedinClaudeIs[];
 }
@@ -2284,7 +2287,7 @@ export const api = {
   /** Cevap geldi olarak isaretle (e-posta kayitlari bot tarafindan kontrol edilmez) */
   cevapGeldiLinkedin: (id: string) =>
     request<{ ok: boolean }>(`/intel/linkedin/prospects/${encodeURIComponent(id)}/cevap`, { method: 'POST' }),
-  // Claude ile gonderim (panel onaylar, kurucunun Mac'i yurutur)
+  // Claude ile gonderim (panel onaylar, isi acan yoneticinin Mac'i yurutur)
   linkedinClaudeAdaylar: () => request<LinkedinClaudeAdaylar>('/intel/linkedin/claude/adaylar'),
   linkedinClaudeDurum: () => request<LinkedinClaudeDurum>('/intel/linkedin/claude/durum'),
   linkedinClaudeIs: (kisiIds: string[], kuru: boolean) =>
