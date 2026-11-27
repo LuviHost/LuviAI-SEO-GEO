@@ -25,6 +25,9 @@ export interface SaglayiciDurumKaydi {
   sonKrediHatasi?: string;
   /** Hatanin kisa, guvenli ozeti (probeErrorExcerpt) */
   krediMesaji?: string;
+  /** Elle "Şimdi kontrol et" denemesinde kredi DISI hata (gecersiz anahtar, model yok...) */
+  sonKontrolHatasi?: string | null;
+  sonKontrolHatasiAt?: string | null;
 }
 
 export type KrediDurumu = 'CALISIYOR' | 'KREDI_BITTI' | 'BILINMIYOR';
@@ -77,6 +80,27 @@ export async function saglayiciKrediHatasiKaydet(prisma: KvPrisma, provider: str
   // Yukleme sonrasi ilk basari bekletilmeden yazilsin: panel "bitti"de takili kalmasin
   sonBasariYazimi.delete(provider);
   await guncelle(prisma, provider, { sonKrediHatasi: simdi.toISOString(), krediMesaji: mesaj.slice(0, 200) }).catch(() => undefined);
+}
+
+/**
+ * Elle kontrol (admin "Şimdi kontrol et"): seyreltme YOK — sonuc hemen yazilir.
+ * ok → son basari; kredi → kredi hatasi; hata → kontrol hatasi (gecersiz anahtar vb.).
+ */
+export async function saglayiciKontrolKaydet(
+  prisma: KvPrisma,
+  provider: string,
+  sonuc: { tur: 'ok' | 'kredi' | 'hata'; mesaj?: string },
+  simdi: Date = new Date(),
+): Promise<void> {
+  const at = simdi.toISOString();
+  if (sonuc.tur === 'ok') {
+    sonBasariYazimi.set(provider, simdi.getTime());
+    await guncelle(prisma, provider, { sonBasari: at, sonKontrolHatasi: null, sonKontrolHatasiAt: null }).catch(() => undefined);
+  } else if (sonuc.tur === 'kredi') {
+    await saglayiciKrediHatasiKaydet(prisma, provider, sonuc.mesaj ?? 'HATA: billing', simdi);
+  } else {
+    await guncelle(prisma, provider, { sonKontrolHatasi: (sonuc.mesaj ?? 'bilinmeyen hata').slice(0, 160), sonKontrolHatasiAt: at }).catch(() => undefined);
+  }
 }
 
 /** Testler icin */

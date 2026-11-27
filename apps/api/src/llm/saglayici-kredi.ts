@@ -45,7 +45,7 @@ export const KREDI_SAGLAYICILARI: readonly SaglayiciTanimi[] = [
 /** Bakiye bu tutarin altindaysa "azaldı" (USD) */
 export const DUSUK_BAKIYE_USD = 5;
 
-export type SatirDurumu = 'CALISIYOR' | 'KREDI_BITTI' | 'AZALDI' | 'ANAHTAR_YOK' | 'BILINMIYOR';
+export type SatirDurumu = 'CALISIYOR' | 'KREDI_BITTI' | 'AZALDI' | 'HATA' | 'ANAHTAR_YOK' | 'BILINMIYOR';
 
 /**
  * Satir durumu. Oncelik: anahtar yok → bakiye 0 / API "kullanilamaz" → kredi hatasi → dusuk bakiye → son cagri.
@@ -56,11 +56,14 @@ export function satirDurumu(g: {
   kayit: KrediDurumu;
   bakiyeUsd: number | null;
   bakiyeKullanilabilir?: boolean | null;
+  /** Elle kontrolde kredi disi hata son basaridan yeniyse (gecersiz anahtar, model yok...) */
+  kontrolHatasiGuncel?: boolean;
 }): SatirDurumu {
   if (!g.anahtarVar) return 'ANAHTAR_YOK';
   if (g.bakiyeKullanilabilir === false || (g.bakiyeUsd !== null && g.bakiyeUsd <= 0)) return 'KREDI_BITTI';
   if (g.bakiyeUsd === null && g.kayit === 'KREDI_BITTI') return 'KREDI_BITTI';
   if (g.bakiyeUsd !== null && g.bakiyeUsd < DUSUK_BAKIYE_USD) return 'AZALDI';
+  if (g.kontrolHatasiGuncel) return 'HATA';
   if (g.bakiyeUsd !== null) return 'CALISIYOR';
   return g.kayit;
 }
@@ -82,4 +85,38 @@ export function deepseekBakiye(j: unknown): { bakiye: number | null; paraBirimi:
 export function dataforseoBakiye(j: unknown): number | null {
   const n = Number((j as any)?.tasks?.[0]?.result?.[0]?.money?.balance);
   return Number.isFinite(n) ? n : null;
+}
+
+// ── Uyari (zil + e-posta, 27.11.2026) ─────────────────────────────
+// Sahip: "bildirim zili ve e-posta uyarısını da ekle". Saat basi kontrol; ayni saglayici ayni
+// durumdayken gunde en fazla bir uyari, durum kotulesirse (Azaldı → Kredi bitti) hemen,
+// duzelince kayit silinir (sonraki kesintide hemen uyarilir).
+
+export const UYARI_KV = 'saglayici-uyari:';
+export const UYARI_TEKRAR_MS = 24 * 60 * 60_000;
+
+export interface UyariKaydi { durum: SatirDurumu; at: string }
+
+export function uyariGerekli(durum: SatirDurumu, onceki: UyariKaydi | null, simdi: Date = new Date()): boolean {
+  if (durum !== 'KREDI_BITTI' && durum !== 'AZALDI') return false;
+  if (!onceki) return true;
+  if (onceki.durum !== durum) return durum === 'KREDI_BITTI' || onceki.durum !== 'KREDI_BITTI';
+  const at = Date.parse(onceki.at);
+  return !Number.isFinite(at) || simdi.getTime() - at >= UYARI_TEKRAR_MS;
+}
+
+export function uyariMetni(s: { ad: string; kullanim: string; durum: SatirDurumu; yukleUrl: string; bakiye: { tutar: number | null; paraBirimi: string | null } | null }): { title: string; body: string } {
+  const tutar = s.bakiye?.tutar != null
+    ? `${s.bakiye.tutar.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${s.bakiye.paraBirimi ?? 'USD'}`
+    : null;
+  if (s.durum === 'KREDI_BITTI') {
+    return {
+      title: `${s.ad} kredisi bitti`,
+      body: `${s.ad} sistem anahtarının kredisi bitti${tutar ? ` (bakiye ${tutar})` : ''}; yüklenene kadar ${s.kullanim.toLocaleLowerCase('tr')} çalışmıyor. Yüklemek için: ${s.yukleUrl}`,
+    };
+  }
+  return {
+    title: `${s.ad} bakiyesi azaldı${tutar ? `: ${tutar}` : ''}`,
+    body: `${s.ad} bakiyesi ${DUSUK_BAKIYE_USD} USD'nin altına indi${tutar ? ` (${tutar})` : ''}; bitince ${s.kullanim.toLocaleLowerCase('tr')} durur. Yüklemek için: ${s.yukleUrl}`,
+  };
 }

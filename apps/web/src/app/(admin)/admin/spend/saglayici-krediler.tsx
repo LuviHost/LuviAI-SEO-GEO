@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ExternalLink, RefreshCw, Wallet } from 'lucide-react';
+import { Activity, ExternalLink, RefreshCw, Wallet } from 'lucide-react';
 import { api, type SaglayiciKrediDurumu, type SaglayiciKrediTablosu } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,8 +21,9 @@ const ETIKET: Record<SaglayiciKrediDurumu, { metin: string; variant: 'success' |
   CALISIYOR: { metin: 'Çalışıyor', variant: 'success' },
   AZALDI: { metin: 'Azaldı', variant: 'warning' },
   KREDI_BITTI: { metin: 'Kredi bitti', variant: 'danger' },
+  HATA: { metin: 'Bağlantı hatası', variant: 'warning' },
   ANAHTAR_YOK: { metin: 'Anahtar yok', variant: 'secondary' },
-  BILINMIYOR: { metin: 'Henüz çağrı yok', variant: 'secondary' },
+  BILINMIYOR: { metin: 'Henüz kontrol yok', variant: 'secondary' },
 };
 
 function zaman(iso: string | null): string {
@@ -37,6 +38,23 @@ function para(tutar: number, birim: string | null): string {
 export function SaglayiciKrediler() {
   const [veri, setVeri] = useState<SaglayiciKrediTablosu | null>(null);
   const [yukleniyor, setYukleniyor] = useState(false);
+  const [kontrolde, setKontrolde] = useState(false);
+
+  // Her saglayiciya en kucuk istek: kayit beklemeden durumu hemen ogrenir (toplam < 0,01 USD)
+  const kontrolEt = async () => {
+    setKontrolde(true);
+    try {
+      const v = await api.saglayiciKrediKontrol();
+      setVeri(v);
+      const sorun = v.satirlar.filter((s) => s.durum === 'KREDI_BITTI' || s.durum === 'HATA').map((s) => s.ad);
+      if (sorun.length) toast.warning(`Sorunlu: ${sorun.join(', ')}`);
+      else toast.success('Bütün sağlayıcılar çalışıyor');
+    } catch (err: any) {
+      toast.error(`Kontrol yapılamadı: ${err.message}`);
+    } finally {
+      setKontrolde(false);
+    }
+  };
 
   const yukle = useCallback(async (tazele = false) => {
     setYukleniyor(true);
@@ -62,13 +80,19 @@ export function SaglayiciKrediler() {
             <p className="font-semibold">Sağlayıcı kredileri</p>
             <p className="text-xs text-muted-foreground">
               Ölçümlerin kullandığı sistem anahtarları. Bakiye yalnız DeepSeek ve DataForSEO&apos;da sorgulanabiliyor;
-              diğerlerinde durum son çağrımızdan çıkar (kredi bitince ölçüm 402 hatası verir). &quot;Yükle&quot; sağlayıcının
-              ödeme sayfasını yeni sekmede açar.
+              diğerlerinde durum ölçüm çağrılarımızdan çıkar (kredi bitince 402 hatası verir) ya da &quot;Şimdi kontrol et&quot;
+              ile hemen öğrenilir. Kredi bitince ya da bakiye azalınca zile ve e-postana uyarı düşer. &quot;Yükle&quot;
+              sağlayıcının ödeme sayfasını yeni sekmede açar.
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => yukle(true)} disabled={yukleniyor}>
-            <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', yukleniyor && 'animate-spin')} /> Bakiyeleri yenile
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={kontrolEt} disabled={kontrolde || yukleniyor} title="Her sağlayıcıya çok küçük bir istek atar (toplam 0,01 USD'nin altında)">
+              <Activity className={cn('h-3.5 w-3.5 mr-1.5', kontrolde && 'animate-pulse')} /> {kontrolde ? 'Kontrol ediliyor…' : 'Şimdi kontrol et'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => yukle(true)} disabled={yukleniyor || kontrolde}>
+              <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', yukleniyor && 'animate-spin')} /> Bakiyeleri yenile
+            </Button>
+          </div>
         </div>
 
         {!veri && <Skeleton className="h-40" />}
@@ -98,6 +122,7 @@ export function SaglayiciKrediler() {
                   <div className="text-xs text-muted-foreground min-w-[220px]">
                     Son başarılı çağrı: {zaman(s.sonBasari)}
                     {s.sonKrediHatasi && <> · son kredi hatası: <span className={cn(s.durum === 'KREDI_BITTI' && 'text-danger')}>{zaman(s.sonKrediHatasi)}</span></>}
+                    {s.sonKontrolHatasi && <div className="text-warning break-all">Kontrol hatası ({zaman(s.sonKontrolHatasiAt ?? null)}): {s.sonKontrolHatasi}</div>}
                   </div>
                   <Button asChild size="sm" variant={s.durum === 'KREDI_BITTI' || s.durum === 'AZALDI' ? 'default' : 'outline'}>
                     <a href={s.yukleUrl} target="_blank" rel="noopener noreferrer">

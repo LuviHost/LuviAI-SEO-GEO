@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Param, Query, Req } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { LLMProviderService } from './llm-provider.service.js';
 import { SaglayiciKrediService } from './saglayici-kredi.service.js';
@@ -23,6 +23,14 @@ export class SpendController {
   async saglayiciKredi(@Req() req: Request, @Query('tazele') tazele?: string) {
     assertAdmin(req);
     return this.kredi.tablo({ tazele: tazele === '1' });
+  }
+
+  /** POST /admin/saglayici-kredi/kontrol — her saglayiciya en kucuk istek (toplam < 0,01 USD) */
+  @Post('admin/saglayici-kredi/kontrol')
+  @HttpCode(200)
+  async saglayiciKrediKontrol(@Req() req: Request) {
+    assertAdmin(req);
+    return this.kredi.kontrolEt();
   }
 
   /** GET /admin/spend?days=30 — global spend dashboard */
