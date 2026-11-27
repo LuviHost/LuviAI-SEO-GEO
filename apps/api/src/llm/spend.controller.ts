@@ -28,9 +28,9 @@ export class SpendController {
   /** POST /admin/saglayici-kredi/bakiye {id, tutar, paraBirimi} — tahmini bakiye icin admin girisi (tutar null = sil) */
   @Post('admin/saglayici-kredi/bakiye')
   @HttpCode(200)
-  async saglayiciBakiyeGir(@Req() req: Request, @Body() body: { id?: unknown; tutar?: unknown; paraBirimi?: unknown }) {
+  async saglayiciBakiyeGir(@Req() req: Request, @Body() body: { id?: unknown; tutar?: unknown; paraBirimi?: unknown; otomatikYukleme?: unknown }) {
     assertAdmin(req);
-    return this.kredi.bakiyeGir(body?.id, body?.tutar, body?.paraBirimi);
+    return this.kredi.bakiyeGir(body?.id, body?.tutar, body?.paraBirimi, body?.otomatikYukleme);
   }
 
   /** POST /admin/saglayici-kredi/kontrol — her saglayiciya en kucuk istek (toplam < 0,01 USD) */

@@ -40,7 +40,16 @@ export function SaglayiciKrediler() {
   const [yukleniyor, setYukleniyor] = useState(false);
   const [kontrolde, setKontrolde] = useState(false);
   // Tahmini bakiye girisi: saglayicinin panelindeki tutar yazilir, sonraki harcama dusulur
-  const [giris, setGiris] = useState<{ id: string; tutar: string; paraBirimi: 'USD' | 'TRY' } | null>(null);
+  const [giris, setGiris] = useState<{ id: string; tutar: string; paraBirimi: 'USD' | 'TRY'; otomatik: boolean } | null>(null);
+
+  const otomatikDegistir = async (id: string, deger: boolean) => {
+    try {
+      setVeri(await api.saglayiciOtomatikYukleme(id, deger));
+      toast.success(deger ? 'Otomatik yükleme açık: tahminden "Azaldı" uyarısı gelmez' : 'Otomatik yükleme kapalı: tahmin 5 USD altına inerse uyarı gelir');
+    } catch (err: any) {
+      toast.error(`Kaydedilemedi: ${err.message}`);
+    }
+  };
   const [kaydediliyor, setKaydediliyor] = useState(false);
 
   const bakiyeKaydet = async () => {
@@ -51,7 +60,7 @@ export function SaglayiciKrediler() {
     if (!giris.tutar.trim() || !Number.isFinite(n) || n < 0) { toast.error('Geçerli bir tutar yaz'); return; }
     setKaydediliyor(true);
     try {
-      setVeri(await api.saglayiciBakiyeGir(giris.id, n, giris.paraBirimi));
+      setVeri(await api.saglayiciBakiyeGir(giris.id, n, giris.paraBirimi, giris.otomatik));
       setGiris(null);
       toast.success('Bakiye kaydedildi; bundan sonraki harcama düşülecek');
     } catch (err: any) {
@@ -169,6 +178,10 @@ export function SaglayiciKrediler() {
                             <option value="USD">USD</option>
                             <option value="TRY">TL</option>
                           </select>
+                          <label className="inline-flex items-center gap-1 cursor-pointer select-none" title="Sağlayıcı bakiye azalınca kendisi yüklüyorsa işaretle: tahmin düşse de uyarı gelmez">
+                            <input type="checkbox" checked={giris.otomatik} onChange={(ev) => setGiris({ ...giris, otomatik: ev.target.checked })} />
+                            otomatik yükleme açık
+                          </label>
                           <Button size="sm" className="h-7" onClick={bakiyeKaydet} disabled={kaydediliyor}>Kaydet</Button>
                           <Button size="sm" variant="ghost" className="h-7" onClick={() => setGiris(null)}>Vazgeç</Button>
                         </div>
@@ -176,11 +189,17 @@ export function SaglayiciKrediler() {
                         <button
                           type="button"
                           className="mt-0.5 block text-brand-600 hover:underline"
-                          onClick={() => setGiris({ id: s.id, tutar: '', paraBirimi: s.tahmin?.paraBirimi ?? (s.id === 'gemini' ? 'TRY' : 'USD') })}
+                          onClick={() => setGiris({ id: s.id, tutar: '', paraBirimi: s.tahmin?.paraBirimi ?? (s.id === 'gemini' ? 'TRY' : 'USD'), otomatik: s.tahmin?.otomatikYukleme ?? false })}
                         >
                           {s.tahmin ? 'Bakiyeyi güncelle' : 'Bakiye gir'}
                         </button>
                       )
+                    )}
+                    {s.bakiyeTuru === 'manuel' && s.tahmin && giris?.id !== s.id && (
+                      <label className="mt-0.5 flex items-center gap-1 cursor-pointer select-none" title="Sağlayıcı bakiye azalınca kendisi yüklüyorsa işaretle: tahmin düşse de uyarı gelmez">
+                        <input type="checkbox" checked={!!s.tahmin.otomatikYukleme} onChange={(ev) => otomatikDegistir(s.id, ev.target.checked)} />
+                        otomatik yükleme açık
+                      </label>
                     )}
                     <div title="Bizim sunucunun ölçüm çağrılarının gerçek maliyeti (token × fiyat + arama ücreti). Sağlayıcı panelindeki aylık tutarla fark varsa anahtarı başka bir şey de kullanıyordur.">
                       Bu ay ölçüm harcamamız:{' '}

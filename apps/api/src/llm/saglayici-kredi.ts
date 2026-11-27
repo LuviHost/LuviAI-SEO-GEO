@@ -165,6 +165,11 @@ export interface BakiyeGirisi {
   girisAt: string;
   /** Giris anindaki kumulatif olcum harcamasi (USD) — sonraki fark bundan */
   olcumToplamAnlikUsd: number;
+  /**
+   * Saglayicida otomatik yukleme acik (OpenAI 5→10, xAI 5→+10, Perplexity 2→+50; 27.11.2026).
+   * Tahmin yuklemeyi goremez ve esigin altina duser: bu durumda tahminden "Azaldı" uyarisi URETILMEZ.
+   */
+  otomatikYukleme: boolean;
 }
 
 export const BAKIYE_KV = 'saglayici-bakiye:';
@@ -174,7 +179,10 @@ export function bakiyeGirisiOku(value: string | null | undefined): BakiyeGirisi 
   try {
     const j = JSON.parse(value);
     if (typeof j?.tutar !== 'number' || (j.paraBirimi !== 'USD' && j.paraBirimi !== 'TRY') || typeof j.girisAt !== 'string') return null;
-    return { tutar: j.tutar, paraBirimi: j.paraBirimi, girisAt: j.girisAt, olcumToplamAnlikUsd: Number(j.olcumToplamAnlikUsd) || 0 };
+    return {
+      tutar: j.tutar, paraBirimi: j.paraBirimi, girisAt: j.girisAt,
+      olcumToplamAnlikUsd: Number(j.olcumToplamAnlikUsd) || 0, otomatikYukleme: j.otomatikYukleme === true,
+    };
   } catch {
     return null;
   }

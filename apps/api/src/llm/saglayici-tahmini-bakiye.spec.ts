@@ -4,9 +4,9 @@ import { SaglayiciKrediService } from './saglayici-kredi.service.js';
 
 describe('tahmini bakiye kurallari', () => {
   it('USD: giris − harcama; TRY: harcama kurla cevrilir', () => {
-    const usd = { tutar: 120.7, paraBirimi: 'USD' as const, girisAt: '2026-11-27T16:00:00Z', olcumToplamAnlikUsd: 3 };
+    const usd = { tutar: 120.7, paraBirimi: 'USD' as const, girisAt: '2026-11-27T16:00:00Z', olcumToplamAnlikUsd: 3, otomatikYukleme: false };
     expect(tahminiBakiye(usd, 20.25, 42)).toEqual({ tutar: 100.45, usd: 100.45 });
-    const tl = { tutar: 943.98, paraBirimi: 'TRY' as const, girisAt: '2026-11-27T16:00:00Z', olcumToplamAnlikUsd: 0 };
+    const tl = { tutar: 943.98, paraBirimi: 'TRY' as const, girisAt: '2026-11-27T16:00:00Z', olcumToplamAnlikUsd: 0, otomatikYukleme: false };
     // 2 USD x 42 = 84 TL
     expect(tahminiBakiye(tl, 2, 42)).toEqual({ tutar: 859.98, usd: 20.48 });
     // Kur yoksa TL tahmini dusulemez: giris aynen, USD bilinmez
@@ -54,7 +54,7 @@ describe('SaglayiciKrediService bakiye girisi', () => {
         }),
         upsert: vi.fn(async ({ where, create }: any) => { depo.set(where.key, create.value); }),
         delete: vi.fn(async ({ where }: any) => { depo.delete(where.key); }),
-        findUnique: vi.fn(async () => null),
+        findUnique: vi.fn(async ({ where }: any) => (depo.has(where.key) ? { key: where.key, value: depo.get(where.key) } : null)),
       },
       tokenUsageRecord: { aggregate: vi.fn(async () => ({ _sum: { costUsd: 0 } })) },
     };
@@ -84,5 +84,31 @@ describe('SaglayiciKrediService bakiye girisi', () => {
     expect(t.depo.has(BAKIYE_KV + 'xai')).toBe(true);
     await t.svc.bakiyeGir('xai', null, undefined);
     expect(t.depo.has(BAKIYE_KV + 'xai')).toBe(false);
+  });
+
+  it('otomatik yukleme: bayrak yalniz degisir, harcama tabani korunur; tahmin "Azaldı" uretmez', async () => {
+    const t = kur();
+    const eskiAnahtar = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = 'sk-test';
+    try {
+    await t.svc.bakiyeGir('openai', 7.95, 'USD', true);
+    expect(JSON.parse(t.depo.get(BAKIYE_KV + 'openai')!)).toMatchObject({ tutar: 7.95, otomatikYukleme: true });
+    const once = JSON.parse(t.depo.get(BAKIYE_KV + 'openai')!).girisAt;
+    // 7.95 USD girildi, esik 5 USD: otomatik yuklemede tahmin dusse de Azaldi yok
+    t.depo.set('ai-gercek-toplam:openai', '4');
+    let o = (await t.svc.tablo()).satirlar.find((s) => s.id === 'openai')!;
+    expect(o.tahmin).toMatchObject({ tutar: 3.95, otomatikYukleme: true });
+    expect(o.durum).not.toBe('AZALDI');
+    // Yalniz bayrak: tutar ve giris ani degismez
+    await t.svc.bakiyeGir('openai', undefined, undefined, false);
+    const g = JSON.parse(t.depo.get(BAKIYE_KV + 'openai')!);
+    expect(g).toMatchObject({ tutar: 7.95, otomatikYukleme: false, girisAt: once });
+    o = (await t.svc.tablo()).satirlar.find((s) => s.id === 'openai')!;
+    expect(o.durum).toBe('AZALDI');
+    // Giris yokken yalniz bayrak reddedilir
+    await expect(t.svc.bakiyeGir('xai', undefined, undefined, true)).rejects.toThrow('Önce bakiye');
+    } finally {
+      if (eskiAnahtar === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = eskiAnahtar;
+    }
   });
 });
