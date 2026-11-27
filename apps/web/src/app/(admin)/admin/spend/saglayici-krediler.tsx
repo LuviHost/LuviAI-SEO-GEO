@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Activity, ExternalLink, RefreshCw, Wallet } from 'lucide-react';
+import { Activity, ExternalLink, Pencil, RefreshCw, Wallet } from 'lucide-react';
 import { api, type SaglayiciKrediDurumu, type SaglayiciKrediTablosu } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -100,20 +100,18 @@ export function SaglayiciKrediler() {
   useEffect(() => { void yukle(); }, [yukle]);
 
   const sorunlu = (veri?.satirlar ?? []).filter((s) => s.durum === 'KREDI_BITTI' || s.durum === 'AZALDI');
+  // Sabit sutunlar (27.11.2026, sahip: "gösterimi düzelt kötü duruyor"): satirlar arasinda hizali
+  const SUTUNLAR = 'md:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,0.7fr)_minmax(0,1fr)_auto]';
 
   return (
     <Card className={cn(sorunlu.some((s) => s.durum === 'KREDI_BITTI') && 'border-danger/40')}>
       <CardContent className="p-5 space-y-3">
-        <div className="flex flex-wrap items-start gap-2">
-          <Wallet className="h-4 w-4 mt-0.5 text-brand" />
-          <div className="flex-1 min-w-[200px]">
+        <div className="flex flex-wrap items-start gap-3">
+          <Wallet className="h-4 w-4 mt-1 text-brand" />
+          <div className="flex-1 min-w-[220px]">
             <p className="font-semibold">Sağlayıcı kredileri</p>
             <p className="text-xs text-muted-foreground">
-              Ölçümlerin kullandığı sistem anahtarları. Bakiye yalnız DeepSeek ve DataForSEO&apos;da sorgulanabiliyor;
-              diğerlerinde sağlayıcının panelindeki tutarı &quot;Bakiye gir&quot;e yazarsan sonraki harcamamız düşülür
-              (tahmini — aynı anahtarı başka bir şey kullanırsa ya da otomatik yükleme olursa sapar; arada güncelle).
-              Durum ayrıca ölçüm çağrılarından (kredi bitince 402) ya da &quot;Şimdi kontrol et&quot; ile öğrenilir. Kredi bitince ya da bakiye azalınca zile ve e-postana uyarı düşer. &quot;Yükle&quot;
-              sağlayıcının ödeme sayfasını yeni sekmede açar.
+              Ölçümlerin kullandığı sistem anahtarları. Kredi biterse ya da azalırsa zile ve e-postana uyarı gelir.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -126,105 +124,142 @@ export function SaglayiciKrediler() {
           </div>
         </div>
 
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none hover:text-foreground">Bakiye nasıl hesaplanıyor?</summary>
+          <ul className="mt-2 space-y-1 list-disc pl-5">
+            <li><b className="text-foreground">Gerçek</b>: DeepSeek ve DataForSEO bakiyeyi kendisi bildiriyor.</li>
+            <li><b className="text-foreground">Tahmini</b>: sağlayıcının panelindeki tutarı &quot;Düzenle&quot;den girersin; o andan sonraki ölçüm ve içerik üretimi harcamamız düşülür. Aynı anahtarı başka bir şey kullanırsa ya da otomatik yükleme olursa sapar — arada güncelle.</li>
+            <li><b className="text-foreground">Otomatik yükleme</b> işaretliyse tahmin düşse de &quot;Azaldı&quot; uyarısı gelmez; kredi gerçekten biterse sağlayıcının hatasıyla &quot;Kredi bitti&quot; gelir.</li>
+            <li>&quot;Bu ay ölçüm&quot;: bizim sunucunun ölçüm çağrılarının gerçek maliyeti. Sağlayıcı panelindeki tutardan çok düşükse anahtarı başka bir şey de kullanıyordur.</li>
+          </ul>
+        </details>
+
         {!veri && <Skeleton className="h-40" />}
 
         {veri && (
-          <div className="divide-y rounded-md border">
-            {veri.satirlar.map((s) => {
-              const e = ETIKET[s.durum];
-              return (
-                <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 p-3">
-                  <div className="min-w-[180px] flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{s.ad}</span>
-                      <Badge variant={e.variant}>{e.metin}</Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground">{s.kullanim}</div>
-                  </div>
-                  <div className="text-xs text-muted-foreground min-w-[200px]">
-                    {s.bakiye
-                      ? s.bakiye.hata
-                        ? <>Bakiye okunamadı ({s.bakiye.hata})</>
-                        : s.bakiye.tutar !== null
-                          ? <>Bakiye: <b className={cn('text-foreground', s.durum !== 'CALISIYOR' && 'text-danger')}>{para(s.bakiye.tutar, s.bakiye.paraBirimi)}</b></>
-                          : <>Bakiye bilinmiyor</>
-                      : s.bakiyeTuru === 'fatura'
-                        ? <>Kartla ödeniyor (sonradan fatura) — biten bakiye yok</>
-                        : s.tahmin
-                          ? (
-                            <span title={`Giriş: ${para(s.tahmin.girisTutar, s.tahmin.paraBirimi)} · ${zaman(s.tahmin.girisAt)} · o andan beri kayıtlı harcama ${para(s.tahmin.kullanilanUsd, 'USD')}. Aynı anahtarı başka bir şey kullanıyorsa ya da otomatik yükleme olduysa gerçek bakiye farklıdır.`}>
-                              Tahmini bakiye: <b className={cn('text-foreground', s.durum === 'AZALDI' && 'text-danger')}>{para(s.tahmin.tutar, s.tahmin.paraBirimi)}</b>
-                              <span className="block">giriş {zaman(s.tahmin.girisAt)} · harcama {para(s.tahmin.kullanilanUsd, 'USD')}</span>
-                            </span>
-                          )
-                          : <>Bakiye girilmedi</>}
-                    {s.bakiyeTuru === 'manuel' && (
-                      giris?.id === s.id ? (
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <input
-                            value={giris.tutar}
-                            onChange={(ev) => setGiris({ ...giris, tutar: ev.target.value })}
-                            inputMode="decimal"
-                            placeholder="Tutar"
-                            aria-label={`${s.ad} bakiyesi`}
-                            className="h-7 w-24 rounded-md border bg-background px-2 text-xs"
-                          />
-                          <select
-                            value={giris.paraBirimi}
-                            onChange={(ev) => setGiris({ ...giris, paraBirimi: ev.target.value as 'USD' | 'TRY' })}
-                            aria-label="Para birimi"
-                            className="h-7 rounded-md border bg-background px-1 text-xs"
-                          >
-                            <option value="USD">USD</option>
-                            <option value="TRY">TL</option>
-                          </select>
-                          <label className="inline-flex items-center gap-1 cursor-pointer select-none" title="Sağlayıcı bakiye azalınca kendisi yüklüyorsa işaretle: tahmin düşse de uyarı gelmez">
-                            <input type="checkbox" checked={giris.otomatik} onChange={(ev) => setGiris({ ...giris, otomatik: ev.target.checked })} />
-                            otomatik yükleme açık
-                          </label>
-                          <Button size="sm" className="h-7" onClick={bakiyeKaydet} disabled={kaydediliyor}>Kaydet</Button>
-                          <Button size="sm" variant="ghost" className="h-7" onClick={() => setGiris(null)}>Vazgeç</Button>
+          <div className="rounded-md border">
+            <div className={cn('hidden md:grid gap-4 border-b bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground', SUTUNLAR)}>
+              <span>Sağlayıcı</span>
+              <span>Bakiye</span>
+              <span>Bu ay ölçüm</span>
+              <span>Son başarılı çağrı</span>
+              <span className="text-right">İşlem</span>
+            </div>
+            <div className="divide-y">
+              {veri.satirlar.map((s) => {
+                const e = ETIKET[s.durum];
+                const sorun = s.durum === 'KREDI_BITTI' || s.durum === 'AZALDI';
+                const duzenleniyor = giris?.id === s.id;
+                return (
+                  <div key={s.id} className={cn(sorun && 'bg-danger/5')}>
+                    <div className={cn('grid grid-cols-1 gap-x-4 gap-y-2 px-4 py-3 md:items-center', SUTUNLAR)}>
+                      {/* Saglayici */}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium">{s.ad}</span>
+                          <Badge variant={e.variant}>{e.metin}</Badge>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="mt-0.5 block text-brand-600 hover:underline"
-                          onClick={() => setGiris({ id: s.id, tutar: '', paraBirimi: s.tahmin?.paraBirimi ?? (s.id === 'gemini' ? 'TRY' : 'USD'), otomatik: s.tahmin?.otomatikYukleme ?? false })}
-                        >
-                          {s.tahmin ? 'Bakiyeyi güncelle' : 'Bakiye gir'}
-                        </button>
-                      )
-                    )}
-                    {s.bakiyeTuru === 'manuel' && s.tahmin && giris?.id !== s.id && (
-                      <label className="mt-0.5 flex items-center gap-1 cursor-pointer select-none" title="Sağlayıcı bakiye azalınca kendisi yüklüyorsa işaretle: tahmin düşse de uyarı gelmez">
-                        <input type="checkbox" checked={!!s.tahmin.otomatikYukleme} onChange={(ev) => otomatikDegistir(s.id, ev.target.checked)} />
-                        otomatik yükleme açık
-                      </label>
-                    )}
-                    <div title="Bizim sunucunun ölçüm çağrılarının gerçek maliyeti (token × fiyat + arama ücreti). Sağlayıcı panelindeki aylık tutarla fark varsa anahtarı başka bir şey de kullanıyordur.">
-                      Bu ay ölçüm harcamamız:{' '}
-                      {s.gercekBuAy
-                        ? <><b className="text-foreground">${s.gercekBuAy.usd.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b>{s.gercekBuAy.baslangic > `${new Date().toISOString().slice(0, 7)}-01` ? ` (kayıt başlangıcı: ${s.gercekBuAy.baslangic.slice(8, 10)}.${s.gercekBuAy.baslangic.slice(5, 7)})` : ''}</>
-                        : '—'}
+                        <div className="text-xs text-muted-foreground truncate">{s.kullanim}</div>
+                      </div>
+
+                      {/* Bakiye */}
+                      <div className="min-w-0">
+                        <div className="text-xs text-muted-foreground">
+                          {s.bakiye ? 'Gerçek bakiye' : s.bakiyeTuru === 'fatura' ? 'Kartla ödeniyor' : s.tahmin ? 'Tahmini bakiye' : 'Bakiye girilmedi'}
+                        </div>
+                        <div className={cn('text-sm font-semibold tabular-nums', sorun && 'text-danger')}>
+                          {s.bakiye
+                            ? s.bakiye.hata ? <span className="text-xs font-normal text-warning">okunamadı ({s.bakiye.hata})</span>
+                              : s.bakiye.tutar !== null ? para(s.bakiye.tutar, s.bakiye.paraBirimi) : '—'
+                            : s.tahmin ? para(s.tahmin.tutar, s.tahmin.paraBirimi)
+                              : s.bakiyeTuru === 'fatura' ? <span className="text-xs font-normal text-muted-foreground">sonradan fatura</span> : '—'}
+                        </div>
+                        {s.tahmin && (
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <span className="tabular-nums">{zaman(s.tahmin.girisAt)} girişi · harcanan {para(s.tahmin.kullanilanUsd, 'USD')}</span>
+                            {s.tahmin.otomatikYukleme && <Badge variant="secondary">oto. yükleme</Badge>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bu ay olcum */}
+                      <div className="text-sm tabular-nums">
+                        <span className="md:hidden text-xs text-muted-foreground">Bu ay ölçüm: </span>
+                        {s.gercekBuAy ? para(s.gercekBuAy.usd, 'USD') : <span className="text-muted-foreground">—</span>}
+                      </div>
+
+                      {/* Son cagri */}
+                      <div className="min-w-0 text-xs">
+                        <span className="md:hidden text-muted-foreground">Son başarılı çağrı: </span>
+                        <span className="tabular-nums">{zaman(s.sonBasari)}</span>
+                        {s.sonKrediHatasi && s.durum === 'KREDI_BITTI' && (
+                          <div className="text-danger tabular-nums">kredi hatası {zaman(s.sonKrediHatasi)}</div>
+                        )}
+                        {s.sonKontrolHatasi && (
+                          <div className="text-warning truncate" title={s.sonKontrolHatasi}>hata: {s.sonKontrolHatasi}</div>
+                        )}
+                      </div>
+
+                      {/* Islemler */}
+                      <div className="flex items-center gap-2 md:justify-end">
+                        {s.bakiyeTuru === 'manuel' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setGiris(duzenleniyor ? null : { id: s.id, tutar: '', paraBirimi: s.tahmin?.paraBirimi ?? (s.id === 'gemini' ? 'TRY' : 'USD'), otomatik: s.tahmin?.otomatikYukleme ?? false })}
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> {s.tahmin ? 'Düzenle' : 'Bakiye gir'}
+                          </Button>
+                        )}
+                        <Button asChild size="sm" variant={sorun ? 'default' : 'outline'}>
+                          <a href={s.yukleUrl} target="_blank" rel="noopener noreferrer">
+                            Yükle <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
+                          </a>
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground min-w-[220px] max-w-[420px]">
-                    Son başarılı çağrı: {zaman(s.sonBasari)}
-                    {s.sonKrediHatasi && <> · son kredi hatası: <span className={cn(s.durum === 'KREDI_BITTI' && 'text-danger')}>{zaman(s.sonKrediHatasi)}</span></>}
-                    {s.sonKontrolHatasi && (
-                      <div className="text-warning line-clamp-2 break-all max-w-[420px]" title={s.sonKontrolHatasi}>
-                        Kontrol hatası ({zaman(s.sonKontrolHatasiAt ?? null)}): {s.sonKontrolHatasi}
+
+                    {/* Bakiye duzenleme: satirin altinda tam genislik */}
+                    {duzenleniyor && giris && (
+                      <div className="mx-4 mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-3 text-xs">
+                        <span className="text-muted-foreground">Sağlayıcı panelindeki tutar:</span>
+                        <input
+                          value={giris.tutar}
+                          onChange={(ev) => setGiris({ ...giris, tutar: ev.target.value })}
+                          inputMode="decimal"
+                          placeholder={s.tahmin ? String(s.tahmin.tutar).replace('.', ',') : 'örn. 120,70'}
+                          aria-label={`${s.ad} bakiyesi`}
+                          autoFocus
+                          className="h-8 w-28 rounded-md border bg-background px-2 text-sm tabular-nums"
+                        />
+                        <select
+                          value={giris.paraBirimi}
+                          onChange={(ev) => setGiris({ ...giris, paraBirimi: ev.target.value as 'USD' | 'TRY' })}
+                          aria-label="Para birimi"
+                          className="h-8 rounded-md border bg-background px-2 text-sm"
+                        >
+                          <option value="USD">USD</option>
+                          <option value="TRY">TL</option>
+                        </select>
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer select-none" title="Sağlayıcı bakiye azalınca kendisi yüklüyorsa işaretle: tahmin düşse de uyarı gelmez">
+                          <input type="checkbox" checked={giris.otomatik} onChange={(ev) => setGiris({ ...giris, otomatik: ev.target.checked })} />
+                          Otomatik yükleme açık
+                        </label>
+                        <div className="ml-auto flex gap-2">
+                          {s.tahmin && giris.otomatik !== !!s.tahmin.otomatikYukleme && !giris.tutar.trim() && (
+                            <Button size="sm" variant="outline" onClick={() => otomatikDegistir(s.id, giris.otomatik).then(() => setGiris(null))}>
+                              Yalnız ayarı kaydet
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={bakiyeKaydet} disabled={kaydediliyor || !giris.tutar.trim()}>Bakiyeyi kaydet</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setGiris(null)}>Vazgeç</Button>
+                        </div>
                       </div>
                     )}
                   </div>
-                  <Button asChild size="sm" variant={s.durum === 'KREDI_BITTI' || s.durum === 'AZALDI' ? 'default' : 'outline'}>
-                    <a href={s.yukleUrl} target="_blank" rel="noopener noreferrer">
-                      Yükle <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
-                    </a>
-                  </Button>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </CardContent>
