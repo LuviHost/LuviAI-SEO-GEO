@@ -33,6 +33,7 @@ import {
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
 import { tekrarSayisiFor } from './citation-repeat.js';
+import { saglayiciBasariKaydet, saglayiciKrediHatasiKaydet } from './saglayici-durum.js';
 import { gorunmeAraligi, type GorunmeAraligi } from './visibility-interval.js';
 import { answerNapSignal, type AnswerNapSignal } from './local-nap.js';
 import {
@@ -1057,8 +1058,11 @@ export class AiCitationService {
         }
         // Cost defteri tutulur (public da olsa sistem kotasinin parcasi)
         const cost = await this.addCost(provider, probes.length, budgetUserId, tier).catch(() => 0);
+        // Havuz anahtari calisiyor (admin kredi paneli; Google yuzeyleri DataForSEO bakiyesinden izlenir)
+        if (!isGoogleSurface(provider) && measuredOnly(probes).length > 0) void saglayiciBasariKaydet(this.prisma, provider);
         return { provider, label, available: true, probes, cost };
       } catch (err: any) {
+        if (probeErrorCode(err) === 'billing') void saglayiciKrediHatasiKaydet(this.prisma, provider, probeErrorExcerpt(err));
         // Anonim uc: saglayici govdesi (hesap kimligi, kota ayrintisi) disari cikmaz — yalniz kod
         this.log.warn(`Public probe failed (${provider}): ${safeErrorText(err)}`);
         return { provider, label, available: false, probes: [], reason: probeErrorExcerpt(err), cost: 0 };
@@ -1289,8 +1293,11 @@ export class AiCitationService {
       // saglayici kullanilamaz (tek turlu davranisla ayni sonuc).
       const err = dusen.reason;
       // Kredi bitti: yukleme yapilana kadar bu saglayici HIC olculmez — gozden kacmasin diye ERROR
-      if (probeErrorCode(err) === 'billing') this.log.error(`${provider} KREDISI BITTI — saglayici panelinden bakiye yuklenmeli: ${safeErrorText(err)}`);
-      else this.log.warn(`${provider} probe failed (whole batch): ${safeErrorText(err)}`);
+      if (probeErrorCode(err) === 'billing') {
+        this.log.error(`${provider} KREDISI BITTI — saglayici panelinden bakiye yuklenmeli: ${safeErrorText(err)}`);
+        // Yalniz havuz: BYOK'ta biten musterinin kendi kredisi (admin kredi paneli bizim hesaplari gosterir)
+        if (resolved.source === 'pool') void saglayiciKrediHatasiKaydet(this.prisma, provider, probeErrorExcerpt(err));
+      } else this.log.warn(`${provider} probe failed (whole batch): ${safeErrorText(err)}`);
       return {
         provider, label, available: false, score: null, probes: [],
         // Kalici hata mesaji 401 govdesini (maskeli anahtar, org kimligi) tasiyabilir — yalniz kod
@@ -1306,6 +1313,7 @@ export class AiCitationService {
     // Kural citation-score.ts'te (providerOutcome) — kosum/snapshot backfill'i
     // ayni fonksiyonu kullanir. Probe'lar gosterim icin (soru bazli neden) kalir.
     const outcome = providerOutcome(probes, { available: true });
+    if (outcome.available && resolved.source === 'pool' && !isGoogleSurface(provider)) void saglayiciBasariKaydet(this.prisma, provider);
     if (!outcome.available) {
       return {
         provider, label, available: false, score: null, probes,

@@ -1,6 +1,7 @@
 import { Controller, ForbiddenException, Get, Param, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { LLMProviderService } from './llm-provider.service.js';
+import { SaglayiciKrediService } from './saglayici-kredi.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
 
 function assertAdmin(req: Request) {
@@ -12,7 +13,17 @@ function assertAdmin(req: Request) {
 
 @Controller()
 export class SpendController {
-  constructor(private readonly llm: LLMProviderService) {}
+  constructor(
+    private readonly llm: LLMProviderService,
+    private readonly kredi: SaglayiciKrediService,
+  ) {}
+
+  /** GET /admin/saglayici-kredi?tazele=1 — havuz anahtarli AI saglayicilarinin kredi durumu + yukleme linki */
+  @Get('admin/saglayici-kredi')
+  async saglayiciKredi(@Req() req: Request, @Query('tazele') tazele?: string) {
+    assertAdmin(req);
+    return this.kredi.tablo({ tazele: tazele === '1' });
+  }
 
   /** GET /admin/spend?days=30 — global spend dashboard */
   @Get('admin/spend')

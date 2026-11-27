@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DollarSign, TrendingUp, Layers, Activity, RefreshCw, Calendar, Shield, AlertTriangle, Ban, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { SaglayiciKrediler } from './saglayici-krediler';
 
 const DAYS_OPTIONS = [7, 14, 30, 60, 90];
 
@@ -99,6 +100,9 @@ export default function AdminSpendPage() {
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Yenile
         </button>
       </div>
+
+      {/* Kredi durumu en ustte: biten kredi olcumu sessizce durduruyor (27.11 Gemini) */}
+      <SaglayiciKrediler />
 
       {loading && !data && <Skeleton className="h-32" />}
 
