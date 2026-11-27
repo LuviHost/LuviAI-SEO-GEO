@@ -110,7 +110,7 @@ export function SaglayiciKrediler() {
                     </div>
                     <div className="text-xs text-muted-foreground">{s.kullanim}</div>
                   </div>
-                  <div className="text-xs text-muted-foreground min-w-[150px]">
+                  <div className="text-xs text-muted-foreground min-w-[200px]">
                     {s.bakiye
                       ? s.bakiye.hata
                         ? <>Bakiye okunamadı ({s.bakiye.hata})</>
@@ -118,6 +118,12 @@ export function SaglayiciKrediler() {
                           ? <>Bakiye: <b className={cn('text-foreground', s.durum !== 'CALISIYOR' && 'text-danger')}>{para(s.bakiye.tutar, s.bakiye.paraBirimi)}</b></>
                           : <>Bakiye bilinmiyor</>
                       : <>Bakiye API&apos;si yok</>}
+                    <div title="Bizim sunucunun ölçüm çağrılarının gerçek maliyeti (token × fiyat + arama ücreti). Sağlayıcı panelindeki aylık tutarla fark varsa anahtarı başka bir şey de kullanıyordur.">
+                      Bu ay ölçüm harcamamız:{' '}
+                      {s.gercekBuAy
+                        ? <><b className="text-foreground">${s.gercekBuAy.usd.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b>{s.gercekBuAy.baslangic > `${new Date().toISOString().slice(0, 7)}-01` ? ` (kayıt başlangıcı: ${s.gercekBuAy.baslangic.slice(8, 10)}.${s.gercekBuAy.baslangic.slice(5, 7)})` : ''}</>
+                        : '—'}
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground min-w-[220px] max-w-[420px]">
                     Son başarılı çağrı: {zaman(s.sonBasari)}

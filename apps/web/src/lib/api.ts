@@ -652,6 +652,8 @@ export interface SaglayiciKrediSatiri {
   /** "Şimdi kontrol et"te kredi disi hata (gecersiz anahtar, model yok...) — son basaridan yeniyse */
   sonKontrolHatasi?: string | null;
   sonKontrolHatasiAt?: string | null;
+  /** Bu ay bizim sunucunun olcum cagrilarinin gercek maliyeti (USD); baslangic = ilk kayit gunu */
+  gercekBuAy?: { usd: number; baslangic: string } | null;
 }
 export interface SaglayiciKrediTablosu { satirlar: SaglayiciKrediSatiri[]; at: string }
 

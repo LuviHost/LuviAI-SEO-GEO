@@ -34,6 +34,10 @@ import { MeasurementAllowanceService } from '../billing/measurement-allowance.se
 import { noteMeasured } from '../billing/measurement-allowance.js';
 import { tekrarSayisiFor } from './citation-repeat.js';
 import { saglayiciBasariKaydet, saglayiciKrediHatasiKaydet } from './saglayici-durum.js';
+import {
+  anthropicKullanim, dataforseoKullanim, geminiKullanim, gercekMaliyetAnahtari, gercekMaliyetUsd, perplexityKullanim,
+  responsesKullanim, type KullanimOzeti,
+} from './olcum-gercek-maliyet.js';
 import { gorunmeAraligi, type GorunmeAraligi } from './visibility-interval.js';
 import { answerNapSignal, type AnswerNapSignal } from './local-nap.js';
 import {
@@ -177,6 +181,8 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
  * ve sunucu saat farkina yeterli pay birakir (bkz. addCost).
  */
 export const AI_COST_KV_TTL_DAYS = 3;
+/** Gercek maliyet sayaclari aylik / yillik karsilastirma icin uzun tutulur */
+export const GERCEK_MALIYET_KV_GUN = 400;
 
 /**
  * resolveKey nedenleri — musteriye aynen gosterilir, teknik env adi icermez.
@@ -503,17 +509,37 @@ export class AiCitationService {
     return cost;
   }
 
+  /**
+   * Gercek maliyet kaydi (olcum-gercek-maliyet.ts). Yalniz HAVUZ anahtari (BYOK'u musteri oder);
+   * olcum yolunu bekletmez, hata yutulur. Tabloda olmayan model bir kez loglanir.
+   */
+  private gercekKaydet(provider: Provider, model: string, key: string, k: KullanimOzeti): void {
+    if (!key || key !== process.env[POOL_ENV_KEY[provider]]) return;
+    const usd = gercekMaliyetUsd(model, k);
+    if (usd === null) {
+      if (!this.fiyatsizModeller.has(model)) {
+        this.fiyatsizModeller.add(model);
+        this.log.warn(`Gercek maliyet: ${model} fiyat tablosunda yok (olcum-gercek-maliyet.ts) — kayit atlandi`);
+      }
+      return;
+    }
+    if (usd <= 0) return;
+    void this.bumpCostKey(gercekMaliyetAnahtari(provider, new Date().toISOString().slice(0, 10)), usd, 'gercek', GERCEK_MALIYET_KV_GUN);
+  }
+
+  private readonly fiyatsizModeller = new Set<string>();
+
   /** kv_store sayacina atomik ekleme (addCost ve anonim defter ortak) */
-  private async bumpCostKey(key: string, cost: number, label = 'public-anon'): Promise<void> {
+  private async bumpCostKey(key: string, cost: number, label = 'public-anon', ttlGun: number = AI_COST_KV_TTL_DAYS): Promise<void> {
     try {
       // MySQL ON DUPLICATE KEY UPDATE — tek ifadede oku+topla+yaz. Zamanlar
       // UTC_TIMESTAMP ile: Prisma DateTime'i UTC saklar ve sweep UTC "simdi"
       // ile karsilastirir; NOW() oturum saat dilimine baglidir.
       await this.prisma.$executeRawUnsafe(
         'INSERT INTO `kv_store` (`key`, `value`, `expiresAt`, `updatedAt`) ' +
-        `VALUES (?, ?, UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY, UTC_TIMESTAMP(3)) ` +
+        `VALUES (?, ?, UTC_TIMESTAMP(3) + INTERVAL ${Math.round(ttlGun)} DAY, UTC_TIMESTAMP(3)) ` +
         'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS DECIMAL(18,8)) + ? AS CHAR), ' +
-        `\`expiresAt\` = UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY, \`updatedAt\` = UTC_TIMESTAMP(3)`,
+        `\`expiresAt\` = UTC_TIMESTAMP(3) + INTERVAL ${Math.round(ttlGun)} DAY, \`updatedAt\` = UTC_TIMESTAMP(3)`,
         key, String(cost), cost,
       );
     } catch (err: any) {
@@ -1411,6 +1437,7 @@ export class AiCitationService {
             output_config: { effort: 'low' },
             tools: [{ type: aramaAraci, name: 'web_search', max_uses: 2 }],
           } as any) as Anthropic.Message;
+          this.gercekKaydet('anthropic', model, key, anthropicKullanim(resp));
           aramaHatasi = anthropicSearchFailure(resp.content);
           if (!aramaHatasi) break;
           this.log.warn(`Anthropic web aramasi hata verdi (${q}) deneme ${deneme}/${this.ARAMA_DENEME}: ${aramaHatasi}`);
@@ -1470,6 +1497,7 @@ export class AiCitationService {
           contents: `${systemPrompt}\n\nSoru: ${q}`,
           config: { maxOutputTokens: 2000, tools: [{ googleSearch: {} }] },
         }));
+        this.gercekKaydet('gemini', this.MODELS.gemini, key, geminiKullanim(resp));
         const text = resp.text ?? '';
         if (!text.trim()) {
           const finish = safeReasonToken(resp.candidates?.[0]?.finishReason);
@@ -1508,6 +1536,7 @@ export class AiCitationService {
           tool_choice: 'required',
           max_output_tokens: 1500,
         }));
+        this.gercekKaydet('openai', model, key, responsesKullanim(data));
         const parts = (Array.isArray(data?.output) ? data.output : [])
           .filter((o: any) => o?.type === 'message')
           .flatMap((o: any) => (Array.isArray(o.content) ? o.content : []))
@@ -1541,6 +1570,7 @@ export class AiCitationService {
             { role: 'user', content: q },
           ],
         }));
+        this.gercekKaydet('perplexity', 'sonar', key, perplexityKullanim(data));
         const text = data?.choices?.[0]?.message?.content ?? '';
         // Diger saglayicilarla ayni kural: bos cevap olcum degildir ("anilmadi" sayilmaz)
         if (!String(text).trim()) {
@@ -1578,7 +1608,7 @@ export class AiCitationService {
    * onermedi demektir. tool_choice zorlanmaz (dokumanda yok); arama talimatla istenir.
    */
   private async probeXai(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
-    return this.probeResponsesWebSearch('Grok', 'https://api.x.ai/v1/responses', this.MODELS.xai, 1500, key, host, brand, queries, systemPrompt, competitors);
+    return this.probeResponsesWebSearch('xai', 'Grok', 'https://api.x.ai/v1/responses', this.MODELS.xai, 1500, key, host, brand, queries, systemPrompt, competitors);
   }
 
   /**
@@ -1588,7 +1618,7 @@ export class AiCitationService {
    * (kendi istek alanlari var).
    */
   private async probeResponsesWebSearch(
-    label: string, url: string, model: string, maxOutputTokens: number,
+    saglayici: Provider, label: string, url: string, model: string, maxOutputTokens: number,
     key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[],
   ): Promise<CitationProbe[]> {
     const probes: CitationProbe[] = [];
@@ -1601,6 +1631,7 @@ export class AiCitationService {
           tools: [{ type: 'web_search' }],
           max_output_tokens: maxOutputTokens,
         }));
+        this.gercekKaydet(saglayici, model, key, responsesKullanim(data));
         const parts = (Array.isArray(data?.output) ? data.output : [])
           .filter((o: any) => o?.type === 'message')
           .flatMap((o: any) => (Array.isArray(o.content) ? o.content : []))
@@ -1649,6 +1680,7 @@ export class AiCitationService {
             messages: [{ role: 'user', content: q }],
             tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
           } as any) as Anthropic.Message;
+          this.gercekKaydet('deepseek', this.MODELS.deepseek, key, anthropicKullanim(resp));
           aramaHatasi = anthropicSearchFailure(resp.content);
           if (!aramaHatasi) break;
           this.log.warn(`DeepSeek web aramasi hata verdi (${q}) deneme ${deneme}/${this.ARAMA_DENEME}: ${aramaHatasi}`);
@@ -1695,7 +1727,7 @@ export class AiCitationService {
    * talimatla istenir, tool_choice zorlanmaz.
    */
   private async probeMeta(key: string, host: string, brand: BrandRef, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
-    return this.probeResponsesWebSearch('Meta Muse', 'https://api.meta.ai/v1/responses', this.MODELS.meta, 3000, key, host, brand, queries, systemPrompt, competitors);
+    return this.probeResponsesWebSearch('meta', 'Meta Muse', 'https://api.meta.ai/v1/responses', this.MODELS.meta, 3000, key, host, brand, queries, systemPrompt, competitors);
   }
 
   /**
@@ -1729,6 +1761,8 @@ export class AiCitationService {
             signal: AbortSignal.timeout(120_000),
           });
           data = await res.json().catch(() => ({ status_code: res.status, status_message: `HTTP ${res.status}` }));
+          // Google AI Modu + AI Bakisi ayni DataForSEO hesabi: gercek tutar cevaptaki `cost`
+          this.gercekKaydet(surface, surface, key, dataforseoKullanim(data));
         } catch (err: any) {
           data = { status_code: null, status_message: safeErrorText(err) };
         }
