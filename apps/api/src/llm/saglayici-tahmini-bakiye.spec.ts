@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BAKIYE_KV, BAKIYE_TURU, bakiyeGirisiOku, satirDurumu, tahminiBakiye, uyariMetni } from './saglayici-kredi.js';
+import { BAKIYE_KV, BAKIYE_TURU, bakiyeGirisiOku, satirDurumu, tahminiBakiye, tahminiBorc, FATURA_ESIGI, uyariMetni } from './saglayici-kredi.js';
 import { SaglayiciKrediService } from './saglayici-kredi.service.js';
 
 describe('tahmini bakiye kurallari', () => {
@@ -74,9 +74,28 @@ describe('SaglayiciKrediService bakiye girisi', () => {
     expect(gem.bakiyeTuru).toBe('manuel');
   });
 
-  it('API ve faturali saglayiciya giris reddedilir; bos tutar reddedilir; null siler', async () => {
+  it('Meta (fatura): girilen odenecek tutara olcum harcamasi EKLENIR; "Azaldı" uretmez', async () => {
     const t = kur();
-    await expect(t.svc.bakiyeGir('meta', 10, 'TRY')).rejects.toThrow('girilmez');
+    const eski = process.env.META_MODEL_API_KEY;
+    process.env.META_MODEL_API_KEY = 'test';
+    try {
+      await t.svc.bakiyeGir('meta', '483,01', 'TRY');
+      t.depo.set('ai-gercek-toplam:meta', '0.5'); // girisAn 0 → 0,5 USD × 42 = 21 TL
+      const m = (await t.svc.tablo()).satirlar.find((s) => s.id === 'meta')!;
+      expect(m.tahmin).toMatchObject({ tutar: 504.01, paraBirimi: 'TRY', kullanilanUsd: 0.5 });
+      expect(m.faturaEsigi).toEqual({ tutar: 500, paraBirimi: 'TRY' });
+      expect(m.durum).not.toBe('AZALDI');
+      await t.svc.bakiyeGir('meta', 0, 'TRY'); // kart cekildi
+      const m2 = (await t.svc.tablo()).satirlar.find((s) => s.id === 'meta')!;
+      expect(m2.tahmin).toMatchObject({ tutar: 0 });
+      expect(m2.durum).not.toBe('AZALDI');
+    } finally {
+      if (eski === undefined) delete process.env.META_MODEL_API_KEY; else process.env.META_MODEL_API_KEY = eski;
+    }
+  });
+
+  it('API saglayicisina giris reddedilir; bos tutar reddedilir; null siler', async () => {
+    const t = kur();
     await expect(t.svc.bakiyeGir('deepseek', 10, 'USD')).rejects.toThrow('girilmez');
     await expect(t.svc.bakiyeGir('xai', '', 'USD')).rejects.toThrow('Tutar girin');
     await expect(t.svc.bakiyeGir('xai', 10, 'EUR')).rejects.toThrow('USD ya da TRY');
@@ -110,5 +129,18 @@ describe('SaglayiciKrediService bakiye girisi', () => {
     } finally {
       if (eskiAnahtar === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = eskiAnahtar;
     }
+  });
+});
+
+describe('tahminiBorc (fatura: Meta)', () => {
+  const g = { tutar: 483.01, paraBirimi: 'TRY' as const, girisAt: '2026-11-28T10:00:00Z', olcumToplamAnlikUsd: 0, otomatikYukleme: false };
+  it('harcama borca EKLENIR (TL, kurla)', () => {
+    expect(tahminiBorc(g, 0.5, 40)).toEqual({ tutar: 503.01, usd: 12.58 });
+  });
+  it('kur yoksa girilen tutar kalir', () => {
+    expect(tahminiBorc(g, 1, null)).toEqual({ tutar: 483.01, usd: null });
+  });
+  it('Meta esigi 500 TL', () => {
+    expect(FATURA_ESIGI.meta).toEqual({ tutar: 500, paraBirimi: 'TRY' });
   });
 });

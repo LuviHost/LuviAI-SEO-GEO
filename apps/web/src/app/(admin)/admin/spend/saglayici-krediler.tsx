@@ -130,6 +130,7 @@ export function SaglayiciKrediler() {
           <ul className="mt-2 space-y-1 list-disc pl-5">
             <li><b className="text-foreground">Gerçek</b>: DeepSeek ve DataForSEO bakiyeyi kendisi bildiriyor.</li>
             <li><b className="text-foreground">Tahmini</b>: sağlayıcının panelindeki tutarı &quot;Düzenle&quot;den girersin; o andan sonraki ölçüm ve içerik üretimi harcamamız düşülür. Aynı anahtarı başka bir şey kullanırsa ya da otomatik yükleme olursa sapar — arada güncelle.</li>
+            <li><b className="text-foreground">Meta</b> önceden yüklenmez, kartla sonradan ödenir: panelindeki &quot;Outstanding balance&quot;ı girersin, sonraki ölçüm harcaması EKLENİR. 500 TL&apos;de ya da ay başında kart çekilince 0 gir.</li>
             <li><b className="text-foreground">Otomatik yükleme</b> işaretliyse tahmin düşse de &quot;Azaldı&quot; uyarısı gelmez; kredi gerçekten biterse sağlayıcının hatasıyla &quot;Kredi bitti&quot; gelir.</li>
             <li>&quot;Bu ay ölçüm&quot;: bizim sunucunun ölçüm çağrılarının gerçek maliyeti. Sağlayıcı panelindeki tutardan çok düşükse anahtarı başka bir şey de kullanıyordur.</li>
           </ul>
@@ -151,6 +152,10 @@ export function SaglayiciKrediler() {
                 const e = ETIKET[s.durum];
                 const sorun = s.durum === 'KREDI_BITTI' || s.durum === 'AZALDI';
                 const duzenleniyor = giris?.id === s.id;
+                const fatura = s.bakiyeTuru === 'fatura';
+                // Fatura: tahmini borc esige ulastiysa kart cekilmis olabilir — tutar saglayicida sifirlanir
+                const esikAsildi = fatura && !!s.tahmin && !!s.faturaEsigi
+                  && s.tahmin.paraBirimi === s.faturaEsigi.paraBirimi && s.tahmin.tutar >= s.faturaEsigi.tutar;
                 return (
                   <div key={s.id} className={cn(sorun && 'bg-danger/5')}>
                     <div className={cn('grid grid-cols-1 gap-x-4 gap-y-2 px-4 py-3 md:items-center', SUTUNLAR)}>
@@ -166,19 +171,26 @@ export function SaglayiciKrediler() {
                       {/* Bakiye */}
                       <div className="min-w-0">
                         <div className="text-xs text-muted-foreground">
-                          {s.bakiye ? 'Gerçek bakiye' : s.bakiyeTuru === 'fatura' ? 'Kartla ödeniyor' : s.tahmin ? 'Tahmini bakiye' : 'Bakiye girilmedi'}
+                          {s.bakiye ? 'Gerçek bakiye' : fatura ? (s.tahmin ? 'Ödenecek (tahmini)' : 'Kartla ödeniyor') : s.tahmin ? 'Tahmini bakiye' : 'Bakiye girilmedi'}
                         </div>
                         <div className={cn('text-sm font-semibold tabular-nums', sorun && 'text-danger')}>
                           {s.bakiye
                             ? s.bakiye.hata ? <span className="text-xs font-normal text-warning">okunamadı ({s.bakiye.hata})</span>
                               : s.bakiye.tutar !== null ? para(s.bakiye.tutar, s.bakiye.paraBirimi) : '—'
                             : s.tahmin ? para(s.tahmin.tutar, s.tahmin.paraBirimi)
-                              : s.bakiyeTuru === 'fatura' ? <span className="text-xs font-normal text-muted-foreground">sonradan fatura</span> : '—'}
+                              : fatura ? <span className="text-xs font-normal text-muted-foreground">ödenecek tutar girilmedi</span> : '—'}
                         </div>
                         {s.tahmin && (
                           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <span className="tabular-nums">{zaman(s.tahmin.girisAt)} girişi · harcanan {para(s.tahmin.kullanilanUsd, 'USD')}</span>
                             {s.tahmin.otomatikYukleme && <Badge variant="secondary">oto. yükleme</Badge>}
+                          </div>
+                        )}
+                        {fatura && s.faturaEsigi && (
+                          <div className={cn('text-xs', esikAsildi ? 'text-warning' : 'text-muted-foreground')}>
+                            {esikAsildi
+                              ? `${para(s.faturaEsigi.tutar, s.faturaEsigi.paraBirimi)} aşıldı: kart çekilmiş olabilir, panelden güncelle`
+                              : `${para(s.faturaEsigi.tutar, s.faturaEsigi.paraBirimi)}'ye ulaşınca ya da ay başında karttan çekilir`}
                           </div>
                         )}
                       </div>
@@ -203,13 +215,13 @@ export function SaglayiciKrediler() {
 
                       {/* Islemler */}
                       <div className="flex items-center gap-2 md:justify-end">
-                        {s.bakiyeTuru === 'manuel' && (
+                        {(s.bakiyeTuru === 'manuel' || fatura) && (
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setGiris(duzenleniyor ? null : { id: s.id, tutar: '', paraBirimi: s.tahmin?.paraBirimi ?? (s.id === 'gemini' ? 'TRY' : 'USD'), otomatik: s.tahmin?.otomatikYukleme ?? false })}
+                            onClick={() => setGiris(duzenleniyor ? null : { id: s.id, tutar: '', paraBirimi: s.tahmin?.paraBirimi ?? s.faturaEsigi?.paraBirimi ?? (s.id === 'gemini' ? 'TRY' : 'USD'), otomatik: s.tahmin?.otomatikYukleme ?? false })}
                           >
-                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> {s.tahmin ? 'Düzenle' : 'Bakiye gir'}
+                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> {s.tahmin ? 'Düzenle' : fatura ? 'Tutar gir' : 'Bakiye gir'}
                           </Button>
                         )}
                         <Button asChild size="sm" variant={sorun ? 'default' : 'outline'}>
@@ -223,7 +235,7 @@ export function SaglayiciKrediler() {
                     {/* Bakiye duzenleme: satirin altinda tam genislik */}
                     {duzenleniyor && giris && (
                       <div className="mx-4 mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-3 text-xs">
-                        <span className="text-muted-foreground">Sağlayıcı panelindeki tutar:</span>
+                        <span className="text-muted-foreground">{fatura ? 'Sağlayıcı panelindeki ödenecek tutar (Outstanding balance):' : 'Sağlayıcı panelindeki tutar:'}</span>
                         <input
                           value={giris.tutar}
                           onChange={(ev) => setGiris({ ...giris, tutar: ev.target.value })}
@@ -242,17 +254,21 @@ export function SaglayiciKrediler() {
                           <option value="USD">USD</option>
                           <option value="TRY">TL</option>
                         </select>
+                        {fatura ? (
+                          <span className="text-muted-foreground">Kart çekildikten sonra 0 gir.</span>
+                        ) : (
                         <label className="inline-flex items-center gap-1.5 cursor-pointer select-none" title="Sağlayıcı bakiye azalınca kendisi yüklüyorsa işaretle: tahmin düşse de uyarı gelmez">
                           <input type="checkbox" checked={giris.otomatik} onChange={(ev) => setGiris({ ...giris, otomatik: ev.target.checked })} />
                           Otomatik yükleme açık
                         </label>
+                        )}
                         <div className="ml-auto flex gap-2">
-                          {s.tahmin && giris.otomatik !== !!s.tahmin.otomatikYukleme && !giris.tutar.trim() && (
+                          {!fatura && s.tahmin && giris.otomatik !== !!s.tahmin.otomatikYukleme && !giris.tutar.trim() && (
                             <Button size="sm" variant="outline" onClick={() => otomatikDegistir(s.id, giris.otomatik).then(() => setGiris(null))}>
                               Yalnız ayarı kaydet
                             </Button>
                           )}
-                          <Button size="sm" onClick={bakiyeKaydet} disabled={kaydediliyor || !giris.tutar.trim()}>Bakiyeyi kaydet</Button>
+                          <Button size="sm" onClick={bakiyeKaydet} disabled={kaydediliyor || !giris.tutar.trim()}>{fatura ? 'Tutarı kaydet' : 'Bakiyeyi kaydet'}</Button>
                           <Button size="sm" variant="ghost" onClick={() => setGiris(null)}>Vazgeç</Button>
                         </div>
                       </div>

@@ -6,7 +6,7 @@ import { SAGLAYICI_DURUM_KV, durumOku, krediDurumu, saglayiciKontrolKaydet, type
 import { isBillingProviderError } from '../audit/probe-retry.js';
 import {
   BAKIYE_KV, BAKIYE_TURU, HARCAMA_SAGLAYICILARI, KREDI_SAGLAYICILARI, bakiyeGirisiOku, dataforseoBakiye, deepseekBakiye,
-  satirDurumu, tahminiBakiye, type BakiyeGirisi, type BakiyeTuru, type KrediSaglayici, type SatirDurumu,
+  satirDurumu, tahminiBakiye, tahminiBorc, FATURA_ESIGI, type BakiyeGirisi, type BakiyeTuru, type KrediSaglayici, type SatirDurumu,
 } from './saglayici-kredi.js';
 
 /** Bakiye uclarini her sayfa acilisinda cagirmamak icin (surec bellegi) */
@@ -49,6 +49,8 @@ export interface KrediSatiri {
     /** Saglayicida otomatik yukleme acik: tahmin "Azaldı" uretmez */
     otomatikYukleme: boolean;
   } | null;
+  /** Fatura saglayicisi: kartin cekildigi esik (Meta 500 TL); tahmin bu turde "ödenecek tutar"dir */
+  faturaEsigi: { tutar: number; paraBirimi: 'USD' | 'TRY' } | null;
 }
 
 /** Elle kontrolde saglayiciya atilan en kucuk istek (5-16 token; Perplexity istek ucreti ~0,005 USD) */
@@ -86,12 +88,12 @@ export class SaglayiciKrediService {
   }
 
   /**
-   * Admin bakiye girisi (manuel saglayicilar). tutar null → giris silinir. Yalniz `otomatikYukleme`
+   * Admin bakiye girisi (manuel saglayicilar; fatura turunde "ödenecek tutar"). tutar null → giris silinir. Yalniz `otomatikYukleme`
    * verilirse (tutar yok) mevcut girisin yalniz bayragi degisir — harcama tabani sifirlanmaz.
    */
   async bakiyeGir(id: unknown, tutar: unknown, paraBirimi: unknown, otomatikYukleme?: unknown) {
     const t = KREDI_SAGLAYICILARI.find((s) => s.id === id);
-    if (!t || BAKIYE_TURU[t.id] !== 'manuel') throw new BadRequestException('Bu sağlayıcıya bakiye girilmez');
+    if (!t || BAKIYE_TURU[t.id] === 'api') throw new BadRequestException('Bu sağlayıcıya bakiye girilmez');
     const key = BAKIYE_KV + t.id;
     if (tutar === undefined && typeof otomatikYukleme === 'boolean') {
       const eski = bakiyeGirisiOku((await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null))?.value);
@@ -120,7 +122,7 @@ export class SaglayiciKrediService {
     return this.tablo();
   }
 
-  /** Manuel saglayicilarin tahmini bakiyesi */
+  /** Manuel saglayicilarin tahmini bakiyesi; fatura saglayicisinin tahmini odenecek tutari */
   private async tahminler(): Promise<Map<KrediSaglayici, NonNullable<KrediSatiri['tahmin']>>> {
     const girisler = await this.prisma.kvStore
       .findMany({ where: { key: { startsWith: BAKIYE_KV } }, select: { key: true, value: true } })
@@ -132,11 +134,13 @@ export class SaglayiciKrediService {
       const id = r.key.slice(BAKIYE_KV.length) as KrediSaglayici;
       const g = bakiyeGirisiOku(r.value);
       const h = HARCAMA_SAGLAYICILARI[id];
-      if (!g || !h || BAKIYE_TURU[id] !== 'manuel') continue;
+      const tur = BAKIYE_TURU[id];
+      if (!g || !h || (tur !== 'manuel' && tur !== 'fatura')) continue;
       const olcum = Math.max(0, (await this.olcumToplamUsd(h.olcum)) - g.olcumToplamAnlikUsd);
       const llm = await this.llmHarcamaUsd(h.llm, new Date(g.girisAt));
       const kullanilanUsd = Math.round((olcum + llm) * 10_000) / 10_000;
-      const t = tahminiBakiye(g, kullanilanUsd, usdTry);
+      // Fatura: borc harcamayla BUYUR; manuel: bakiye harcamayla AZALIR
+      const t = tur === 'fatura' ? tahminiBorc(g, kullanilanUsd, usdTry) : tahminiBakiye(g, kullanilanUsd, usdTry);
       out.set(id, { tutar: t.tutar, paraBirimi: g.paraBirimi, usd: t.usd, girisTutar: g.tutar, girisAt: g.girisAt, kullanilanUsd, otomatikYukleme: g.otomatikYukleme });
     }
     return out;
@@ -184,7 +188,8 @@ export class SaglayiciKrediService {
           bakiyeKullanilabilir: b?.kullanilabilir ?? null,
           kontrolHatasiGuncel,
           // Otomatik yuklemede tahmin esigin altina duser ama hesap dolar: uyari tahminden uretilmez
-          tahminiUsd: tahmin.get(t.id)?.otomatikYukleme ? null : tahmin.get(t.id)?.usd ?? null,
+          // Fatura turunde tahmin BORC'tur: dusuk borc "Azaldı" sayilmaz
+          tahminiUsd: BAKIYE_TURU[t.id] !== 'manuel' || tahmin.get(t.id)?.otomatikYukleme ? null : tahmin.get(t.id)?.usd ?? null,
         }),
         bakiye: b ? { tutar: b.usd, paraBirimi: b.paraBirimi, hata: b.hata, at: b.at } : null,
         sonBasari: k.sonBasari ?? null,
@@ -194,6 +199,7 @@ export class SaglayiciKrediService {
         gercekBuAy: gercek.get(t.id) ?? null,
         bakiyeTuru: BAKIYE_TURU[t.id],
         tahmin: tahmin.get(t.id) ?? null,
+        faturaEsigi: FATURA_ESIGI[t.id] ?? null,
       };
     });
     return { satirlar, at: new Date().toISOString() };
