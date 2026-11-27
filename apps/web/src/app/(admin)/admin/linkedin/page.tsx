@@ -155,6 +155,18 @@ export default function AdminLinkedinPage() {
     }
   };
 
+  // "Konuşmaları güncelle" (28.11.2026): her yoneticinin Mac'i kendi LinkedIn mesaj kutusunu tarar;
+  // sonuc birkac dakikada listeye duser (sayfa dakikada bir kendini tazeler)
+  const konusmalariGuncelle = () => run('konusma', async () => {
+    const { sonuc } = await api.linkedinKonusmalariGuncelle();
+    const satir = sonuc.map((x) => (x.durum === 'ZATEN_SIRADA'
+      ? `${x.ad}: tarama zaten sırada`
+      : x.durum === 'KISI_YOK'
+        ? `${x.ad}: taranacak kişi yok`
+        : `${x.ad}: ${x.macAcik ? 'taranıyor (birkaç dakika)' : 'Mac kapalı, açılınca taranır'}`));
+    toast.success('Konuşmalar güncelleniyor', { description: `${satir.join(' · ')}. Bitince liste kendiliğinden yenilenir.` });
+  });
+
   const cevapGeldi = (p: LinkedinProspect) => run(`cevap:${p.id}`, async () => {
     const r = await api.cevapGeldiLinkedin(p.id);
     if (r.ok) toast.success(`${p.ad} ${p.soyad}: cevap verdi olarak işaretlendi`);
@@ -389,7 +401,17 @@ export default function AdminLinkedinPage() {
               {recent.length} kayıt gösteriliyor
               <span className="text-muted-foreground font-normal"> — toplam {toplamKayit}{recentAll.length < toplamKayit ? ` (son ${recentAll.length} yüklendi)` : ''}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={konusmalariGuncelle}
+                disabled={busy === 'konusma'}
+                title="Her yöneticinin Mac'i kendi LinkedIn mesaj kutusunu okur (yalnız okuma); listedeki kişilerle yazışmalar konuşmalara eklenir"
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', busy === 'konusma' && 'animate-spin')} /> Konuşmaları güncelle
+              </Button>
               <select
                 value={gonderenFiltre}
                 onChange={(e) => setGonderenFiltre(e.target.value)}

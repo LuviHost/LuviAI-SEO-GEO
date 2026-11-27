@@ -128,3 +128,32 @@ describe('mesaj taramasi — servis', () => {
     await expect(svc.sonucYaz('u-talat', 'is-m', 'baska', 'MESAJ_TAMAM', '')).rejects.toThrow('tek sonuç');
   });
 });
+
+describe('Konuşmaları güncelle dugmesi', () => {
+  it('her ajanli yoneticiye tarama acar; zaten taramasi olana acmaz; Mac durumu doner', async () => {
+    const simdi = Date.now();
+    const prisma: any = {
+      linkedinClaudeAjan: { findMany: vi.fn(async () => [{ userId: 'u-emir', sonGorulme: new Date(simdi - 30_000) }, { userId: 'u-talat', sonGorulme: new Date(simdi - 3_600_000) }, { userId: 'u-uc', sonGorulme: null }]) },
+      linkedinClaudeIs: {
+        findMany: vi.fn(async () => [{ sahipId: 'u-uc', tur: 'MESAJ', durum: 'BEKLIYOR' }]),
+        create: vi.fn(async () => ({ id: 'x' })),
+      },
+      linkedinProspect: { findMany: vi.fn(async () => [{ id: 'p1' }, { id: 'p2' }]) },
+      user: { findMany: vi.fn(async () => [{ id: 'u-emir', name: 'Emir Burgazlı' }, { id: 'u-talat', name: 'Talat Yılmaz' }, { id: 'u-uc', name: 'Üç' }]) },
+    };
+    const svc = new LinkedinClaudeService(prisma, {} as any);
+    const { sonuc } = await svc.konusmalariGuncelle({ id: 'u-emir', email: 'e@x.com' });
+    expect(sonuc).toEqual([
+      { ad: 'Emir', durum: 'SIRADA', macAcik: true, kisi: 2 },
+      { ad: 'Talat', durum: 'SIRADA', macAcik: false, kisi: 2 },
+      { ad: 'Üç', durum: 'ZATEN_SIRADA', macAcik: false, kisi: 0 },
+    ]);
+    expect(prisma.linkedinClaudeIs.create).toHaveBeenCalledTimes(2);
+    expect(prisma.linkedinClaudeIs.create.mock.calls[1][0].data).toMatchObject({ tur: 'MESAJ', sahipId: 'u-talat', olusturan: 'elle: e@x.com' });
+  });
+
+  it('ajan yoksa acik hata', async () => {
+    const prisma: any = { linkedinClaudeAjan: { findMany: vi.fn(async () => []) } };
+    await expect(new LinkedinClaudeService(prisma, {} as any).konusmalariGuncelle({ id: 'u', email: 'e' })).rejects.toThrow('Bağlı Mac yok');
+  });
+});

@@ -2335,6 +2335,10 @@ export const api = {
   linkedinClaudeDurum: () => request<LinkedinClaudeDurum>('/intel/linkedin/claude/durum'),
   linkedinClaudeIs: (kisiIds: string[], kuru: boolean) =>
     request<{ id: string; kisi: number; kuru: boolean }>('/intel/linkedin/claude/is', { method: 'POST', body: JSON.stringify({ kisiIds, kuru }) }),
+  linkedinKonusmalariGuncelle: () =>
+    request<{ sonuc: Array<{ ad: string; durum: 'SIRADA' | 'ZATEN_SIRADA' | 'KISI_YOK'; macAcik: boolean; kisi: number }> }>(
+      '/intel/linkedin/claude/konusmalari-guncelle', { method: 'POST' },
+    ),
   linkedinClaudeIptal: (id: string) =>
     request<{ ok: boolean }>(`/intel/linkedin/claude/is/${encodeURIComponent(id)}/iptal`, { method: 'POST' }),
   linkedinClaudeAnahtar: () => request<{ anahtar: string }>('/intel/linkedin/claude/anahtar', { method: 'POST' }),
