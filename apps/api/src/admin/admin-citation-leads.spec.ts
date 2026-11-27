@@ -105,7 +105,8 @@ describe('AdminService.listCitationLeads — denemeler', () => {
     await svc.listCitationLeads();
     const secim = (svc.prismaSahte.publicCheckAttempt.findMany.mock.calls[0] as any[])[0].select;
     expect(secim.ip).toBeUndefined();
-    expect(Object.keys(secim).sort()).toEqual(['checkId', 'createdAt', 'detail', 'domain', 'id', 'notifiedAt', 'outcome']);
+    // email + pazarlamaIzni: ziyaretcinin sonucu acmak icin biraktigi adres (27.11.2026) — IP ozeti yine yok
+    expect(Object.keys(secim).sort()).toEqual(['checkId', 'createdAt', 'detail', 'domain', 'email', 'id', 'notifiedAt', 'outcome', 'pazarlamaIzni']);
   });
 
   it('deneme tablosu okunamazsa (goc uygulanmamis) olcum listesi yine doner ve durum bildirilir', async () => {

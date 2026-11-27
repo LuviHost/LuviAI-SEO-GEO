@@ -4,7 +4,8 @@ import { LinkedinClaudeService } from './linkedin-claude.service.js';
 
 /**
  * /api/internal/linkedin-claude/* — kurucunun Mac'indeki ajan (scripts/linkedin-claude-ajan.mjs).
- * Oturum yok; `x-ajan-key` panelde uretilen anahtar (sunucuda yalniz SHA-256 ozeti).
+ * Oturum yok; `x-ajan-key` panelde uretilen anahtar (sunucuda yalniz SHA-256 ozeti). Anahtar bir
+ * yoneticiye aittir: ajan yalniz o yoneticinin islerini alir ve yalniz onlara sonuc yazar.
  * NEDEN /api/internal: nginx /api/auth/* yolunu NextAuth'a gonderir; /api/* geri kalani API'ye gider.
  * Ajan dakikada bir `al` cagirir — bu ayni zamanda "Mac servisi acik" sinyalidir.
  */
@@ -16,8 +17,8 @@ export class LinkedinClaudeAjanController {
   @Post('al')
   @HttpCode(200)
   async al(@Headers('x-ajan-key') key: string | undefined) {
-    await this.svc.ajanDogrula(key);
-    return this.svc.isAl();
+    const userId = await this.svc.ajanDogrula(key);
+    return this.svc.isAl(userId);
   }
 
   @Public()
@@ -27,15 +28,15 @@ export class LinkedinClaudeAjanController {
     @Headers('x-ajan-key') key: string | undefined,
     @Body() body: { isId?: string; kisiId?: string; durum?: string; aciklama?: string; veri?: unknown; maliyet?: unknown },
   ) {
-    await this.svc.ajanDogrula(key);
-    return this.svc.sonucYaz(String(body?.isId ?? ''), String(body?.kisiId ?? ''), body?.durum, body?.aciklama, body?.veri, body?.maliyet);
+    const userId = await this.svc.ajanDogrula(key);
+    return this.svc.sonucYaz(userId, String(body?.isId ?? ''), String(body?.kisiId ?? ''), body?.durum, body?.aciklama, body?.veri, body?.maliyet);
   }
 
   @Public()
   @Post('bitti')
   @HttpCode(200)
   async bitti(@Headers('x-ajan-key') key: string | undefined, @Body() body: { isId?: string; hata?: string }) {
-    await this.svc.ajanDogrula(key);
-    return this.svc.bitir(String(body?.isId ?? ''), body?.hata);
+    const userId = await this.svc.ajanDogrula(key);
+    return this.svc.bitir(userId, String(body?.isId ?? ''), body?.hata);
   }
 }

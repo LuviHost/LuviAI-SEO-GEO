@@ -13,17 +13,23 @@ import {
   kabulNumaralari,
   sonKabulSlotu,
   teknikUnvanMi,
-  anahtarDogru,
   anahtarOzeti,
+  gonderenAdi,
   kisiSonucuGecerli,
   prospectGuncellemesi,
   yeniAnahtar,
   type KisiSonucu,
 } from './linkedin-claude.js';
 
-const KV_ANAHTAR = 'linkedin-claude:anahtar-ozeti';
-const KV_SON_GORULME = 'linkedin-claude:son-gorulme';
 const AKTIF = ['BEKLIYOR', 'CALISIYOR'];
+
+/**
+ * Bir yoneticinin LinkedIn hesabindan giden istekler. gonderenId null (eski / elle kayit) HER hesabin
+ * kotasindan sayilir: kimden gittigi bilinmeyen istek icin temkinli olan taraf.
+ */
+function gonderenFiltresi(userId: string) {
+  return { OR: [{ gonderenId: userId }, { gonderenId: null }] };
+}
 
 type IsKisi = { id: string; not: string };
 type IsSonuc = { id: string; durum: KisiSonucu; aciklama: string; at: string; maliyet?: number | null; kabul?: string[] };
@@ -34,6 +40,10 @@ const KABUL_ID = 'kabul';
  * Claude ile LinkedIn gonderimi — is kuyrugu (bkz. linkedin-claude.ts).
  * Sunucu LinkedIn'e HIC dokunmaz; yalniz panelde onaylanan listeyi tutar ve Mac ajaninin
  * yazdigi sonucu linkedin_prospects kayitlarina isler.
+ *
+ * IKI YONETICI (27.11.2026): her yoneticinin kendi Mac anahtari (linkedin_claude_ajanlar), kendi
+ * isleri (sahipId), kendi gunluk/haftalik kotasi (gonderenId) ve kendi kabul kontrolu vardir.
+ * Ortak olan: kuyruk (bir kisi yalniz bir iste olabilir) ve firma basina gunluk fren.
  */
 @Injectable()
 export class LinkedinClaudeService {
@@ -47,18 +57,21 @@ export class LinkedinClaudeService {
   // ── Panel ────────────────────────────────────────────────────
 
   /** Bugun gonderilebilecek adaylar (kuyruk sirasi) + gunluk kalan kota */
-  async adaylar() {
+  async adaylar(userId: string) {
     const limits = await this.outreach.getLimits();
     const gunBasi = istanbulDayStart(new Date());
-    const [bugunIstekler, aktifIsler, haftaIstek] = await Promise.all([
+    const [bugunIstekler, aktifIsler, bugunBenim, haftaBenim] = await Promise.all([
+      // Firma freni ORTAK: ayni firmaya iki hesaptan ayni gun yuklenilmesin
       this.prisma.linkedinProspect.findMany({ where: { requestedAt: { gte: gunBasi } }, select: { firma: true } }),
       this.prisma.linkedinClaudeIs.findMany({ where: { durum: { in: AKTIF } }, select: { kisiler: true } }),
-      this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: new Date(Date.now() - 7 * 86_400_000) } } }),
+      // Kota HESAP BASINA: LinkedIn'in gunluk/haftalik davet siniri her hesabin kendisine
+      this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: gunBasi }, ...gonderenFiltresi(userId) } }),
+      this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: new Date(Date.now() - 7 * 86_400_000) }, ...gonderenFiltresi(userId) } }),
     ]);
     // Haftalik fren de uygulanir (26.11): LinkedIn haftalik davet siniri hesap kisitlamasinda ana esik
     const kalanBugun = Math.max(0, Math.min(
-      limits.MAX_REQUESTS_PER_DAY - bugunIstekler.length,
-      limits.MAX_REQUESTS_PER_WEEK - haftaIstek,
+      limits.MAX_REQUESTS_PER_DAY - bugunBenim,
+      limits.MAX_REQUESTS_PER_WEEK - haftaBenim,
     ));
     const firmaSayaci: Record<string, number> = {};
     for (const r of bugunIstekler) firmaSayaci[firmaKey(r.firma)] = (firmaSayaci[firmaKey(r.firma)] ?? 0) + 1;
@@ -88,14 +101,18 @@ export class LinkedinClaudeService {
     return { kalanBugun, isTavani: IS_KISI_TAVANI, adaylar };
   }
 
-  async isOlustur(kisiIds: unknown, kuru: boolean, olusturan: string) {
+  async isOlustur(kisiIds: unknown, kuru: boolean, kullanici: { id: string; email: string }) {
     const ids = Array.isArray(kisiIds) ? [...new Set(kisiIds.filter((x): x is string => typeof x === 'string'))] : [];
     if (ids.length === 0) throw new BadRequestException('En az bir kişi seçin');
     if (ids.length > IS_KISI_TAVANI) throw new BadRequestException(`Tek seferde en fazla ${IS_KISI_TAVANI} kişi`);
-    const aktif = await this.prisma.linkedinClaudeIs.count({ where: { durum: { in: AKTIF } } });
-    if (aktif > 0) throw new BadRequestException('Bekleyen ya da süren bir iş var; bitmesini bekleyin ya da iptal edin');
+    // Her yoneticinin Mac'i ayni anda tek is yurutur; digerinin isi bunu engellemez
+    const aktifIsler = await this.prisma.linkedinClaudeIs.findMany({ where: { durum: { in: AKTIF } }, select: { sahipId: true, kisiler: true } });
+    if (aktifIsler.some((i) => i.sahipId === kullanici.id)) throw new BadRequestException('Bekleyen ya da süren bir işin var; bitmesini bekle ya da iptal et');
+    // Ayni kisiye iki hesaptan istek gitmesin: baska yoneticinin surmekte olan isindeki kisi secilemez
+    const baskasinda = new Set(aktifIsler.flatMap((i) => (i.kisiler as IsKisi[]).map((k) => k.id)));
+    if (ids.some((id) => baskasinda.has(id))) throw new BadRequestException('Seçilenlerden bazıları diğer yöneticinin süren işinde; listeyi yenileyin');
     if (!kuru) {
-      const { kalanBugun } = await this.adaylar();
+      const { kalanBugun } = await this.adaylar(kullanici.id);
       if (ids.length > kalanBugun) throw new BadRequestException(`Bugün en fazla ${kalanBugun} istek daha gönderilebilir`);
     }
     const kayitlar = await this.prisma.linkedinProspect.findMany({ where: { id: { in: ids } } });
@@ -106,7 +123,7 @@ export class LinkedinClaudeService {
     const kisiler: IsKisi[] = uygun.map((p) => ({ id: p.id, not: renderNote(p) }));
 
     const is = await this.prisma.linkedinClaudeIs.create({
-      data: { kuru, kisiler, olusturan: olusturan.slice(0, 191) },
+      data: { kuru, kisiler, olusturan: kullanici.email.slice(0, 191), sahipId: kullanici.id },
       select: { id: true },
     });
     // Eski bot ayni kuyruga dokunmasin (gercek gonderimde iki sistem ayni kisiye istek atabilirdi)
@@ -123,12 +140,20 @@ export class LinkedinClaudeService {
     return { ok: r.count > 0 };
   }
 
-  async durum() {
-    const [anahtar, gorulme, isler] = await Promise.all([
-      this.prisma.kvStore.findUnique({ where: { key: KV_ANAHTAR } }).catch(() => null),
-      this.prisma.kvStore.findUnique({ where: { key: KV_SON_GORULME } }).catch(() => null),
-      this.prisma.linkedinClaudeIs.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
+  async durum(userId: string) {
+    const [ajanKaydi, isler, digerAktif] = await Promise.all([
+      this.prisma.linkedinClaudeAjan.findUnique({ where: { userId } }),
+      this.prisma.linkedinClaudeIs.findMany({ where: { sahipId: userId }, orderBy: { createdAt: 'desc' }, take: 10 }),
+      this.prisma.linkedinClaudeIs.findMany({
+        where: { durum: { in: AKTIF }, NOT: { sahipId: userId } },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, tur: true, durum: true, kuru: true, kisiler: true, sahipId: true, olusturan: true, createdAt: true },
+      }),
     ]);
+    const sahipler = digerAktif.length
+      ? await this.prisma.user.findMany({ where: { id: { in: digerAktif.flatMap((i) => (i.sahipId ? [i.sahipId] : [])) } }, select: { id: true, name: true, email: true } })
+      : [];
+    const sahipAdi = new Map(sahipler.map((u) => [u.id, gonderenAdi(u)]));
     // KABUL isinde yuzlerce kisi olabilir: yalniz kabul edenlerin adlari gerekir
     const ids = [...new Set(isler.flatMap((i) => (i.tur === 'KABUL'
       ? (((i.sonuc as IsSonuc[] | null) ?? []).find((x) => x.id === KABUL_ID)?.kabul ?? [])
@@ -138,9 +163,19 @@ export class LinkedinClaudeService {
       : [];
     const ad = new Map(kisiler.map((k) => [k.id, `${k.ad} ${k.soyad} · ${k.firma}`]));
     const isAdi = (id: string) => ad.get(id) ?? '(silinmiş kayıt)';
-    const sonGorulme = gorulme?.value ? new Date(gorulme.value) : null;
+    const sonGorulme = ajanKaydi?.sonGorulme ?? null;
     return {
-      anahtarVar: !!anahtar,
+      anahtarVar: !!ajanKaydi,
+      // Diger yoneticinin suren isi: yalniz bilgi (kendi Mac'inde, kendi LinkedIn hesabiyla calisir)
+      digerIsler: digerAktif.map((i) => ({
+        id: i.id,
+        tur: i.tur,
+        durum: i.durum,
+        kuru: i.kuru,
+        kisi: (i.kisiler as IsKisi[]).length,
+        sahip: (i.sahipId && sahipAdi.get(i.sahipId)) || i.olusturan.split('@')[0],
+        createdAt: i.createdAt,
+      })),
       ajan: { sonGorulme: sonGorulme?.toISOString() ?? null, canli: ajanCanli(sonGorulme, isler.some((i) => i.durum === 'CALISIYOR')) },
       isler: isler.map((i) => {
         const sonuc = (i.sonuc as IsSonuc[] | null) ?? [];
@@ -169,34 +204,42 @@ export class LinkedinClaudeService {
   }
 
   /** Yeni ajan anahtari: bir kez dondurulur, sunucuda yalniz ozeti kalir (eskisi gecersiz olur) */
-  async anahtarOlustur() {
+  async anahtarOlustur(userId: string) {
     const anahtar = yeniAnahtar();
     const ozet = anahtarOzeti(anahtar);
-    await this.prisma.kvStore.upsert({ where: { key: KV_ANAHTAR }, create: { key: KV_ANAHTAR, value: ozet }, update: { value: ozet } });
+    // Yalniz BU yoneticinin anahtari degisir; diger yoneticinin Mac'i bagli kalir
+    await this.prisma.linkedinClaudeAjan.upsert({
+      where: { userId },
+      create: { userId, anahtarOzeti: ozet },
+      update: { anahtarOzeti: ozet, sonGorulme: null },
+    });
     return { anahtar };
   }
 
   // ── Mac ajani ────────────────────────────────────────────────
 
-  async ajanDogrula(gelen: string | undefined) {
-    const row = await this.prisma.kvStore.findUnique({ where: { key: KV_ANAHTAR } }).catch(() => null);
-    if (!anahtarDogru(row?.value, gelen)) throw new ForbiddenException('Ajan anahtarı geçersiz');
-    const simdi = new Date().toISOString();
-    await this.prisma.kvStore
-      .upsert({ where: { key: KV_SON_GORULME }, create: { key: KV_SON_GORULME, value: simdi }, update: { value: simdi } })
-      .catch(() => undefined);
+  /** Anahtar → sahibi olan yonetici (users.id). Ozet benzersiz indeksle aranir (anahtar 192 bit rastgele). */
+  async ajanDogrula(gelen: string | undefined): Promise<string> {
+    if (!gelen || typeof gelen !== 'string' || gelen.length > 200) throw new ForbiddenException('Ajan anahtarı geçersiz');
+    const ajan = await this.prisma.linkedinClaudeAjan.findUnique({ where: { anahtarOzeti: anahtarOzeti(gelen) }, select: { userId: true } });
+    if (!ajan) throw new ForbiddenException('Ajan anahtarı geçersiz');
+    await this.prisma.linkedinClaudeAjan.update({ where: { userId: ajan.userId }, data: { sonGorulme: new Date() } }).catch(() => undefined);
+    return ajan.userId;
   }
 
   /** Siradaki isi al (atomik). Yoksa null. */
-  async isAl() {
+  async isAl(userId: string) {
     // Uyuyan Mac / coken ajan: uzun suredir CALISIYOR kalan is kilit olmasin
     await this.prisma.linkedinClaudeIs.updateMany({
       where: { durum: 'CALISIYOR', alindiAt: { lt: new Date(Date.now() - IS_ZAMAN_ASIMI_MS) } },
       data: { durum: 'HATA', hata: 'Zaman aşımı: ajan işi bitirmedi', bittiAt: new Date() },
     });
-    await this.kabulIsiGerekirseAc();
-    const is = await this.prisma.linkedinClaudeIs.findFirst({ where: { durum: 'BEKLIYOR' }, orderBy: { createdAt: 'asc' } });
+    await this.kabulIsiGerekirseAc(userId);
+    // YALNIZ bu yoneticinin isi: baska yoneticinin onayladigi istek bu Mac'teki LinkedIn hesabindan gitmesin
+    const is = await this.prisma.linkedinClaudeIs.findFirst({ where: { durum: 'BEKLIYOR', sahipId: userId }, orderBy: { createdAt: 'asc' } });
     if (!is) return { is: null };
+    const sahip = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+    const gonderen = gonderenAdi(sahip);
     const r = await this.prisma.linkedinClaudeIs.updateMany({ where: { id: is.id, durum: 'BEKLIYOR' }, data: { durum: 'CALISIYOR', alindiAt: new Date() } });
     if (r.count === 0) return { is: null };
 
@@ -213,7 +256,7 @@ export class LinkedinClaudeService {
         return p && p.status === 'REQUESTED' ? [{ no: i + 1, adSoyad: `${p.ad} ${p.soyad}`.trim(), profileUrl: p.profileUrl }] : [];
       });
       this.log.log(`Claude kabul kontrolu alindi ${is.id} (${liste.length} kisi)`);
-      return { is: { id: is.id, tur: 'KABUL', kuru: false, kisiler: [{ id: KABUL_ID, adSoyad: 'Kabul kontrolü', komut: kabulKomutu(liste) }] } };
+      return { is: { id: is.id, tur: 'KABUL', kuru: false, kisiler: [{ id: KABUL_ID, adSoyad: 'Kabul kontrolü', komut: kabulKomutu(liste, gonderen) }] } };
     }
     const kayitlar = await this.prisma.linkedinProspect.findMany({ where: { id: { in: kisiler.map((k) => k.id) } } });
     const kayit = new Map(kayitlar.map((p) => [p.id, p]));
@@ -225,7 +268,7 @@ export class LinkedinClaudeService {
       liste.push({
         id: p.id,
         adSoyad: `${p.ad} ${p.soyad}`.trim(),
-        komut: ajanKomutu({ ad: p.ad, soyad: p.soyad, firma: p.firma, unvan: p.unvan, profileUrl: p.profileUrl, not: k.not }, is.kuru),
+        komut: ajanKomutu({ ad: p.ad, soyad: p.soyad, firma: p.firma, unvan: p.unvan, profileUrl: p.profileUrl, not: k.not }, is.kuru, gonderen),
       });
     }
     this.log.log(`Claude isi alindi ${is.id} (${liste.length} kisi)`);
@@ -236,35 +279,39 @@ export class LinkedinClaudeService {
    * Hafta ici 10/14/17 kontrol saati geldiyse ve o saatten beri kabul kontrolu acilmadiysa acar.
    * Cron yerine ajanin yoklamasinda: Mac kapaliysa kontrol bekler, acilinca bir kez yapilir
    * (kacirilan saatler birikmez). Baska is bekliyor/suruyorsa sirasini bekler.
+   * Yonetici basina: her Mac yalniz KENDI hesabindan gonderilen istekleri kontrol eder (baska hesabin
+   * davetlisi bu hesabin baglantilarinda hic gorunmez). gonderenId null eski kayitlar herkeste bakilir
+   * (salt okuma; yanlis "kabul" uretmez, eslesme profil adresiyle).
    */
-  private async kabulIsiGerekirseAc() {
+  private async kabulIsiGerekirseAc(userId: string) {
     const slot = sonKabulSlotu(new Date());
     if (!slot) return;
     const [acilmis, aktif] = await Promise.all([
-      this.prisma.linkedinClaudeIs.count({ where: { tur: 'KABUL', createdAt: { gte: slot } } }),
-      this.prisma.linkedinClaudeIs.count({ where: { durum: { in: AKTIF } } }),
+      this.prisma.linkedinClaudeIs.count({ where: { tur: 'KABUL', sahipId: userId, createdAt: { gte: slot } } }),
+      this.prisma.linkedinClaudeIs.count({ where: { durum: { in: AKTIF }, sahipId: userId } }),
     ]);
     if (acilmis > 0 || aktif > 0) return;
     const bekleyen = await this.prisma.linkedinProspect.findMany({
-      where: { status: 'REQUESTED', kanal: 'LINKEDIN' },
+      where: { status: 'REQUESTED', kanal: 'LINKEDIN', ...gonderenFiltresi(userId) },
       orderBy: { requestedAt: 'desc' },
       take: KABUL_KISI_TAVANI,
       select: { id: true },
     });
     if (bekleyen.length === 0) return;
     await this.prisma.linkedinClaudeIs.create({
-      data: { tur: 'KABUL', kuru: false, kisiler: bekleyen.map((p) => ({ id: p.id, not: '' })), olusturan: 'otomatik (kabul kontrolü)' },
+      data: { tur: 'KABUL', kuru: false, kisiler: bekleyen.map((p) => ({ id: p.id, not: '' })), olusturan: 'otomatik (kabul kontrolü)', sahipId: userId },
     });
     this.log.log(`Kabul kontrolu acildi (${bekleyen.length} kisi)`);
   }
 
   /** Tek kisinin sonucu. Donus: devam edilsin mi (iptal / ENGEL → hayir) */
-  async sonucYaz(isId: string, kisiId: string, durum: unknown, aciklama: unknown, veri?: unknown, maliyetHam?: unknown) {
+  async sonucYaz(userId: string, isId: string, kisiId: string, durum: unknown, aciklama: unknown, veri?: unknown, maliyetHam?: unknown) {
     if (!kisiSonucuGecerli(durum)) throw new BadRequestException('Geçersiz durum');
     const metin = String(aciklama ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
     const maliyet = typeof maliyetHam === 'number' && Number.isFinite(maliyetHam) && maliyetHam >= 0 && maliyetHam < 100 ? maliyetHam : null;
     const is = await this.prisma.linkedinClaudeIs.findUnique({ where: { id: isId } });
-    if (!is) throw new NotFoundException('İş yok');
+    // Baska yoneticinin isine sonuc yazilamaz (yanlis hesabin sonucu kayda gecmesin)
+    if (!is || is.sahipId !== userId) throw new NotFoundException('İş yok');
     if (is.tur === 'KABUL') return this.kabulSonucu(is, kisiId, durum, metin, veri, maliyet);
     const kisi = (is.kisiler as IsKisi[]).find((k) => k.id === kisiId);
     if (!kisi) throw new BadRequestException('Kişi bu işte yok');
@@ -292,7 +339,8 @@ export class LinkedinClaudeService {
 
     // Iptal edilmis iste Gonder'e basilmis olabilir: kayit yine de gercegi yansitmali
     const g = prospectGuncellemesi(durum, is.kuru, kisi.not, metin || durum, simdi);
-    if (g) await this.prisma.linkedinProspect.updateMany({ where: { id: kisiId, status: 'QUEUED' }, data: g });
+    // Istek / baglanti bu yoneticinin hesabinda: kota ve kabul kontrolu ona yazilir
+    if (g) await this.prisma.linkedinProspect.updateMany({ where: { id: kisiId, status: 'QUEUED' }, data: g.status ? { ...g, gonderenId: userId } : g });
     if (engel) this.log.warn(`Claude isi ${isId}: LinkedIn engeli — is durduruldu`);
     return { devam: is.durum === 'CALISIYOR' && !engel };
   }
@@ -331,10 +379,10 @@ export class LinkedinClaudeService {
     return { devam: !engel };
   }
 
-  async bitir(isId: string, hata: unknown) {
+  async bitir(userId: string, isId: string, hata: unknown) {
     const h = typeof hata === 'string' && hata.trim() ? hata.trim().slice(0, 1000) : null;
     await this.prisma.linkedinClaudeIs.updateMany({
-      where: { id: isId, durum: 'CALISIYOR' },
+      where: { id: isId, durum: 'CALISIYOR', sahipId: userId },
       data: { durum: h ? 'HATA' : 'BITTI', hata: h, bittiAt: new Date() },
     });
     return { ok: true };

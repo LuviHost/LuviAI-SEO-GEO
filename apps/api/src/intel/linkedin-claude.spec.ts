@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { teknikUnvanMi, ajanCanli, ajanKomutu, epostaSerisiEngelMi, kabulKomutu, kabulNumaralari, sonKabulSlotu, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
+import { teknikUnvanMi, ajanCanli, ajanKomutu, gonderenAdi, epostaSerisiEngelMi, kabulKomutu, kabulNumaralari, sonKabulSlotu, anahtarDogru, anahtarOzeti, prospectGuncellemesi, sonucuAyikla, yeniAnahtar } from './linkedin-claude.js';
 
 const simdi = new Date('2026-11-26T09:00:00Z');
 
@@ -36,8 +36,8 @@ describe('Claude ile LinkedIn gonderimi', () => {
 
   it('kuru komut Gonder\'e basmayi yasaklar, gercek komut ister; not aynen gecer', () => {
     const k = { ad: 'Ayşe', soyad: 'Kaya', firma: 'Örnek AŞ', unvan: null, profileUrl: 'https://www.linkedin.com/in/ornek/', not: 'Merhaba Ayşe Hanım, not metni.' };
-    const kuru = ajanKomutu(k, true);
-    const gercek = ajanKomutu(k, false);
+    const kuru = ajanKomutu(k, true, 'Emir Burgazlı');
+    const gercek = ajanKomutu(k, false, 'Emir Burgazlı');
     expect(kuru).toContain('BASMA');
     expect(kuru).toContain('KURU_TAMAM');
     expect(gercek).toContain('"GONDERILDI"');
@@ -66,7 +66,7 @@ describe('Claude ile LinkedIn gonderimi', () => {
     expect(epostaSerisiEngelMi([{ durum: 'GONDERILDI' }], 'EPOSTA_ISTIYOR')).toBe(false);
     expect(epostaSerisiEngelMi([{ durum: 'GONDERILDI' }, { durum: 'EPOSTA_ISTIYOR' }], 'EPOSTA_ISTIYOR')).toBe(true);
     expect(epostaSerisiEngelMi([{ durum: 'EPOSTA_ISTIYOR' }], 'GONDERILDI')).toBe(false);
-    expect(ajanKomutu({ ad: 'A', soyad: 'B', firma: 'X', unvan: null, profileUrl: 'u', not: 'n' }, false)).toContain('"EPOSTA_ISTIYOR". Bu ENGEL değildir');
+    expect(ajanKomutu({ ad: 'A', soyad: 'B', firma: 'X', unvan: null, profileUrl: 'u', not: 'n' }, false, 'Emir')).toContain('"EPOSTA_ISTIYOR". Bu ENGEL değildir');
   });
 
   it('kabul kontrolu: hafta ici 10/14/17 saatleri, hafta sonu ve 10:00 oncesi yok', () => {
@@ -79,11 +79,13 @@ describe('Claude ile LinkedIn gonderimi', () => {
   });
 
   it('kabul kontrolu: yalniz okuma komutu, numaralar dogrulanir', () => {
-    const k = kabulKomutu([{ no: 1, adSoyad: 'Ayşe Kaya', profileUrl: 'https://www.linkedin.com/in/ayse/' }, { no: 3, adSoyad: 'Ali Veli', profileUrl: 'https://www.linkedin.com/in/ali/' }]);
+    const k = kabulKomutu([{ no: 1, adSoyad: 'Ayşe Kaya', profileUrl: 'https://www.linkedin.com/in/ayse/' }, { no: 3, adSoyad: 'Ali Veli', profileUrl: 'https://www.linkedin.com/in/ali/' }], 'Talat');
     expect(k).toContain('YALNIZ OKUMA');
     expect(k).toContain('mynetwork/invite-connect/connections');
     expect(k).toContain('3. Ali Veli — https://www.linkedin.com/in/ali/');
     expect(k).toContain('Bildirimler sayfasını açma');
+    expect(k).toContain('Talat adlı kişinin');
+    expect(k).not.toContain('Emir');
     expect(kabulNumaralari({ kabul: [3, 1, 3, '2', 0, 9, 1.5, 'x'] }, 3)).toEqual([1, 2, 3]);
     expect(kabulNumaralari({ kabul: 'hepsi' }, 3)).toEqual([]);
     expect(kabulNumaralari(null, 3)).toEqual([]);
@@ -93,5 +95,14 @@ describe('Claude ile LinkedIn gonderimi', () => {
     for (const u of ['CTO', 'Co-Founder & CTO', 'Founder | CTO', 'Yazılım Geliştirme Müdürü', 'Software Engineer']) expect(teknikUnvanMi(u)).toBe(true);
     for (const u of ['Pazarlama Müdürü', 'Satış ve Pazarlama Direktörü', 'CMO', 'E-ticaret Direktörü', 'Kurucu', 'Genel Müdür', null]) expect(teknikUnvanMi(u)).toBe(false);
   });
-});
 
+  it('komutta gonderen yoneticinin adi gecer (iki yonetici)', () => {
+    const k = { ad: 'A', soyad: 'B', firma: 'X', unvan: null, profileUrl: 'u', not: 'n' };
+    const m = ajanKomutu(k, false, 'Talat Yılmaz');
+    expect(m).toContain('Talat Yılmaz adlı kişinin');
+    expect(m).not.toContain('Emir');
+    expect(gonderenAdi({ name: '  Talat   Yılmaz ', email: 't@x.com' })).toBe('Talat Yılmaz');
+    expect(gonderenAdi({ name: null, email: 'talat@x.com' })).toBe('talat');
+    expect(gonderenAdi(null)).toBe('RanksUp yöneticisi');
+  });
+});

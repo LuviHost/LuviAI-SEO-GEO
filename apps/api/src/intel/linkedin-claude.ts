@@ -1,8 +1,9 @@
 /**
  * Claude ile LinkedIn gonderimi — saf kurallar (26.11.2026).
  *
- * Akis: panel listeyi gosterir → kurucu "Claude ile gönder"e basar (= bu kisiler ve bu notlar icin
- * onay) → sunucu is kaydi acar → kurucunun Mac'indeki ajan isi alir, her kisi icin Claude Code'u
+ * Akis: panel listeyi gosterir → yonetici "Claude ile gönder"e basar (= bu kisiler ve bu notlar icin
+ * onay) → sunucu is kaydi acar → O YONETICININ Mac'indeki ajan isi alir (27.11.2026: her yoneticinin
+ * kendi anahtari, kendi LinkedIn hesabi, kendi kotasi), her kisi icin Claude Code'u
  * Chrome baglantisiyla calistirir → sonucu kisi kisi geri yazar.
  *
  * Komut metni (prompt) SUNUCUDA uretilir: LinkedIn arayuzu degisince ya da kural eklenince Mac'teki
@@ -128,13 +129,24 @@ export interface AjanKisi {
   not: string;
 }
 
-export function ajanKomutu(k: AjanKisi, kuru: boolean): string {
+/**
+ * Komutta gecen gonderen adi (27.11.2026, iki yonetici): istegi kimin hesabi gonderiyorsa o.
+ * Ad bos ise e-postanin @ oncesi; o da yoksa "RanksUp yöneticisi".
+ */
+export function gonderenAdi(u: { name?: string | null; email?: string | null } | null | undefined): string {
+  const ad = (u?.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (ad) return ad;
+  const yerel = (u?.email ?? '').split('@')[0]?.trim().slice(0, 80);
+  return yerel || 'RanksUp yöneticisi';
+}
+
+export function ajanKomutu(k: AjanKisi, kuru: boolean, gonderen: string): string {
   const adSoyad = `${k.ad} ${k.soyad}`.trim();
   const son = kuru
     ? `KURU DENEME: "Gönder" (Send) düğmesine BASMA. Not yazılı hâlde pencerenin ekran görüntüsünü al, sonra pencereyi "Vazgeç"/X ile kapat → durum "KURU_TAMAM".`
     : `"Gönder" (Send) düğmesine bas. Ardından profilde düğmenin "Bekliyor" (Pending) olduğunu doğrula → durum "GONDERILDI". Doğrulayamazsan → "HATA".`;
   return [
-    `Sen RanksUp kurucusu Emir Burgazlı'nın LinkedIn bağlantı isteği asistanısın. Emir bu kişiyi ve aşağıdaki notu RanksUp yönetim panelinde inceleyip "Claude ile gönder" düğmesine basarak onayladı. Yalnız bu kişi için, yalnız bu notla bağlantı isteği gönder.`,
+    `Sen RanksUp ekibinden ${gonderen} adlı kişinin LinkedIn bağlantı isteği asistanısın. ${gonderen} bu kişiyi ve aşağıdaki notu RanksUp yönetim panelinde inceleyip "Claude ile gönder" düğmesine basarak onayladı. İstek, bu Chrome'da açık olan LinkedIn hesabından gider. Yalnız bu kişi için, yalnız bu notla bağlantı isteği gönder.`,
     ``,
     `Kişi: ${adSoyad}${k.unvan ? ` — ${k.unvan}` : ''} (${k.firma})`,
     `Profil: ${k.profileUrl}`,
@@ -194,11 +206,11 @@ export function sonKabulSlotu(simdi: Date): Date | null {
 
 export interface KabulKisi { no: number; adSoyad: string; profileUrl: string }
 
-export function kabulKomutu(liste: KabulKisi[]): string {
+export function kabulKomutu(liste: KabulKisi[], gonderen: string): string {
   return [
-    `Sen RanksUp kurucusu Emir Burgazlı'nın LinkedIn asistanısın. Bu görev YALNIZ OKUMA: hiçbir kişiye istek ya da mesaj gönderme, hiçbir şeyi kabul etme ya da silme.`,
+    `Sen RanksUp ekibinden ${gonderen} adlı kişinin LinkedIn asistanısın. Bu görev YALNIZ OKUMA: hiçbir kişiye istek ya da mesaj gönderme, hiçbir şeyi kabul etme ya da silme.`,
     ``,
-    `Amaç: Emir'in bağlantı isteği gönderdiği aşağıdaki kişilerden hangilerinin isteği kabul ettiğini bulmak.`,
+    `Amaç: ${gonderen} adlı kişinin bu Chrome'da açık LinkedIn hesabından bağlantı isteği gönderdiği aşağıdaki kişilerden hangilerinin isteği kabul ettiğini bulmak.`,
     ``,
     `Adımlar:`,
     `1. Chrome araçlarını yükle, tabs_context ile sekmeleri al, YENİ bir sekme aç ve https://www.linkedin.com/mynetwork/invite-connect/connections/ adresini aç. Kullanıcının mevcut sekmelerine dokunma.`,

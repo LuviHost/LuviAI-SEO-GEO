@@ -244,6 +244,9 @@ export function purgeSteps(x: PurgeIds): PurgeStep[] {
       }),
     },
 
+    // Yonetici LinkedIn Mac ajani anahtari (yalniz ozet; 27.11.2026)
+    { model: 'LinkedinClaudeAjan', kind: 'delete', run: (db) => db.linkedinClaudeAjan.deleteMany({ where: { userId } }) },
+
     // ── 5. Kok ───────────────────────────────────────────────────────────
     { model: 'Site', kind: 'delete', run: (db) => db.site.deleteMany({ where: { userId } }) },
     { model: 'User', kind: 'delete', run: (db) => db.user.deleteMany({ where: { id: userId } }) },
