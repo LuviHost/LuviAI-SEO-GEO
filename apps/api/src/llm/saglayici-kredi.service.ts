@@ -113,10 +113,10 @@ export class SaglayiciKrediService {
   /** Tek saglayiciya en kucuk istek. Hata metni anahtar icermez (yalniz durum kodu + saglayici mesaji). */
   private async ping(id: KrediSaglayici, anahtar: string): Promise<{ tur: 'ok' | 'kredi' | 'hata'; mesaj?: string }> {
     type Istek = { url: string; headers: Record<string, string>; body: unknown };
-    const sohbet = (url: string, model: string): Istek => ({
+    const sohbet = (url: string, model: string, govde: Record<string, unknown> = { max_tokens: 16 }): Istek => ({
       url,
       headers: { Authorization: `Bearer ${anahtar}`, 'Content-Type': 'application/json' },
-      body: { model, max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] },
+      body: { model, ...govde, messages: [{ role: 'user', content: 'ping' }] },
     });
     const istek: Istek | null = ((): Istek | null => {
       switch (id) {
@@ -133,7 +133,9 @@ export class SaglayiciKrediService {
             body: { contents: [{ parts: [{ text: 'ping' }] }], generationConfig: { maxOutputTokens: 16 } },
           };
         }
-        case 'openai': return sohbet('https://api.openai.com/v1/chat/completions', process.env.OPENAI_CITATION_MODEL_STANDARD ?? 'gpt-6-luna');
+        // OpenAI'in yeni (dusunen) modelleri max_tokens'i reddediyor, 16 token'da da dusunme bitmiyor
+        // (27.11 canli deneme): max_completion_tokens 200 + reasoning_effort 'low' → 200, ~13 token
+        case 'openai': return sohbet('https://api.openai.com/v1/chat/completions', process.env.OPENAI_CITATION_MODEL_STANDARD ?? 'gpt-6-luna', { max_completion_tokens: 200, reasoning_effort: 'low' });
         case 'perplexity': return sohbet('https://api.perplexity.ai/chat/completions', 'sonar');
         case 'xai': return sohbet('https://api.x.ai/v1/chat/completions', process.env.XAI_CITATION_MODEL ?? 'grok-4.7');
         case 'deepseek': return sohbet('https://api.deepseek.com/chat/completions', process.env.DEEPSEEK_CITATION_MODEL ?? 'deepseek-v4-pro');
