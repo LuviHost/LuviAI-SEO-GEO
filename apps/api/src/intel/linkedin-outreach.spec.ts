@@ -286,13 +286,24 @@ describe('parseDegree', () => {
 
 describe('sablonlar', () => {
   const p = { ad: 'Ayşe', soyad: 'Kaya', firma: 'Trendyol', sektor: 'eticaret-perakende-teknoloji' };
-  it('renderNote: hitap "Merhaba Ad Soyad," — Bey/Hanım yok, firma eksiz cumlede gecer, <=300', () => {
+  it('renderNote: tek cinsiyetli adda "Bey/Hanım", iki cinsiyetli adda tam ad; soru cumlesi, firma eksiz, <=300', () => {
     const n = renderNote(p);
-    expect(n.startsWith('Merhaba Ayşe Kaya,')).toBe(true);
-    expect(n).not.toMatch(/Bey|Hanım/);
-    expect(n).toContain('Ölçüm listemde Trendyol yer alıyor');
+    expect(n.startsWith('Merhaba Ayşe Hanım,')).toBe(true);
+    expect(n).toContain('Bu cevaplarda Trendyol var mı, yoksa rakipler mi öne çıkıyor?');
     expect(n).not.toContain('kapsamda');
     expect(n.length).toBeLessThanOrEqual(300);
+    expect(renderNote({ ...p, ad: 'Serhat' }).startsWith('Merhaba Serhat Bey,')).toBe(true);
+    // Iki cinsiyette kullanilan ad (kaynakta "Erkek/Kız") → tahmin yok, tam ad
+    for (const ad of ['Deniz', 'Umut', 'Zafer', 'Taylan', 'Canan', 'Onur']) {
+      expect(renderNote({ ...p, ad }).startsWith(`Merhaba ${ad} Kaya,`)).toBe(true);
+    }
+    // Listede olmayan ad → tam ad
+    expect(renderNote({ ...p, ad: 'Eliza' }).startsWith('Merhaba Eliza Kaya,')).toBe(true);
+    // Ikinci ad: ilk ad belirler; karsi cinsiyetten ikinci ad varsa tahmin yok
+    expect(renderNote({ ...p, ad: 'Ahmet Şükrü' }).startsWith('Merhaba Ahmet Şükrü Bey,')).toBe(true);
+    expect(renderNote({ ...p, ad: 'Mehmet Ayşe' }).startsWith('Merhaba Mehmet Ayşe Kaya,')).toBe(true);
+    // Buyuk harfle kayitli ad da taninir
+    expect(renderNote({ ...p, ad: 'AYŞE' }).startsWith('Merhaba AYŞE Hanım,')).toBe(true);
   });
   it('renderNote: cok uzun isim/firma → yine <=300; uzun firma cumlesi atilir, CTA kalir', () => {
     const long = { ad: 'Muhammed Abdurrahman Emirhan', soyad: 'Karaosmanoğlu-Yıldırımhanoğulları', firma: 'Uluslararası Entegre Lojistik ve Dijital Perakende Teknolojileri Anonim Şirketi Holding Grubu', sektor: 'turizm-havayolu-telekom-otomotiv' };
@@ -304,21 +315,21 @@ describe('sablonlar', () => {
     const f160 = renderNote({ ad: 'Ayşe', soyad: 'Kaya', firma: 'F'.repeat(160), sektor: 'finans' });
     expect(f160.length).toBeLessThanOrEqual(300);
     expect(f160).not.toContain('FFFF');
-    expect(f160).toContain('bağlantı kurmak isterim');
+    expect(f160).toContain('ücretsiz paylaşmak isterim');
   });
   it('bos soyad → "Merhaba Ad," cift bosluksuz', () => {
-    expect(renderNote({ ad: 'Ayşe', soyad: '', firma: 'X', sektor: 'finans' }).startsWith('Merhaba Ayşe,')).toBe(true);
+    expect(renderNote({ ad: 'Deniz', soyad: '', firma: 'X', sektor: 'finans' }).startsWith('Merhaba Deniz,')).toBe(true);
+    expect(renderNote({ ad: 'Ayşe', soyad: '', firma: 'X', sektor: 'finans' }).startsWith('Merhaba Ayşe Hanım,')).toBe(true);
   });
   it('renderMessage: tesekkur, sektor sorusu, CTA "Evet", ret garantisi, dogru tamlayan eki, <110 kelime', () => {
     const m = renderMessage(p);
-    expect(m.startsWith('Merhaba Ayşe Kaya, bağlantı için teşekkürler.')).toBe(true);
+    expect(m.startsWith('Merhaba Ayşe Hanım, bağlantı için teşekkürler.')).toBe(true);
     expect(m).toContain('"telefon almak için hangi site güvenilir"');
     expect(m).toContain("Trendyol'un nerede göründüğünü");
     // Kapanis dogallastirildi (31.08): kalip CTA yerine "konusmak isterim" tonu; yumusak cikis sart
     expect(m).toMatch(/sorun değil|anlarım|uygun değilse/);
     // 31.08: kapanis dogallastirildi — kalip ret cumlesi yerine yumusak cikis
     expect(m).toMatch(/sorun değil|anlarım|uygun değilse/);
-    expect(m).not.toMatch(/Bey|Hanım/);
     expect(m.split(/\s+/).length).toBeLessThan(110);
     const thy = renderMessage({ ad: 'Ali', soyad: 'Veli', firma: 'Türk Hava Yolları', sektor: 'turizm-havayolu-telekom-otomotiv' });
     expect(thy).toContain("Türk Hava Yolları'nın");
@@ -993,7 +1004,7 @@ describe('kampanya sablonlari (musteri / yatirimci / is birligi)', () => {
     const isbirligi = m.renderNote({ ...p, kampanya: 'ISBIRLIGI' });
     for (const n of [musteri, yatirimci, isbirligi]) {
       expect(n.length).toBeLessThanOrEqual(m.NOTE_MAX_CHARS);
-      expect(n.startsWith('Merhaba Ayşe Demir')).toBe(true);
+      expect(n.startsWith('Merhaba Ayşe Hanım,')).toBe(true);
     }
     expect(new Set([musteri, yatirimci, isbirligi]).size).toBe(3);
     expect(yatirimci).toMatch(/kurucusuyum/);

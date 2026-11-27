@@ -11,6 +11,7 @@
  * docs/OPENCLAW-KURULUM.md §11.3.
  */
 
+import { ERKEK_ADLARI, KADIN_ADLARI } from './isim-cinsiyet.data.js';
 import { BASE_ENGINES, ENGINE_LABELS } from '../billing/plans.js';
 
 // ─── Frenler ────────────────────────────────────────────────────────────────
@@ -557,27 +558,48 @@ export function genitiveOrSafe(word: string): string {
   return genitiveCertain(w) ? genitive(w) : `${w} markasının`;
 }
 
+/**
+ * Addan "Bey" / "Hanım" (27.11.2026). Yalniz ILK ad tek cinsiyetli listedeyse ve diger adlardan biri
+ * karsi cinsiyet listesinde degilse; aksi halde null (hitap tam ad kalir). Kaynak: isim-cinsiyet.data.ts.
+ */
+export function hitapCinsiyeti(ad: string): 'Bey' | 'Hanım' | null {
+  const adlar = ad.trim().toLocaleLowerCase('tr').split(/\s+/).filter(Boolean);
+  if (adlar.length === 0) return null;
+  const g = ERKEK_ADLARI.has(adlar[0]) ? 'Bey' : KADIN_ADLARI.has(adlar[0]) ? 'Hanım' : null;
+  if (!g) return null;
+  const karsi = g === 'Bey' ? KADIN_ADLARI : ERKEK_ADLARI;
+  return adlar.slice(1).some((a) => karsi.has(a)) ? null : g;
+}
+
+/**
+ * "Merhaba Serhat Bey" / "Merhaba Aslı Hanım"; cinsiyet addan kesin cikmiyorsa "Merhaba Ad Soyad".
+ * NEDEN (27.11.2026): "Merhaba Ad Soyad" toplu e-posta gibi okunuyordu (sahip: "çok spam gibi").
+ */
 function hitap(p: ProspectLike): string {
-  return `Merhaba ${p.ad.trim()} ${p.soyad.trim()}`.replace(/\s+/g, ' ').trim();
+  const ad = p.ad.trim().replace(/\s+/g, ' ');
+  const g = hitapCinsiyeti(ad);
+  if (g) return `Merhaba ${ad} ${g}`;
+  return `Merhaba ${ad} ${p.soyad.trim()}`.replace(/\s+/g, ' ').trim();
 }
 
 /**
  * Baglanti notu — <=300 karakter GARANTI. Once tam metin, sigmazsa firma
  * cumlesi atilir, hala sigmazsa kelime sinirindan kirpilir.
- * Hitap "Merhaba {{ad}} {{soyad}}," — Bey/Hanim YOK (cinsiyet verisi yok).
+ * Hitap "Merhaba {{ad}} Bey/Hanım," — ad tek cinsiyetli listede degilse "Merhaba {{ad}} {{soyad}},".
  */
 export function renderNote(p: ProspectLike): string {
   const kampanya = normalizeKampanya(p.kampanya);
   if (kampanya === 'YATIRIMCI') return renderNoteYatirimci(p);
   if (kampanya === 'ISBIRLIGI') return renderNoteIsbirligi(p);
-  // NEDEN yeni metin (26.11.2026): eski metin sektoru bos kisilerde "Türkiye kurumsal sektörü"
-  // ve "Hepsiburada kapsamda" gibi bozuk cumle uretiyordu (Claude kuru turunda goruldu). Sektor
-  // metinden cikti; firma ek almayan bir cumlede gecer (da/de ve iyelik eki uyumu riski yok).
+  // NEDEN soru (27.11.2026): "ölçüyorum, bağlantı kurmak isterim" notuna kabul eden de cevap
+  // vermiyordu (27.11 mesaj kutusu: sablonlu notlarin hicbirine cevap yok); cevap gelen soguk mesaj somut bir
+  // soru soruyordu. Firma ek almayan konumda ("{firma} var mı") — ek uyumu riski yok.
+  // Sektor metinde yok (26.11: bos sektorde bozuk cumle uretiyordu).
   const firma = p.firma.trim();
-  const olcum = `RanksUp'ta markaların ChatGPT, Gemini ve Google'ın yapay zekâ cevaplarında nasıl göründüğünü ölçüyorum.`;
-  const full = `${hitap(p)}, ${olcum} Ölçüm listemde ${firma} yer alıyor; sonucu ücretsiz paylaşmak için bağlantı kurmak isterim.`;
+  const soru = `müşteriler artık neyi kimden alacaklarını ChatGPT'ye ve Google'ın yapay zekâ cevaplarına soruyor.`;
+  const full = `${hitap(p)}, ${soru} Bu cevaplarda ${firma} var mı, yoksa rakipler mi öne çıkıyor? RanksUp'ta bunu ölçüyorum; sonucu ücretsiz paylaşmak isterim.`;
   if (full.length <= NOTE_MAX_CHARS) return full;
-  const short = `${hitap(p)}, ${olcum} Kurumunuza özel sonucu ücretsiz paylaşmak için bağlantı kurmak isterim.`;
+  const short = `${hitap(p)}, ${soru} Bu cevaplarda kurumunuz var mı, yoksa rakipler mi öne çıkıyor? Sonucu ücretsiz paylaşmak isterim.`;
   if (short.length <= NOTE_MAX_CHARS) return short;
   const cut = short.slice(0, NOTE_MAX_CHARS);
   const sp = cut.lastIndexOf(' ');
@@ -614,13 +636,15 @@ function renderNoteYatirimci(p: ProspectLike): string {
 /** Is birligi notu: ajans / danismanlik / cozum ortakligi */
 function renderNoteIsbirligi(p: ProspectLike): string {
   const firma = p.firma.trim();
+  // NEDEN soru (27.11.2026): ajansa genel tanitim cumlesi cevapsiz kaliyordu; musterisinin
+  // sordugu soruyla acmak konusmayi baslatir.
   const full =
-    `${hitap(p)}, RanksUp'ta markaların ChatGPT ve Gemini gibi AI asistanlarındaki görünürlüğünü ölçüyoruz. ` +
-    `${firma} ile iş birliği (ortak müşteri çalışmaları / çözüm ortaklığı) konuşmak isterim; ` +
-    `bağlantı kurabilir miyiz?`;
+    `${hitap(p)}, müşterileriniz "ChatGPT'de neden çıkmıyoruz?" diye soruyor mu? RanksUp'ta markaların ` +
+    `ChatGPT, Gemini ve Google'ın yapay zekâ cevaplarında nasıl göründüğünü ölçüyoruz. ${firma} ile ` +
+    `iş birliğini konuşmak isterim.`;
   const short =
-    `${hitap(p)}, RanksUp'ta markaların AI asistanlarındaki görünürlüğünü ölçüyoruz. ` +
-    `İş birliği konuşmak için bağlantı kurmak isterim.`;
+    `${hitap(p)}, müşterileriniz "ChatGPT'de neden çıkmıyoruz?" diye soruyor mu? RanksUp'ta bunu ölçüyoruz; ` +
+    `ajans iş birliğini konuşmak isterim.`;
   return fitNote(full, short);
 }
 
