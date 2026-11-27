@@ -101,7 +101,8 @@ export function SaglayiciKrediler() {
 
   const sorunlu = (veri?.satirlar ?? []).filter((s) => s.durum === 'KREDI_BITTI' || s.durum === 'AZALDI');
   // Sabit sutunlar (27.11.2026, sahip: "gösterimi düzelt kötü duruyor"): satirlar arasinda hizali
-  const SUTUNLAR = 'md:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,0.7fr)_minmax(0,1fr)_auto]';
+  // Islem sutunu SABIT genislik: "auto" her satirda icerige gore degisiyor, Düzenle'siz satirlar kayiyordu
+  const SUTUNLAR = 'md:grid-cols-[minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,0.7fr)_minmax(0,1fr)_12.5rem]';
 
   return (
     <Card className={cn(sorunlu.some((s) => s.durum === 'KREDI_BITTI') && 'border-danger/40')}>
